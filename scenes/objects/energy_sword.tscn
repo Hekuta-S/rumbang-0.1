@@ -1,0 +1,13 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/objects/melee_hitbox.gd" id="1_melee"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_sword"]
+size = Vector3(5.0, 2.0, 4.0)
+
+[node name="EnergySword" type="Area3D"]
+script = ExtResource("1_melee")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -2.0)
+shape = SubResource("BoxShape3D_sword")

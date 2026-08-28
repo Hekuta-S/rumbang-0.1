@@ -1,0 +1,30 @@
+[gd_scene load_steps=5 format=3 uid="uid://cgou2j8rl6hv1"]
+
+[ext_resource type="Script" uid="uid://dswvta37fannb" path="res://scripts/objects/weapon_pickup.gd" id="1_pickup"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_wp1"]
+radius = 1.1
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wp2"]
+shading_mode = 0
+albedo_color = Color(1, 0.84, 0, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_wp3"]
+size = Vector3(0.7, 0.7, 0.7)
+
+[node name="WeaponPickup" type="Area3D"]
+collision_layer = 8
+collision_mask = 2
+script = ExtResource("1_pickup")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("SphereShape3D_wp1")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+material_override = SubResource("StandardMaterial3D_wp2")
+mesh = SubResource("BoxMesh_wp3")
+
+[node name="OmniLight3D" type="OmniLight3D" parent="."]
+light_color = Color(1, 0.84, 0, 1)
+light_energy = 3.0
+omni_range = 5.0

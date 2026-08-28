@@ -1,0 +1,729 @@
+[gd_scene format=3 uid="uid://cocanoaidmmt5"]
+
+[ext_resource type="Script" uid="uid://dljkj1cxykbw" path="res://scripts/ui/hud.gd" id="1_hud"]
+[ext_resource type="Shader" uid="uid://4bkqjtqhio0n" path="res://scripts/ui/trapezoid.gdshader" id="2_bo48s"]
+[ext_resource type="Script" uid="uid://chauhxantnomc" path="res://scripts/ui/crosshair.gd" id="2_crosshair"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_stats_panel"]
+content_margin_left = 12.0
+content_margin_top = 10.0
+content_margin_right = 12.0
+content_margin_bottom = 10.0
+bg_color = Color(0.06, 0.08, 0.12, 0.88)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.28, 0.35, 0.48, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_8qguk"]
+bg_color = Color(1, 1, 1, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_bo48s"]
+shader = ExtResource("2_bo48s")
+shader_parameter/top_left = 0.0
+shader_parameter/top_right = 1.0
+shader_parameter/bottom_left = 0.4
+shader_parameter/bottom_right = 1.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_136eg"]
+bg_color = Color(0.18, 0.05, 0.07, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.45, 0.1, 0.12, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_oj5la"]
+bg_color = Color(0.9, 0.2, 0.22, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_gss2c"]
+bg_color = Color(0.05, 0.12, 0.22, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.1, 0.28, 0.45, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_h022r"]
+bg_color = Color(0.18, 0.65, 0.95, 1)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_4jqwt"]
+shader = ExtResource("2_bo48s")
+shader_parameter/top_left = 0.0
+shader_parameter/top_right = 1.0
+shader_parameter/bottom_left = 0.0
+shader_parameter/bottom_right = 0.6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_kicr4"]
+bg_color = Color(0.2, 0.16, 0.04, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.45, 0.35, 0.08, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_mj13f"]
+bg_color = Color(0.98, 0.78, 0.12, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_top_panel"]
+content_margin_left = 10.0
+content_margin_top = 6.0
+content_margin_right = 10.0
+content_margin_bottom = 6.0
+bg_color = Color(0.06, 0.08, 0.12, 0.88)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.28, 0.35, 0.48, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_weapons_panel"]
+content_margin_left = 12.0
+content_margin_top = 8.0
+content_margin_right = 12.0
+content_margin_bottom = 8.0
+bg_color = Color(0.06, 0.08, 0.12, 0.88)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.28, 0.35, 0.48, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_slot_active"]
+bg_color = Color(0.14, 0.22, 0.36, 0.95)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(1, 0.84, 0, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_slot_inactive"]
+bg_color = Color(0.06, 0.08, 0.12, 0.7)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.2, 0.26, 0.36, 0.6)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hp_bg"]
+bg_color = Color(0.18, 0.05, 0.07, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.45, 0.1, 0.12, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_energy_fill"]
+bg_color = Color(0.98, 0.78, 0.12, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hint_panel"]
+content_margin_left = 14.0
+content_margin_top = 6.0
+content_margin_right = 14.0
+content_margin_bottom = 6.0
+bg_color = Color(0.04, 0.05, 0.08, 0.85)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.22, 0.28, 0.38, 0.8)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[node name="HUD" type="CanvasLayer" unique_id=708066651]
+script = ExtResource("1_hud")
+
+[node name="Control" type="Control" parent="." unique_id=283531960]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="StatsPanel" type="PanelContainer" parent="Control" unique_id=92096390]
+custom_minimum_size = Vector2(280, 220)
+layout_mode = 0
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 300.0
+offset_bottom = 240.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_stats_panel")
+
+[node name="Margin" type="MarginContainer" parent="Control/StatsPanel" unique_id=120416474]
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="Control/StatsPanel/Margin" unique_id=1091141896]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="TitleLabel" type="Label" parent="Control/StatsPanel/Margin/VBox" unique_id=1098391939]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.82, 0.95, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 11
+text = "ESTADO DE HÉROE"
+horizontal_alignment = 1
+
+[node name="BarsWithPortrait" type="VBoxContainer" parent="Control/StatsPanel/Margin/VBox" unique_id=1326362107]
+layout_mode = 2
+theme_override_constants/separation = -6
+alignment = 1
+
+[node name="DomeClipping" type="PanelContainer" parent="Control/StatsPanel/Margin/VBox/BarsWithPortrait" unique_id=1084159638]
+clip_children = 1
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_styles/panel = SubResource("StyleBoxFlat_8qguk")
+
+[node name="HBox" type="HBoxContainer" parent="Control/StatsPanel/Margin/VBox/BarsWithPortrait/DomeClipping" unique_id=1900910491]
+layout_mode = 2
+theme_override_constants/separation = 0
+alignment = 1
+
+[node name="HPBox" type="VBoxContainer" parent="Control/StatsPanel/Margin/VBox/BarsWithPortrait/DomeClipping/HBox" unique_id=1124912852]
+layout_mode = 2
+theme_override_constants/separation = 4
+alignment = 2
+
+[node name="ShieldBox" type="VBoxContainer" parent="Control/StatsPanel/Margin/VBox/BarsWithPortrait/DomeClipping/HBox" unique_id=1152962761]
+layout_mode = 2
+theme_override_constants/separation = 4
+alignment = 2
+
+[node name="EnergyBox" type="VBoxContainer" parent="Control/StatsPanel/Margin/VBox/BarsWithPortrait/DomeClipping/HBox" unique_id=901919301]
+layout_mode = 2
+theme_override_constants/separation = 4
+alignment = 2
+
+[node name="BarsHBox" type="HBoxContainer" parent="Control/StatsPanel/Margin/VBox/BarsWithPortrait/DomeClipping" unique_id=289772075]
+layout_mode = 2
+theme_override_constants/separation = 0
+alignment = 1
+
+[node name="HPBar" type="ProgressBar" parent="Control/StatsPanel/Margin/VBox/BarsWithPortrait/DomeClipping/BarsHBox" unique_id=1281051737]
+material = SubResource("ShaderMaterial_bo48s")
+custom_minimum_size = Vector2(8, 100)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_styles/background = SubResource("StyleBoxFlat_136eg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_oj5la")
+value = 100.0
+fill_mode = 3
+show_percentage = false
+
+[node name="ShieldBar" type="ProgressBar" parent="Control/StatsPanel/Margin/VBox/BarsWithPortrait/DomeClipping/BarsHBox" unique_id=499133844]
+custom_minimum_size = Vector2(8, 100)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_styles/background = SubResource("StyleBoxFlat_gss2c")
+theme_override_styles/fill = SubResource("StyleBoxFlat_h022r")
+value = 100.0
+fill_mode = 3
+show_percentage = false
+
+[node name="EnergyBar" type="ProgressBar" parent="Control/StatsPanel/Margin/VBox/BarsWithPortrait/DomeClipping/BarsHBox" unique_id=1432568190]
+material = SubResource("ShaderMaterial_4jqwt")
+custom_minimum_size = Vector2(8, 100)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_styles/background = SubResource("StyleBoxFlat_kicr4")
+theme_override_styles/fill = SubResource("StyleBoxFlat_mj13f")
+value = 100.0
+fill_mode = 3
+show_percentage = false
+
+[node name="LabelsHBox" type="HBoxContainer" parent="Control/StatsPanel/Margin/VBox/BarsWithPortrait" unique_id=899702447]
+layout_mode = 2
+theme_override_constants/separation = 4
+alignment = 1
+
+[node name="HPLabel" type="Label" parent="Control/StatsPanel/Margin/VBox/BarsWithPortrait/LabelsHBox" unique_id=940656438]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.2, 0.22, 1)
+theme_override_colors/font_outline_color = Color(0.1, 0, 0, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 13
+text = "10"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="ShieldLabel" type="Label" parent="Control/StatsPanel/Margin/VBox/BarsWithPortrait/LabelsHBox" unique_id=420579489]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.18, 0.65, 0.95, 1)
+theme_override_colors/font_outline_color = Color(0, 0.05, 0.1, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 12
+text = "5"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="EnergyLabel" type="Label" parent="Control/StatsPanel/Margin/VBox/BarsWithPortrait/LabelsHBox" unique_id=1135121407]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.98, 0.78, 0.12, 1)
+theme_override_colors/font_outline_color = Color(0.1, 0.08, 0, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 12
+text = "200"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="TopRight" type="VBoxContainer" parent="Control" unique_id=469235907]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -190.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = 105.0
+grow_horizontal = 0
+theme_override_constants/separation = 6
+
+[node name="FloorPanel" type="PanelContainer" parent="Control/TopRight" unique_id=2016966847]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_top_panel")
+
+[node name="Margin" type="MarginContainer" parent="Control/TopRight/FloorPanel" unique_id=133653897]
+layout_mode = 2
+
+[node name="FloorLabel" type="Label" parent="Control/TopRight/FloorPanel/Margin" unique_id=2035282676]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.85, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 14
+text = "NIVEL 1-1"
+horizontal_alignment = 2
+
+[node name="GoldPanel" type="PanelContainer" parent="Control/TopRight" unique_id=1414767257]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_top_panel")
+
+[node name="Margin" type="MarginContainer" parent="Control/TopRight/GoldPanel" unique_id=1933256331]
+layout_mode = 2
+
+[node name="GoldLabel" type="Label" parent="Control/TopRight/GoldPanel/Margin" unique_id=1652628605]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.2, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 14
+text = "🪙 0"
+horizontal_alignment = 2
+
+[node name="WeaponsPanel" type="PanelContainer" parent="Control" unique_id=1826603718]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -380.0
+offset_top = -140.0
+offset_right = -20.0
+offset_bottom = -20.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_weapons_panel")
+
+[node name="Margin" type="MarginContainer" parent="Control/WeaponsPanel" unique_id=19810895]
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="Control/WeaponsPanel/Margin" unique_id=91218031]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="TitleLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox" unique_id=313201070]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.84, 0, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 11
+text = "ARMAS ACTIVAS [1-4 / Q]"
+horizontal_alignment = 1
+
+[node name="WeaponsContainer" type="HBoxContainer" parent="Control/WeaponsPanel/Margin/VBox" unique_id=814567172]
+layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="Slot0" type="PanelContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer" unique_id=1371572079]
+custom_minimum_size = Vector2(80, 75)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_slot_active")
+
+[node name="Margin" type="MarginContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot0" unique_id=1328171938]
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot0/Margin" unique_id=282607564]
+layout_mode = 2
+alignment = 1
+
+[node name="HBox" type="HBoxContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot0/Margin/VBox" unique_id=623671722]
+layout_mode = 2
+alignment = 1
+
+[node name="KeyLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot0/Margin/VBox/HBox" unique_id=715416844]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.2, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 11
+text = "[1]"
+
+[node name="IconLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot0/Margin/VBox/HBox" unique_id=334034833]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "🗡️"
+
+[node name="NameLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot0/Margin/VBox" unique_id=2000903879]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 11
+text = "Espada"
+horizontal_alignment = 1
+
+[node name="CostLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot0/Margin/VBox" unique_id=663916470]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.85, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 10
+text = "0 MP"
+horizontal_alignment = 1
+
+[node name="Slot1" type="PanelContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer" unique_id=848676309]
+custom_minimum_size = Vector2(80, 75)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_slot_inactive")
+
+[node name="Margin" type="MarginContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot1" unique_id=1050249658]
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot1/Margin" unique_id=1606316092]
+layout_mode = 2
+alignment = 1
+
+[node name="HBox" type="HBoxContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot1/Margin/VBox" unique_id=1987545161]
+layout_mode = 2
+alignment = 1
+
+[node name="KeyLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot1/Margin/VBox/HBox" unique_id=1059606599]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.2, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 11
+text = "[2]"
+
+[node name="IconLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot1/Margin/VBox/HBox" unique_id=1767872463]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "🔫"
+
+[node name="NameLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot1/Margin/VBox" unique_id=543909313]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 11
+text = "Blaster"
+horizontal_alignment = 1
+
+[node name="CostLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot1/Margin/VBox" unique_id=1911943340]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.85, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 10
+text = "1 MP"
+horizontal_alignment = 1
+
+[node name="Slot2" type="PanelContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer" unique_id=190377539]
+custom_minimum_size = Vector2(80, 75)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_slot_inactive")
+
+[node name="Margin" type="MarginContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot2" unique_id=682836052]
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot2/Margin" unique_id=69104274]
+layout_mode = 2
+alignment = 1
+
+[node name="HBox" type="HBoxContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot2/Margin/VBox" unique_id=894182552]
+layout_mode = 2
+alignment = 1
+
+[node name="KeyLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot2/Margin/VBox/HBox" unique_id=5998453]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.2, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 11
+text = "[3]"
+
+[node name="IconLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot2/Margin/VBox/HBox" unique_id=869915238]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "💥"
+
+[node name="NameLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot2/Margin/VBox" unique_id=418004249]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 11
+text = "Escopeta"
+horizontal_alignment = 1
+
+[node name="CostLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot2/Margin/VBox" unique_id=1855615822]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.85, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 10
+text = "2 MP"
+horizontal_alignment = 1
+
+[node name="Slot3" type="PanelContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer" unique_id=1884697430]
+custom_minimum_size = Vector2(80, 75)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_slot_inactive")
+
+[node name="Margin" type="MarginContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot3" unique_id=1383579617]
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot3/Margin" unique_id=1698665205]
+layout_mode = 2
+alignment = 1
+
+[node name="HBox" type="HBoxContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot3/Margin/VBox" unique_id=470072892]
+layout_mode = 2
+alignment = 1
+
+[node name="KeyLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot3/Margin/VBox/HBox" unique_id=506327776]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.2, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 11
+text = "[4]"
+
+[node name="IconLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot3/Margin/VBox/HBox" unique_id=640150328]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "🔮"
+
+[node name="NameLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot3/Margin/VBox" unique_id=177473859]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 11
+text = "Báculo"
+horizontal_alignment = 1
+
+[node name="CostLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot3/Margin/VBox" unique_id=1450669582]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.85, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 10
+text = "3 MP"
+horizontal_alignment = 1
+
+[node name="ReloadBar" type="ProgressBar" parent="Control/WeaponsPanel/Margin/VBox" unique_id=442589108]
+visible = false
+custom_minimum_size = Vector2(0, 18)
+layout_mode = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_hp_bg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_energy_fill")
+value = 100.0
+show_percentage = false
+
+[node name="ReloadLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/ReloadBar" unique_id=2093812981]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0.1, 0.08, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 11
+text = "RECARGANDO..."
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="ControlsHintPanel" type="PanelContainer" parent="Control" unique_id=1227775482]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -340.0
+offset_top = -48.0
+offset_right = 340.0
+offset_bottom = -14.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_hint_panel")
+
+[node name="ControlsHint" type="Label" parent="Control/ControlsHintPanel" unique_id=435668434]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.95, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 12
+text = "WASD: Mover | Click Izq: Atacar | 1-4 / Q / Rueda: Armas | ESPACIO: Rodar | E: Habilidad"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Crosshair" type="Control" parent="Control" unique_id=261383405]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("2_crosshair")
+
+[node name="GameOverScreen" type="Control" parent="." unique_id=2076750885]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ColorRect" type="ColorRect" parent="GameOverScreen" unique_id=2032304404]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.05, 0.05, 0.08, 0.9)
+
+[node name="VBox" type="VBoxContainer" parent="GameOverScreen" unique_id=1017770018]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -150.0
+offset_top = -80.0
+offset_right = 150.0
+offset_bottom = 80.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Title" type="Label" parent="GameOverScreen/VBox" unique_id=1225629456]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.25, 0.25, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 24
+text = "¡HAS CAÍDO!"
+horizontal_alignment = 1
+
+[node name="RestartBtn" type="Button" parent="GameOverScreen/VBox" unique_id=1427027354]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+text = "VOLVER A INTENTAR"
+
+[node name="VictoryScreen" type="Control" parent="." unique_id=1100809280]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ColorRect" type="ColorRect" parent="VictoryScreen" unique_id=703167707]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.05, 0.08, 0.05, 0.9)
+
+[node name="VBox" type="VBoxContainer" parent="VictoryScreen" unique_id=814628063]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -150.0
+offset_top = -80.0
+offset_right = 150.0
+offset_bottom = 80.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Title" type="Label" parent="VictoryScreen/VBox" unique_id=198289115]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.3, 1, 0.4, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 24
+text = "¡VICTORIA TOTAL!"
+horizontal_alignment = 1
+
+[node name="PlayAgainBtn" type="Button" parent="VictoryScreen/VBox" unique_id=1604741130]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+text = "JUGAR OTRA VEZ"
+
+[connection signal="pressed" from="GameOverScreen/VBox/RestartBtn" to="." method="_on_restart_button_pressed"]
+[connection signal="pressed" from="VictoryScreen/VBox/PlayAgainBtn" to="." method="_on_restart_button_pressed"]

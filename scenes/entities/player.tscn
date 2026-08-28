@@ -1,0 +1,80 @@
+[gd_scene format=3 uid="uid://dqy7o3vjc7mm"]
+
+[ext_resource type="Script" uid="uid://cj6kpfoo3n7oj" path="res://scripts/entities/player.gd" id="1_player"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_p1"]
+radius = 0.45
+height = 1.8
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_p2"]
+albedo_color = Color(0.12, 0.16, 0.23, 1)
+metallic = 0.8
+roughness = 0.3
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_p3"]
+radius = 0.4
+height = 1.6
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_p4"]
+shading_mode = 0
+albedo_color = Color(0, 0.85, 1, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_p5"]
+size = Vector3(0.4, 0.1, 0.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_p6"]
+size = Vector3(2.5, 1.5, 2.5)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_p7"]
+albedo_color = Color(0, 0.85, 1, 1)
+emission_enabled = true
+emission = Color(0, 0.85, 1, 1)
+emission_energy_multiplier = 2.0
+
+[sub_resource type="BoxMesh" id="BoxMesh_p8"]
+size = Vector3(0.12, 1.4, 0.2)
+
+[node name="Player" type="CharacterBody3D" unique_id=282103691]
+collision_layer = 2
+collision_mask = 5
+script = ExtResource("1_player")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1407880717]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+shape = SubResource("CapsuleShape3D_p1")
+
+[node name="SpringArm3D" type="SpringArm3D" parent="." unique_id=1048240792]
+transform = Transform3D(1, 0, 0, 0, 0.939693, 0.34202, 0, -0.34202, 0.939693, 0, 1.8, 0)
+spring_length = 5.5
+margin = 0.2
+
+[node name="Camera3D" type="Camera3D" parent="SpringArm3D" unique_id=1769909717]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0.4, 0)
+far = 6000.0
+
+[node name="KnightMesh" type="Node3D" parent="." unique_id=1977370396]
+
+[node name="BodyMesh" type="MeshInstance3D" parent="KnightMesh" unique_id=1151804939]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+material_override = SubResource("StandardMaterial3D_p2")
+mesh = SubResource("CapsuleMesh_p3")
+
+[node name="Visor" type="MeshInstance3D" parent="KnightMesh" unique_id=1167238444]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.35, -0.3)
+material_override = SubResource("StandardMaterial3D_p4")
+mesh = SubResource("BoxMesh_p5")
+
+[node name="Muzzle" type="Marker3D" parent="KnightMesh" unique_id=2060629199]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.4, 1.1, -0.6)
+
+[node name="MeleeArea" type="Area3D" parent="KnightMesh" unique_id=1144409497]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -1.4)
+collision_layer = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="KnightMesh/MeleeArea" unique_id=1902286018]
+shape = SubResource("BoxShape3D_p6")
+
+[node name="Sword" type="MeshInstance3D" parent="KnightMesh" unique_id=137105496]
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0.45, 0.8, -0.3)
+material_override = SubResource("StandardMaterial3D_p7")
+mesh = SubResource("BoxMesh_p8")

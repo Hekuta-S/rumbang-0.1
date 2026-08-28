@@ -1,0 +1,761 @@
+[gd_scene format=3 uid="uid://bq82xd57haouu"]
+
+[ext_resource type="Script" uid="uid://b822oil03pe86" path="res://scripts/core/main.gd" id="1_main"]
+[ext_resource type="PackedScene" uid="uid://dqy7o3vjc7mm" path="res://scenes/entities/player.tscn" id="2_player"]
+[ext_resource type="PackedScene" uid="uid://cocanoaidmmt5" path="res://scenes/ui/hud.tscn" id="3_hud"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_m1"]
+sky_top_color = Color(0.3, 0.5, 0.8, 1)
+sky_horizon_color = Color(0.6, 0.75, 0.9, 1)
+
+[sub_resource type="Sky" id="Sky_m2"]
+sky_material = SubResource("ProceduralSkyMaterial_m1")
+
+[sub_resource type="Environment" id="Environment_m3"]
+background_mode = 2
+sky = SubResource("Sky_m2")
+ambient_light_color = Color(0.3, 0.4, 0.5, 1)
+tonemap_mode = 2
+glow_enabled = true
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
+albedo_color = Color(0.2, 0.4, 0.15, 1)
+metallic = 0.0
+roughness = 1.0
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+size = Vector3(5000, 1, 5000)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(5000, 1, 5000)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wall"]
+albedo_color = Color(0.45, 0.45, 0.45, 1)
+metallic = 0.0
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="BoxMesh_wall_ns"]
+size = Vector3(5012, 24, 6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_wall_ns"]
+size = Vector3(5012, 24, 6)
+
+[sub_resource type="BoxMesh" id="BoxMesh_wall_ew"]
+size = Vector3(6, 24, 5012)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_wall_ew"]
+size = Vector3(6, 24, 5012)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_bunker"]
+albedo_color = Color(0.5, 0.5, 0.5, 1)
+metallic = 0.0
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="BoxMesh_bunker_wall"]
+size = Vector3(18, 5, 3)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_bunker_wall"]
+size = Vector3(18, 5, 3)
+
+[sub_resource type="BoxMesh" id="BoxMesh_bunker_pillar"]
+size = Vector3(4, 9, 4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_bunker_pillar"]
+size = Vector3(4, 9, 4)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pillar"]
+albedo_color = Color(0.3, 0.2, 0.1, 1)
+metallic = 0.0
+roughness = 0.9
+emission_enabled = true
+emission = Color(1, 0.6, 0.2, 1)
+emission_energy_multiplier = 0.5
+
+[sub_resource type="BoxMesh" id="BoxMesh_pillar"]
+size = Vector3(6, 16, 6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_pillar"]
+size = Vector3(6, 16, 6)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fortress"]
+albedo_color = Color(0.6, 0.6, 0.6, 1)
+metallic = 0.0
+roughness = 0.8
+emission_enabled = true
+emission = Color(1, 0.8, 0.4, 1)
+emission_energy_multiplier = 0.4
+
+[sub_resource type="BoxMesh" id="BoxMesh_fort_wall1"]
+size = Vector3(22, 6, 4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_fort_wall1"]
+size = Vector3(22, 6, 4)
+
+[sub_resource type="BoxMesh" id="BoxMesh_fort_wall2"]
+size = Vector3(4, 6, 22)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_fort_wall2"]
+size = Vector3(4, 6, 22)
+
+[sub_resource type="BoxMesh" id="BoxMesh_fort_core"]
+size = Vector3(6, 12, 6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_fort_core"]
+size = Vector3(6, 12, 6)
+
+[node name="Main" type="Node3D" unique_id=1930337006]
+script = ExtResource("1_main")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1631498321]
+environment = SubResource("Environment_m3")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1069279131]
+transform = Transform3D(0.866025, -0.433013, 0.25, 0, 0.5, 0.866025, -0.5, -0.75, 0.433013, 10, 20, 10)
+shadow_enabled = true
+
+[node name="Floor" type="StaticBody3D" parent="." unique_id=998510495 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+collision_mask = 7
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor" unique_id=1246860955]
+material_override = SubResource("StandardMaterial3D_floor")
+mesh = SubResource("BoxMesh_floor")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor" unique_id=1676271903]
+shape = SubResource("BoxShape3D_floor")
+
+[node name="PerimeterWalls" type="Node3D" parent="." unique_id=735104185]
+
+[node name="Wall_North" type="StaticBody3D" parent="PerimeterWalls" unique_id=1853870100 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12, -2500)
+collision_mask = 7
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="PerimeterWalls/Wall_North" unique_id=924892821]
+material_override = SubResource("StandardMaterial3D_wall")
+mesh = SubResource("BoxMesh_wall_ns")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PerimeterWalls/Wall_North" unique_id=1059530506]
+shape = SubResource("BoxShape3D_wall_ns")
+
+[node name="Wall_South" type="StaticBody3D" parent="PerimeterWalls" unique_id=1338143459 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12, 2500)
+collision_mask = 7
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="PerimeterWalls/Wall_South" unique_id=626878576]
+material_override = SubResource("StandardMaterial3D_wall")
+mesh = SubResource("BoxMesh_wall_ns")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PerimeterWalls/Wall_South" unique_id=260654749]
+shape = SubResource("BoxShape3D_wall_ns")
+
+[node name="Wall_West" type="StaticBody3D" parent="PerimeterWalls" unique_id=837589808 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2500, 12, 0)
+collision_mask = 7
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="PerimeterWalls/Wall_West" unique_id=1819825106]
+material_override = SubResource("StandardMaterial3D_wall")
+mesh = SubResource("BoxMesh_wall_ew")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PerimeterWalls/Wall_West" unique_id=1091046259]
+shape = SubResource("BoxShape3D_wall_ew")
+
+[node name="Wall_East" type="StaticBody3D" parent="PerimeterWalls" unique_id=448472767 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2500, 12, 0)
+collision_mask = 7
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="PerimeterWalls/Wall_East" unique_id=1750835099]
+material_override = SubResource("StandardMaterial3D_wall")
+mesh = SubResource("BoxMesh_wall_ew")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PerimeterWalls/Wall_East" unique_id=1461700268]
+shape = SubResource("BoxShape3D_wall_ew")
+
+[node name="StrategicCover" type="Node3D" parent="." unique_id=1696631122]
+
+[node name="Outpost_01_Bunker_NW_Inner" type="StaticBody3D" parent="StrategicCover" unique_id=1458545305 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -450, 0, -450)
+collision_mask = 7
+
+[node name="WallMesh" type="MeshInstance3D" parent="StrategicCover/Outpost_01_Bunker_NW_Inner" unique_id=1679516800]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
+material_override = SubResource("StandardMaterial3D_bunker")
+mesh = SubResource("BoxMesh_bunker_wall")
+
+[node name="WallShape" type="CollisionShape3D" parent="StrategicCover/Outpost_01_Bunker_NW_Inner" unique_id=730200451]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
+shape = SubResource("BoxShape3D_bunker_wall")
+
+[node name="TowerL" type="MeshInstance3D" parent="StrategicCover/Outpost_01_Bunker_NW_Inner" unique_id=2054914908]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 4.5, 0)
+material_override = SubResource("StandardMaterial3D_bunker")
+mesh = SubResource("BoxMesh_bunker_pillar")
+
+[node name="TowerLShape" type="CollisionShape3D" parent="StrategicCover/Outpost_01_Bunker_NW_Inner" unique_id=1715112822]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 4.5, 0)
+shape = SubResource("BoxShape3D_bunker_pillar")
+
+[node name="TowerR" type="MeshInstance3D" parent="StrategicCover/Outpost_01_Bunker_NW_Inner" unique_id=1199416565]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 4.5, 0)
+material_override = SubResource("StandardMaterial3D_bunker")
+mesh = SubResource("BoxMesh_bunker_pillar")
+
+[node name="TowerRShape" type="CollisionShape3D" parent="StrategicCover/Outpost_01_Bunker_NW_Inner" unique_id=1289028792]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 4.5, 0)
+shape = SubResource("BoxShape3D_bunker_pillar")
+
+[node name="Outpost_02_Bunker_NE_Inner" type="StaticBody3D" parent="StrategicCover" unique_id=445842835 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 450, 0, -450)
+collision_mask = 7
+
+[node name="WallMesh" type="MeshInstance3D" parent="StrategicCover/Outpost_02_Bunker_NE_Inner" unique_id=155739313]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
+material_override = SubResource("StandardMaterial3D_bunker")
+mesh = SubResource("BoxMesh_bunker_wall")
+
+[node name="WallShape" type="CollisionShape3D" parent="StrategicCover/Outpost_02_Bunker_NE_Inner" unique_id=1346682566]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
+shape = SubResource("BoxShape3D_bunker_wall")
+
+[node name="TowerL" type="MeshInstance3D" parent="StrategicCover/Outpost_02_Bunker_NE_Inner" unique_id=724294534]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 4.5, 0)
+material_override = SubResource("StandardMaterial3D_bunker")
+mesh = SubResource("BoxMesh_bunker_pillar")
+
+[node name="TowerLShape" type="CollisionShape3D" parent="StrategicCover/Outpost_02_Bunker_NE_Inner" unique_id=1439617174]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 4.5, 0)
+shape = SubResource("BoxShape3D_bunker_pillar")
+
+[node name="TowerR" type="MeshInstance3D" parent="StrategicCover/Outpost_02_Bunker_NE_Inner" unique_id=38815691]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 4.5, 0)
+material_override = SubResource("StandardMaterial3D_bunker")
+mesh = SubResource("BoxMesh_bunker_pillar")
+
+[node name="TowerRShape" type="CollisionShape3D" parent="StrategicCover/Outpost_02_Bunker_NE_Inner" unique_id=1282227798]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 4.5, 0)
+shape = SubResource("BoxShape3D_bunker_pillar")
+
+[node name="Outpost_03_Bunker_SW_Inner" type="StaticBody3D" parent="StrategicCover" unique_id=1922049347 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -450, 0, 450)
+collision_mask = 7
+
+[node name="WallMesh" type="MeshInstance3D" parent="StrategicCover/Outpost_03_Bunker_SW_Inner" unique_id=1389285210]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
+material_override = SubResource("StandardMaterial3D_bunker")
+mesh = SubResource("BoxMesh_bunker_wall")
+
+[node name="WallShape" type="CollisionShape3D" parent="StrategicCover/Outpost_03_Bunker_SW_Inner" unique_id=1437064265]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
+shape = SubResource("BoxShape3D_bunker_wall")
+
+[node name="TowerL" type="MeshInstance3D" parent="StrategicCover/Outpost_03_Bunker_SW_Inner" unique_id=722696614]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 4.5, 0)
+material_override = SubResource("StandardMaterial3D_bunker")
+mesh = SubResource("BoxMesh_bunker_pillar")
+
+[node name="TowerLShape" type="CollisionShape3D" parent="StrategicCover/Outpost_03_Bunker_SW_Inner" unique_id=1439619251]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 4.5, 0)
+shape = SubResource("BoxShape3D_bunker_pillar")
+
+[node name="TowerR" type="MeshInstance3D" parent="StrategicCover/Outpost_03_Bunker_SW_Inner" unique_id=135309717]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 4.5, 0)
+material_override = SubResource("StandardMaterial3D_bunker")
+mesh = SubResource("BoxMesh_bunker_pillar")
+
+[node name="TowerRShape" type="CollisionShape3D" parent="StrategicCover/Outpost_03_Bunker_SW_Inner" unique_id=447373630]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 4.5, 0)
+shape = SubResource("BoxShape3D_bunker_pillar")
+
+[node name="Outpost_04_Bunker_SE_Inner" type="StaticBody3D" parent="StrategicCover" unique_id=505570401 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 450, 0, 450)
+collision_mask = 7
+
+[node name="WallMesh" type="MeshInstance3D" parent="StrategicCover/Outpost_04_Bunker_SE_Inner" unique_id=672470931]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
+material_override = SubResource("StandardMaterial3D_bunker")
+mesh = SubResource("BoxMesh_bunker_wall")
+
+[node name="WallShape" type="CollisionShape3D" parent="StrategicCover/Outpost_04_Bunker_SE_Inner" unique_id=2098723507]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
+shape = SubResource("BoxShape3D_bunker_wall")
+
+[node name="TowerL" type="MeshInstance3D" parent="StrategicCover/Outpost_04_Bunker_SE_Inner" unique_id=1166187706]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 4.5, 0)
+material_override = SubResource("StandardMaterial3D_bunker")
+mesh = SubResource("BoxMesh_bunker_pillar")
+
+[node name="TowerLShape" type="CollisionShape3D" parent="StrategicCover/Outpost_04_Bunker_SE_Inner" unique_id=1389990693]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 4.5, 0)
+shape = SubResource("BoxShape3D_bunker_pillar")
+
+[node name="TowerR" type="MeshInstance3D" parent="StrategicCover/Outpost_04_Bunker_SE_Inner" unique_id=1666811474]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 4.5, 0)
+material_override = SubResource("StandardMaterial3D_bunker")
+mesh = SubResource("BoxMesh_bunker_pillar")
+
+[node name="TowerRShape" type="CollisionShape3D" parent="StrategicCover/Outpost_04_Bunker_SE_Inner" unique_id=1171598730]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 4.5, 0)
+shape = SubResource("BoxShape3D_bunker_pillar")
+
+[node name="Outpost_05_Pillar_N_Inner" type="StaticBody3D" parent="StrategicCover" unique_id=1294048446 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8, -650)
+collision_mask = 7
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StrategicCover/Outpost_05_Pillar_N_Inner" unique_id=1854788171]
+material_override = SubResource("StandardMaterial3D_pillar")
+mesh = SubResource("BoxMesh_pillar")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StrategicCover/Outpost_05_Pillar_N_Inner" unique_id=1307526703]
+shape = SubResource("BoxShape3D_pillar")
+
+[node name="Outpost_06_Pillar_S_Inner" type="StaticBody3D" parent="StrategicCover" unique_id=286782055 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8, 650)
+collision_mask = 7
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StrategicCover/Outpost_06_Pillar_S_Inner" unique_id=617093169]
+material_override = SubResource("StandardMaterial3D_pillar")
+mesh = SubResource("BoxMesh_pillar")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StrategicCover/Outpost_06_Pillar_S_Inner" unique_id=615346483]
+shape = SubResource("BoxShape3D_pillar")
+
+[node name="Outpost_07_Pillar_W_Inner" type="StaticBody3D" parent="StrategicCover" unique_id=1596285140 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -650, 8, 0)
+collision_mask = 7
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StrategicCover/Outpost_07_Pillar_W_Inner" unique_id=883460523]
+material_override = SubResource("StandardMaterial3D_pillar")
+mesh = SubResource("BoxMesh_pillar")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StrategicCover/Outpost_07_Pillar_W_Inner" unique_id=185267081]
+shape = SubResource("BoxShape3D_pillar")
+
+[node name="Outpost_08_Pillar_E_Inner" type="StaticBody3D" parent="StrategicCover" unique_id=809508012 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 650, 8, 0)
+collision_mask = 7
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StrategicCover/Outpost_08_Pillar_E_Inner" unique_id=2143092271]
+material_override = SubResource("StandardMaterial3D_pillar")
+mesh = SubResource("BoxMesh_pillar")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StrategicCover/Outpost_08_Pillar_E_Inner" unique_id=1317120604]
+shape = SubResource("BoxShape3D_pillar")
+
+[node name="Outpost_09_Fortress_N_Mid" type="StaticBody3D" parent="StrategicCover" unique_id=363199015 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1350)
+collision_mask = 7
+
+[node name="Cross1Mesh" type="MeshInstance3D" parent="StrategicCover/Outpost_09_Fortress_N_Mid" unique_id=510403253]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+material_override = SubResource("StandardMaterial3D_fortress")
+mesh = SubResource("BoxMesh_fort_wall1")
+
+[node name="Cross1Shape" type="CollisionShape3D" parent="StrategicCover/Outpost_09_Fortress_N_Mid" unique_id=1671916109]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+shape = SubResource("BoxShape3D_fort_wall1")
+
+[node name="Cross2Mesh" type="MeshInstance3D" parent="StrategicCover/Outpost_09_Fortress_N_Mid" unique_id=2133820448]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+material_override = SubResource("StandardMaterial3D_fortress")
+mesh = SubResource("BoxMesh_fort_wall2")
+
+[node name="Cross2Shape" type="CollisionShape3D" parent="StrategicCover/Outpost_09_Fortress_N_Mid" unique_id=1832118131]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+shape = SubResource("BoxShape3D_fort_wall2")
+
+[node name="CoreMesh" type="MeshInstance3D" parent="StrategicCover/Outpost_09_Fortress_N_Mid" unique_id=732606585]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 0)
+material_override = SubResource("StandardMaterial3D_pillar")
+mesh = SubResource("BoxMesh_fort_core")
+
+[node name="CoreShape" type="CollisionShape3D" parent="StrategicCover/Outpost_09_Fortress_N_Mid" unique_id=939289399]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 0)
+shape = SubResource("BoxShape3D_fort_core")
+
+[node name="Outpost_10_Fortress_S_Mid" type="StaticBody3D" parent="StrategicCover" unique_id=1289651024 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1350)
+collision_mask = 7
+
+[node name="Cross1Mesh" type="MeshInstance3D" parent="StrategicCover/Outpost_10_Fortress_S_Mid" unique_id=322597481]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+material_override = SubResource("StandardMaterial3D_fortress")
+mesh = SubResource("BoxMesh_fort_wall1")
+
+[node name="Cross1Shape" type="CollisionShape3D" parent="StrategicCover/Outpost_10_Fortress_S_Mid" unique_id=415927146]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+shape = SubResource("BoxShape3D_fort_wall1")
+
+[node name="Cross2Mesh" type="MeshInstance3D" parent="StrategicCover/Outpost_10_Fortress_S_Mid" unique_id=1770871899]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+material_override = SubResource("StandardMaterial3D_fortress")
+mesh = SubResource("BoxMesh_fort_wall2")
+
+[node name="Cross2Shape" type="CollisionShape3D" parent="StrategicCover/Outpost_10_Fortress_S_Mid" unique_id=801927471]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+shape = SubResource("BoxShape3D_fort_wall2")
+
+[node name="CoreMesh" type="MeshInstance3D" parent="StrategicCover/Outpost_10_Fortress_S_Mid" unique_id=1145687646]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 0)
+material_override = SubResource("StandardMaterial3D_pillar")
+mesh = SubResource("BoxMesh_fort_core")
+
+[node name="CoreShape" type="CollisionShape3D" parent="StrategicCover/Outpost_10_Fortress_S_Mid" unique_id=943476951]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 0)
+shape = SubResource("BoxShape3D_fort_core")
+
+[node name="Outpost_11_Fortress_W_Mid" type="StaticBody3D" parent="StrategicCover" unique_id=1101015265 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1350, 0, 0)
+collision_mask = 7
+
+[node name="Cross1Mesh" type="MeshInstance3D" parent="StrategicCover/Outpost_11_Fortress_W_Mid" unique_id=820730597]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+material_override = SubResource("StandardMaterial3D_fortress")
+mesh = SubResource("BoxMesh_fort_wall1")
+
+[node name="Cross1Shape" type="CollisionShape3D" parent="StrategicCover/Outpost_11_Fortress_W_Mid" unique_id=1816259046]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+shape = SubResource("BoxShape3D_fort_wall1")
+
+[node name="Cross2Mesh" type="MeshInstance3D" parent="StrategicCover/Outpost_11_Fortress_W_Mid" unique_id=568444816]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+material_override = SubResource("StandardMaterial3D_fortress")
+mesh = SubResource("BoxMesh_fort_wall2")
+
+[node name="Cross2Shape" type="CollisionShape3D" parent="StrategicCover/Outpost_11_Fortress_W_Mid" unique_id=1246505291]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+shape = SubResource("BoxShape3D_fort_wall2")
+
+[node name="CoreMesh" type="MeshInstance3D" parent="StrategicCover/Outpost_11_Fortress_W_Mid" unique_id=1834839946]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 0)
+material_override = SubResource("StandardMaterial3D_pillar")
+mesh = SubResource("BoxMesh_fort_core")
+
+[node name="CoreShape" type="CollisionShape3D" parent="StrategicCover/Outpost_11_Fortress_W_Mid" unique_id=789113668]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 0)
+shape = SubResource("BoxShape3D_fort_core")
+
+[node name="Outpost_12_Fortress_E_Mid" type="StaticBody3D" parent="StrategicCover" unique_id=905447413 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1350, 0, 0)
+collision_mask = 7
+
+[node name="Cross1Mesh" type="MeshInstance3D" parent="StrategicCover/Outpost_12_Fortress_E_Mid" unique_id=371283129]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+material_override = SubResource("StandardMaterial3D_fortress")
+mesh = SubResource("BoxMesh_fort_wall1")
+
+[node name="Cross1Shape" type="CollisionShape3D" parent="StrategicCover/Outpost_12_Fortress_E_Mid" unique_id=351322097]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+shape = SubResource("BoxShape3D_fort_wall1")
+
+[node name="Cross2Mesh" type="MeshInstance3D" parent="StrategicCover/Outpost_12_Fortress_E_Mid" unique_id=1171946788]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+material_override = SubResource("StandardMaterial3D_fortress")
+mesh = SubResource("BoxMesh_fort_wall2")
+
+[node name="Cross2Shape" type="CollisionShape3D" parent="StrategicCover/Outpost_12_Fortress_E_Mid" unique_id=410499817]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+shape = SubResource("BoxShape3D_fort_wall2")
+
+[node name="CoreMesh" type="MeshInstance3D" parent="StrategicCover/Outpost_12_Fortress_E_Mid" unique_id=1449541650]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 0)
+material_override = SubResource("StandardMaterial3D_pillar")
+mesh = SubResource("BoxMesh_fort_core")
+
+[node name="CoreShape" type="CollisionShape3D" parent="StrategicCover/Outpost_12_Fortress_E_Mid" unique_id=1047235721]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 0)
+shape = SubResource("BoxShape3D_fort_core")
+
+[node name="Outpost_13_Pillar_NW_Mid" type="StaticBody3D" parent="StrategicCover" unique_id=1298206949 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1150, 8, -1150)
+collision_mask = 7
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StrategicCover/Outpost_13_Pillar_NW_Mid" unique_id=901191781]
+material_override = SubResource("StandardMaterial3D_pillar")
+mesh = SubResource("BoxMesh_pillar")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StrategicCover/Outpost_13_Pillar_NW_Mid" unique_id=2055481175]
+shape = SubResource("BoxShape3D_pillar")
+
+[node name="Outpost_14_Pillar_NE_Mid" type="StaticBody3D" parent="StrategicCover" unique_id=1319567934 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1150, 8, -1150)
+collision_mask = 7
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StrategicCover/Outpost_14_Pillar_NE_Mid" unique_id=2146415125]
+material_override = SubResource("StandardMaterial3D_pillar")
+mesh = SubResource("BoxMesh_pillar")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StrategicCover/Outpost_14_Pillar_NE_Mid" unique_id=833615759]
+shape = SubResource("BoxShape3D_pillar")
+
+[node name="Outpost_15_Pillar_SW_Mid" type="StaticBody3D" parent="StrategicCover" unique_id=1942245591 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1150, 8, 1150)
+collision_mask = 7
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StrategicCover/Outpost_15_Pillar_SW_Mid" unique_id=507157377]
+material_override = SubResource("StandardMaterial3D_pillar")
+mesh = SubResource("BoxMesh_pillar")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StrategicCover/Outpost_15_Pillar_SW_Mid" unique_id=1956181901]
+shape = SubResource("BoxShape3D_pillar")
+
+[node name="Outpost_16_Pillar_SE_Mid" type="StaticBody3D" parent="StrategicCover" unique_id=1723217656 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1150, 8, 1150)
+collision_mask = 7
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StrategicCover/Outpost_16_Pillar_SE_Mid" unique_id=1840663587]
+material_override = SubResource("StandardMaterial3D_pillar")
+mesh = SubResource("BoxMesh_pillar")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StrategicCover/Outpost_16_Pillar_SE_Mid" unique_id=435477942]
+shape = SubResource("BoxShape3D_pillar")
+
+[node name="Outpost_17_Bunker_NW_Outer" type="StaticBody3D" parent="StrategicCover" unique_id=532052369 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1950, 0, -1950)
+collision_mask = 7
+
+[node name="WallMesh" type="MeshInstance3D" parent="StrategicCover/Outpost_17_Bunker_NW_Outer" unique_id=332248246]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
+material_override = SubResource("StandardMaterial3D_bunker")
+mesh = SubResource("BoxMesh_bunker_wall")
+
+[node name="WallShape" type="CollisionShape3D" parent="StrategicCover/Outpost_17_Bunker_NW_Outer" unique_id=1744614800]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
+shape = SubResource("BoxShape3D_bunker_wall")
+
+[node name="TowerL" type="MeshInstance3D" parent="StrategicCover/Outpost_17_Bunker_NW_Outer" unique_id=1812193008]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 4.5, 0)
+material_override = SubResource("StandardMaterial3D_bunker")
+mesh = SubResource("BoxMesh_bunker_pillar")
+
+[node name="TowerLShape" type="CollisionShape3D" parent="StrategicCover/Outpost_17_Bunker_NW_Outer" unique_id=1138619094]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 4.5, 0)
+shape = SubResource("BoxShape3D_bunker_pillar")
+
+[node name="TowerR" type="MeshInstance3D" parent="StrategicCover/Outpost_17_Bunker_NW_Outer" unique_id=1639432105]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 4.5, 0)
+material_override = SubResource("StandardMaterial3D_bunker")
+mesh = SubResource("BoxMesh_bunker_pillar")
+
+[node name="TowerRShape" type="CollisionShape3D" parent="StrategicCover/Outpost_17_Bunker_NW_Outer" unique_id=1933105199]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 4.5, 0)
+shape = SubResource("BoxShape3D_bunker_pillar")
+
+[node name="Outpost_18_Bunker_NE_Outer" type="StaticBody3D" parent="StrategicCover" unique_id=1730316277 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1950, 0, -1950)
+collision_mask = 7
+
+[node name="WallMesh" type="MeshInstance3D" parent="StrategicCover/Outpost_18_Bunker_NE_Outer" unique_id=164147914]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
+material_override = SubResource("StandardMaterial3D_bunker")
+mesh = SubResource("BoxMesh_bunker_wall")
+
+[node name="WallShape" type="CollisionShape3D" parent="StrategicCover/Outpost_18_Bunker_NE_Outer" unique_id=275020398]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
+shape = SubResource("BoxShape3D_bunker_wall")
+
+[node name="TowerL" type="MeshInstance3D" parent="StrategicCover/Outpost_18_Bunker_NE_Outer" unique_id=250093974]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 4.5, 0)
+material_override = SubResource("StandardMaterial3D_bunker")
+mesh = SubResource("BoxMesh_bunker_pillar")
+
+[node name="TowerLShape" type="CollisionShape3D" parent="StrategicCover/Outpost_18_Bunker_NE_Outer" unique_id=989448455]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 4.5, 0)
+shape = SubResource("BoxShape3D_bunker_pillar")
+
+[node name="TowerR" type="MeshInstance3D" parent="StrategicCover/Outpost_18_Bunker_NE_Outer" unique_id=1771847554]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 4.5, 0)
+material_override = SubResource("StandardMaterial3D_bunker")
+mesh = SubResource("BoxMesh_bunker_pillar")
+
+[node name="TowerRShape" type="CollisionShape3D" parent="StrategicCover/Outpost_18_Bunker_NE_Outer" unique_id=270459496]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 4.5, 0)
+shape = SubResource("BoxShape3D_bunker_pillar")
+
+[node name="Outpost_19_Bunker_SW_Outer" type="StaticBody3D" parent="StrategicCover" unique_id=2049025935 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1950, 0, 1950)
+collision_mask = 7
+
+[node name="WallMesh" type="MeshInstance3D" parent="StrategicCover/Outpost_19_Bunker_SW_Outer" unique_id=1594237460]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
+material_override = SubResource("StandardMaterial3D_bunker")
+mesh = SubResource("BoxMesh_bunker_wall")
+
+[node name="WallShape" type="CollisionShape3D" parent="StrategicCover/Outpost_19_Bunker_SW_Outer" unique_id=1144809224]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
+shape = SubResource("BoxShape3D_bunker_wall")
+
+[node name="TowerL" type="MeshInstance3D" parent="StrategicCover/Outpost_19_Bunker_SW_Outer" unique_id=674392873]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 4.5, 0)
+material_override = SubResource("StandardMaterial3D_bunker")
+mesh = SubResource("BoxMesh_bunker_pillar")
+
+[node name="TowerLShape" type="CollisionShape3D" parent="StrategicCover/Outpost_19_Bunker_SW_Outer" unique_id=2128833813]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 4.5, 0)
+shape = SubResource("BoxShape3D_bunker_pillar")
+
+[node name="TowerR" type="MeshInstance3D" parent="StrategicCover/Outpost_19_Bunker_SW_Outer" unique_id=337775204]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 4.5, 0)
+material_override = SubResource("StandardMaterial3D_bunker")
+mesh = SubResource("BoxMesh_bunker_pillar")
+
+[node name="TowerRShape" type="CollisionShape3D" parent="StrategicCover/Outpost_19_Bunker_SW_Outer" unique_id=53609423]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 4.5, 0)
+shape = SubResource("BoxShape3D_bunker_pillar")
+
+[node name="Outpost_20_Bunker_SE_Outer" type="StaticBody3D" parent="StrategicCover" unique_id=850463990 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1950, 0, 1950)
+collision_mask = 7
+
+[node name="WallMesh" type="MeshInstance3D" parent="StrategicCover/Outpost_20_Bunker_SE_Outer" unique_id=1910587784]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
+material_override = SubResource("StandardMaterial3D_bunker")
+mesh = SubResource("BoxMesh_bunker_wall")
+
+[node name="WallShape" type="CollisionShape3D" parent="StrategicCover/Outpost_20_Bunker_SE_Outer" unique_id=1178276350]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
+shape = SubResource("BoxShape3D_bunker_wall")
+
+[node name="TowerL" type="MeshInstance3D" parent="StrategicCover/Outpost_20_Bunker_SE_Outer" unique_id=262087807]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 4.5, 0)
+material_override = SubResource("StandardMaterial3D_bunker")
+mesh = SubResource("BoxMesh_bunker_pillar")
+
+[node name="TowerLShape" type="CollisionShape3D" parent="StrategicCover/Outpost_20_Bunker_SE_Outer" unique_id=1555160506]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 4.5, 0)
+shape = SubResource("BoxShape3D_bunker_pillar")
+
+[node name="TowerR" type="MeshInstance3D" parent="StrategicCover/Outpost_20_Bunker_SE_Outer" unique_id=1799145874]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 4.5, 0)
+material_override = SubResource("StandardMaterial3D_bunker")
+mesh = SubResource("BoxMesh_bunker_pillar")
+
+[node name="TowerRShape" type="CollisionShape3D" parent="StrategicCover/Outpost_20_Bunker_SE_Outer" unique_id=789858662]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 4.5, 0)
+shape = SubResource("BoxShape3D_bunker_pillar")
+
+[node name="Outpost_21_Fortress_N_Outer" type="StaticBody3D" parent="StrategicCover" unique_id=184138594 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -850, 0, -2050)
+collision_mask = 7
+
+[node name="Cross1Mesh" type="MeshInstance3D" parent="StrategicCover/Outpost_21_Fortress_N_Outer" unique_id=185518338]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+material_override = SubResource("StandardMaterial3D_fortress")
+mesh = SubResource("BoxMesh_fort_wall1")
+
+[node name="Cross1Shape" type="CollisionShape3D" parent="StrategicCover/Outpost_21_Fortress_N_Outer" unique_id=1056152262]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+shape = SubResource("BoxShape3D_fort_wall1")
+
+[node name="Cross2Mesh" type="MeshInstance3D" parent="StrategicCover/Outpost_21_Fortress_N_Outer" unique_id=196415067]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+material_override = SubResource("StandardMaterial3D_fortress")
+mesh = SubResource("BoxMesh_fort_wall2")
+
+[node name="Cross2Shape" type="CollisionShape3D" parent="StrategicCover/Outpost_21_Fortress_N_Outer" unique_id=1785378952]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+shape = SubResource("BoxShape3D_fort_wall2")
+
+[node name="CoreMesh" type="MeshInstance3D" parent="StrategicCover/Outpost_21_Fortress_N_Outer" unique_id=454507196]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 0)
+material_override = SubResource("StandardMaterial3D_pillar")
+mesh = SubResource("BoxMesh_fort_core")
+
+[node name="CoreShape" type="CollisionShape3D" parent="StrategicCover/Outpost_21_Fortress_N_Outer" unique_id=614689167]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 0)
+shape = SubResource("BoxShape3D_fort_core")
+
+[node name="Outpost_22_Fortress_S_Outer" type="StaticBody3D" parent="StrategicCover" unique_id=1621346877 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 850, 0, 2050)
+collision_mask = 7
+
+[node name="Cross1Mesh" type="MeshInstance3D" parent="StrategicCover/Outpost_22_Fortress_S_Outer" unique_id=1813132791]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+material_override = SubResource("StandardMaterial3D_fortress")
+mesh = SubResource("BoxMesh_fort_wall1")
+
+[node name="Cross1Shape" type="CollisionShape3D" parent="StrategicCover/Outpost_22_Fortress_S_Outer" unique_id=630029145]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+shape = SubResource("BoxShape3D_fort_wall1")
+
+[node name="Cross2Mesh" type="MeshInstance3D" parent="StrategicCover/Outpost_22_Fortress_S_Outer" unique_id=1727965009]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+material_override = SubResource("StandardMaterial3D_fortress")
+mesh = SubResource("BoxMesh_fort_wall2")
+
+[node name="Cross2Shape" type="CollisionShape3D" parent="StrategicCover/Outpost_22_Fortress_S_Outer" unique_id=305885062]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+shape = SubResource("BoxShape3D_fort_wall2")
+
+[node name="CoreMesh" type="MeshInstance3D" parent="StrategicCover/Outpost_22_Fortress_S_Outer" unique_id=1803434353]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 0)
+material_override = SubResource("StandardMaterial3D_pillar")
+mesh = SubResource("BoxMesh_fort_core")
+
+[node name="CoreShape" type="CollisionShape3D" parent="StrategicCover/Outpost_22_Fortress_S_Outer" unique_id=246997791]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 0)
+shape = SubResource("BoxShape3D_fort_core")
+
+[node name="Outpost_23_Fortress_W_Outer" type="StaticBody3D" parent="StrategicCover" unique_id=1982359825 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2050, 0, 850)
+collision_mask = 7
+
+[node name="Cross1Mesh" type="MeshInstance3D" parent="StrategicCover/Outpost_23_Fortress_W_Outer" unique_id=837514755]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+material_override = SubResource("StandardMaterial3D_fortress")
+mesh = SubResource("BoxMesh_fort_wall1")
+
+[node name="Cross1Shape" type="CollisionShape3D" parent="StrategicCover/Outpost_23_Fortress_W_Outer" unique_id=1943136615]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+shape = SubResource("BoxShape3D_fort_wall1")
+
+[node name="Cross2Mesh" type="MeshInstance3D" parent="StrategicCover/Outpost_23_Fortress_W_Outer" unique_id=2118099364]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+material_override = SubResource("StandardMaterial3D_fortress")
+mesh = SubResource("BoxMesh_fort_wall2")
+
+[node name="Cross2Shape" type="CollisionShape3D" parent="StrategicCover/Outpost_23_Fortress_W_Outer" unique_id=1829754232]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+shape = SubResource("BoxShape3D_fort_wall2")
+
+[node name="CoreMesh" type="MeshInstance3D" parent="StrategicCover/Outpost_23_Fortress_W_Outer" unique_id=2072771697]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 0)
+material_override = SubResource("StandardMaterial3D_pillar")
+mesh = SubResource("BoxMesh_fort_core")
+
+[node name="CoreShape" type="CollisionShape3D" parent="StrategicCover/Outpost_23_Fortress_W_Outer" unique_id=2059137749]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 0)
+shape = SubResource("BoxShape3D_fort_core")
+
+[node name="Outpost_24_Fortress_E_Outer" type="StaticBody3D" parent="StrategicCover" unique_id=715419457 groups=["walls"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2050, 0, -850)
+collision_mask = 7
+
+[node name="Cross1Mesh" type="MeshInstance3D" parent="StrategicCover/Outpost_24_Fortress_E_Outer" unique_id=473658940]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+material_override = SubResource("StandardMaterial3D_fortress")
+mesh = SubResource("BoxMesh_fort_wall1")
+
+[node name="Cross1Shape" type="CollisionShape3D" parent="StrategicCover/Outpost_24_Fortress_E_Outer" unique_id=924784332]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+shape = SubResource("BoxShape3D_fort_wall1")
+
+[node name="Cross2Mesh" type="MeshInstance3D" parent="StrategicCover/Outpost_24_Fortress_E_Outer" unique_id=432435286]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+material_override = SubResource("StandardMaterial3D_fortress")
+mesh = SubResource("BoxMesh_fort_wall2")
+
+[node name="Cross2Shape" type="CollisionShape3D" parent="StrategicCover/Outpost_24_Fortress_E_Outer" unique_id=171271565]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+shape = SubResource("BoxShape3D_fort_wall2")
+
+[node name="CoreMesh" type="MeshInstance3D" parent="StrategicCover/Outpost_24_Fortress_E_Outer" unique_id=639993567]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 0)
+material_override = SubResource("StandardMaterial3D_pillar")
+mesh = SubResource("BoxMesh_fort_core")
+
+[node name="CoreShape" type="CollisionShape3D" parent="StrategicCover/Outpost_24_Fortress_E_Outer" unique_id=1523312541]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 0)
+shape = SubResource("BoxShape3D_fort_core")
+
+[node name="Player" parent="." unique_id=2044621313 instance=ExtResource("2_player")]
+
+[node name="HUD" parent="." unique_id=945406127 instance=ExtResource("3_hud")]

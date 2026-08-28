@@ -1,0 +1,148 @@
+=============================================================
+RUNBANG - SISTEMA DE MEJORA DE ARMAS (PROYECTO TESIS)
+=============================================================
+Modelo base: cada arma tiene hasta 8 niveles. Subir de nivel
+NO es lineal en todos los stats -- cada arma prioriza 2-3 stats
+segun su fantasy (una espada mejora area/daño, un arma a
+distancia mejora cantidad/velocidad, etc). Esto evita que
+todas las armas se sientan iguales al subir de nivel.
+-------------------------------------------------------------
+1. STATS QUE SE PUEDEN MEJORAR (definicion general)
+-------------------------------------------------------------
+- DAÑO         : daño base por golpe/proyectil.
+- TAMAÑO/AREA  : escala visual y de hitbox del arma o su AOE.
+- VELOCIDAD DE PROYECTIL : que tan rapido viaja (solo ranged).
+- VELOCIDAD DE ATAQUE    : cadencia entre golpes/disparos.
+- CANTIDAD     : numero de proyectiles/golpes/instancias
+                 generadas por activacion.
+- DURACION     : cuanto dura el efecto/hitbox en pantalla
+                 (charcos, auras, nubes, etc).
+- PENETRACION  : cuantos enemigos puede atravesar antes de
+                 desaparecer (pierce).
+- EMPUJE       : fuerza de knockback aplicada al golpear.
+- COOLDOWN     : tiempo de reutilizacion del arma completa
+                 (distinto de velocidad de ataque: aplica a
+                 armas de activacion unica, no automaticas).
+-------------------------------------------------------------
+2. TABLA GENERICA DE PROGRESION (1-8)
+-------------------------------------------------------------
+Nivel 1 -> Arma base, stats de referencia (100%).
+Nivel 2 -> +15% daño.
+Nivel 3 -> +10% tamaño/area O +1 cantidad (segun tipo de arma).
+Nivel 4 -> +15% velocidad de ataque O -10% cooldown.
+Nivel 5 -> +15% daño adicional (total ~30% desde nivel 1).
+Nivel 6 -> +1 cantidad adicional O +1 penetracion.
+Nivel 7 -> +15% tamaño/area adicional (total ~25%).
+Nivel 8 (MAX) -> Efecto unico especial (ver seccion 4), no es
+                 solo stat: desbloquea comportamiento nuevo.
+                 Requisito para evolucion (ver documento
+                 anterior de items).
+-------------------------------------------------------------
+3. PRIORIDAD DE STATS SEGUN TIPO DE ARMA
+-------------------------------------------------------------
+MELEE (Espalanza, Hacha de Fuego, Dagas de Crane, Puños de
+Kaionz, Lanzallamas, Látigo de Espinas, Garras de Ola, Machete
+Encantado):
+  Prioridad -> TAMAÑO/AREA > VELOCIDAD DE ATAQUE > DAÑO
+  Motivo: el melee vive de cubrir espacio y golpear seguido.
+  La cantidad rara vez aplica (excepto dagas/garras dobles).
+
+RANGED (Rifle de Plasma, Railgun, Escopeta de Humo, Bazuca de
+Esporas, Serpientes de Joel, Silbato Espectral, Tridente de
+Río):
+  Prioridad -> CANTIDAD > VELOCIDAD DE PROYECTIL > PENETRACION
+  Motivo: el ranged escala con numero de proyectiles en
+  pantalla, no con un solo golpe grande.
+
+SPECIAL / AREA (Polvos Alquímicos de Tatan, Zona de Radiación
+de Vangry, Tambor de Guerra):
+  Prioridad -> DURACION > TAMAÑO/AREA > DAÑO POR TICK
+  Motivo: son armas de control de zona, ganan valor con
+  presencia sostenida, no con burst.
+-------------------------------------------------------------
+4. EFECTOS UNICOS DE NIVEL 8 (MAX) POR ARMA
+   (parcial -- ejemplos representativos de cada categoria)
+-------------------------------------------------------------
+Espalanza de Mikeura (melee, tanque)
+  Nivel 8: cada 4to golpe genera un empuje en area completa
+  alrededor de Mikeura (mini version de su pasiva de escudo).
+
+Lanzallamas de Vangry (melee, area)
+  Nivel 8: dejar de moverse por 1s activa "sobrecarga": el
+  cono de fuego se duplica en ancho por 3s.
+
+Bazuca de Esporas de Bronch (ranged, dot)
+  Nivel 8: las nubes corrosivas ahora se propagan a nubes
+  vecinas si se solapan (reaccion en cadena).
+
+Dagas Gemelas de Crane (melee, rapido)
+  Nivel 8: cada 10 golpes sin fallar, el siguiente golpe
+  ignora resistencia/armadura del objetivo.
+
+Puños de Aire de Kaionz (melee, movilidad)
+  Nivel 8: el golpe final del combo genera una rafaga que
+  empuja a Kaionz hacia atras (dash defensivo gratuito).
+
+Polvos Alquímicos de Tatan (special, caos)
+  Nivel 8: el debuff aleatorio nunca repite el mismo efecto
+  dos veces seguidas (garantiza variedad, sube probabilidad
+  de efectos fuertes).
+
+Serpientes de Joel (ranged/invocacion)
+  Nivel 8: las serpientes ya no desaparecen al matar, pasan
+  al siguiente enemigo mas cercano (encadenamiento).
+
+Escopeta de Humo de Riva (ranged, movilidad)
+  Nivel 8: disparar durante la "super carrera" no reduce la
+  velocidad de movimiento (antes si penalizaba).
+
+Hacha Giratoria de Garri (melee/orbital)
+  Nivel 8: el hacha ya no puede ser interrumpida por
+  aturdimiento al propio Garri (autonomia total del arma).
+-------------------------------------------------------------
+5. SISTEMA DE "MAS ARMAS DE LA MISMA" (copias/instancias)
+-------------------------------------------------------------
+En vez de permitir infinitas copias identicas (lo cual rompe
+el balance rapido), se propone un limite de 3 copias por arma,
+con reduccion de eficiencia por copia adicional para evitar
+que una sola arma domine todo el build:
+
+  Copia 1 (base)   -> 100% de daño y stats.
+  Copia 2          -> 85% de daño, aparece en posicion/angulo
+                       distinto (offset de 120 grados si es
+                       orbital, o delay de 0.3s si es lineal).
+  Copia 3 (max)    -> 70% de daño, ultima copia permitida.
+
+Motivo del decaimiento: sin penalizacion, "cantidad" siempre
+seria la mejor decision matematica y anularia la decision de
+subir tamaño/velocidad. Con decaimiento, el jugador elige
+entre profundidad (subir nivel del arma) o amplitud (mas
+copias), que es la misma tension de decision que usa Vampire
+Survivors con "Duplicator" y Megabonk con sus stacks de armas.
+
+Copias adicionales NO se obtienen al subir de nivel el arma
+(eso ya sube stats). Se obtienen mediante:
+  - Item pasivo especifico "Espejo de Ánima" (poco comun):
+    +1 copia de UN arma elegida al recogerlo.
+  - Cofre especial de boss: +1 copia de arma aleatoria ya
+    equipada.
+-------------------------------------------------------------
+6. TAMAÑO Y VELOCIDAD -- REGLAS DE ESCALADO VISUAL
+-------------------------------------------------------------
+- El tamaño de hitbox NUNCA debe superar 250% del tamaño base
+  (nivel 1) para mantener legibilidad visual en pantalla,
+  incluso si el arma tiene bonus adicionales por items.
+- La velocidad de ataque tiene un piso de cooldown minimo
+  absoluto (ej. 0.15s entre golpes) para evitar animaciones
+  rotas o soft-locks visuales, independiente de cuantos items
+  de velocidad se acumulen.
+- La velocidad de proyectil escala libre (no tiene techo duro)
+  porque no genera problemas de animacion, solo de balance de
+  daño, que se controla con el stat de daño por separado.
+=============================================================
+NOTA DE DISEÑO
+Este sistema es compatible con el documento de evolucion de
+armas (arma nivel 8 + item pasivo nivel max -> arma evolucionada)
+entregado previamente. El nivel 8 de esta tabla es literalmente
+el requisito de "arma nivel maximo" que pide ese sistema.
+=============================================================

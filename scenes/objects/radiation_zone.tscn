@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3 uid="uid://btvux1kibs22w"]
+
+[ext_resource type="Script" uid="uid://dynoqnl420cnp" path="res://scripts/objects/radiation_zone.gd" id="1_rad"]
+
+[node name="RadiationZone" type="Area3D"]
+monitoring = true
+monitorable = false
+collision_layer = 0
+collision_mask = 1
+script = ExtResource("1_rad")

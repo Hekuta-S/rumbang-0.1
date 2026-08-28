@@ -1,0 +1,32 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/entities/necromancer_boss.gd" id="1_boss"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_1"]
+radius = 1.5
+height = 4.5
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_boss"]
+albedo_color = Color(0.1, 0.1, 0.3, 1)
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_boss"]
+radius = 1.5
+height = 4.5
+
+[node name="NecromancerBoss" type="CharacterBody3D"]
+collision_layer = 1
+collision_mask = 7
+script = ExtResource("1_boss")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.25, 0)
+shape = SubResource("CapsuleShape3D_1")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.25, 0)
+material_override = SubResource("StandardMaterial3D_boss")
+mesh = SubResource("CapsuleMesh_boss")
+
+[node name="LifeStealRay" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 0, 2.25, 0)
+visible = false

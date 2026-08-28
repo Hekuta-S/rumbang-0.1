@@ -1,0 +1,14 @@
+[gd_scene load_steps=3 format=3 uid="uid://c2olu5f0mx8sj"]
+
+[ext_resource type="Script" uid="uid://gvp258bqjsih" path="res://scripts/objects/dust_projectile.gd" id="1_dust"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_dust"]
+radius = 0.14
+
+[node name="DustProjectile" type="Area3D"]
+collision_layer = 4
+collision_mask = 3
+script = ExtResource("1_dust")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("SphereShape3D_dust")

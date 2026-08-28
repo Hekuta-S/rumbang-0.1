@@ -1,0 +1,30 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/objects/spinning_axe_projectile.gd" id="1_script"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_axe"]
+radius = 1.0
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_axe1"]
+top_radius = 0.05
+bottom_radius = 0.05
+height = 1.8
+
+[sub_resource type="BoxMesh" id="BoxMesh_axe2"]
+size = Vector3(1.2, 0.6, 0.1)
+
+[node name="SpinningAxe" type="Area3D"]
+script = ExtResource("1_script")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("SphereShape3D_axe")
+
+[node name="Visual" type="Node3D" parent="."]
+
+[node name="Handle" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, 0)
+mesh = SubResource("CylinderMesh_axe1")
+
+[node name="Blade" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.4)
+mesh = SubResource("BoxMesh_axe2")

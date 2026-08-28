@@ -1,0 +1,50 @@
+[gd_scene load_steps=7 format=3 uid="uid://cl5w2tqwtno5k"]
+
+[ext_resource type="Script" uid="uid://clxwsbxqq7kqc" path="res://scripts/objects/spear_projectile.gd" id="1_spear"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_sp1"]
+radius = 0.18
+height = 2.2
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_shaft"]
+shading_mode = 0
+albedo_color = Color(0.72, 0.75, 0.78, 1)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_shaft"]
+top_radius = 0.04
+bottom_radius = 0.04
+height = 1.8
+radial_segments = 10
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tip"]
+shading_mode = 0
+albedo_color = Color(0.35, 1, 0.5, 1)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_tip"]
+top_radius = 0.0
+bottom_radius = 0.09
+height = 0.6
+radial_segments = 8
+
+[node name="SpearProjectile" type="Area3D"]
+collision_layer = 4
+collision_mask = 3
+script = ExtResource("1_spear")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("CapsuleShape3D_sp1")
+
+[node name="Shaft" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.9, 0)
+material_override = SubResource("StandardMaterial3D_shaft")
+mesh = SubResource("CylinderMesh_shaft")
+
+[node name="Tip" type="MeshInstance3D" parent="."]
+position = Vector3(0, 1.8, 0)
+material_override = SubResource("StandardMaterial3D_tip")
+mesh = SubResource("CylinderMesh_tip")
+
+[node name="OmniLight3D" type="OmniLight3D" parent="."]
+light_color = Color(0.35, 1, 0.5, 1)
+light_energy = 2.5
+omni_range = 4.0

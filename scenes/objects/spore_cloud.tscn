@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3 uid="uid://b5v6x5w34dmsm"]
+
+[ext_resource type="Script" uid="uid://b7vu70kuv1vsr" path="res://scripts/objects/spore_cloud.gd" id="1_sporecloud"]
+
+[node name="SporeCloud" type="Area3D"]
+monitoring = true
+monitorable = false
+collision_layer = 0
+collision_mask = 1
+script = ExtResource("1_sporecloud")

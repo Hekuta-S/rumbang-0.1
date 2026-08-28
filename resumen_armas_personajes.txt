@@ -1,0 +1,62 @@
+RESUMEN ACTUAL DE PERSONAJES, PASIVAS Y ARMAS (PROYECTO TESIS)
+=============================================================
+
+PERSONAJES Y SUS PASIVAS
+-------------------------------------------------------------
+1. Mikeura (Guerrero del Escudo)
+   - Arma: Espalanza de Mikeura (SPEAR_LANCE)
+   - Pasiva: Escudo Irrompible (Mitiga el 55% del daño, no se recarga, al romperse genera un estallido que empuja a los enemigos).
+
+2. Vangry (Titán Radiactivo)
+   - Arma: Lanzallamas (FLAME_THROWER)
+   - Pasiva: Zona de Radiación (Aura tóxica permanente que daña a los enemigos dentro de ella).
+
+3. Bronch (Químico de Esporas)
+   - Arma: Bazuca de Esporas (SPORE_BAZOOKA)
+   - Pasiva: Esporas Superpotenciadas (+50% de daño y mayor duración de nubes corrosivas).
+
+4. Crane (Asesina de Doble Daga)
+   - Arma: Dagas Gemelas de Crane (DUAL_DAGGERS)
+   - Pasiva: Sin pasiva asignada.
+
+5. Kaionz (Maestro del Viento)
+   - Arma: Puños de Aire de Kaionz (AIR_FISTS)
+   - Pasiva: Viento Perpetuo (Mayor velocidad de movimiento base y reducción de 15% de cooldown).
+
+6. Tatan (Duende Alquimista)
+   - Arma: Polvos Alquímicos (DUSTS)
+   - Pasiva: Sin pasiva asignada.
+
+7. Joel (Druida de la Floresta)
+   - Arma: Serpientes de Joel (SERPENTS)
+   - Pasiva: Sin pasiva asignada.
+
+8. Riva (Llamarada Veloz)
+   - Arma: Escopeta de Humo (TRI_SHOTGUN)
+   - Pasiva: Pies Humeantes (La velocidad aumenta al moverse. Al máximo, activa súper carrera "riva-corre-rapido" dejando una estela de humo que quema enemigos).
+
+9. Garri (Orco Punk)
+   - Arma: Hacha Giratoria (SPINNING_AXE)
+   - Pasiva: Actitud Punk (Combate frenético con su hacha giratoria que se mantiene en el aire despedazando rivales).
+
+10. Saimon (Maestro Elemental)
+    - Arma: Ciclo Elemental (ELEMENTS_CYCLE)
+    - Pasiva: Sin pasiva asignada (Aún por definir).
+
+-------------------------------------------------------------
+ARMAS REGISTRADAS (Tabla Canónica)
+-------------------------------------------------------------
+1.  Espada de Energía (ENERGY_SWORD) - Melee
+2.  Hacha de Fuego (FLAME_AXE) - Melee
+3.  Rifle de Plasma (PLASMA_RIFLE) - Ranged
+4.  Escopeta de Humo (TRI_SHOTGUN) - Ranged [Renombrada para Riva]
+5.  Cañón Railgun (RAILGUN) - Ranged
+6.  Espalanza de Mikeura (SPEAR_LANCE) - Melee
+7.  Lanzallamas (FLAME_THROWER) - Melee
+8.  Bazuca de Esporas (SPORE_BAZOOKA) - Ranged
+9.  Dagas Gemelas de Crane (DUAL_DAGGERS) - Melee
+10. Puños de Aire de Kaionz (AIR_FISTS) - Melee
+11. Polvos Alquímicos (DUSTS) - Special
+12. Serpientes de Joel (SERPENTS) - Ranged
+13. Hacha Giratoria (SPINNING_AXE) - Ranged [Añadida para Garri]
+14. Ciclo Elemental (ELEMENTS_CYCLE) - Ranged [Añadida para Saimon]

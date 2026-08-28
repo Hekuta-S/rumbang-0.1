@@ -1,0 +1,13 @@
+# Godot 4+ cache and editor files
+.godot/
+*.import
+*.tmp
+*.uid
+
+# OS / editor
+Thumbs.db
+.DS_Store
+*.swp
+
+# Large re-downloadable binaries (ziva agent runtime, fetched via installer)
+addons/ziva_agent/zivacode/windows_x86_64/zivacode.exe

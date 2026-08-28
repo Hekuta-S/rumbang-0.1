@@ -1,0 +1,122 @@
+=== RESUMEN DEL JUEGO RUNBANG ===
+
+--- MECÁNICAS PRINCIPALES ---
+- Progresión por Oleadas (WaveManager): Enemigos aparecen progresivamente en anillos alrededor del jugador. El tamaño de la oleada escala con el nivel. Cada 3 niveles se spawnea un Jefe.
+- Entorno Procedural (EnvironmentManager): El terreno usa operaciones CSG3D para generar colinas, montañas, rocas y árboles con posiciones aleatorias, calculando su colisión para que no floten.
+- Botín y Drops (LootManager): Al morir, los enemigos sueltan oro y orbes de experiencia (XP). Al empezar cada nivel o completar una oleada, aparecen armas o items coleccionables regados en el mapa.
+--- ATRIBUTOS DEL JUGADOR Y ESTADÍSTICAS ---
+Actualmente, el jugador se rige por el componente `StatsComponent` y `Player.gd`, que controlan:
+- Salud (HP y max_hp): La vida base. Si llega a 0, mueres.
+- Escudo (Shield y max_shield): Capa de vida extra. Se regenera automáticamente si pasas varios segundos sin recibir daño (shield_regen_delay).
+- Energía (Energy y max_energy): Recurso para usar armas a distancia y habilidades. Se regenera pasivamente con el tiempo (15 pts/segundo).
+- Velocidad de Movimiento (move_speed): Rapidez al correr por el mapa.
+- Velocidad de Esquive (roll_speed): Rapidez de la animación de rodar/dash.
+- Tiempo de Invulnerabilidad (i-frames): Tiempo breve de inmunidad tras recibir un golpe.
+- Nivel y Experiencia (level, experience): Aumentan al recolectar XP. La XP requerida escala un 1.5x por nivel.
+
+--- IDEAS PARA NUEVAS ESTADÍSTICAS (PARA MEJORAR EL ROL) ---
+Si quieres expandir el juego con objetos (Items) o un árbol de habilidades, podrías agregar:
+1. Probabilidad de Crítico (Crit Chance %): Porcentaje de que un ataque inflija daño extra.
+2. Multiplicador de Daño Crítico (Crit Damage): Por defecto 1.5x o 2.0x, aumentable con mejoras.
+3. Robo de Vida (Lifesteal %): Porcentaje del daño infligido a los enemigos que regresa como Salud.
+4. Suerte (Luck): Aumenta la rareza de los cofres y la cantidad de oro/orbes de XP que caen de los monstruos.
+5. Aceleración (Haste / Cooldown Reduction): Reduce el tiempo de recarga y el cooldown de todas las armas.
+6. Radio Magnético (Pickup Radius): Rango invisible que atrae el oro y la XP hacia el jugador sin tener que pisarlos directamente (estilo Vampire Survivors).
+7. Armadura / Mitigación de Daño (Armor): Reduce un % fijo de todo el daño que logre atravesar tu Escudo.
+8. Espinas (Thorns): Devuelve un porcentaje del daño cuerpo a cuerpo recibido al atacante.
+9. Cargas de Esquive (Dash Charges): Cuántas veces seguidas puedes rodar antes de tener que esperar un enfriamiento.
+
+--- PERSONAJES Y SUS PASIVAS ---
+* Mikeura (mikeura) - Pasiva: Escudo Irrompible
+  Descripción: El escudo mitiga el 55% del daño recibido. No se recarga mientras conserve carga. Al vaciarse por completo, genera un estallido que empuja a todos los enemigos cercanos.
+
+* Heckler (heckler) - Pasiva: Paso del Vacío
+  Descripción: No puede correr. Al usar la tecla de correr, consume 40 de energía para teletransportarse instantáneamente hacia adelante.
+
+* Vangry (vangry) - Pasiva: Zona de Radiación
+  Descripción: Una pequeña zona radiactiva rodea a Vangry y daña continuamente a todos los enemigos que se encuentren dentro de ella.
+
+* Bronch (bronch) - Pasiva: Esporas Superpotenciadas
+  Descripción: Las esporas de Bronch son más potentes: el impacto y las nubes de la bazuca infligen +50% de daño y duran más tiempo.
+
+* Crane (crane) - Pasiva: Sin pasiva
+  Descripción: Crane aún no tiene pasiva asignada. Por ahora confía en sus dagas gemelas roja y azul.
+
+* Kaionz (kaionz) - Pasiva: Viento Perpetuo
+  Descripción: Kaionz se mueve más rápido que sus rivales y el cooldown de su habilidad se reduce un 15%. El viento siempre sopla a su favor.
+
+* Tatan (tatan) - Pasiva: Sin pasiva
+  Descripción: Tatan aún no tiene pasiva asignada. Confía plenamente en sus polvos alquímicos de tres modos.
+
+* Joel (joel) - Pasiva: Sin pasiva
+  Descripción: Joel aún no tiene pasiva asignada. Por ahora confía en sus serpientes de esmeralda disparadas en cono.
+
+* Riva (riva) - Pasiva: Pies Humeantes
+  Descripción: Mientras se mueve, la velocidad de Riva aumenta progresivamente. Al alcanzar su velocidad máxima entra en ráfaga: súper carrera con la animación riva-corre-rapido y deja una estela de humo abrasador que quema a los enemigos por segundo.
+
+* Garri (garri) - Pasiva: Actitud Punk
+  Descripción: Garri no tiene miedo al peligro. Su hacha giratoria es su mejor defensa y ataque.
+
+* Saimon (saimon) - Pasiva: Sin pasiva
+  Descripción: Saimon aún no tiene pasiva asignada. Confía en su ciclo de proyectiles elementales.
+
+
+--- TODAS LAS ARMAS (15) ---
+* Espada de Energía 🗡️ (MELEE)
+  Daño: 12.0 | Cooldown: 0.45s | Coste Energía: 0 | Proyectil Vel: 0.0 | Rango: 3.2m
+
+* Hacha de Fuego 🪓 (MELEE)
+  Daño: 25.0 | Cooldown: 0.90s | Coste Energía: 0 | Proyectil Vel: 0.0 | Rango: 4.5m
+
+* Rifle de Plasma 🔫 (RANGED)
+  Daño: 5.0 | Cooldown: 0.35s | Coste Energía: 1 | Proyectil Vel: 42.0 | Rango: 0.0m
+
+* Escopeta de Humo 💨 (RANGED)
+  Daño: 4.0 | Cooldown: 0.80s | Coste Energía: 3 | Proyectil Vel: 36.0 | Rango: 0.0m
+
+* Cañón Railgun 🔮 (RANGED)
+  Daño: 45.0 | Cooldown: 1.50s | Coste Energía: 5 | Proyectil Vel: 0.0 | Rango: 50.0m
+
+* Espalanza de Mikeura 🔱 (MELEE)
+  Daño: 15.0 | Cooldown: 0.50s | Coste Energía: 0 | Proyectil Vel: 0.0 | Rango: 5.0m
+
+* Lanzallamas 🔥 (MELEE)
+  Daño: 2.0 | Cooldown: 0.20s | Coste Energía: 0 | Proyectil Vel: 0.0 | Rango: 11.0m
+
+* Bazuca de Esporas 🍄 (RANGED)
+  Daño: 25.0 | Cooldown: 0.80s | Coste Energía: 0 | Proyectil Vel: 10.0 | Rango: 2.6m
+
+* Dagas Gemelas de Crane 🔪 (MELEE)
+  Daño: 6.0 | Cooldown: 0.30s | Coste Energía: 0 | Proyectil Vel: 0.0 | Rango: 2.6m
+
+* Puños de Aire de Kaionz 🌀 (MELEE)
+  Daño: 9.0 | Cooldown: 0.35s | Coste Energía: 0 | Proyectil Vel: 0.0 | Rango: 2.8m
+
+* Polvos Alquímicos 🧪 (SPECIAL)
+  Daño: 0.0 | Cooldown: 1.0s | Coste Energía: 15 | Proyectil Vel: 0.0 | Rango: 0.0m
+
+* Serpientes de Joel 🐍 (RANGED)
+  Daño: 5.0 | Cooldown: 1.0s | Coste Energía: 0 | Proyectil Vel: 24.0 | Rango: 0.0m
+
+* Hacha Giratoria 🪓 (RANGED)
+  Daño: 9.0 | Cooldown: 0.8s | Coste Energía: 0 | Proyectil Vel: 20.0 | Rango: 10.0m
+
+* Ciclo Elemental 🔮 (RANGED)
+  Daño: 7.0 | Cooldown: 0.6s | Coste Energía: 0 | Proyectil Vel: 22.0 | Rango: 0.0m
+
+* Brazo Bumerán 🧟 (RANGED)
+  Daño: 18.0 | Cooldown: 0.8s | Coste Energía: 0 | Proyectil Vel: 20.0 | Rango: 0.0m
+
+
+--- SISTEMA DE MEJORAS DE ARMAS (UPGRADES) ---
+1. Recolección de XP: Las orbes suben la barra de experiencia del jugador.
+2. Nivel Nuevo: El tiempo se pausa y aparece una interfaz (UpgradeChoiceUI) dando a elegir opciones aleatorias.
+3. Conseguir un ARMA NUEVA: Desbloquea un arma en un slot vacío.
+4. MEJORAR UN ARMA: Incrementa el nivel del arma (get_weapon_level) y le otorga Bonificadores Automáticos según su categoría (Melee, Ranged, Special):
+   - Nivel 2: +15% Daño Base.
+   - Nivel 3: Si es Melee/Especial -> +10% Tamaño de Ataque (Hitbox/Rango). Si es Ranged -> +1 Proyectil Extra (Multi-shot).
+   - Nivel 4: +15% Velocidad de Ataque (-15% Cooldown / Tiempo de Recarga).
+   - Nivel 5: +15% Daño Base (Total +30%).
+   - Nivel 6: Si es Ranged -> +1 Perforación (Las balas atraviesan un enemigo más). Si es Melee/Especial -> +1 Cantidad (Ej. más golpes o combos).
+   - Nivel 7: +15% Tamaño de Ataque Adicional.
+5. Rareza de Items: A lo largo del mapa y en cofres se pueden encontrar objetos (Común, Raro, Épico, Legendario) que otorgan buffs pasivos al personaje.

@@ -1,0 +1,73 @@
+=============================================================
+RUNBANG - SISTEMA DE ITEMS POR RAREZA (PROYECTO TESIS)
+=============================================================
+Jerarquia de rareza:
+COMUN -> POCO COMUN -> RARA (nueva) -> LEGENDARIA -> MITICA (curse)
+-------------------------------------------------------------
+COMUNES (stat plano, bajo impacto, alta frecuencia de drop)
+-------------------------------------------------------------
+1. Poncho Reforzado       - +10% resistencia a daño
+2. Mochila de Cuero       - +15% cantidad de proyectiles/área
+3. Aguardiente Bendito    - +8% velocidad de ataque
+4. Botas de Caminante     - +12% velocidad de movimiento
+5. Ojo de Mohán (comun)   - +1 alcance de recolección de XP
+-------------------------------------------------------------
+POCO COMUNES (stat plano, impacto medio, drop moderado)
+-------------------------------------------------------------
+6. Amuleto de Tumbaga     - +10% de suerte (drop rate y crítico)
+7. Reloj de Péndulo Roto  - -10% cooldown global
+8. Vela de Ánima          - Regeneración de vida pasiva lenta
+-------------------------------------------------------------
+RARAS (categoria intermedia, NUEVA)
+- Ya no son solo stats: modifican una regla menor del combate
+  sin romper el balance del run. Drop bajo, requieren cofre
+  especial o boss menor.
+-------------------------------------------------------------
+9.  Machete Oxidado del Silbón
+    - Cada 10º golpe consecutivo sin fallar hace daño en área.
+10. Tinaja de Barro Encantada
+    - Al recoger XP, 15% de probabilidad de generar un charco
+      curativo pequeño en el suelo.
+11. Guante de Cazador
+    - Los enemigos aturdidos o ralentizados reciben +20% de daño.
+12. Sombrero Vueltiao Bendecido
+    - +1 pasiva adicional equipable (sube el límite de pasivas
+      activas simultáneas).
+13. Farol de Ánima en Pena
+    - Ilumina un área alrededor del jugador; los enemigos dentro
+      atacan 15% más lento (efecto de miedo/ceguera parcial).
+14. Cuerda de Ahorcado (tributo al Silbón)
+    - Cada 20s, el enemigo más cercano queda "marcado": el
+      siguiente golpe sobre él hace 2x daño.
+-------------------------------------------------------------
+LEGENDARIAS (unicas por run, cambian el build por completo)
+-------------------------------------------------------------
+15. Machete del Silbón
+    - El primer golpe contra cada enemigo nuevo siempre es
+      crítico garantizado.
+16. Corona de La Madremonte
+    - Los enemigos muertos cerca de vegetación sueltan una
+      semilla que se convierte en aliado temporal (planta que
+      ataca).
+17. Ojo de Mohán (version mitica/legendaria)
+    - Cada 30s el mapa se "inunda" brevemente: enemigos en
+      pantalla quedan lentos y las armas a distancia hacen
+      daño en área.
+18. Hueso de Ánima en Pena
+    - Al morir, el jugador revive una vez con 100% HP pero
+      pierde el 20% de XP acumulado.
+-------------------------------------------------------------
+MITICAS / CURSE (alto riesgo, alta recompensa, opcionales)
+-------------------------------------------------------------
+19. Pacto con El Mohán
+    - +40% tasa de aparición de enemigos, pero +25% de XP y
+      oro global.
+=============================================================
+NOTA DE DISEÑO
+- Común y Poco Común: solo modifican valores (stats).
+- Rara: modifica una condición o regla menor del combate
+  (la categoria puente entre "sumar stats" y "romper reglas").
+- Legendaria: rompe una regla del juego o cambia el build.
+- Mítica/Curse: intercambia riesgo por recompensa a nivel de
+  toda la run.
+=============================================================

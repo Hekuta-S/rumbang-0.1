@@ -1,0 +1,110 @@
+[gd_scene format=3 uid="uid://do1g26msk6knh"]
+
+[ext_resource type="Texture2D" uid="uid://ds1yr0c8okylt" path="res://assets/textures/entorno/roca.jpg" id="1_71j4m"]
+[ext_resource type="Texture2D" uid="uid://e7n5fyxuufml" path="res://assets/textures/entorno/nieve.jpg" id="2_qfnet"]
+[ext_resource type="Texture2D" uid="uid://df4gmvmw2vpwd" path="res://assets/textures/entorno/pasto.jpg" id="3_i7141"]
+[ext_resource type="Texture2D" uid="uid://dd56l0rclgtco" path="res://assets/textures/entorno/pantano.jpg" id="4_4mrxx"]
+[ext_resource type="Texture2D" uid="uid://cantesgsinpjq" path="res://assets/textures/entorno/arena.jpg" id="5_7r4gi"]
+[ext_resource type="PackedScene" uid="uid://dqy7o3vjc7mm" path="res://scenes/entities/player.tscn" id="6_i7141"]
+[ext_resource type="Script" uid="uid://cj6kpfoo3n7oj" path="res://scripts/entities/player.gd" id="7_4mrxx"]
+
+[sub_resource type="Gradient" id="Gradient_e5uuo"]
+offsets = PackedFloat32Array(0.2, 1)
+colors = PackedColorArray(1, 1, 1, 1, 0, 0, 0, 1)
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_nnsk1"]
+noise_type = 2
+frequency = 0.03
+cellular_jitter = 3.0
+cellular_return_type = 0
+domain_warp_enabled = true
+domain_warp_type = 1
+domain_warp_amplitude = 50.0
+domain_warp_fractal_type = 2
+domain_warp_fractal_lacunarity = 1.5
+domain_warp_fractal_gain = 1.0
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_rwgxs"]
+noise = SubResource("FastNoiseLite_nnsk1")
+color_ramp = SubResource("Gradient_e5uuo")
+seamless = true
+
+[sub_resource type="Terrain3DMaterial" id="Terrain3DMaterial_4wyf3"]
+_shader_parameters = {
+&"bias_distance": null,
+&"blend_sharpness": null,
+&"depth_blur": null,
+&"enable_macro_variation": null,
+&"enable_projection": null,
+&"flat_terrain_normals": null,
+&"macro_variation1": null,
+&"macro_variation2": null,
+&"macro_variation_slope": null,
+&"mipmap_bias": null,
+&"noise1_angle": null,
+&"noise1_offset": null,
+&"noise1_scale": null,
+&"noise2_scale": null,
+&"noise_texture": SubResource("NoiseTexture2D_rwgxs"),
+&"projection_threshold": null
+}
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_k0juu"]
+transparency = 4
+cull_mode = 2
+vertex_color_use_as_albedo = true
+backlight_enabled = true
+backlight = Color(0.5, 0.5, 0.5, 1)
+distance_fade_mode = 1
+distance_fade_min_distance = 128.0
+distance_fade_max_distance = 96.0
+
+[sub_resource type="Terrain3DMeshAsset" id="Terrain3DMeshAsset_71j4m"]
+generated_type = 1
+height_offset = 0.5
+material_override = SubResource("StandardMaterial3D_k0juu")
+last_lod = 0
+last_shadow_lod = 0
+lod0_range = 128.0
+
+[sub_resource type="Terrain3DTextureAsset" id="Terrain3DTextureAsset_7r4gi"]
+name = "roca"
+albedo_texture = ExtResource("1_71j4m")
+
+[sub_resource type="Terrain3DTextureAsset" id="Terrain3DTextureAsset_w7kh3"]
+name = "nieve"
+albedo_texture = ExtResource("2_qfnet")
+
+[sub_resource type="Terrain3DTextureAsset" id="Terrain3DTextureAsset_e3hyu"]
+name = "pasto"
+albedo_texture = ExtResource("3_i7141")
+
+[sub_resource type="Terrain3DTextureAsset" id="Terrain3DTextureAsset_q5onr"]
+name = "pantano"
+albedo_texture = ExtResource("4_4mrxx")
+
+[sub_resource type="Terrain3DTextureAsset" id="Terrain3DTextureAsset_jhx03"]
+name = "arena"
+albedo_texture = ExtResource("5_7r4gi")
+
+[sub_resource type="Terrain3DAssets" id="Terrain3DAssets_qfnet"]
+mesh_list = Array[Terrain3DMeshAsset]([SubResource("Terrain3DMeshAsset_71j4m")])
+texture_list = Array[Terrain3DTextureAsset]([SubResource("Terrain3DTextureAsset_7r4gi"), SubResource("Terrain3DTextureAsset_w7kh3"), SubResource("Terrain3DTextureAsset_e3hyu"), SubResource("Terrain3DTextureAsset_q5onr"), SubResource("Terrain3DTextureAsset_jhx03")])
+
+[node name="world" type="Node3D" unique_id=601515222]
+
+[node name="Terrain3D" type="Terrain3D" parent="." unique_id=1752417442]
+material = SubResource("Terrain3DMaterial_4wyf3")
+assets = SubResource("Terrain3DAssets_qfnet")
+top_level = true
+metadata/_edit_lock_ = true
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1358533193]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1989656803]
+
+[node name="Player" type="CharacterBody3D" parent="." unique_id=282103691 instance=ExtResource("6_i7141")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 150, 0)
+collision_layer = 2
+collision_mask = 5
+script = ExtResource("7_4mrxx")
