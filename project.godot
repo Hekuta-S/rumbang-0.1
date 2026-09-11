@@ -25,7 +25,8 @@ GameData="*res://scripts/core/game_data.gd"
 SaveManager="*res://scripts/core/save_manager.gd"
 AudioManager="*res://scripts/core/audio_manager.gd"
 ItemDB="*res://scripts/core/item_db.gd"
-MCPRuntimeProbe="*uid://bsg12huaf1u5i"
+SceneLoader="*res://scripts/core/scene_loader.gd"
+MCPRuntimeServer="*res://addons/godot_mcp_toolkit/runtime/mcp_runtime_server.gd"
 
 [display]
 
@@ -35,7 +36,7 @@ window/stretch/mode="canvas_items"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/godot_mcp/plugin.cfg", "res://addons/terrain_3d/plugin.cfg")
+enabled=PackedStringArray("res://addons/godot_mcp_toolkit/plugin.cfg", "res://addons/terrain_3d/plugin.cfg")
 
 [input]
 
@@ -85,6 +86,13 @@ activate_skill={
 ]
 }
 
+[mcp_toolkit]
+
+status="No .mcp.json found — use Project > Tools > MCP Toolkit > Write .mcp.json to create one."
+
 [rendering]
 
+occlusion_culling/use_occlusion_culling=true
+environment/volumetric_fog/volume_size=64
+environment/volumetric_fog/use_filter=1
 textures/canvas_textures/default_texture_filter=0

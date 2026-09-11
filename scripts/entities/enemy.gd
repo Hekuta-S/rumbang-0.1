@@ -32,6 +32,9 @@ var knockback_velocity: Vector3 = Vector3.ZERO
 @export var detection_range: float = 40.0
 var is_alerted: bool = false
 
+var _logic_timer: float = 0.0
+var _cached_ground_y: float = 0.0
+
 # 3D Model & Animation variables
 var model: Node3D = null
 var anim_player: AnimationPlayer = null
@@ -43,6 +46,10 @@ var base_color: Color = Color.WHITE
 func _ready() -> void:
 	add_to_group("enemies")
 	player = get_tree().get_first_node_in_group("player")
+	if has_node("AnimationTree"):
+		anim_tree = $AnimationTree
+		playback = anim_tree.get("parameters/playback")
+		
 	_apply_type_config()
 
 func _apply_type_config() -> void:
@@ -132,8 +139,10 @@ func _setup_model() -> void:
 		tex_path = "res://assets/textures/enemigos/texture_normal_goblin.png"
 		
 	var idle_scene: PackedScene = null
-	if ResourceLoader.exists(idle_path) or FileAccess.file_exists(idle_path):
-		idle_scene = load(idle_path) as PackedScene
+	if not GameData.cache_enemy_models.has(idle_path):
+		if ResourceLoader.exists(idle_path) or FileAccess.file_exists(idle_path):
+			GameData.cache_enemy_models[idle_path] = load(idle_path) as PackedScene
+	idle_scene = GameData.cache_enemy_models.get(idle_path)
 		
 	if idle_scene == null:
 		# Fallback to placeholder capsule mesh
@@ -159,8 +168,11 @@ func _setup_model() -> void:
 	_fit_model()
 	
 	var tex: Texture2D = null
-	if tex_path != "" and (ResourceLoader.exists(tex_path) or FileAccess.file_exists(tex_path)):
-		tex = load(tex_path) as Texture2D
+	if tex_path != "":
+		if not GameData.cache_enemy_textures.has(tex_path):
+			if ResourceLoader.exists(tex_path) or FileAccess.file_exists(tex_path):
+				GameData.cache_enemy_textures[tex_path] = load(tex_path) as Texture2D
+		tex = GameData.cache_enemy_textures.get(tex_path)
 		
 	_apply_texture_and_collect_meshes(model, tex)
 	_setup_animations(walk_path)
@@ -201,10 +213,13 @@ func _setup_animations(walk_path: String) -> void:
 
 	_rename_first_animation_in_library(lib, "idle")
 
-	if walk_path != "" and (ResourceLoader.exists(walk_path) or FileAccess.file_exists(walk_path)):
-		var walk_scene = load(walk_path) as PackedScene
+	if walk_path != "":
+		if not GameData.cache_enemy_models.has(walk_path):
+			if ResourceLoader.exists(walk_path) or FileAccess.file_exists(walk_path):
+				GameData.cache_enemy_models[walk_path] = load(walk_path) as PackedScene
+		var walk_scene = GameData.cache_enemy_models.get(walk_path)
 		if walk_scene:
-			_merge_first_animation_from_scene(walk_scene, lib, "walk")
+			_merge_first_animation_from_scene(walk_scene, lib, "walk", walk_path)
 
 	if lib.has_animation("idle"):
 		lib.get_animation("idle").loop_mode = Animation.LOOP_LINEAR
@@ -249,7 +264,11 @@ func _rename_first_animation_in_library(lib: AnimationLibrary, new_name: String)
 	lib.remove_animation(first)
 	lib.add_animation(new_name, anim)
 
-func _merge_first_animation_from_scene(scene: PackedScene, lib: AnimationLibrary, new_name: String) -> void:
+func _merge_first_animation_from_scene(scene: PackedScene, lib: AnimationLibrary, new_name: String, path_key: String) -> void:
+	if GameData.cache_enemy_anims.has(path_key):
+		lib.add_animation(new_name, GameData.cache_enemy_anims[path_key].duplicate(true))
+		return
+		
 	var instance = scene.instantiate()
 	add_child(instance)
 	var ap = _find_first_node_of_type(instance, "AnimationPlayer") as AnimationPlayer
@@ -257,7 +276,9 @@ func _merge_first_animation_from_scene(scene: PackedScene, lib: AnimationLibrary
 		var src_lib = ap.get_animation_library("")
 		var names = src_lib.get_animation_list()
 		if not names.is_empty():
-			lib.add_animation(new_name, ap.get_animation(names[0]).duplicate(true))
+			var anim = ap.get_animation(names[0]).duplicate(true)
+			GameData.cache_enemy_anims[path_key] = anim
+			lib.add_animation(new_name, anim.duplicate(true))
 	instance.queue_free()
 
 func _add_transition(sm: AnimationNodeStateMachine, from: String, to: String, xfade: float) -> void:
@@ -301,14 +322,30 @@ func _physics_process(delta: float) -> void:
 	to_player.y = 0
 	var dist = to_player.length()
 
-	# Check detection range or taking damage to trigger alert
-	if dist <= detection_range or hp < max_hp:
-		is_alerted = true
+	_logic_timer -= delta
+	if _logic_timer <= 0.0:
+		_logic_timer = 0.2 + randf() * 0.1 # Staggered check (5 times per sec)
+		
+		if not is_alerted:
+			if to_player.length_squared() <= (detection_range * detection_range) or hp < max_hp:
+				is_alerted = true
+				
+		var main_node = get_tree().current_scene
+		if main_node and main_node.has_method("get_floor_y"):
+			_cached_ground_y = main_node.get_floor_y(global_position.x, global_position.z)
+			
+	var ground_y = _cached_ground_y
+		
+	if global_position.y < ground_y:
+		global_position.y = ground_y
+		velocity.y = 0.0
 
 	var current_vy = velocity.y
-	if not is_on_floor():
+	if not is_on_floor() and global_position.y > ground_y:
 		current_vy -= 30.0 * delta
-	
+		if current_vy < -25.0:
+			current_vy = -25.0
+
 	if not is_alerted:
 		velocity = knockback_velocity
 		velocity.y = current_vy
@@ -440,5 +477,3 @@ func apply_slow(duration: float, multiplier: float) -> void:
 			var mat := mi.material_override as StandardMaterial3D
 			if mat:
 				mat.albedo_color = Color(0.5, 0.8, 1.0)
-
-

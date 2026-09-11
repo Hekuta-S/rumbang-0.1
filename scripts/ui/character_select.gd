@@ -280,10 +280,12 @@ func _on_next() -> void:
 
 func _on_select() -> void:
 	GameData.selected_index = _current_index
-	get_tree().change_scene_to_file("res://scenes/core/main.tscn")
+	SceneLoader.load_scene("res://scenes/core/main.tscn")
+	#get_tree().change_scene_to_file("res://scenes/core/main.tscn")
 
 func _on_back() -> void:
-	get_tree().change_scene_to_file("res://scenes/ui/main_menu.tscn")
+	SceneLoader.load_scene("res://scenes/ui/main_menu.tscn")
+	#get_tree().change_scene_to_file("res://scenes/ui/main_menu.tscn")
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
 func _make_nav_button(txt: String) -> Button:

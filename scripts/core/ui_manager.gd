@@ -41,6 +41,7 @@ func initialize(p_hud: Node, p_player: Node3D) -> void:
 	
 	var pause_menu = preload("res://scenes/ui/pause_menu.tscn").instantiate()
 	add_child(pause_menu)
+	refresh_weapon_ui()
 
 func update_floor(sub_level: int) -> void:
 	hud.update_floor(sub_level)

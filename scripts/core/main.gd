@@ -47,7 +47,7 @@ func _input(event: InputEvent) -> void:
 				var boss = necro_scene.instantiate()
 				add_child(boss)
 				if is_instance_valid(player):
-					boss.global_position = player.global_position + Vector3(0, 0, -10)
+					boss.global_position = player.global_position + Vector3(0, 3.0, -10)
 				if boss.has_signal("boss_died"):
 					boss.boss_died.connect(_on_boss_died)
 
@@ -65,7 +65,10 @@ func start_game() -> void:
 	# Apply selected character stats and passive BEFORE resetting hp/shield/energy
 	GameData.apply_to_player(player)
 
-	player.global_position = Vector3(0, get_floor_y(0, 10), 10)
+	# Toma la posición X y Z donde ubicaste al jugador en el editor, y solo ajusta la altura (Y) al nivel del suelo
+	var start_x = player.global_position.x
+	var start_z = player.global_position.z
+	player.global_position = Vector3(start_x, get_floor_y(start_x, start_z) + 3.0, start_z)
 	player.hp     = player.max_hp
 	player.shield = player.max_shield
 	player.energy = player.max_energy

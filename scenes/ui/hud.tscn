@@ -1,24 +1,9 @@
 [gd_scene format=3 uid="uid://cocanoaidmmt5"]
 
-[ext_resource type="Script" uid="uid://dljkj1cxykbw" path="res://scripts/ui/hud.gd" id="1_hud"]
-[ext_resource type="Shader" uid="uid://4bkqjtqhio0n" path="res://scripts/ui/trapezoid.gdshader" id="2_bo48s"]
-[ext_resource type="Script" uid="uid://chauhxantnomc" path="res://scripts/ui/crosshair.gd" id="2_crosshair"]
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_stats_panel"]
-content_margin_left = 12.0
-content_margin_top = 10.0
-content_margin_right = 12.0
-content_margin_bottom = 10.0
-bg_color = Color(0.06, 0.08, 0.12, 0.88)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.28, 0.35, 0.48, 1)
-corner_radius_top_left = 8
-corner_radius_top_right = 8
-corner_radius_bottom_right = 8
-corner_radius_bottom_left = 8
+[ext_resource type="Script" uid="uid://d38m1arubf5te" path="res://scripts/ui/hud.gd" id="1_hud"]
+[ext_resource type="Shader" uid="uid://d2aial001yelq" path="res://scripts/ui/trapezoid.gdshader" id="2_bo48s"]
+[ext_resource type="Script" uid="uid://cgmd6tf4eemjy" path="res://scripts/ui/crosshair.gd" id="2_crosshair"]
+[ext_resource type="Texture2D" uid="uid://c6o0lf1uinkpj" path="res://assets/ui/ingame_hub/barra_exp_armas.png" id="3_image"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_8qguk"]
 bg_color = Color(1, 1, 1, 1)
@@ -88,65 +73,6 @@ corner_radius_top_right = 6
 corner_radius_bottom_right = 6
 corner_radius_bottom_left = 6
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_weapons_panel"]
-content_margin_left = 12.0
-content_margin_top = 8.0
-content_margin_right = 12.0
-content_margin_bottom = 8.0
-bg_color = Color(0.06, 0.08, 0.12, 0.88)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.28, 0.35, 0.48, 1)
-corner_radius_top_left = 8
-corner_radius_top_right = 8
-corner_radius_bottom_right = 8
-corner_radius_bottom_left = 8
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_slot_active"]
-bg_color = Color(0.14, 0.22, 0.36, 0.95)
-border_width_left = 3
-border_width_top = 3
-border_width_right = 3
-border_width_bottom = 3
-border_color = Color(1, 0.84, 0, 1)
-corner_radius_top_left = 6
-corner_radius_top_right = 6
-corner_radius_bottom_right = 6
-corner_radius_bottom_left = 6
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_slot_inactive"]
-bg_color = Color(0.06, 0.08, 0.12, 0.7)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.2, 0.26, 0.36, 0.6)
-corner_radius_top_left = 6
-corner_radius_top_right = 6
-corner_radius_bottom_right = 6
-corner_radius_bottom_left = 6
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hp_bg"]
-bg_color = Color(0.18, 0.05, 0.07, 0.9)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.45, 0.1, 0.12, 1)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_energy_fill"]
-bg_color = Color(0.98, 0.78, 0.12, 1)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
-
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hint_panel"]
 content_margin_left = 14.0
 content_margin_top = 6.0
@@ -163,6 +89,14 @@ corner_radius_top_right = 6
 corner_radius_bottom_right = 6
 corner_radius_bottom_left = 6
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_circle"]
+bg_color = Color(1, 1, 1, 1)
+corner_radius_top_left = 100
+corner_radius_top_right = 100
+corner_radius_bottom_right = 100
+corner_radius_bottom_left = 100
+corner_detail = 20
+
 [node name="HUD" type="CanvasLayer" unique_id=708066651]
 script = ExtResource("1_hud")
 
@@ -174,30 +108,26 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="StatsPanel" type="PanelContainer" parent="Control" unique_id=92096390]
+[node name="StatsPanel" type="Control" parent="Control" unique_id=92096390]
 custom_minimum_size = Vector2(280, 220)
-layout_mode = 0
-offset_left = 20.0
-offset_top = 20.0
-offset_right = 300.0
-offset_bottom = 240.0
-theme_override_styles/panel = SubResource("StyleBoxFlat_stats_panel")
+anchors_preset = 0
+offset_left = 653.0
+offset_top = 198.0
+offset_right = 933.0
+offset_bottom = 418.0
+scale = Vector2(1.4591904, 1.6947674)
 
 [node name="Margin" type="MarginContainer" parent="Control/StatsPanel" unique_id=120416474]
-layout_mode = 2
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 
 [node name="VBox" type="VBoxContainer" parent="Control/StatsPanel/Margin" unique_id=1091141896]
 layout_mode = 2
 theme_override_constants/separation = 6
-
-[node name="TitleLabel" type="Label" parent="Control/StatsPanel/Margin/VBox" unique_id=1098391939]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.7, 0.82, 0.95, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 4
-theme_override_font_sizes/font_size = 11
-text = "ESTADO DE HÉROE"
-horizontal_alignment = 1
 
 [node name="BarsWithPortrait" type="VBoxContainer" parent="Control/StatsPanel/Margin/VBox" unique_id=1326362107]
 layout_mode = 2
@@ -349,255 +279,8 @@ theme_override_font_sizes/font_size = 14
 text = "🪙 0"
 horizontal_alignment = 2
 
-[node name="WeaponsPanel" type="PanelContainer" parent="Control" unique_id=1826603718]
-layout_mode = 1
-anchors_preset = 3
-anchor_left = 1.0
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = -380.0
-offset_top = -140.0
-offset_right = -20.0
-offset_bottom = -20.0
-grow_horizontal = 0
-grow_vertical = 0
-theme_override_styles/panel = SubResource("StyleBoxFlat_weapons_panel")
-
-[node name="Margin" type="MarginContainer" parent="Control/WeaponsPanel" unique_id=19810895]
-layout_mode = 2
-
-[node name="VBox" type="VBoxContainer" parent="Control/WeaponsPanel/Margin" unique_id=91218031]
-layout_mode = 2
-theme_override_constants/separation = 4
-
-[node name="TitleLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox" unique_id=313201070]
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.84, 0, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 4
-theme_override_font_sizes/font_size = 11
-text = "ARMAS ACTIVAS [1-4 / Q]"
-horizontal_alignment = 1
-
-[node name="WeaponsContainer" type="HBoxContainer" parent="Control/WeaponsPanel/Margin/VBox" unique_id=814567172]
-layout_mode = 2
-theme_override_constants/separation = 8
-alignment = 1
-
-[node name="Slot0" type="PanelContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer" unique_id=1371572079]
-custom_minimum_size = Vector2(80, 75)
-layout_mode = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_slot_active")
-
-[node name="Margin" type="MarginContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot0" unique_id=1328171938]
-layout_mode = 2
-
-[node name="VBox" type="VBoxContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot0/Margin" unique_id=282607564]
-layout_mode = 2
-alignment = 1
-
-[node name="HBox" type="HBoxContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot0/Margin/VBox" unique_id=623671722]
-layout_mode = 2
-alignment = 1
-
-[node name="KeyLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot0/Margin/VBox/HBox" unique_id=715416844]
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.85, 0.2, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 4
-theme_override_font_sizes/font_size = 11
-text = "[1]"
-
-[node name="IconLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot0/Margin/VBox/HBox" unique_id=334034833]
-layout_mode = 2
-theme_override_font_sizes/font_size = 18
-text = "🗡️"
-
-[node name="NameLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot0/Margin/VBox" unique_id=2000903879]
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 4
-theme_override_font_sizes/font_size = 11
-text = "Espada"
-horizontal_alignment = 1
-
-[node name="CostLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot0/Margin/VBox" unique_id=663916470]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.4, 0.85, 1, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 4
-theme_override_font_sizes/font_size = 10
-text = "0 MP"
-horizontal_alignment = 1
-
-[node name="Slot1" type="PanelContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer" unique_id=848676309]
-custom_minimum_size = Vector2(80, 75)
-layout_mode = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_slot_inactive")
-
-[node name="Margin" type="MarginContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot1" unique_id=1050249658]
-layout_mode = 2
-
-[node name="VBox" type="VBoxContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot1/Margin" unique_id=1606316092]
-layout_mode = 2
-alignment = 1
-
-[node name="HBox" type="HBoxContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot1/Margin/VBox" unique_id=1987545161]
-layout_mode = 2
-alignment = 1
-
-[node name="KeyLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot1/Margin/VBox/HBox" unique_id=1059606599]
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.85, 0.2, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 4
-theme_override_font_sizes/font_size = 11
-text = "[2]"
-
-[node name="IconLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot1/Margin/VBox/HBox" unique_id=1767872463]
-layout_mode = 2
-theme_override_font_sizes/font_size = 18
-text = "🔫"
-
-[node name="NameLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot1/Margin/VBox" unique_id=543909313]
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 4
-theme_override_font_sizes/font_size = 11
-text = "Blaster"
-horizontal_alignment = 1
-
-[node name="CostLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot1/Margin/VBox" unique_id=1911943340]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.4, 0.85, 1, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 4
-theme_override_font_sizes/font_size = 10
-text = "1 MP"
-horizontal_alignment = 1
-
-[node name="Slot2" type="PanelContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer" unique_id=190377539]
-custom_minimum_size = Vector2(80, 75)
-layout_mode = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_slot_inactive")
-
-[node name="Margin" type="MarginContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot2" unique_id=682836052]
-layout_mode = 2
-
-[node name="VBox" type="VBoxContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot2/Margin" unique_id=69104274]
-layout_mode = 2
-alignment = 1
-
-[node name="HBox" type="HBoxContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot2/Margin/VBox" unique_id=894182552]
-layout_mode = 2
-alignment = 1
-
-[node name="KeyLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot2/Margin/VBox/HBox" unique_id=5998453]
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.85, 0.2, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 4
-theme_override_font_sizes/font_size = 11
-text = "[3]"
-
-[node name="IconLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot2/Margin/VBox/HBox" unique_id=869915238]
-layout_mode = 2
-theme_override_font_sizes/font_size = 18
-text = "💥"
-
-[node name="NameLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot2/Margin/VBox" unique_id=418004249]
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 4
-theme_override_font_sizes/font_size = 11
-text = "Escopeta"
-horizontal_alignment = 1
-
-[node name="CostLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot2/Margin/VBox" unique_id=1855615822]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.4, 0.85, 1, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 4
-theme_override_font_sizes/font_size = 10
-text = "2 MP"
-horizontal_alignment = 1
-
-[node name="Slot3" type="PanelContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer" unique_id=1884697430]
-custom_minimum_size = Vector2(80, 75)
-layout_mode = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_slot_inactive")
-
-[node name="Margin" type="MarginContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot3" unique_id=1383579617]
-layout_mode = 2
-
-[node name="VBox" type="VBoxContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot3/Margin" unique_id=1698665205]
-layout_mode = 2
-alignment = 1
-
-[node name="HBox" type="HBoxContainer" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot3/Margin/VBox" unique_id=470072892]
-layout_mode = 2
-alignment = 1
-
-[node name="KeyLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot3/Margin/VBox/HBox" unique_id=506327776]
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.85, 0.2, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 4
-theme_override_font_sizes/font_size = 11
-text = "[4]"
-
-[node name="IconLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot3/Margin/VBox/HBox" unique_id=640150328]
-layout_mode = 2
-theme_override_font_sizes/font_size = 18
-text = "🔮"
-
-[node name="NameLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot3/Margin/VBox" unique_id=177473859]
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 4
-theme_override_font_sizes/font_size = 11
-text = "Báculo"
-horizontal_alignment = 1
-
-[node name="CostLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/WeaponsContainer/Slot3/Margin/VBox" unique_id=1450669582]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.4, 0.85, 1, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 4
-theme_override_font_sizes/font_size = 10
-text = "3 MP"
-horizontal_alignment = 1
-
-[node name="ReloadBar" type="ProgressBar" parent="Control/WeaponsPanel/Margin/VBox" unique_id=442589108]
-visible = false
-custom_minimum_size = Vector2(0, 18)
-layout_mode = 2
-theme_override_styles/background = SubResource("StyleBoxFlat_hp_bg")
-theme_override_styles/fill = SubResource("StyleBoxFlat_energy_fill")
-value = 100.0
-show_percentage = false
-
-[node name="ReloadLabel" type="Label" parent="Control/WeaponsPanel/Margin/VBox/ReloadBar" unique_id=2093812981]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_colors/font_outline_color = Color(0.1, 0.08, 0, 1)
-theme_override_constants/outline_size = 4
-theme_override_font_sizes/font_size = 11
-text = "RECARGANDO..."
-horizontal_alignment = 1
-vertical_alignment = 1
-
 [node name="ControlsHintPanel" type="PanelContainer" parent="Control" unique_id=1227775482]
+visible = false
 layout_mode = 1
 anchors_preset = 7
 anchor_left = 0.5
@@ -632,6 +315,121 @@ anchor_bottom = 0.5
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("2_crosshair")
+
+[node name="HubImage" type="TextureRect" parent="Control" unique_id=317692766]
+layout_mode = 0
+offset_left = 1113.0
+offset_top = 794.0
+offset_right = 3285.0
+offset_bottom = 1518.0
+rotation = 3.140961
+scale = Vector2(0.4094021, 0.37660912)
+texture = ExtResource("3_image")
+
+[node name="XPBar" type="ProgressBar" parent="Control/HubImage" unique_id=417692766]
+layout_mode = 0
+offset_left = 2059.8206
+offset_top = 284.30133
+offset_right = 2259.8206
+offset_bottom = 304.30133
+rotation = 3.1381953
+scale = Vector2(9.772598, 2.4400718)
+show_percentage = false
+
+[node name="WeaponSlot1" type="Panel" parent="Control/HubImage" unique_id=617692761]
+clip_children = 1
+layout_mode = 0
+offset_left = 1001.2764
+offset_top = 316.66513
+offset_right = 1101.2764
+offset_bottom = 416.66513
+scale = Vector2(1.7659255, 1.7349402)
+theme_override_styles/panel = SubResource("StyleBoxFlat_circle")
+
+[node name="Icon" type="TextureRect" parent="Control/HubImage/WeaponSlot1" unique_id=717692761]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+expand_mode = 1
+
+[node name="WeaponSlot2" type="Panel" parent="Control/HubImage" unique_id=617692762]
+clip_children = 1
+layout_mode = 0
+offset_left = 1228.4386
+offset_top = 314.16583
+offset_right = 1328.4386
+offset_bottom = 414.16583
+scale = Vector2(1.7109774, 1.7767955)
+theme_override_styles/panel = SubResource("StyleBoxFlat_circle")
+
+[node name="Icon" type="TextureRect" parent="Control/HubImage/WeaponSlot2" unique_id=717692762]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+expand_mode = 1
+
+[node name="WeaponSlot3" type="Panel" parent="Control/HubImage" unique_id=617692763]
+clip_children = 1
+layout_mode = 0
+offset_left = 779.00275
+offset_top = 313.85718
+offset_right = 879.00275
+offset_bottom = 413.85718
+scale = Vector2(1.7171679, 1.7595044)
+theme_override_styles/panel = SubResource("StyleBoxFlat_circle")
+
+[node name="Icon" type="TextureRect" parent="Control/HubImage/WeaponSlot3" unique_id=717692763]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+expand_mode = 1
+
+[node name="WeaponSlot4" type="Panel" parent="Control/HubImage" unique_id=617692764]
+clip_children = 1
+layout_mode = 0
+offset_left = 1453.1565
+offset_top = 314.3202
+offset_right = 1553.1565
+offset_bottom = 414.3202
+scale = Vector2(1.7266562, 1.7908946)
+theme_override_styles/panel = SubResource("StyleBoxFlat_circle")
+
+[node name="Icon" type="TextureRect" parent="Control/HubImage/WeaponSlot4" unique_id=717692764]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+expand_mode = 1
+
+[node name="WeaponSlot5" type="Panel" parent="Control/HubImage" unique_id=617692765]
+clip_children = 1
+layout_mode = 0
+offset_left = 549.39813
+offset_top = 316.35483
+offset_right = 649.39813
+offset_bottom = 416.35483
+scale = Vector2(1.7305187, 1.7461106)
+theme_override_styles/panel = SubResource("StyleBoxFlat_circle")
+
+[node name="Icon" type="TextureRect" parent="Control/HubImage/WeaponSlot5" unique_id=717692765]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+expand_mode = 1
 
 [node name="GameOverScreen" type="Control" parent="." unique_id=2076750885]
 visible = false

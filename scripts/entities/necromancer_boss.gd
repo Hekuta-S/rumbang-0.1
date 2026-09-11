@@ -17,7 +17,6 @@ enum BossState { MOVING, IDLE_LIFESTEAL, SUMMONING, ERUPTING }
 var state: BossState = BossState.MOVING
 var state_timer: float = 0.0
 var ability_cooldown: float = 2.0
-
 @onready var ray_mesh: MeshInstance3D = get_node_or_null("LifeStealRay")
 
 # 3D Model & Animation variables
@@ -211,10 +210,22 @@ func _physics_process(delta: float) -> void:
 	if not player or not is_instance_valid(player):
 		player = get_tree().get_first_node_in_group("player")
 		return
+			
+	# Mathematical floor lock: Caminar sobre el mapa matemático si la física no ha cargado
+	var ground_y = 0.0
+	var main_node = get_tree().current_scene
+	if main_node and main_node.has_method("get_floor_y"):
+		ground_y = main_node.get_floor_y(global_position.x, global_position.z)
+		
+	if global_position.y < ground_y:
+		global_position.y = ground_y
+		velocity.y = 0.0
 
 	var current_vy = velocity.y
-	if not is_on_floor():
+	if not is_on_floor() and global_position.y > ground_y:
 		current_vy -= 30.0 * delta
+		if current_vy < -25.0:
+			current_vy = -25.0
 
 	var to_player = player.global_position - global_position
 	to_player.y = 0

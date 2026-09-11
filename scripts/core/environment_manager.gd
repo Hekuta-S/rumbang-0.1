@@ -9,25 +9,24 @@ func generate_environment() -> void:
 	call_deferred("_correct_prop_heights")
 
 func spawn_terrain_slopes() -> void:
-	var existing_floor = get_node_or_null("../Floor")
-	if existing_floor:
-		existing_floor.queue_free()
-		
-	var existing_terrain = get_node_or_null("TerrainCSG")
-	if existing_terrain:
-		existing_terrain.queue_free()
-
-	var terrain_scene = load("res://scenes/core/mapa_principal/terreno_principal.tscn")
-	if terrain_scene:
-		var terrain = terrain_scene.instantiate()
-		terrain.name = "TerrainCSG"
-		add_child(terrain)
+	pass
 
 
 func spawn_medieval_props() -> void:
 	pass
 
 func get_floor_y(x: float, z: float) -> float:
+	var terrain = get_tree().current_scene.get_node_or_null("TerrainCSG/Terrain3D")
+	if terrain:
+		if "storage" in terrain and terrain.storage and terrain.storage.has_method("get_height"):
+			var h = terrain.storage.get_height(Vector3(x, 0, z))
+			if is_finite(h) and not is_nan(h):
+				return h
+		if "data" in terrain and terrain.data and terrain.data.has_method("get_height"):
+			var h = terrain.data.get_height(Vector3(x, 0, z))
+			if is_finite(h) and not is_nan(h):
+				return h
+
 	var space_state = get_world_3d().direct_space_state
 	var query = PhysicsRayQueryParameters3D.create(Vector3(x, 100.0, z), Vector3(x, -100.0, z))
 	query.collision_mask = 1 | 2 | 4

@@ -1,4 +1,3 @@
-## main_menu.gd — Main Menu Scene Script
 extends Control
 
 const C_BG        := Color(0.055, 0.072, 0.11)
@@ -11,35 +10,48 @@ const C_BTN_BORDER := Color(0.18, 0.26, 0.40)
 const C_BTN_HOVER  := Color(0.12, 0.20, 0.34)
 const C_BTN_PRESS  := Color(0.08, 0.42, 0.68)
 
+var weapons = [
+	{"id": "flame_axe", "name": "Hacha de Fuego"},
+	{"id": "air_fists", "name": "Puños de Aire"},
+	{"id": "dual_daggers", "name": "Dagas Gemelas"},
+	{"id": "flame_thrower", "name": "Lanzallamas"},
+	{"id": "radiation_zone", "name": "Zona de Radiación"},
+	{"id": "serpent_projectile", "name": "Serpientes de Joel"},
+	{"id": "spear_projectile", "name": "Espalanza"},
+	{"id": "spinning_axe_projectile", "name": "Hacha Giratoria"},
+	{"id": "spore_cloud", "name": "Bazuca de Esporas"}
+]
+
+var center_container: CenterContainer
+var upgrades_panel: ColorRect
+var lbl_gold: Label
+var upgrades_container: VBoxContainer
+
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_build_ui()
 
 func _build_ui() -> void:
-	# ── Background ──────────────────────────────────────────────────────────
 	var bg := ColorRect.new()
 	bg.set_anchors_preset(PRESET_FULL_RECT)
 	bg.color = C_BG
 	add_child(bg)
 
-	# Subtle top accent bar
 	var accent_bar := ColorRect.new()
 	accent_bar.set_anchors_preset(PRESET_TOP_WIDE)
 	accent_bar.custom_minimum_size = Vector2(0, 3)
 	accent_bar.color = C_ACCENT
 	add_child(accent_bar)
 
-	# ── Center layout ────────────────────────────────────────────────────────
-	var center := CenterContainer.new()
-	center.set_anchors_preset(PRESET_FULL_RECT)
-	add_child(center)
+	center_container = CenterContainer.new()
+	center_container.set_anchors_preset(PRESET_FULL_RECT)
+	add_child(center_container)
 
 	var vbox := VBoxContainer.new()
 	vbox.custom_minimum_size = Vector2(380, 0)
 	vbox.add_theme_constant_override("separation", 14)
-	center.add_child(vbox)
+	center_container.add_child(vbox)
 
-	# Title
 	var lbl_title := Label.new()
 	lbl_title.text = "SOUL KNIGHT 3D"
 	lbl_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -54,7 +66,6 @@ func _build_ui() -> void:
 	lbl_sub.add_theme_color_override("font_color", C_TEXT_DIM)
 	vbox.add_child(lbl_sub)
 
-	# Separator
 	var sep := HSeparator.new()
 	sep.custom_minimum_size = Vector2(0, 1)
 	var sep_style := StyleBoxFlat.new()
@@ -66,11 +77,14 @@ func _build_ui() -> void:
 	spacer.custom_minimum_size = Vector2(0, 28)
 	vbox.add_child(spacer)
 
-	# ── Buttons ───────────────────────────────────────────────────────────────
 	var btn_play := _make_button("  JUGAR", C_ACCENT)
 	btn_play.pressed.connect(_on_play)
 	vbox.add_child(btn_play)
 
+	var btn_upgrades := _make_button("  MEJORAS", C_BTN_BORDER)
+	btn_upgrades.pressed.connect(_on_upgrades_menu)
+	vbox.add_child(btn_upgrades)
+	
 	var btn_opts := _make_button("  OPCIONES", C_BTN_BORDER)
 	btn_opts.disabled = true
 	btn_opts.modulate.a = 0.45
@@ -80,11 +94,6 @@ func _build_ui() -> void:
 	btn_quit.pressed.connect(_on_quit)
 	vbox.add_child(btn_quit)
 
-	var btn_test := _make_button("  MAPA DE PRUEBA (RIVA)", C_BTN_BORDER)
-	btn_test.pressed.connect(_on_test_map)
-	vbox.add_child(btn_test)
-
-	# ── Version label (bottom-right) ─────────────────────────────────────────
 	var lbl_ver := Label.new()
 	lbl_ver.text = "v0.1 - Alpha"
 	lbl_ver.set_anchors_preset(PRESET_BOTTOM_RIGHT)
@@ -95,6 +104,124 @@ func _build_ui() -> void:
 	lbl_ver.add_theme_font_size_override("font_size", 12)
 	lbl_ver.add_theme_color_override("font_color", C_TEXT_DIM)
 	add_child(lbl_ver)
+	
+	_build_upgrades_panel()
+
+func _build_upgrades_panel() -> void:
+	upgrades_panel = ColorRect.new()
+	upgrades_panel.set_anchors_preset(PRESET_FULL_RECT)
+	upgrades_panel.color = Color(C_BG, 0.95)
+	upgrades_panel.hide()
+	add_child(upgrades_panel)
+	
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 60)
+	margin.add_theme_constant_override("margin_right", 60)
+	margin.add_theme_constant_override("margin_top", 40)
+	margin.add_theme_constant_override("margin_bottom", 40)
+	upgrades_panel.add_child(margin)
+	
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 20)
+	margin.add_child(vbox)
+	
+	var header := HBoxContainer.new()
+	vbox.add_child(header)
+	
+	var title := Label.new()
+	title.text = "MEJORAS DE ARMAS"
+	title.add_theme_font_size_override("font_size", 32)
+	title.add_theme_color_override("font_color", C_TITLE)
+	header.add_child(title)
+	
+	var spacer = Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(spacer)
+	
+	lbl_gold = Label.new()
+	lbl_gold.add_theme_font_size_override("font_size", 24)
+	lbl_gold.add_theme_color_override("font_color", Color(1.0, 0.8, 0.2))
+	header.add_child(lbl_gold)
+	
+	var btn_back := _make_button("VOLVER", C_BTN_BORDER)
+	btn_back.custom_minimum_size = Vector2(150, 40)
+	btn_back.pressed.connect(func():
+		upgrades_panel.hide()
+		center_container.show()
+	)
+	header.add_child(btn_back)
+	
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(scroll)
+	
+	upgrades_container = VBoxContainer.new()
+	upgrades_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	upgrades_container.add_theme_constant_override("separation", 10)
+	scroll.add_child(upgrades_container)
+
+func _refresh_upgrades() -> void:
+	lbl_gold.text = "Oro: " + str(SaveManager.get_total_gold())
+	
+	for child in upgrades_container.get_children():
+		child.queue_free()
+		
+	for w in weapons:
+		var panel = PanelContainer.new()
+		var style = StyleBoxFlat.new()
+		style.bg_color = C_BTN_BG
+		style.border_width_bottom = 2
+		style.border_color = C_BTN_BORDER
+		style.content_margin_left = 15
+		style.content_margin_right = 15
+		style.content_margin_top = 10
+		style.content_margin_bottom = 10
+		panel.add_theme_stylebox_override("panel", style)
+		upgrades_container.add_child(panel)
+		
+		var hbox = HBoxContainer.new()
+		panel.add_child(hbox)
+		
+		var name_lbl = Label.new()
+		name_lbl.text = w["name"]
+		name_lbl.custom_minimum_size = Vector2(250, 0)
+		name_lbl.add_theme_font_size_override("font_size", 18)
+		hbox.add_child(name_lbl)
+		
+		var spacer = Control.new()
+		spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		hbox.add_child(spacer)
+		
+		var lvl = SaveManager.get_upgrade(w["id"])
+		
+		# Draw 5 blocks
+		for i in range(5):
+			var block = ColorRect.new()
+			block.custom_minimum_size = Vector2(20, 20)
+			block.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			if i < lvl:
+				block.color = C_ACCENT
+			else:
+				block.color = C_BTN_BORDER
+			hbox.add_child(block)
+			
+		var spacer2 = Control.new()
+		spacer2.custom_minimum_size = Vector2(20, 0)
+		hbox.add_child(spacer2)
+			
+		var cost = 500
+		var btn_buy = _make_button("+" if lvl < 5 else "MAX", C_ACCENT if lvl < 5 else C_BTN_BORDER)
+		btn_buy.custom_minimum_size = Vector2(100, 40)
+		if lvl >= 5:
+			btn_buy.disabled = true
+		else:
+			btn_buy.text = str(cost) + "G"
+			btn_buy.pressed.connect(func():
+				if SaveManager.buy_upgrade(w["id"], cost):
+					_refresh_upgrades()
+			)
+		hbox.add_child(btn_buy)
 
 func _make_button(txt: String, border_col: Color) -> Button:
 	var btn := Button.new()
@@ -126,10 +253,12 @@ func _btn_style(bg: Color, border: Color, radius: int) -> StyleBoxFlat:
 	return s
 
 func _on_play() -> void:
-	get_tree().change_scene_to_file("res://scenes/ui/character_select.tscn")
+	SceneLoader.load_scene("res://scenes/ui/character_select.tscn")
+
+func _on_upgrades_menu() -> void:
+	center_container.hide()
+	upgrades_panel.show()
+	_refresh_upgrades()
 
 func _on_quit() -> void:
 	get_tree().quit()
-
-func _on_test_map() -> void:
-	get_tree().change_scene_to_file("res://scenes/world.tscn")

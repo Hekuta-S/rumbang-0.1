@@ -139,6 +139,9 @@ func _on_impact(body: Node3D, hit_pos: Vector3, hit_normal: Vector3) -> void:
 			spawn_impact_sparks(get_parent(), hit_pos, hit_normal, bullet_color)
 			queue_free()
 
+static var CACHED_RING_MATS: Dictionary = {}
+static var CACHED_SPARK_MATS: Dictionary = {}
+
 static func spawn_impact_sparks(parent_node: Node, pos: Vector3, normal: Vector3, spark_color: Color) -> void:
 	# Guard: parent must exist, be valid, and be inside the scene tree
 	if not parent_node or not is_instance_valid(parent_node) or not parent_node.is_inside_tree(): return
@@ -163,13 +166,20 @@ static func spawn_impact_sparks(parent_node: Node, pos: Vector3, normal: Vector3
 	torus.ring_segments = 12
 	ring.mesh = torus
 	
-	var r_mat = StandardMaterial3D.new()
-	r_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	r_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	r_mat.albedo_color = Color(spark_color.r, spark_color.g, spark_color.b, 0.45)
-	r_mat.emission_enabled = true
-	r_mat.emission = spark_color
-	r_mat.emission_energy_multiplier = 2.5
+	var ring_key = spark_color.to_html()
+	var r_mat: StandardMaterial3D
+	if not CACHED_RING_MATS.has(ring_key):
+		r_mat = StandardMaterial3D.new()
+		r_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		r_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		r_mat.albedo_color = Color(spark_color.r, spark_color.g, spark_color.b, 0.45)
+		r_mat.emission_enabled = true
+		r_mat.emission = spark_color
+		r_mat.emission_energy_multiplier = 2.5
+		CACHED_RING_MATS[ring_key] = r_mat
+	else:
+		r_mat = CACHED_RING_MATS[ring_key].duplicate() # Duplicate so we can tween transparency independently
+		
 	ring.material_override = r_mat
 	
 	spark_container.add_child(ring)
@@ -196,14 +206,18 @@ static func spawn_impact_sparks(parent_node: Node, pos: Vector3, normal: Vector3
 	p_mesh.size = Vector3(0.06, 0.06, 0.18)
 	particles.mesh = p_mesh
 
-	var mat = StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_color = Color(spark_color.r, spark_color.g, spark_color.b, 0.6)
-	mat.emission_enabled = true
-	mat.emission = Color(spark_color.r, spark_color.g, spark_color.b).lerp(Color.WHITE, 0.3)
-	mat.emission_energy_multiplier = 2.5
-	particles.material_override = mat
+	var mat_key = spark_color.to_html()
+	if not CACHED_SPARK_MATS.has(mat_key):
+		var new_mat = StandardMaterial3D.new()
+		new_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		new_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		new_mat.albedo_color = Color(spark_color.r, spark_color.g, spark_color.b, 0.6)
+		new_mat.emission_enabled = true
+		new_mat.emission = Color(spark_color.r, spark_color.g, spark_color.b).lerp(Color.WHITE, 0.3)
+		new_mat.emission_energy_multiplier = 2.5
+		CACHED_SPARK_MATS[mat_key] = new_mat
+		
+	particles.material_override = CACHED_SPARK_MATS[mat_key]
 
 	var sp_ramp = Gradient.new()
 	sp_ramp.set_color(0, Color(spark_color.r, spark_color.g, spark_color.b, 0.65))

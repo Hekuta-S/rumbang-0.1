@@ -4,6 +4,11 @@ extends Node
 
 var selected_index: int = 0
 
+var cache_enemy_models: Dictionary = {}
+var cache_enemy_textures: Dictionary = {}
+var cache_enemy_anims: Dictionary = {}
+var cache_bullet_mats: Dictionary = {}
+
 ## All playable characters defined here.
 ## Add new characters to this array to make them appear in the selection screen.
 const CHARACTERS: Array = [

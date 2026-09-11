@@ -11,3 +11,6 @@ Thumbs.db
 
 # Large re-downloadable binaries (ziva agent runtime, fetched via installer)
 addons/ziva_agent/zivacode/windows_x86_64/zivacode.exe
+
+assets/
+.godot/

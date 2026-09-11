@@ -39,9 +39,9 @@ func start_wave(lvl: int, p_player: Node3D) -> void:
 		# BOSS FLOOR
 		var boss = boss_scene.instantiate()
 		var main_node = get_tree().current_scene
-		var boss_y = main_node.get_floor_y(0, -12) if main_node.has_method("get_floor_y") else 0.0
+		var boss_y = (main_node.get_floor_y(0, -12) if main_node.has_method("get_floor_y") else 0.0)
 		boss.position = Vector3(0, boss_y, -12)
-		boss.boss_died.connect(_on_boss_died_internal)
+		boss.connect("boss_died", _on_boss_died_internal)
 		_scale_boss(boss, int(lvl / 3.0))
 		get_parent().add_child(boss)
 		AudioManager.play("boss_sting")
@@ -77,15 +77,16 @@ func _spawn_single_enemy() -> void:
 	var main_node = get_tree().current_scene
 	
 	for attempt in range(15):
-		var angle = randf() * TAU
-		var dist = randf_range(20.0, 35.0)
+		# Reducir distancia de spawn para evitar que aparezcan en zonas donde el terreno aún no carga sus colisiones
+		var dist = randf_range(8.0, 16.0)
+		var angle = randf_range(0, TAU)
 		var px = player_pos.x + cos(angle) * dist
 		var pz = player_pos.z + sin(angle) * dist
 		
 		px = clamp(px, PLAYABLE_MIN_X, PLAYABLE_MAX_X)
 		pz = clamp(pz, PLAYABLE_MIN_Z, PLAYABLE_MAX_Z)
 		
-		var py = main_node.get_floor_y(px, pz) if main_node.has_method("get_floor_y") else 0.0
+		var py = (main_node.get_floor_y(px, pz) if main_node.has_method("get_floor_y") else 0.0)
 		spawn_pos = Vector3(px, py, pz)
 		
 		if spawn_pos.distance_to(player_pos) > 15.0:
@@ -111,15 +112,15 @@ func _spawn_single_enemy() -> void:
 	
 	for i in range(spawn_count):
 		var en = enemy if i == 0 else enemy_scene.instantiate()
-		en.type = type_val
-		en.enemy_died.connect(_on_enemy_died_internal)
+		en.set("type", type_val)
+		en.connect("enemy_died", _on_enemy_died_internal)
 		
 		if i == 0:
 			en.position = spawn_pos
 		else:
 			var offset = Vector3(randf_range(-2.5, 2.5), 0, randf_range(-2.5, 2.5))
 			var final_pos = spawn_pos + offset
-			final_pos.y = main_node.get_floor_y(final_pos.x, final_pos.z) if main_node.has_method("get_floor_y") else spawn_pos.y
+			final_pos.y = (main_node.get_floor_y(final_pos.x, final_pos.z) if main_node.has_method("get_floor_y") else spawn_pos.y)
 			en.position = final_pos
 			
 		enemies_spawned += 1
@@ -127,10 +128,10 @@ func _spawn_single_enemy() -> void:
 
 func _scale_boss(boss: Node, tier: int) -> void:
 	var scale_mult := 1.0 + 0.5 * float(maxi(tier - 1, 0))
-	boss.max_hp = 600.0 * scale_mult
-	boss.hp = boss.max_hp
-	boss.gold_reward = 150 + 50 * maxi(tier - 1, 0)
-	boss.speed = minf(4.0 + 0.5 * float(maxi(tier - 1, 0)), 8.0)
+	boss.set("max_hp", 600.0 * scale_mult)
+	boss.set("hp", 600.0 * scale_mult)
+	boss.set("gold_reward", 150 + 50 * maxi(tier - 1, 0))
+	boss.set("speed", minf(4.0 + 0.5 * float(maxi(tier - 1, 0)), 8.0))
 
 func _on_enemy_died_internal(_enemy_ref, pos: Vector3, gold_val: int) -> void:
 	enemy_died.emit(pos, gold_val)

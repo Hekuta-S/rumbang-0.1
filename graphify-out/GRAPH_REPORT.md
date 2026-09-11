@@ -1,425 +1,425 @@
-# Graph Report - tesis  (2026-08-24)
+# Graph Report - rumbang-0.1-main  (2026-09-05)
 
 ## Corpus Check
-- 2097 files · ~24,999 words
+- 2006 files · ~44,765 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2097 nodes · 3668 edges · 112 communities (109 shown, 3 thin omitted)
-- Extraction: 53% EXTRACTED · 47% INFERRED · 0% AMBIGUOUS · INFERRED: 1724 edges (avg confidence: 0.5)
+- 2006 nodes · 3470 edges · 118 communities (117 shown, 1 thin omitted)
+- Extraction: 54% EXTRACTED · 46% INFERRED · 0% AMBIGUOUS · INFERRED: 1609 edges (avg confidence: 0.5)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
-- Community 0 (addons_godot_mcp_native_mcp_mcp_server_core_legacy)
-- Community 1 (addons_godot_mcp_runtime_mcp_runtime_probe)
-- Community 2 (addons_godot_mcp_tools_debug_tools_native)
-- Community 3 (addons_godot_mcp_tools_script_tools_native)
-- Community 4 (addons_ziva_agent_ziva_input_harness)
-- Community 5 (addons_godot_mcp_tools_node_tools_native)
-- Community 6 (addons_godot_mcp_mcp_server_native)
-- Community 7 (addons_godot_mcp_native_mcp_mcp_debugger_bridge)
-- Community 8 (addons_terrain_3d_extras_particle_example_terrain_3d_particles)
-- Community 9 (addons_terrain_3d_src_asset_dock_45)
-- Community 10 (addons_godot_mcp_ui_mcp_panel_native)
-- Community 11 (addons_terrain_3d_src_asset_dock)
-- Community 12 (addons_godot_mcp_native_mcp_mcp_http_server_legacy)
-- Community 13 (addons_godot_mcp_tools_editor_tools_native)
-- Community 14 (addons_terrain_3d_src_double_slider)
-- Community 15 (scripts_entities_player)
-- Community 16 (demo_src_enemy)
-- Community 17 (scripts_components_player_combat_controller)
-- Community 18 (addons_godot_mcp_tools_project_tools_native)
-- Community 19 (godot_passivedata)
-- Community 20 (addons_godot_mcp_tools_debug_tools_native_request_runtime_probe_poll)
-- Community 21 (addons_godot_mcp_tools_scene_tools_native)
+- Community 0 (addons_godot_mcp_toolkit_contract_execute_hints)
+- Community 1 (addons_godot_mcp_toolkit_ui_dock_limits_dock_unfocused_control)
+- Community 2 (addons_terrain_3d_src_asset_dock_45)
+- Community 3 (addons_godot_mcp_toolkit_paths_project_key)
+- Community 4 (godot_characterbody3d)
+- Community 5 (addons_terrain_3d_src_asset_dock)
+- Community 6 (addons_godot_mcp_toolkit_core_autoload_identity)
+- Community 7 (addons_terrain_3d_extras_particle_example_terrain_3d_particles)
+- Community 8 (scripts_entities_player)
+- Community 9 (addons_godot_mcp_toolkit_core_tool_menu)
+- Community 10 (scripts_components_player_combat_controller)
+- Community 11 (addons_terrain_3d_src_double_slider)
+- Community 12 (addons_godot_mcp_toolkit_commands_editor_helpers)
+- Community 13 (addons_godot_mcp_toolkit_paths_lsp_publisher)
+- Community 14 (godot_passivedata)
+- Community 15 (addons_godot_mcp_toolkit_commands_playtest_log_reader)
+- Community 16 (addons_godot_mcp_toolkit_commands_tileset_tileset_alternatives)
+- Community 17 (addons_godot_mcp_toolkit_transport_mcp_server)
+- Community 18 (addons_godot_mcp_toolkit_extensions_extension_loader)
+- Community 19 (addons_godot_mcp_toolkit_commands_editor_editor_commands)
+- Community 20 (addons_godot_mcp_toolkit_logging_log_buffer)
+- Community 21 (addons_godot_mcp_toolkit_ui_dock_ext_extension_catalog)
 - Community 22 (addons_terrain_3d_src_editor_plugin)
-- Community 23 (addons_godot_mcp_native_mcp_mcp_http_server)
-- Community 24 (addons_terrain_3d_src_tool_settings)
-- Community 25 (addons_godot_mcp_native_mcp_mcp_tool_classifier)
-- Community 26 (addons_godot_mcp_tools_debug_tools_native_debug_scope_presentation_hint)
-- Community 27 (addons_godot_mcp_tools_debug_tools_native_clear_mcp_panel_log)
-- Community 28 (scripts_core_ui_manager)
-- Community 29 (addons_terrain_3d_menu_baker)
-- Community 30 (addons_terrain_3d_src_ui)
-- Community 31 (demo_src_demoscene)
-- Community 32 (scripts_ui_hud)
-- Community 33 (godot_scenetree)
-- Community 34 (addons_godot_mcp_native_mcp_mcp_types)
-- Community 35 (addons_godot_mcp_native_mcp_tool_registry)
-- Community 36 (addons_godot_mcp_tools_resource_tools_native)
-- Community 37 (scripts_components_stats_component)
-- Community 38 (addons_godot_mcp_tools_project_tools_native_analyze_script_diagnostics)
-- Community 39 (addons_godot_mcp_ui_mcp_tool_group_item)
-- Community 40 (addons_godot_mcp_utils_path_validator)
-- Community 41 (addons_terrain_3d_extras_3rd_party_import_sgt)
-- Community 42 (addons_godot_mcp_native_mcp_tool_execution_context)
-- Community 43 (addons_godot_mcp_tools_debug_tools_native_debug_indexed_variable_count)
-- Community 44 (addons_godot_mcp_tools_debug_tools_native_find_matching_debug_state)
-- Community 45 (addons_terrain_3d_menu_channel_packer)
-- Community 46 (scripts_components_player_input_controller)
-- Community 47 (addons_godot_mcp_native_mcp_mcp_resource_manager)
-- Community 48 (addons_godot_mcp_native_mcp_mcp_transport_base)
-- Community 49 (addons_godot_mcp_ui_mcp_cli_installer)
-- Community 50 (demo_src_runtimenavigationbaker)
-- Community 51 (scripts_core_wave_manager)
-- Community 52 (addons_godot_mcp_native_mcp_cli_api_handler)
-- Community 53 (addons_terrain_3d_menu_directory_setup)
-- Community 54 (addons_godot_mcp_native_mcp_translation_manager)
-- Community 55 (addons_terrain_3d_src_multi_picker)
-- Community 56 (scripts_components_player_animation_controller)
-- Community 57 (scripts_objects_spear_projectile)
-- Community 58 (addons_godot_mcp_native_mcp_cli_result_limiter)
-- Community 59 (addons_godot_mcp_native_mcp_config_manager)
-- Community 60 (addons_godot_mcp_native_mcp_tool_definition)
-- Community 61 (addons_godot_mcp_native_mcp_tool_executor)
-- Community 62 (addons_godot_mcp_tools_project_tools_native_build_classdb_api_metadata)
-- Community 63 (addons_godot_mcp_tools_project_tools_native_collect_project_tests_recursive)
-- Community 64 (addons_godot_mcp_ui_mcp_tool_item)
-- Community 65 (addons_terrain_3d_src_toolbar)
-- Community 66 (demo_src_caveentrance)
-- Community 67 (godot_editorscript)
+- Community 23 (addons_godot_mcp_toolkit_commands_audiobus_commands)
+- Community 24 (addons_godot_mcp_toolkit_commands_node_commands)
+- Community 25 (addons_godot_mcp_toolkit_transport_mcp_toolkit_command_registry)
+- Community 26 (addons_godot_mcp_toolkit_contract_coerce)
+- Community 27 (addons_godot_mcp_toolkit_commands_animation_commands)
+- Community 28 (addons_terrain_3d_src_tool_settings)
+- Community 29 (addons_godot_mcp_toolkit_commands_scene_commands)
+- Community 30 (addons_godot_mcp_toolkit_commands_editor_editor_log_reader)
+- Community 31 (addons_godot_mcp_toolkit_core_unfocused_backup)
+- Community 32 (addons_godot_mcp_toolkit_scene_scene_lease)
+- Community 33 (scripts_core_ui_manager)
+- Community 34 (addons_godot_mcp_toolkit_contract_mcp_toolkit_command_options)
+- Community 35 (addons_godot_mcp_toolkit_ui_mcp_json_sync)
+- Community 36 (addons_terrain_3d_src_ui)
+- Community 37 (addons_godot_mcp_toolkit_ui_dock_dock)
+- Community 38 (scripts_ui_hud)
+- Community 39 (addons_godot_mcp_toolkit_transport_mcp_server_connect_lsp_settings_watch)
+- Community 40 (godot_node)
+- Community 41 (scripts_components_stats_component)
+- Community 42 (addons_godot_mcp_toolkit_commands_script_commands)
+- Community 43 (addons_godot_mcp_toolkit_commands_signal_commands)
+- Community 44 (addons_godot_mcp_toolkit_transport_dispatch_dispatch_lane)
+- Community 45 (addons_terrain_3d_extras_3rd_party_import_sgt)
+- Community 46 (addons_godot_mcp_toolkit_commands_classdb_commands)
+- Community 47 (addons_godot_mcp_toolkit_commands_spatial_commands)
+- Community 48 (godot_scenetree)
+- Community 49 (scripts_components_player_input_controller)
+- Community 50 (addons_godot_mcp_toolkit_commands_file_commands)
+- Community 51 (addons_godot_mcp_toolkit_commands_particle_commands)
+- Community 52 (addons_godot_mcp_toolkit_core_settings_registration)
+- Community 53 (godot_area3d)
+- Community 54 (scripts_core_wave_manager)
+- Community 55 (addons_godot_mcp_toolkit_scene_mcp_toolkit_undo_redo_action)
+- Community 56 (addons_godot_mcp_toolkit_commands_3d_commands)
+- Community 57 (addons_godot_mcp_toolkit_transport_dispatch_mutation_watchdog)
+- Community 58 (addons_godot_mcp_toolkit_ui_dock_ext_info_dialog)
+- Community 59 (addons_terrain_3d_src_multi_picker)
+- Community 60 (scripts_components_player_animation_controller)
+- Community 61 (addons_godot_mcp_toolkit_commands_navigation_commands)
+- Community 62 (addons_godot_mcp_toolkit_commands_path_commands)
+- Community 63 (addons_godot_mcp_toolkit_scene_undo_redo_helpers)
+- Community 64 (addons_godot_mcp_toolkit_transport_dispatch_server_request_router)
+- Community 65 (scripts_objects_spear_projectile)
+- Community 66 (addons_godot_mcp_toolkit_ui_dock_status_dock_status_panel)
+- Community 67 (addons_terrain_3d_src_toolbar)
 - Community 68 (scripts_objects_bullet)
 - Community 69 (scripts_objects_dust_projectile)
-- Community 70 (addons_terrain_3d_src_gradient_operation_builder)
-- Community 71 (scripts_components_auto_combat_controller)
-- Community 72 (scripts_components_inventory_component)
-- Community 73 (scripts_core_save_manager)
-- Community 74 (scripts_entities_player_weapons_weapon_data)
-- Community 75 (scripts_objects_serpent_projectile)
-- Community 76 (scripts_objects_spore_projectile)
-- Community 77 (scripts_ui_pause_menu)
-- Community 78 (addons_godot_mcp_native_mcp_mcp_auth_manager)
-- Community 79 (addons_godot_mcp_tools_project_tools_native_apply_project_input_modifiers)
-- Community 80 (addons_godot_mcp_utils_resource_utils)
-- Community 81 (godot_resource)
-- Community 82 (scripts_components_player_movement_controller)
-- Community 83 (scripts_objects_spinning_axe_projectile)
-- Community 84 (addons_godot_mcp_native_mcp_tool_execution_result)
-- Community 85 (addons_godot_mcp_utils_node_utils)
-- Community 86 (addons_terrain_3d_menu_bake_lod_dialog)
-- Community 87 (godot_canvaslayer)
-- Community 88 (scripts_entities_camera_controller)
-- Community 89 (scripts_objects_melee_hitbox)
-- Community 90 (scripts_objects_xp_orb)
-- Community 91 (addons_godot_mcp_native_mcp_settings_manager)
-- Community 92 (addons_godot_mcp_tools_debug_tools_native_compare_values)
-- Community 93 (addons_godot_mcp_tools_project_tools_native_serialize_rect2i)
-- Community 94 (addons_terrain_3d_menu_channel_packer_dragdrop)
-- Community 95 (addons_terrain_3d_src_operation_builder)
-- Community 96 (demo_src_codegenerated)
-- Community 97 (scripts_core_audio_manager)
-- Community 98 (scripts_objects_item_pickup)
-- Community 99 (scripts_objects_zombie_arm_projectile)
-- Community 100 (scripts_ui_item_choice_ui)
-- Community 101 (addons_godot_mcp_tools_project_tools_native_inspect_csproj_file)
-- Community 102 (scripts_objects_radiation_zone)
-- Community 103 (scripts_objects_spore_cloud)
-- Community 104 (addons_godot_mcp_tools_project_tools_native_convert_value_for_resource)
-- Community 105 (addons_godot_mcp_tools_project_tools_native_get_editor_interface)
-- Community 106 (addons_godot_mcp_tools_project_tools_native_collect_project_autoloads_from_properties)
-- Community 107 (addons_godot_mcp_tools_project_tools_native_normalize_global_class_entries)
-- Community 108 (addons_godot_mcp_tools_project_tools_native_scan_directory)
+- Community 70 (addons_godot_mcp_toolkit_commands_input_map_commands)
+- Community 71 (addons_godot_mcp_toolkit_commands_procedural_commands)
+- Community 72 (addons_godot_mcp_toolkit_commands_project_commands)
+- Community 73 (addons_godot_mcp_toolkit_commands_texture_commands)
+- Community 74 (addons_godot_mcp_toolkit_contract_mcp_toolkit_error)
+- Community 75 (addons_godot_mcp_toolkit_scene_mcp_toolkit_safe_scene_ops)
+- Community 76 (addons_godot_mcp_toolkit_ui_dock_limits_dock_limits_section)
+- Community 77 (addons_terrain_3d_src_gradient_operation_builder)
+- Community 78 (scripts_components_auto_combat_controller)
+- Community 79 (scripts_components_inventory_component)
+- Community 80 (scripts_core_save_manager)
+- Community 81 (scripts_entities_player_weapons_weapon_data)
+- Community 82 (scripts_objects_serpent_projectile)
+- Community 83 (scripts_objects_spore_projectile)
+- Community 84 (scripts_ui_pause_menu)
+- Community 85 (addons_godot_mcp_toolkit_commands_resource_commands)
+- Community 86 (addons_godot_mcp_toolkit_commands_spriteframes_commands)
+- Community 87 (addons_godot_mcp_toolkit_commands_tilemap_commands)
+- Community 88 (addons_godot_mcp_toolkit_core_editor_access)
+- Community 89 (addons_godot_mcp_toolkit_ui_dock_mcp_dock_mcp_json_panel)
+- Community 90 (addons_godot_mcp_toolkit_ui_dock_security_dock_audit_section)
+- Community 91 (addons_godot_mcp_toolkit_versioning_stale_instance_hint)
+- Community 92 (godot_resource)
+- Community 93 (scripts_components_player_movement_controller)
+- Community 94 (scripts_core_loot_manager)
+- Community 95 (scripts_objects_spinning_axe_projectile)
+- Community 96 (addons_godot_mcp_toolkit_commands_asset_commands)
+- Community 97 (addons_godot_mcp_toolkit_commands_debug_commands)
+- Community 98 (addons_godot_mcp_toolkit_commands_save_commands)
+- Community 99 (addons_godot_mcp_toolkit_commands_theme_commands)
+- Community 100 (addons_godot_mcp_toolkit_versioning_nodejs_check)
+- Community 101 (godot_canvaslayer)
+- Community 102 (scripts_objects_melee_hitbox)
+- Community 103 (scripts_objects_xp_orb)
+- Community 104 (addons_godot_mcp_toolkit_commands_folder_commands)
+- Community 105 (addons_godot_mcp_toolkit_companionskills_mcp_extension_creator_references_example_extension)
+- Community 106 (addons_terrain_3d_menu_channel_packer_dragdrop)
+- Community 107 (addons_terrain_3d_src_operation_builder)
+- Community 108 (scripts_core_audio_manager)
+- Community 109 (scripts_objects_item_pickup)
+- Community 110 (scripts_ui_upgrade_choice_ui)
+- Community 111 (addons_godot_mcp_toolkit_extensions_mcp_toolkit_extension_options)
+- Community 112 (addons_godot_mcp_toolkit_ui_dock_dock_section_card)
+- Community 113 (addons_godot_mcp_toolkit_ui_toolkit_dialog_presenter)
+- Community 114 (scripts_objects_radiation_zone)
+- Community 115 (scripts_objects_spore_cloud)
+- Community 116 (addons_godot_mcp_toolkit_transport_port_config)
 
 ## God Nodes (most connected - your core abstractions)
-1. `register_tools` - 73 edges
-2. `_request_runtime_probe_poll` - 38 edges
-3. `_capture_mcp_message` - 36 edges
-4. `_log_info` - 33 edges
-5. `register_tools` - 27 edges
-6. `_get_debugger_bridge` - 25 edges
-7. `_get_editor_interface` - 22 edges
-8. `register_tools` - 21 edges
-9. `_resolve_node_path` - 18 edges
-10. `auto_attack` - 18 edges
+1. `auto_attack` - 18 edges
+2. `attack` - 18 edges
+3. `start` - 16 edges
+4. `_handle_message` - 15 edges
+5. `_send_result` - 14 edges
+6. `register` - 12 edges
+7. `_cmd_spatial_map` - 11 edges
+8. `_synth_all` - 11 edges
+9. `_cmd_classdb_get_info` - 10 edges
+10. `register` - 10 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `register_tools` --calls--> `_register_debug_continue`  [INFERRED]
-  addons/godot_mcp/tools/debug_tools_native.gd → addons/godot_mcp/tools/debug_tools_native.gd  _Bridges community 2 → community 44_
-- `_request_runtime_probe_poll` --calls--> `_get_debugger_bridge`  [INFERRED]
-  addons/godot_mcp/tools/debug_tools_native.gd → addons/godot_mcp/tools/debug_tools_native.gd  _Bridges community 26 → community 20_
-- `_tool_await_debugger_state` --calls--> `_get_debugger_bridge`  [INFERRED]
-  addons/godot_mcp/tools/debug_tools_native.gd → addons/godot_mcp/tools/debug_tools_native.gd  _Bridges community 26 → community 44_
-- `_tool_evaluate_debug_expression` --calls--> `_get_debugger_bridge`  [INFERRED]
-  addons/godot_mcp/tools/debug_tools_native.gd → addons/godot_mcp/tools/debug_tools_native.gd  _Bridges community 26 → community 43_
-- `_tool_evaluate_runtime_expression` --calls--> `_request_runtime_probe_poll`  [INFERRED]
-  addons/godot_mcp/tools/debug_tools_native.gd → addons/godot_mcp/tools/debug_tools_native.gd  _Bridges community 92 → community 20_
+- `start` --calls--> `get_authed_peer_count`  [INFERRED]
+  addons/godot_mcp_toolkit/transport/mcp_server.gd → addons/godot_mcp_toolkit/transport/mcp_server.gd  _Bridges community 17 → community 39_
 
 ## Import Cycles
 - None detected.
 
-## Communities (112 total, 3 thin omitted)
+## Communities (118 total, 1 thin omitted)
 
-### Community 0 - "Community 0 (addons_godot_mcp_native_mcp_mcp_server_core_legacy)"
-Cohesion: 0.05
-Nodes (75): _append_tool_log, _check_rate_limit, cleanup, clear_cache, clear_tool_list_dirty, clear_tool_log, flush_tool_log, get_all_resources (+67 more)
-
-### Community 1 - "Community 1 (addons_godot_mcp_runtime_mcp_runtime_probe)"
+### Community 0 - "Community 0 (addons_godot_mcp_toolkit_contract_execute_hints)"
 Cohesion: 0.07
-Nodes (75): _apply_input_modifiers, _apply_theme_override, _build_input_event, _capture_mcp_message, capture_runtime_screenshot, _convert_theme_override_value, _convert_value_for_property, _count_nodes (+67 more)
+Nodes (53): _bare_global_hint, build_hint, _escape_regex, _is_leading_reference, _load_hint, build, byte_page, line_page (+45 more)
 
-### Community 2 - "Community 2 (addons_godot_mcp_tools_debug_tools_native)"
+### Community 1 - "Community 1 (addons_godot_mcp_toolkit_ui_dock_limits_dock_unfocused_control)"
 Cohesion: 0.05
-Nodes (71): DebugToolsNative, initialize, _on_log_message, _register_add_debugger_capture_prefix, _register_assert_runtime_condition, _register_await_debugger_state, _register_await_runtime_condition, _register_await_scene_ready (+63 more)
+Nodes (51): _enter_tree, _exit_tree, _init, _on_toggled, refresh, _on_about_to_popup, _on_lod_box_value_changed, _on_visibility_changed (+43 more)
 
-### Community 3 - "Community 3 (addons_godot_mcp_tools_script_tools_native)"
-Cohesion: 0.05
-Nodes (71): _build_autoload_declarations, _build_autoload_path_map, _build_symbol_definition, _collect_definition_lines_by_path, _collect_script_files, _collect_script_reference_files, _collect_scripts, _compare_script_paths_for_preference (+63 more)
-
-### Community 4 - "Community 4 (addons_ziva_agent_ziva_input_harness)"
-Cohesion: 0.08
-Nodes (68): _button_index, _capped, _capture_frame, _click_at, _compile_drive, _deliver, _dispatch_drag, _dispatch_edge (+60 more)
-
-### Community 5 - "Community 5 (addons_godot_mcp_tools_node_tools_native)"
-Cohesion: 0.09
-Nodes (60): _append_child_path, _build_scene_tree_node, _collect_nodes, _collect_scene_inheritance_entries, _collect_scene_persistence_entries, _convert_value_for_property, _count_all_nodes, _find_nearest_instance_root (+52 more)
-
-### Community 6 - "Community 6 (addons_godot_mcp_mcp_server_native)"
-Cohesion: 0.07
-Nodes (59): _apply_cmdline_overrides, _apply_persisted_settings, _count_nodes, _create_main_screen_panel, _disable_plugin, _ensure_runtime_probe_autoload, _enter_tree, _exit_tree (+51 more)
-
-### Community 7 - "Community 7 (addons_godot_mcp_native_mcp_mcp_debugger_bridge)"
-Cohesion: 0.06
-Nodes (59): add_capture_prefix, _append_captured_message, _append_output_event, _append_state_event, _build_nested_variables_reference, _build_object_variable_entries, _build_variable_entry, _capture (+51 more)
-
-### Community 8 - "Community 8 (addons_terrain_3d_extras_particle_example_terrain_3d_particles)"
-Cohesion: 0.05
-Nodes (48): _create_grid, _destroy_grid, _notification, _physics_process, _position_grid, _ready, _set_offsets, _update_process_parameters (+40 more)
-
-### Community 9 - "Community 9 (addons_terrain_3d_src_asset_dock_45)"
+### Community 2 - "Community 2 (addons_terrain_3d_src_asset_dock_45)"
 Cohesion: 0.06
 Nodes (54): add_item, _can_drop_data, changed, clamp_window_position, clear, confirmation_canceled, confirmation_closed, confirmation_confirmed (+46 more)
 
-### Community 10 - "Community 10 (addons_godot_mcp_ui_mcp_panel_native)"
-Cohesion: 0.09
-Nodes (53): _append_log, clear_log, _create_cli_tab, _create_group_widget, _create_settings_tab, _create_status_bar, _create_tools_tab, _create_ui (+45 more)
+### Community 3 - "Community 3 (addons_godot_mcp_toolkit_paths_project_key)"
+Cohesion: 0.08
+Nodes (47): canonical, current, current_hash, hash_of, acquire_lock, _build_entry, clear_runtime, _delete_entry (+39 more)
 
-### Community 11 - "Community 11 (addons_terrain_3d_src_asset_dock)"
+### Community 4 - "Community 4 (godot_characterbody3d)"
+Cohesion: 0.06
+Nodes (50): CharacterBody3D, Label3D, boss_died, boss_hit, fire_bullet_ring, _physics_process, _ready, select_next_attack (+42 more)
+
+### Community 5 - "Community 5 (addons_terrain_3d_src_asset_dock)"
 Cohesion: 0.06
 Nodes (52): add_item, _can_drop_data, changed, clear, clicked, clicked_id, confirmation_canceled, confirmation_closed (+44 more)
 
-### Community 12 - "Community 12 (addons_godot_mcp_native_mcp_mcp_http_server_legacy)"
-Cohesion: 0.07
-Nodes (46): _check_port_conflict, _check_port_conflict_linux, _check_port_conflict_macos, _check_port_conflict_windows, _cleanup_all_sse_connections, _close_sse_connection, _emit_message_received, _generate_session_id (+38 more)
-
-### Community 13 - "Community 13 (addons_godot_mcp_tools_editor_tools_native)"
-Cohesion: 0.10
-Nodes (46): EditorToolsNative, _find_export_preset, _get_debugger_bridge, _get_editor_interface, _get_export_templates_root, _get_user_scene_root, _has_active_debugger_session, initialize (+38 more)
-
-### Community 14 - "Community 14 (addons_terrain_3d_src_double_slider)"
+### Community 6 - "Community 6 (addons_godot_mcp_toolkit_core_autoload_identity)"
 Cohesion: 0.06
-Nodes (42): DoubleSlider, _get_handle, get_max, get_min, get_step, get_value, _gui_input, _notification (+34 more)
+Nodes (44): settings_key, settings_value, compute_missing, ensure_registered, unregister, _advance_to_editor_settings_prompt, _done, _prompt_editor_settings_cleanup (+36 more)
 
-### Community 15 - "Community 15 (scripts_entities_player)"
+### Community 7 - "Community 7 (addons_terrain_3d_extras_particle_example_terrain_3d_particles)"
 Cohesion: 0.06
-Nodes (44): activate_skill, add_weapon, apply_camera_recoil, attack, auto_attack, create_air_shockwave_visual, create_muzzle_flash, current_weapon (+36 more)
+Nodes (45): _create_grid, _destroy_grid, _notification, _physics_process, _position_grid, _ready, _set_offsets, _update_process_parameters (+37 more)
 
-### Community 16 - "Community 16 (demo_src_enemy)"
-Cohesion: 0.07
-Nodes (39): is_on_nav_mesh, _on_velocity_computed, _physics_process, _process, _ready, get_camera_relative_input, _input, _physics_process (+31 more)
+### Community 8 - "Community 8 (scripts_entities_player)"
+Cohesion: 0.06
+Nodes (45): activate_skill, add_weapon, apply_camera_recoil, attack, auto_attack, create_air_shockwave_visual, create_muzzle_flash, current_weapon (+37 more)
 
-### Community 17 - "Community 17 (scripts_components_player_combat_controller)"
+### Community 9 - "Community 9 (addons_godot_mcp_toolkit_core_tool_menu)"
+Cohesion: 0.08
+Nodes (37): _init, install, _on_extension_catalog, _on_open_settings, _on_regen_token, _on_show_audit, _on_submenu_id_pressed, _on_write_mcp_json (+29 more)
+
+### Community 10 - "Community 10 (scripts_components_player_combat_controller)"
 Cohesion: 0.11
 Nodes (42): _animate_air_fist_punch, animate_weapon_swing, attack, attack_air_fists, attack_air_fists_charged, attack_dual_daggers, attack_dual_daggers_heavy, attack_dusts (+34 more)
 
-### Community 18 - "Community 18 (addons_godot_mcp_tools_project_tools_native)"
-Cohesion: 0.08
-Nodes (39): _compare_autoload_entries, _compare_global_class_entries, _compare_named_entries, initialize, ProjectToolsNative, _register_audit_project_health, _register_compare_render_screenshots, _register_create_resource (+31 more)
+### Community 11 - "Community 11 (addons_terrain_3d_src_double_slider)"
+Cohesion: 0.07
+Nodes (38): DoubleSlider, _get_handle, get_max, get_min, get_step, get_value, _gui_input, _notification (+30 more)
 
-### Community 19 - "Community 19 (godot_passivedata)"
+### Community 12 - "Community 12 (addons_godot_mcp_toolkit_commands_editor_helpers)"
+Cohesion: 0.09
+Nodes (38): _check_set_readback, _check_set_readback_value, class_base_chain, class_descends_from, close_scene_tab_safe, coerce_for_property, compile_text_filter, delete_res_file (+30 more)
+
+### Community 13 - "Community 13 (addons_godot_mcp_toolkit_paths_lsp_publisher)"
+Cohesion: 0.08
+Nodes (37): connect_settings_watch, disconnect_settings_watch, get_reported_lsp_status, _on_editor_settings_changed, resolve_lsp_endpoint, set_bound_port_provider, set_reported_lsp_status, set_status_changed_handler (+29 more)
+
+### Community 14 - "Community 14 (godot_passivedata)"
 Cohesion: 0.07
 Nodes (28): PassiveData, _physics_process, _ready, RivaSpeedController, _spawn_trail_zone, apply_to_player, PassiveBronch, apply_to_player (+20 more)
 
-### Community 20 - "Community 20 (addons_godot_mcp_tools_debug_tools_native_request_runtime_probe_poll)"
-Cohesion: 0.06
-Nodes (34): _request_runtime_probe_poll, _tool_await_scene_ready, _tool_call_runtime_node_method, _tool_clear_runtime_theme_override, _tool_create_runtime_node, _tool_delete_runtime_node, _tool_get_runtime_animation_state, _tool_get_runtime_animation_tree_state (+26 more)
+### Community 15 - "Community 15 (addons_godot_mcp_toolkit_commands_playtest_log_reader)"
+Cohesion: 0.08
+Nodes (31): clear_debug_bridge, cmd_debugger_get_log, _empty_log_page, make_error_entry, mark_session_started, _merge_debug_bridge_data, _scan_lines_for_errors, set_debug_bridge (+23 more)
 
-### Community 21 - "Community 21 (addons_godot_mcp_tools_scene_tools_native)"
+### Community 16 - "Community 16 (addons_godot_mcp_toolkit_commands_tileset_tileset_alternatives)"
+Cohesion: 0.09
+Nodes (30): _apply_alternative, cmd_add_alternative, cmd_remove_alternative, register, build_full_tile_polygon, layer_node_hint, load_tileset, save_tileset (+22 more)
+
+### Community 17 - "Community 17 (addons_godot_mcp_toolkit_transport_mcp_server)"
+Cohesion: 0.07
+Nodes (34): bind_user_path_monitor, broadcast_notification, _build_auth_ack, _check_version_mismatch, clear_registry, client_connected, client_disconnected, command_received (+26 more)
+
+### Community 18 - "Community 18 (addons_godot_mcp_toolkit_extensions_extension_loader)"
+Cohesion: 0.10
+Nodes (28): load_all, start_watcher, discover_and_register, build_command_entry, cmd_extensions_list, register_list_command, arrays_equal, _extension_cache_mode (+20 more)
+
+### Community 19 - "Community 19 (addons_godot_mcp_toolkit_commands_editor_editor_commands)"
+Cohesion: 0.09
+Nodes (20): _cmd_set_lsp_status, register, cmd_execute_code, cmd_refresh, cmd_wait_for_idle, should_reload_open_script, MCPToolkitSuccess, ok (+12 more)
+
+### Community 20 - "Community 20 (addons_godot_mcp_toolkit_logging_log_buffer)"
 Cohesion: 0.11
-Nodes (30): _build_node_tree, _collect_scenes, _count_nodes, _get_editor_interface, _get_user_scene_root, initialize, _is_vibe_coding_mode, _make_friendly_path (+22 more)
+Nodes (26): _append_entry_unlocked, clear, clear_level, compose_error_message, _detect_log_level, find_script_error_line_since, get_cursor, get_entries (+18 more)
+
+### Community 21 - "Community 21 (addons_godot_mcp_toolkit_ui_dock_ext_extension_catalog)"
+Cohesion: 0.13
+Nodes (26): cache_path, compare_versions, _build_entry_card, _build_ui, _clear_list, _exit_tree, _fetch_catalog, _load_from_cache (+18 more)
 
 ### Community 22 - "Community 22 (addons_terrain_3d_src_editor_plugin)"
 Cohesion: 0.12
 Nodes (26): _clear, consume_hotkey, _edit, _enter_tree, erase_setting, _exit_tree, _forward_3d_gui_input, get_setting (+18 more)
 
-### Community 23 - "Community 23 (addons_godot_mcp_native_mcp_mcp_http_server)"
-Cohesion: 0.14
-Nodes (24): _dispatch_cli_request, _handle_cli_request_on_main, _handle_get_request, _handle_options_request, _handle_post_request, _is_loopback, _send_cli_error, _send_cli_response (+16 more)
+### Community 23 - "Community 23 (addons_godot_mcp_toolkit_commands_audiobus_commands)"
+Cohesion: 0.15
+Nodes (23): _action_add_bus, _action_add_effect, _action_list, _action_remove_bus, _action_remove_effect, _action_set_bus, _cmd_audiobus_edit, _create_effect (+15 more)
 
-### Community 24 - "Community 24 (addons_terrain_3d_src_tool_settings)"
+### Community 24 - "Community 24 (addons_godot_mcp_toolkit_commands_node_commands)"
+Cohesion: 0.16
+Nodes (26): _batch_node_groups, _batch_set_properties, _brief_value, _call_method_null_hint, _cmd_collision_from_sprite, _cmd_control_set_layout, _cmd_node_call_method, _cmd_node_get_property (+18 more)
+
+### Community 25 - "Community 25 (addons_godot_mcp_toolkit_transport_mcp_toolkit_command_registry)"
+Cohesion: 0.08
+Nodes (26): add, begin_extension_load, call_command, check_save, clear, create_extension_options, create_options, create_undo_action (+18 more)
+
+### Community 26 - "Community 26 (addons_godot_mcp_toolkit_contract_coerce)"
 Cohesion: 0.13
-Nodes (23): add_brushes, add_setting, count_digits, create_submenu, _generate_brush_texture, _get_brush_preview_material, get_setting, get_settings (+15 more)
+Nodes (23): check_resource_paths, coerce_value, coerce_value_hint, color_from_dict, layers_to_mask, _resolve_layer_name, _safe_dict, serialize_value (+15 more)
 
-### Community 25 - "Community 25 (addons_godot_mcp_native_mcp_mcp_tool_classifier)"
-Cohesion: 0.10
-Nodes (21): _build_classifications, get_all_categories, get_all_groups, get_all_tools, get_core_max_count, get_core_tools, get_group_tools, get_supplementary_tools (+13 more)
+### Community 27 - "Community 27 (addons_godot_mcp_toolkit_commands_animation_commands)"
+Cohesion: 0.21
+Nodes (22): _advance_mode_from_string, _advance_mode_to_string, _at_add_node, _at_add_transition, _at_list, _at_remove_node, _at_remove_transition, _at_set_property (+14 more)
 
-### Community 26 - "Community 26 (addons_godot_mcp_tools_debug_tools_native_debug_scope_presentation_hint)"
-Cohesion: 0.10
-Nodes (22): _debug_scope_presentation_hint, _extract_pending_runtime_probe_response, _get_debugger_bridge, _make_runtime_probe_request_key, _request_runtime_probe, _tool_add_debugger_capture_prefix, _tool_get_debug_output, _tool_get_debug_scopes (+14 more)
+### Community 28 - "Community 28 (addons_terrain_3d_src_tool_settings)"
+Cohesion: 0.14
+Nodes (22): add_brushes, add_setting, count_digits, create_submenu, _generate_brush_texture, _get_brush_preview_material, get_setting, get_settings (+14 more)
 
-### Community 27 - "Community 27 (addons_godot_mcp_tools_debug_tools_native_clear_mcp_panel_log)"
-Cohesion: 0.11
-Nodes (20): _clear_mcp_panel_log, _count_indent, _find_rich_text_label, _find_script_editor_debugger, _find_tree_control, _get_editor_interface, _get_editor_panel_logs, _get_mcp_logs (+12 more)
+### Community 29 - "Community 29 (addons_godot_mcp_toolkit_commands_scene_commands)"
+Cohesion: 0.22
+Nodes (21): _batch_instantiate, _build_query_page, _cmd_create_inherited, _cmd_scene_close, _cmd_scene_create, _cmd_scene_create_node, _cmd_scene_delete, _cmd_scene_delete_node (+13 more)
 
-### Community 28 - "Community 28 (scripts_core_ui_manager)"
-Cohesion: 0.11
+### Community 30 - "Community 30 (addons_godot_mcp_toolkit_commands_editor_editor_log_reader)"
+Cohesion: 0.19
+Nodes (18): cmd_get_console, _compile_text_filter, _detect_log_level, _godot_error_name, _log_unavailable_for_file, _read_buffer_log, _read_console_log, _scan_autoload_hints (+10 more)
+
+### Community 31 - "Community 31 (addons_godot_mcp_toolkit_core_unfocused_backup)"
+Cohesion: 0.20
+Nodes (18): backup_path, capture_if_absent, delete_backup, has_backup, read_backup, resolve_restore, should_capture_boost, version_key (+10 more)
+
+### Community 32 - "Community 32 (addons_godot_mcp_toolkit_scene_scene_lease)"
+Cohesion: 0.17
+Nodes (19): _active_scene_path, _build_contention_hint, cancel_queued, check_expiry, clear_registry, drain, _execute_scene_queued_mutation, _execute_scene_queued_read (+11 more)
+
+### Community 33 - "Community 33 (scripts_core_ui_manager)"
+Cohesion: 0.12
 Nodes (19): initialize, _on_item_selected, _on_player_died, _on_player_experience_gained, _on_player_leveled_up, _on_player_reload_changed, _on_player_stats_changed, _on_player_weapon_attacked (+11 more)
 
-### Community 29 - "Community 29 (addons_terrain_3d_menu_baker)"
-Cohesion: 0.16
-Nodes (18): _bake_mesh, bake_mesh_popup, bake_nav_mesh, _bake_nav_region_nav_mesh, _bake_occluder, bake_occluder_popup, _do_set_up_navigation, _enter_tree (+10 more)
+### Community 34 - "Community 34 (addons_godot_mcp_toolkit_contract_mcp_toolkit_command_options)"
+Cohesion: 0.12
+Nodes (18): guard_project_path, guard_user_path, _is_valid_version, mark_cancellable, mark_destructive, mark_exclusive_execution, mark_idempotent, mark_read_only (+10 more)
 
-### Community 30 - "Community 30 (addons_terrain_3d_src_ui)"
+### Community 35 - "Community 35 (addons_godot_mcp_toolkit_ui_mcp_json_sync)"
+Cohesion: 0.25
+Nodes (18): _build_content, _build_entry, build_server_entry, _do_write, _extract_server_env, _find_server_key, get_all_env_vars, get_mcp_json_path (+10 more)
+
+### Community 36 - "Community 36 (addons_terrain_3d_src_ui)"
 Cohesion: 0.19
 Nodes (18): clear_picking, _enter_tree, _exit_tree, hide_decal, is_picking, is_shader_valid, _on_picking, _on_setting_changed (+10 more)
 
-### Community 31 - "Community 31 (demo_src_demoscene)"
-Cohesion: 0.11
-Nodes (14): _ready, Node, apply_to_player, get_selected, get_all_items, get_item, get_items_by_rarity, initialize (+6 more)
-
-### Community 32 - "Community 32 (scripts_ui_hud)"
-Cohesion: 0.13
-Nodes (18): _connect_to_player, _create_fps_label, _create_xp_bar, _on_player_weapon_attacked, _on_restart_button_pressed, _process, _ready, restart_pressed (+10 more)
-
-### Community 33 - "Community 33 (godot_scenetree)"
-Cohesion: 0.20
-Nodes (15): SceneTree, _arpeggio, _delay, _initialize, _mix, _noise_burst, _put_chars, _saw (+7 more)
-
-### Community 34 - "Community 34 (addons_godot_mcp_native_mcp_mcp_types)"
-Cohesion: 0.13
-Nodes (16): create_annotations, create_capabilities, create_error_response, create_response, debug, error, generate_id, info (+8 more)
-
-### Community 35 - "Community 35 (addons_godot_mcp_native_mcp_tool_registry)"
+### Community 37 - "Community 37 (addons_godot_mcp_toolkit_ui_dock_dock)"
 Cohesion: 0.18
-Nodes (16): _all_tokens_in, _any_token_in, clear, get_catalog_hash, get_tool, has_tool, list_tools, _matches_filter (+8 more)
+Nodes (16): bind, _build_ui, _on_client_connected, _on_client_disconnected, _on_command_received, _on_extensions_pressed, _on_info_pressed, _on_lsp_status_changed (+8 more)
 
-### Community 36 - "Community 36 (addons_godot_mcp_tools_resource_tools_native)"
-Cohesion: 0.17
-Nodes (15): _count_nodes, _find_files_recursive, _get_godot_version, _get_node_tree, initialize, register_resources, _resource_editor_state, _resource_project_info (+7 more)
+### Community 38 - "Community 38 (scripts_ui_hud)"
+Cohesion: 0.13
+Nodes (16): _connect_to_player, _create_fps_label, _on_player_weapon_attacked, _on_restart_button_pressed, _process, _ready, restart_pressed, show_game_over (+8 more)
 
-### Community 37 - "Community 37 (scripts_components_stats_component)"
+### Community 39 - "Community 39 (addons_godot_mcp_toolkit_transport_mcp_server_connect_lsp_settings_watch)"
+Cohesion: 0.13
+Nodes (16): _connect_lsp_settings_watch, _disconnect_lsp_settings_watch, _init_lsp_publisher, _init_mutation_watchdog, _init_router, _init_scene_lease, _init_transport, _init_unfocused_sleep (+8 more)
+
+### Community 40 - "Community 40 (godot_node)"
+Cohesion: 0.13
+Nodes (12): Node, apply_to_player, get_selected, get_all_items, get_item, get_items_by_rarity, apply_camera_recoil, CameraController (+4 more)
+
+### Community 41 - "Community 41 (scripts_components_stats_component)"
 Cohesion: 0.19
 Nodes (15): consume_energy, _default_damage, _emit_stats, entity_died, experience_gained, gain_experience, _handle_shield_regen, heal (+7 more)
 
-### Community 38 - "Community 38 (addons_godot_mcp_tools_project_tools_native_analyze_script_diagnostics)"
-Cohesion: 0.16
-Nodes (15): _analyze_script_diagnostics, _build_autoload_declarations, _canonicalize_cycle_path, _collect_existing_dependency_paths, _collect_resources, _find_cycles_from_resource, _is_likely_script_error_line, _parse_resource_dependencies (+7 more)
+### Community 42 - "Community 42 (addons_godot_mcp_toolkit_commands_script_commands)"
+Cohesion: 0.26
+Nodes (14): _check_autoload_hints, _check_preload_hints, _cmd_script_check, _cmd_script_delete, _cmd_script_edit, _cmd_script_read, _cmd_script_write, _commit_content (+6 more)
 
-### Community 39 - "Community 39 (addons_godot_mcp_ui_mcp_tool_group_item)"
-Cohesion: 0.23
-Nodes (14): get_all_tools_enabled, get_group_name, get_tool_container, group_toggled, item_toggled, MCPToolGroupItem, _on_group_toggled, _on_tool_item_toggled (+6 more)
+### Community 43 - "Community 43 (addons_godot_mcp_toolkit_commands_signal_commands)"
+Cohesion: 0.26
+Nodes (13): _cmd_signal_emit, _cmd_signal_list, _cmd_signal_manage, _compile_extends_path_re, _get_edited_root, register, _resolve_scene_node, _resolve_signal_pair (+5 more)
 
-### Community 40 - "Community 40 (addons_godot_mcp_utils_path_validator)"
-Cohesion: 0.19
-Nodes (14): add_allowed_extension, clear_allowed_extensions, path_approved, path_rejected, PathValidator, _sanitize_path, set_log_callback, set_strict_mode (+6 more)
+### Community 44 - "Community 44 (addons_godot_mcp_toolkit_transport_dispatch_dispatch_lane)"
+Cohesion: 0.25
+Nodes (14): cancel_queued, clear, configure, context_key, drain, drive, _enqueue, enqueue_if_busy (+6 more)
 
-### Community 41 - "Community 41 (addons_terrain_3d_extras_3rd_party_import_sgt)"
+### Community 45 - "Community 45 (addons_terrain_3d_extras_3rd_party_import_sgt)"
 Cohesion: 0.14
 Nodes (12): clear_multimeshes, import_sgt, reset_settings, reset_terrain, save_data, set_import_position, set_r16_size, start_export (+4 more)
 
-### Community 42 - "Community 42 (addons_godot_mcp_native_mcp_tool_execution_context)"
-Cohesion: 0.14
-Nodes (11): ToolExecutionContext, from_metadata, to_dict, ToolPolicy, apply_script_to_node, create_new_script, create_script_file, get_script_info (+3 more)
+### Community 46 - "Community 46 (addons_godot_mcp_toolkit_commands_classdb_commands)"
+Cohesion: 0.31
+Nodes (13): _add_constants_native, _add_method_section, _add_property_section, _add_signal_section, _build_chain, _build_chain_global, _build_truncation_hint, _cmd_classdb_get_info (+5 more)
 
-### Community 43 - "Community 43 (addons_godot_mcp_tools_debug_tools_native_debug_indexed_variable_count)"
-Cohesion: 0.21
-Nodes (14): _debug_indexed_variable_count, _debug_named_variable_count, _debug_value_has_children, _expand_debug_object_entries, _expand_debug_struct_fields, _expand_debug_value_entries, _resolve_debug_object_path_step, _resolve_debug_path_step (+6 more)
+### Community 47 - "Community 47 (addons_godot_mcp_toolkit_commands_spatial_commands)"
+Cohesion: 0.27
+Nodes (13): _cmd_spatial_map, _compute_relations, _iter_tree, _node_is_class, _parse_radius, _parse_region, _passes_filters, register (+5 more)
 
-### Community 44 - "Community 44 (addons_godot_mcp_tools_debug_tools_native_find_matching_debug_state)"
-Cohesion: 0.14
-Nodes (14): _find_matching_debug_state, _register_debug_continue, _register_debug_continue_and_wait, _register_debug_execution_control_tool, _register_debug_execution_wait_tool, _register_debug_step_into, _register_debug_step_into_and_wait, _register_debug_step_out (+6 more)
-
-### Community 45 - "Community 45 (addons_terrain_3d_menu_channel_packer)"
+### Community 48 - "Community 48 (godot_scenetree)"
 Cohesion: 0.30
-Nodes (13): _align_normals, _alignment_basis, _create_import_file, _init_file_dialogs, _init_texture_picker, _on_close_requested, _on_pack_button_pressed, _on_save_file_selected (+5 more)
+Nodes (13): SceneTree, _arpeggio, _delay, _initialize, _mix, _noise_burst, _put_chars, _saw (+5 more)
 
-### Community 46 - "Community 46 (scripts_components_player_input_controller)"
+### Community 49 - "Community 49 (scripts_components_player_input_controller)"
 Cohesion: 0.16
 Nodes (13): alt_attack_pressed, attack_pressed, get_movement_vector, joy_just_pressed, _physics_process, _ready, reload_pressed, skill_pressed (+5 more)
 
-### Community 47 - "Community 47 (addons_godot_mcp_native_mcp_mcp_resource_manager)"
-Cohesion: 0.17
-Nodes (12): _error_response, get_resource_count, list_resources, MCPResourceManager, print_resources, read_resource, register_resource, resource_read (+4 more)
+### Community 50 - "Community 50 (addons_godot_mcp_toolkit_commands_file_commands)"
+Cohesion: 0.22
+Nodes (9): _cmd_file_delete, register, _cmd_set_limits, register, _build_pcm, _cmd_generate, _oscillator, register (+1 more)
 
-### Community 48 - "Community 48 (addons_godot_mcp_native_mcp_mcp_transport_base)"
+### Community 51 - "Community 51 (addons_godot_mcp_toolkit_commands_particle_commands)"
+Cohesion: 0.37
+Nodes (12): _adjust_for_3d, _apply_props, _apply_sub_resource, _build_curve_texture, _build_gradient_texture, _class_has_prop, _cmd_particles_create, _color (+4 more)
+
+### Community 52 - "Community 52 (addons_godot_mcp_toolkit_core_settings_registration)"
+Cohesion: 0.31
+Nodes (12): _collect_mcp_setting_names, _compute_status_text, register_all, _register_audit, _register_basic_bool, _register_basic_int, _register_bootstrap_flag, _register_concurrency (+4 more)
+
+### Community 53 - "Community 53 (godot_area3d)"
 Cohesion: 0.15
-Nodes (12): is_running, McpTransportBase, message_received, send_raw_message, send_response, server_error, server_started, server_stopped (+4 more)
+Nodes (10): Area3D, _physics_process, _ready, _on_body_entered, _physics_process, _ready, _on_body_entered, _physics_process (+2 more)
 
-### Community 49 - "Community 49 (addons_godot_mcp_ui_mcp_cli_installer)"
-Cohesion: 0.28
-Nodes (12): cli_version, detect_state, download_page_url, download_url, _init, install_from, _load_config, MCPCliInstaller (+4 more)
-
-### Community 50 - "Community 50 (demo_src_runtimenavigationbaker)"
-Cohesion: 0.19
-Nodes (12): bake_finished, parse_scene, _process, _ready, _rebake, set_enabled, set_enter_cost, set_navigation_layers (+4 more)
-
-### Community 51 - "Community 51 (scripts_core_wave_manager)"
+### Community 54 - "Community 54 (scripts_core_wave_manager)"
 Cohesion: 0.21
 Nodes (12): boss_died, _check_wave_cleared, enemy_died, _on_boss_died_internal, _on_enemy_died_internal, _on_spawn_tick, _ready, _scale_boss (+4 more)
 
-### Community 52 - "Community 52 (addons_godot_mcp_native_mcp_cli_api_handler)"
-Cohesion: 0.35
-Nodes (11): CliApiHandler, configure, _doctor, _envelope, _error_response, _execute, handle_request, _json_response (+3 more)
-
-### Community 53 - "Community 53 (addons_terrain_3d_menu_directory_setup)"
+### Community 55 - "Community 55 (addons_godot_mcp_toolkit_scene_mcp_toolkit_undo_redo_action)"
 Cohesion: 0.17
-Nodes (10): directory_setup_popup, _init, _on_close_requested, _on_dir_selected, _on_ok_pressed, _on_select_file_pressed, _enter_tree, _on_menu_about_to_popup (+2 more)
+Nodes (11): begin, commit, commit_recorded, do_method, do_property, do_reference, is_active, MCPToolkitUndoRedoAction (+3 more)
 
-### Community 54 - "Community 54 (addons_godot_mcp_native_mcp_translation_manager)"
+### Community 56 - "Community 56 (addons_godot_mcp_toolkit_commands_3d_commands)"
+Cohesion: 0.58
+Nodes (10): _add_node_undoable, _cmd_create_camera, _cmd_create_light, _cmd_create_primitive, _cmd_setup_environment, _color, _path_in_scene, register (+2 more)
+
+### Community 57 - "Community 57 (addons_godot_mcp_toolkit_transport_dispatch_mutation_watchdog)"
+Cohesion: 0.22
+Nodes (9): arm, current_generation, disarm, set_force_clear, tick, broadcast, send_error, send_notification (+1 more)
+
+### Community 58 - "Community 58 (addons_godot_mcp_toolkit_ui_dock_ext_info_dialog)"
 Cohesion: 0.27
-Nodes (10): _discover_locales, get_available_locales, get_locale, get_text, load_all, _load_csv, load_locale, MCPTranslationManager (+2 more)
+Nodes (8): _add_info_row, _add_note_label, _ensure_built, show_info, _ensure_built, show_log, present, AcceptDialog
 
-### Community 55 - "Community 55 (addons_terrain_3d_src_multi_picker)"
+### Community 59 - "Community 59 (addons_terrain_3d_src_multi_picker)"
 Cohesion: 0.27
 Nodes (10): add_point, all_points_selected, clear, _enter_tree, get_points, _on_button_pressed, pressed, _update_button (+2 more)
 
-### Community 56 - "Community 56 (scripts_components_player_animation_controller)"
+### Community 60 - "Community 60 (scripts_components_player_animation_controller)"
 Cohesion: 0.35
 Nodes (10): _add_transition, _apply_texture_to_meshes, _find_first_node_of_type, _fit_model, _merge_first_animation_from_scene, PlayerAnimationController, _process, _ready (+2 more)
 
-### Community 57 - "Community 57 (scripts_objects_spear_projectile)"
+### Community 61 - "Community 61 (addons_godot_mcp_toolkit_commands_navigation_commands)"
+Cohesion: 0.49
+Nodes (9): _action_add_outline, _action_bake, _action_clear, _action_remove_outline, _action_set, _cmd_edit_polygon, _make_result, register (+1 more)
+
+### Community 62 - "Community 62 (addons_godot_mcp_toolkit_commands_path_commands)"
+Cohesion: 0.53
+Nodes (9): _action_add, _action_clear, _action_remove, _action_set, _cmd_edit_curve2d, _ok, register, _to_vec2 (+1 more)
+
+### Community 63 - "Community 63 (addons_godot_mcp_toolkit_scene_undo_redo_helpers)"
+Cohesion: 0.20
+Nodes (9): _animation_insert_key_silent, _animation_remove_key_at, compound_set, _delete_file_silent, _set_owner_recursive, _sm_remove_transition_by_endpoints, _tilemap_apply_batch, _tilemap_restore_batch (+1 more)
+
+### Community 64 - "Community 64 (addons_godot_mcp_toolkit_transport_dispatch_server_request_router)"
+Cohesion: 0.27
+Nodes (9): build_lanes, clear, _handle_cancel, lane_kind_for, mutation_lane, read_lane, route_request, _select_lane (+1 more)
+
+### Community 65 - "Community 65 (scripts_objects_spear_projectile)"
 Cohesion: 0.36
 Nodes (9): _apply_impact, _get_shooter, _on_body_entered, _physics_process, _physics_process_return, _ready, setup, _setup_spear_trail (+1 more)
 
-### Community 58 - "Community 58 (addons_godot_mcp_native_mcp_cli_result_limiter)"
-Cohesion: 0.39
-Nodes (8): apply, CliResultLimiter, _is_empty_container, _limit_depth, _paginate, _parse_fields, _project_fields, _slice_array
-
-### Community 59 - "Community 59 (addons_godot_mcp_native_mcp_config_manager)"
-Cohesion: 0.42
-Nodes (8): _add_checksum, get_storage_path, load_config, MCPConfigManager, _migrate_config, save_config, _serialize_config_data, _validate_config_integrity
-
-### Community 60 - "Community 60 (addons_godot_mcp_native_mcp_tool_definition)"
-Cohesion: 0.31
-Nodes (8): from_legacy, get_schema_hash, is_valid, _stable_stringify, to_cli_schema, to_cli_summary, to_mcp_dict, ToolDefinition
-
-### Community 61 - "Community 61 (addons_godot_mcp_native_mcp_tool_executor)"
-Cohesion: 0.25
-Nodes (8): execute, execution_completed, execution_failed, execution_started, _finish_failure, _init, set_registry, ToolExecutor
-
-### Community 62 - "Community 62 (addons_godot_mcp_tools_project_tools_native_build_classdb_api_metadata)"
+### Community 66 - "Community 66 (addons_godot_mcp_toolkit_ui_dock_status_dock_status_panel)"
 Cohesion: 0.36
-Nodes (9): _build_classdb_api_metadata, _find_project_global_class_entry, _normalize_constant_entries, _normalize_method_entries, _normalize_property_entries, _normalize_signal_entries, _normalize_typed_value_info, _normalize_typed_value_info_array (+1 more)
+Nodes (8): _init, insert_warning_panel, refresh, refresh_lsp, refresh_runtime, set_activity, set_peer_count, _update_port_warning
 
-### Community 63 - "Community 63 (addons_godot_mcp_tools_project_tools_native_collect_project_tests_recursive)"
-Cohesion: 0.28
-Nodes (9): _collect_project_tests_recursive, _find_python_executable, _run_gut_project_test, _run_python_project_test, _sanitize_cli_output, _tool_list_project_tests, _tool_run_project_test, _tool_run_project_tests (+1 more)
-
-### Community 64 - "Community 64 (addons_godot_mcp_ui_mcp_tool_item)"
-Cohesion: 0.25
-Nodes (8): _get_badge_text, get_tool_name, is_enabled, MCPToolItem, _on_check_toggled, set_enabled, setup, tool_toggled
-
-### Community 65 - "Community 65 (addons_terrain_3d_src_toolbar)"
+### Community 67 - "Community 67 (addons_terrain_3d_src_toolbar)"
 Cohesion: 0.28
 Nodes (8): add_tool_button, get_button, _init, _on_tool_selected, _ready, show_add_buttons, tool_changed, VFlowContainer
-
-### Community 66 - "Community 66 (demo_src_caveentrance)"
-Cohesion: 0.22
-Nodes (7): _on_body_entered, _on_body_exited, _ready, Area3D, _on_body_entered, _physics_process, _ready
-
-### Community 67 - "Community 67 (godot_editorscript)"
-Cohesion: 0.22
-Nodes (5): EditorScript, _run, _run, _run, _run
 
 ### Community 68 - "Community 68 (scripts_objects_bullet)"
 Cohesion: 0.33
@@ -429,169 +429,209 @@ Nodes (8): _on_area_entered, _on_body_entered, _on_impact, _physics_process, _re
 Cohesion: 0.36
 Nodes (8): _aoe_damage, _build_visual, _burst, _on_body_entered, _physics_process, _ready, setup, _spawn_burst_visual
 
-### Community 70 - "Community 70 (addons_terrain_3d_src_gradient_operation_builder)"
+### Community 70 - "Community 70 (addons_godot_mcp_toolkit_commands_input_map_commands)"
+Cohesion: 0.50
+Nodes (7): _build_input_event, _cmd_input_map_action, _cmd_input_map_event, _input_events_equivalent, _persist_input_action, register, _serialise_input_event
+
+### Community 71 - "Community 71 (addons_godot_mcp_toolkit_commands_procedural_commands)"
+Cohesion: 0.54
+Nodes (7): _cmd_edit_curve, _cmd_edit_gradient, _cmd_edit_noise, _color, register, _save_resource, _tangent_mode
+
+### Community 72 - "Community 72 (addons_godot_mcp_toolkit_commands_project_commands)"
+Cohesion: 0.50
+Nodes (7): _cmd_autoload_manage, _cmd_get_layer_names, _cmd_project_get_settings, _cmd_project_set_setting, _cmd_set_layer_names, register, _validate_layer_category
+
+### Community 73 - "Community 73 (addons_godot_mcp_toolkit_commands_texture_commands)"
+Cohesion: 0.46
+Nodes (7): _cmd_generate, _draw_shape, _in_directional_triangle, _in_shape, _parse_color, register, _render_label
+
+### Community 74 - "Community 74 (addons_godot_mcp_toolkit_contract_mcp_toolkit_error)"
+Cohesion: 0.36
+Nodes (7): fail, guard_response_size, log_busy_hint, log_unavailable_hint, MCPToolkitError, require, response_byte_size
+
+### Community 75 - "Community 75 (addons_godot_mcp_toolkit_scene_mcp_toolkit_safe_scene_ops)"
+Cohesion: 0.36
+Nodes (7): check_save, is_dispatching, MCPToolkitSafeSceneOps, queue_save, _run_queued_save, save_scene, wait_for_scan_idle
+
+### Community 76 - "Community 76 (addons_godot_mcp_toolkit_ui_dock_limits_dock_limits_section)"
+Cohesion: 0.25
+Nodes (7): _init, _on_regen_pressed, _on_save_cap_changed, _on_script_cap_changed, _on_ws_buffer_changed, regenerate_token_requested, VBoxContainer
+
+### Community 77 - "Community 77 (addons_terrain_3d_src_gradient_operation_builder)"
 Cohesion: 0.50
 Nodes (7): apply_operation, _get_brush_size, _get_point_picker, _is_drawable, is_picking, is_ready, pick
 
-### Community 71 - "Community 71 (scripts_components_auto_combat_controller)"
+### Community 78 - "Community 78 (scripts_components_auto_combat_controller)"
 Cohesion: 0.32
 Nodes (7): AutoCombatController, fire_available_weapons, get_closest_enemy, _on_body_entered, _on_body_exited, _process, _ready
 
-### Community 72 - "Community 72 (scripts_components_inventory_component)"
+### Community 79 - "Community 79 (scripts_components_inventory_component)"
 Cohesion: 0.25
 Nodes (7): add_item, get_stat_addition, get_stat_multiplier, has_item, InventoryComponent, items_changed, remove_item
 
-### Community 73 - "Community 73 (scripts_core_save_manager)"
+### Community 80 - "Community 80 (scripts_core_save_manager)"
 Cohesion: 0.36
 Nodes (7): add_gold, get_best_floor, get_total_gold, load_save, _ready, save, set_best_floor
 
-### Community 74 - "Community 74 (scripts_entities_player_weapons_weapon_data)"
+### Community 81 - "Community 81 (scripts_entities_player_weapons_weapon_data)"
 Cohesion: 0.39
 Nodes (7): _build_weapon_table, get_weapon_data, get_weapon_table, make, weapon_damage, weapon_heavy_damage, WeaponData
 
-### Community 75 - "Community 75 (scripts_objects_serpent_projectile)"
+### Community 82 - "Community 82 (scripts_objects_serpent_projectile)"
 Cohesion: 0.39
 Nodes (7): _animate_body, _build_visual, _on_body_entered, _on_impact, _physics_process, _ready, setup
 
-### Community 76 - "Community 76 (scripts_objects_spore_projectile)"
+### Community 83 - "Community 83 (scripts_objects_spore_projectile)"
 Cohesion: 0.39
 Nodes (7): _burst, _on_body_entered, _physics_process, _ready, setup, _setup_spore_trail, _spawn_burst_visual
 
-### Community 77 - "Community 77 (scripts_ui_pause_menu)"
+### Community 84 - "Community 84 (scripts_ui_pause_menu)"
 Cohesion: 0.36
 Nodes (7): close_menu, _input, _on_menu_pressed, _on_quit_pressed, _on_resume_pressed, open_menu, _ready
 
-### Community 78 - "Community 78 (addons_godot_mcp_native_mcp_mcp_auth_manager)"
-Cohesion: 0.29
-Nodes (6): generate_token, get_www_authenticate_header, McpAuthManager, set_enabled, set_token, validate_request
+### Community 85 - "Community 85 (addons_godot_mcp_toolkit_commands_resource_commands)"
+Cohesion: 0.52
+Nodes (6): _apply_resource_properties, _cmd_resource_delete, _cmd_resource_load, _cmd_resource_write, _property_names_of, register
 
-### Community 79 - "Community 79 (addons_godot_mcp_tools_project_tools_native_apply_project_input_modifiers)"
+### Community 86 - "Community 86 (addons_godot_mcp_toolkit_commands_spriteframes_commands)"
+Cohesion: 0.57
+Nodes (6): _build_list, _cmd_create, _cmd_edit, _cmd_from_spritesheet, _load_frame, register
+
+### Community 87 - "Community 87 (addons_godot_mcp_toolkit_commands_tilemap_commands)"
+Cohesion: 0.62
+Nodes (6): _cmd_tilemap_read_cells, _cmd_tilemap_set_cells, _expand_regions_to_cells, register, _resolve_scene_node, _tilemap_version_hint
+
+### Community 88 - "Community 88 (addons_godot_mcp_toolkit_core_editor_access)"
+Cohesion: 0.29
+Nodes (6): clear_plugin, get_editor_theme, get_toaster, get_undo_redo, has_plugin, set_plugin
+
+### Community 89 - "Community 89 (addons_godot_mcp_toolkit_ui_dock_mcp_dock_mcp_json_panel)"
+Cohesion: 0.48
+Nodes (6): _init, on_button_pressed, _on_mcp_json_write_result, refresh, sync_read_only_state, PanelContainer
+
+### Community 90 - "Community 90 (addons_godot_mcp_toolkit_ui_dock_security_dock_audit_section)"
+Cohesion: 0.29
+Nodes (6): _exit_tree, _init, _on_audit_enabled_toggled, _on_audit_max_size_changed, _on_clear_audit_log, show_dialog
+
+### Community 91 - "Community 91 (addons_godot_mcp_toolkit_versioning_stale_instance_hint)"
 Cohesion: 0.33
-Nodes (7): _apply_project_input_modifiers, _build_project_input_event, _collect_project_input_actions, _dict_to_project_vector2, _serialize_project_input_event, _tool_list_project_input_actions, _tool_upsert_project_input_action
+Nodes (6): recovery_message, should_hint_on_call, should_warn_on_write, source_compiles, source_has_method, write_hint
 
-### Community 80 - "Community 80 (addons_godot_mcp_utils_resource_utils)"
-Cohesion: 0.29
-Nodes (6): create_resource, get_resource_types, resource_to_dict, ResourceUtils, safe_load, safe_save
-
-### Community 81 - "Community 81 (godot_resource)"
+### Community 92 - "Community 92 (godot_resource)"
 Cohesion: 0.29
 Nodes (6): Resource, allow_shield_regen, apply_to_player, on_shield_depleted, on_take_damage, PassiveData
 
-### Community 82 - "Community 82 (scripts_components_player_movement_controller)"
+### Community 93 - "Community 93 (scripts_components_player_movement_controller)"
 Cohesion: 0.43
 Nodes (6): handle_movement, PlayerMovementController, _ready, _setup_particles, _spawn_footstep_puff, _spawn_jump_burst
 
-### Community 83 - "Community 83 (scripts_objects_spinning_axe_projectile)"
+### Community 94 - "Community 94 (scripts_core_loot_manager)"
+Cohesion: 0.29
+Nodes (6): initialize, LootManager, spawn_debug_orbs, spawn_item_pickup, spawn_weapon_pickup, spawn_xp_orb
+
+### Community 95 - "Community 95 (scripts_objects_spinning_axe_projectile)"
 Cohesion: 0.43
 Nodes (6): _apply_area_damage, _on_body_entered, _physics_process, _ready, setup, _start_spinning_in_place
 
-### Community 84 - "Community 84 (addons_godot_mcp_native_mcp_tool_execution_result)"
-Cohesion: 0.47
-Nodes (5): failure, from_legacy, success, to_cli_dict, ToolExecutionResult
+### Community 96 - "Community 96 (addons_godot_mcp_toolkit_commands_asset_commands)"
+Cohesion: 0.60
+Nodes (5): _cmd_asset_get_dependencies, _cmd_asset_import, _cmd_asset_list, register, _walk_filesystem_directory
 
-### Community 85 - "Community 85 (addons_godot_mcp_utils_node_utils)"
-Cohesion: 0.33
-Nodes (5): find_node_by_path, get_nodes_by_type, node_to_dict, NodeUtils, take_node_screenshot
+### Community 97 - "Community 97 (addons_godot_mcp_toolkit_commands_debug_commands)"
+Cohesion: 0.60
+Nodes (5): _cmd_debug_continue, _cmd_debug_list_breakpoints, _cmd_debug_set_breakpoint, _cmd_debug_state, register
 
-### Community 86 - "Community 86 (addons_terrain_3d_menu_bake_lod_dialog)"
-Cohesion: 0.33
-Nodes (5): _on_about_to_popup, _on_lod_box_value_changed, _on_visibility_changed, _ready, ConfirmationDialog
+### Community 98 - "Community 98 (addons_godot_mcp_toolkit_commands_save_commands)"
+Cohesion: 0.60
+Nodes (5): _cmd_save_delete, _cmd_save_list, _cmd_save_read, _cmd_save_write, register
 
-### Community 87 - "Community 87 (godot_canvaslayer)"
-Cohesion: 0.33
-Nodes (5): CanvasLayer, choice_made, _on_choice_selected, present_choices, _ready
+### Community 99 - "Community 99 (addons_godot_mcp_toolkit_commands_theme_commands)"
+Cohesion: 0.67
+Nodes (5): _apply_edit, _cmd_theme_edit, _color_from_dict_opaque, _create_stylebox, register
 
-### Community 88 - "Community 88 (scripts_entities_camera_controller)"
-Cohesion: 0.33
-Nodes (5): apply_camera_recoil, CameraController, handle_input, _physics_process, _ready
+### Community 100 - "Community 100 (addons_godot_mcp_toolkit_versioning_nodejs_check)"
+Cohesion: 0.67
+Nodes (5): check, _login_shell, _parse_version, _try_direct, _try_login_shell
 
-### Community 89 - "Community 89 (scripts_objects_melee_hitbox)"
+### Community 101 - "Community 101 (godot_canvaslayer)"
+Cohesion: 0.40
+Nodes (5): CanvasLayer, item_selected, present_choices, _ready, _select_item
+
+### Community 102 - "Community 102 (scripts_objects_melee_hitbox)"
 Cohesion: 0.33
 Nodes (5): MeleeHitbox, _on_body_entered, _process, _ready, setup
 
-### Community 90 - "Community 90 (scripts_objects_xp_orb)"
+### Community 103 - "Community 103 (scripts_objects_xp_orb)"
 Cohesion: 0.47
 Nodes (5): _on_body_entered, _physics_process, _ready, _setup_particles, XPOrb
 
-### Community 91 - "Community 91 (addons_godot_mcp_native_mcp_settings_manager)"
+### Community 104 - "Community 104 (addons_godot_mcp_toolkit_commands_folder_commands)"
+Cohesion: 0.70
+Nodes (4): _cmd_folder_create, _cmd_folder_delete, _folder_delete_recursive, register
+
+### Community 105 - "Community 105 (addons_godot_mcp_toolkit_companionskills_mcp_extension_creator_references_example_extension)"
 Cohesion: 0.40
-Nodes (4): _init, load_settings, MCPSettingsManager, save_settings
+Nodes (4): MCPToolkitNotesExample, register, _write, MCPToolkitExtension
 
-### Community 92 - "Community 92 (addons_godot_mcp_tools_debug_tools_native_compare_values)"
-Cohesion: 0.40
-Nodes (5): _compare_values, _is_truthy_runtime_value, _tool_assert_runtime_condition, _tool_await_runtime_condition, _tool_evaluate_runtime_expression
-
-### Community 93 - "Community 93 (addons_godot_mcp_tools_project_tools_native_serialize_rect2i)"
-Cohesion: 0.60
-Nodes (5): _serialize_rect2i, _serialize_tileset_source, _serialize_vector2, _serialize_vector2i, _tool_inspect_tileset_resource
-
-### Community 94 - "Community 94 (addons_terrain_3d_menu_channel_packer_dragdrop)"
+### Community 106 - "Community 106 (addons_terrain_3d_menu_channel_packer_dragdrop)"
 Cohesion: 0.40
 Nodes (4): _can_drop_data, _drop_data, dropped, Button
 
-### Community 95 - "Community 95 (addons_terrain_3d_src_operation_builder)"
+### Community 107 - "Community 107 (addons_terrain_3d_src_operation_builder)"
 Cohesion: 0.40
 Nodes (4): apply_operation, is_picking, is_ready, pick
 
-### Community 96 - "Community 96 (demo_src_codegenerated)"
-Cohesion: 0.70
-Nodes (4): create_mesh_asset, create_terrain, create_texture_asset, _ready
-
-### Community 97 - "Community 97 (scripts_core_audio_manager)"
+### Community 108 - "Community 108 (scripts_core_audio_manager)"
 Cohesion: 0.60
 Nodes (4): get_stream, play, play_at, _ready
 
-### Community 98 - "Community 98 (scripts_objects_item_pickup)"
+### Community 109 - "Community 109 (scripts_objects_item_pickup)"
 Cohesion: 0.40
 Nodes (4): ItemPickup, _on_body_entered, _process, _ready
 
-### Community 99 - "Community 99 (scripts_objects_zombie_arm_projectile)"
+### Community 110 - "Community 110 (scripts_ui_upgrade_choice_ui)"
 Cohesion: 0.40
-Nodes (4): _on_body_entered, _physics_process, _ready, setup
+Nodes (4): choice_made, _on_choice_selected, present_choices, _ready
 
-### Community 100 - "Community 100 (scripts_ui_item_choice_ui)"
+### Community 111 - "Community 111 (addons_godot_mcp_toolkit_extensions_mcp_toolkit_extension_options)"
 Cohesion: 0.50
-Nodes (4): item_selected, present_choices, _ready, _select_item
+Nodes (3): _init, MCPToolkitExtensionOptions, MCPToolkitCommandOptions
 
-### Community 101 - "Community 101 (addons_godot_mcp_tools_project_tools_native_inspect_csproj_file)"
+### Community 112 - "Community 112 (addons_godot_mcp_toolkit_ui_dock_dock_section_card)"
+Cohesion: 0.83
+Nodes (3): make_collapsible, make_section, make_section_style
+
+### Community 113 - "Community 113 (addons_godot_mcp_toolkit_ui_toolkit_dialog_presenter)"
 Cohesion: 0.50
-Nodes (4): _inspect_csproj_file, _inspect_solution_file, _split_semicolon_values, _tool_inspect_csharp_project_support
+Nodes (3): dispose, show_extension_catalog, show_info
 
-### Community 102 - "Community 102 (scripts_objects_radiation_zone)"
+### Community 114 - "Community 114 (scripts_objects_radiation_zone)"
 Cohesion: 0.67
 Nodes (3): _build_visual, _physics_process, _ready
 
-### Community 103 - "Community 103 (scripts_objects_spore_cloud)"
+### Community 115 - "Community 115 (scripts_objects_spore_cloud)"
 Cohesion: 0.67
 Nodes (3): _build_visual, _physics_process, _ready
-
-### Community 104 - "Community 104 (addons_godot_mcp_tools_project_tools_native_convert_value_for_resource)"
-Cohesion: 0.67
-Nodes (3): _convert_value_for_resource, _parse_key_value_string, _tool_create_resource
-
-### Community 105 - "Community 105 (addons_godot_mcp_tools_project_tools_native_get_editor_interface)"
-Cohesion: 0.67
-Nodes (3): _get_editor_interface, _tool_fix_resource_uid, _tool_reimport_resources
 
 ## Knowledge Gaps
-- **584 isolated node(s):** `_has_main_screen`, `_get_plugin_name`, `_get_plugin_icon`, `get_native_server`, `get_debugger_bridge` (+579 more)
+- **607 isolated node(s):** `cmd_execute_code`, `cmd_wait_for_idle`, `normalize_editor_path`, `class_descends_from`, `class_base_chain` (+602 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **3 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **1 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `register_tools` connect `Community 2 (addons_godot_mcp_tools_debug_tools_native)` to `Community 44 (addons_godot_mcp_tools_debug_tools_native_find_matching_debug_state)`?**
-  _High betweenness centrality (0.001) - this node is a cross-community bridge._
-- **Why does `_request_runtime_probe_poll` connect `Community 20 (addons_godot_mcp_tools_debug_tools_native_request_runtime_probe_poll)` to `Community 2 (addons_godot_mcp_tools_debug_tools_native)`, `Community 26 (addons_godot_mcp_tools_debug_tools_native_debug_scope_presentation_hint)`, `Community 92 (addons_godot_mcp_tools_debug_tools_native_compare_values)`?**
-  _High betweenness centrality (0.000) - this node is a cross-community bridge._
-- **Are the 72 inferred relationships involving `register_tools` (e.g. with `_register_add_debugger_capture_prefix` and `_register_assert_runtime_condition`) actually correct?**
-  _`register_tools` has 72 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 37 inferred relationships involving `_request_runtime_probe_poll` (e.g. with `_get_debugger_bridge` and `_request_runtime_probe`) actually correct?**
-  _`_request_runtime_probe_poll` has 37 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 35 inferred relationships involving `_capture_mcp_message` (e.g. with `_get_performance_snapshot` and `_get_runtime_info`) actually correct?**
-  _`_capture_mcp_message` has 35 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 32 inferred relationships involving `_log_info` (e.g. with `clear_cache` and `_handle_initialize`) actually correct?**
-  _`_log_info` has 32 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `_has_main_screen`, `_get_plugin_name`, `_get_plugin_icon` to the rest of the system?**
-  _584 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Are the 17 inferred relationships involving `auto_attack` (e.g. with `attack_air_fists` and `attack_dual_daggers`) actually correct?**
+  _`auto_attack` has 17 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 17 inferred relationships involving `attack` (e.g. with `attack_air_fists` and `attack_dual_daggers`) actually correct?**
+  _`attack` has 17 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 15 inferred relationships involving `start` (e.g. with `_init_scene_lease` and `_init_unfocused_sleep`) actually correct?**
+  _`start` has 15 INFERRED edges - model-reasoned connections that need verification._
+- **What connects `cmd_execute_code`, `cmd_wait_for_idle`, `normalize_editor_path` to the rest of the system?**
+  _607 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `Community 0 (addons_godot_mcp_toolkit_contract_execute_hints)` be split into smaller, more focused modules?**
+  _Cohesion score 0.07393483709273183 - nodes in this community are weakly interconnected._
+- **Should `Community 1 (addons_godot_mcp_toolkit_ui_dock_limits_dock_unfocused_control)` be split into smaller, more focused modules?**
+  _Cohesion score 0.05075187969924812 - nodes in this community are weakly interconnected._
+- **Should `Community 2 (addons_terrain_3d_src_asset_dock_45)` be split into smaller, more focused modules?**
+  _Cohesion score 0.06464646464646465 - nodes in this community are weakly interconnected._

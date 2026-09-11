@@ -14,30 +14,71 @@ signal restart_pressed
 @onready var floor_label: Label = $Control/TopRight/FloorPanel/Margin/FloorLabel
 @onready var gold_label: Label = $Control/TopRight/GoldPanel/Margin/GoldLabel
 
-@onready var weapons_container: Container = $Control/WeaponsPanel/Margin/VBox/WeaponsContainer
-
-@onready var reload_bar: ProgressBar = $Control/WeaponsPanel/Margin/VBox/ReloadBar
-@onready var reload_label: Label = $Control/WeaponsPanel/Margin/VBox/ReloadBar/ReloadLabel
-
 @onready var crosshair: Control = $Control/Crosshair
 @onready var game_over_screen: Control = $GameOverScreen
 @onready var victory_screen: Control = $VictoryScreen
 
-var weapon_slot_nodes: Array = []
+@onready var xp_bar: ProgressBar = $Control/HubImage/XPBar
 
-var xp_bar: ProgressBar
-var xp_label: Label
 var fps_label: Label
 
+@onready var weapon_slots: Array = [
+	$Control/HubImage/WeaponSlot1/Icon,
+	$Control/HubImage/WeaponSlot2/Icon,
+	$Control/HubImage/WeaponSlot3/Icon,
+	$Control/HubImage/WeaponSlot4/Icon,
+	$Control/HubImage/WeaponSlot5/Icon
+]
+
+var weapon_textures: Dictionary = {
+	"Bazuca de Esporas": preload("res://assets/ui/ingame_hub/armas/bazoka_esporas.png"),
+	"Escopeta Triple": preload("res://assets/ui/ingame_hub/armas/escopeta.png"),
+	"Escopeta de Humo": preload("res://assets/ui/ingame_hub/armas/escopeta.png"),
+	"Espalanza de Mikeura": preload("res://assets/ui/ingame_hub/armas/espalanza.png"),
+	"Lanzallamas": preload("res://assets/ui/ingame_hub/armas/lanzallamas.png"),
+	"Cañón Railgun": preload("res://assets/ui/ingame_hub/armas/magia-saimon.png"),
+	"Rifle de Plasma": preload("res://assets/ui/ingame_hub/armas/pistola.png"),
+	"Polvos Alquímicos": preload("res://assets/ui/ingame_hub/armas/polvos.png")
+}
+@onready var stats_panel: Control = $Control/StatsPanel
+var _stats_base_pos: Vector2
+var _last_camera_pos: Vector3
+var _current_sway: Vector2 = Vector2.ZERO
+
 func _ready() -> void:
-	_create_xp_bar()
+	if stats_panel:
+		_stats_base_pos = stats_panel.position
 	_create_fps_label()
-	setup_weapon_slots_nodes()
 	call_deferred("_connect_to_player")
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if is_instance_valid(fps_label):
 		fps_label.text = "FPS: %d" % Engine.get_frames_per_second()
+		
+	# Efecto de sway dinámico para la barra de estado
+	if stats_panel:
+		var cam = get_viewport().get_camera_3d()
+		if cam:
+			if _last_camera_pos == Vector3.ZERO:
+				_last_camera_pos = cam.global_position
+			
+			var delta_pos = cam.global_position - _last_camera_pos
+			_last_camera_pos = cam.global_position
+			
+			# Calculamos el empuje inverso (si la cámara va a la derecha, la UI se inclina a la izquierda)
+			# Usamos Z para el eje Y de la pantalla (cámara top-down)
+			var sway_push = Vector2(-delta_pos.x, -delta_pos.z) * 800.0
+			
+			# Integramos el empuje y lo suavizamos de vuelta a 0
+			_current_sway = _current_sway.lerp(sway_push, 15.0 * delta)
+			
+			# Limitamos el sway máximo
+			if _current_sway.length() > 30.0:
+				_current_sway = _current_sway.normalized() * 30.0
+				
+			stats_panel.position = stats_panel.position.lerp(_stats_base_pos + _current_sway, 10.0 * delta)
+		else:
+			stats_panel.position = stats_panel.position.lerp(_stats_base_pos, 10.0 * delta)
 
 func _create_fps_label() -> void:
 	fps_label = Label.new()
@@ -61,46 +102,6 @@ func _create_fps_label() -> void:
 	
 	$Control.add_child(fps_label)
 
-func _create_xp_bar() -> void:
-	var xp_panel = PanelContainer.new()
-	var style = StyleBoxFlat.new()
-	style.bg_color = Color(0, 0, 0, 0.5)
-	xp_panel.add_theme_stylebox_override("panel", style)
-	
-	xp_panel.anchor_top = 1.0
-	xp_panel.anchor_bottom = 1.0
-	xp_panel.anchor_left = 0.0
-	xp_panel.anchor_right = 1.0
-	xp_panel.offset_top = -30
-	xp_panel.offset_bottom = 0
-	
-	var margin = MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 20)
-	margin.add_theme_constant_override("margin_right", 20)
-	margin.add_theme_constant_override("margin_bottom", 5)
-	
-	xp_bar = ProgressBar.new()
-	xp_bar.custom_minimum_size = Vector2(0, 20)
-	xp_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	xp_bar.show_percentage = false
-	var bg_style = StyleBoxFlat.new()
-	bg_style.bg_color = Color(0.1, 0.1, 0.1, 0.8)
-	var fill_style = StyleBoxFlat.new()
-	fill_style.bg_color = Color(0.2, 0.7, 1.0, 1.0)
-	xp_bar.add_theme_stylebox_override("background", bg_style)
-	xp_bar.add_theme_stylebox_override("fill", fill_style)
-	
-	xp_label = Label.new()
-	xp_label.text = "LVL 1 - 0/10 XP"
-	xp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	xp_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	xp_label.set_anchors_preset(Control.PRESET_FULL_RECT)
-	
-	xp_bar.add_child(xp_label)
-	margin.add_child(xp_bar)
-	xp_panel.add_child(margin)
-	$Control.add_child(xp_panel)
-
 
 func _connect_to_player() -> void:
 	var player = get_tree().get_first_node_in_group("player")
@@ -115,11 +116,7 @@ func trigger_crosshair_kickback(weapon_type: int = -1, strength: float = 1.0) ->
 	if crosshair and crosshair.has_method("trigger_kickback"):
 		crosshair.trigger_kickback(weapon_type, strength)
 
-func setup_weapon_slots_nodes() -> void:
-	weapon_slot_nodes.clear()
-	if weapons_container:
-		for child in weapons_container.get_children():
-			weapon_slot_nodes.append(child)
+
 
 func update_stats(hp: float, max_hp: float, shield: float, max_shield: float, energy: float, max_energy: float) -> void:
 	if hp_bar:
@@ -140,78 +137,39 @@ func update_stats(hp: float, max_hp: float, shield: float, max_shield: float, en
 	if energy_label:
 		energy_label.text = str(int(ceil(energy)))
 
-func update_xp(level: int, current_xp: float, required_xp: float) -> void:
+func update_xp(_level: int, current_xp: float, required_xp: float) -> void:
 	if xp_bar:
 		xp_bar.max_value = required_xp
 		xp_bar.value = current_xp
-	if xp_label:
-		xp_label.text = "LVL %d - %d/%d XP" % [level, int(current_xp), int(required_xp)]
+
+
 
 func update_weapons(active_index: int, weapons_list: Array) -> void:
-	if weapon_slot_nodes.size() == 0:
-		setup_weapon_slots_nodes()
-
-	for i in range(weapons_list.size()):
-		if i < weapon_slot_nodes.size():
-			var slot_panel = weapon_slot_nodes[i]
-			var w_info = weapons_list[i]
-			var is_active = (i == active_index)
-
-			# Show only the slots actually holding a weapon.
-			slot_panel.visible = true
-
-			var icon_label = slot_panel.get_node_or_null("Margin/VBox/HBox/IconLabel")
-			var key_label = slot_panel.get_node_or_null("Margin/VBox/HBox/KeyLabel")
-			var name_label = slot_panel.get_node_or_null("Margin/VBox/NameLabel")
-			var cost_label = slot_panel.get_node_or_null("Margin/VBox/CostLabel")
-
-			if icon_label: icon_label.text = w_info.get("icon", "⚔️")
-			if key_label: key_label.text = "[" + str(i + 1) + "]"
-			if name_label: name_label.text = w_info.get("name", "Arma")
-			if cost_label:
-				var max_ammo = w_info.get("max_ammo", 0)
-				if max_ammo > 0:
-					# Magazine weapon: show remaining rounds.
-					var ammo = w_info.get("ammo", 0)
-					cost_label.text = "🍄 x%d" % max(0, ammo)
-				else:
-					var cost = w_info.get("cost", 0)
-					cost_label.text = (str(cost) + " MP") if cost > 0 else "0 MP"
-
-			# Retro active / inactive styling
-			var style = StyleBoxFlat.new()
-			style.corner_radius_top_left = 6
-			style.corner_radius_top_right = 6
-			style.corner_radius_bottom_left = 6
-			style.corner_radius_bottom_right = 6
-
-			if is_active:
-				style.bg_color = Color(0.14, 0.22, 0.36, 0.95)
-				style.border_color = Color(1.0, 0.84, 0.0, 1.0) # Bright gold border
-				style.set_border_width_all(3)
-				slot_panel.modulate = Color(1.0, 1.0, 1.0, 1.0)
+	print("UPDATE WEAPONS CALLED, active: ", active_index, ", list size: ", weapons_list.size())
+	for i in range(weapon_slots.size()):
+		var slot_icon = weapon_slots[i]
+		if i < weapons_list.size():
+			var w_name = weapons_list[i].get("name", "")
+			print("Slot ", i, " weapon: ", w_name)
+			if weapon_textures.has(w_name):
+				slot_icon.texture = weapon_textures[w_name]
 			else:
-				style.bg_color = Color(0.06, 0.08, 0.12, 0.7)
-				style.border_color = Color(0.2, 0.26, 0.36, 0.6)
-				style.set_border_width_all(1)
-				slot_panel.modulate = Color(0.65, 0.68, 0.78, 0.65)
+				# Fallback a pistola si no hay imagen
+				slot_icon.texture = preload("res://assets/ui/ingame_hub/armas/pistola.png")
+				print("WARNING: Texture not found for ", w_name, ", using fallback")
+			
+			slot_icon.modulate = Color(1, 1, 1, 1.0)
+			slot_icon.pivot_offset = slot_icon.size / 2.0
+			
+			if i == active_index:
+				slot_icon.scale = Vector2(1.15, 1.15)
+			else:
+				slot_icon.scale = Vector2(0.85, 0.85)
+		else:
+			slot_icon.texture = null
 
-			slot_panel.add_theme_stylebox_override("panel", style)
-
-	# Hide any leftover slots that don't hold a weapon.
-	for i in range(weapons_list.size(), weapon_slot_nodes.size()):
-		weapon_slot_nodes[i].visible = false
-
-## Shows/hides the reload progress bar while a magazine weapon is reloading.
 func update_reload(_weapon_type: int, _ammo: int, _max_ammo: int, is_reloading: bool, progress: float) -> void:
-	if reload_bar == null:
-		return
-	reload_bar.visible = is_reloading
-	if is_reloading:
-		reload_bar.max_value = 100.0
-		reload_bar.value = progress * 100.0
-		if reload_label:
-			reload_label.text = "RECARGANDO " + str(int(progress * 100)) + "%"
+	pass
 
 func update_floor(sub_lvl: int) -> void:
 	if floor_label:
