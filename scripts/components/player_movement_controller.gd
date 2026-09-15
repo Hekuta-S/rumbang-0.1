@@ -121,7 +121,7 @@ func handle_movement(delta: float) -> void:
 	
 	# Run mechanic
 	var is_running = false
-	if (Input.is_physical_key_pressed(KEY_SHIFT) or Input.is_joy_button_pressed(0, JOY_BUTTON_LEFT_STICK)) and wish.length_squared() > 0.0001 and player.is_on_floor():
+	if (Input.is_physical_key_pressed(KEY_SHIFT) or Input.is_joy_button_pressed(0, JOY_BUTTON_LEFT_STICK) or VirtualInput.is_running) and wish.length_squared() > 0.0001 and player.is_on_floor():
 		if player.passive and player.passive.has_method("override_run"):
 			player.passive.override_run(player, wish, delta)
 		elif player.stats.consume_energy(15.0 * delta):
@@ -152,7 +152,7 @@ func handle_movement(delta: float) -> void:
 	player.velocity.z = wish.z * current_speed
 
 	# Jump mechanic
-	if (Input.is_physical_key_pressed(KEY_SPACE) or Input.is_key_pressed(KEY_SPACE) or Input.is_joy_button_pressed(0, JOY_BUTTON_A)) and player.is_on_floor():
+	if (Input.is_physical_key_pressed(KEY_SPACE) or Input.is_key_pressed(KEY_SPACE) or Input.is_joy_button_pressed(0, JOY_BUTTON_A) or VirtualInput.is_jumping) and player.is_on_floor():
 		if player.stats.consume_energy(25.0):
 			player.velocity.y = 8.5
 			_spawn_jump_burst(player.global_position + Vector3(0, 0.05, 0))

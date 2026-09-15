@@ -40,6 +40,7 @@ func play(sfx_name: String, volume_db: float = 0.0, pitch_scale: float = 1.0, fr
 	if stream == null:
 		return
 	var player := AudioStreamPlayer.new()
+	player.bus = "SFX"
 	player.stream = stream
 	player.volume_db = volume_db - 8.0
 	player.pitch_scale = pitch_scale
@@ -55,6 +56,7 @@ func play_at(sfx_name: String, world_pos: Vector3, volume_db: float = 0.0, pitch
 	if _pool_3d.is_empty():
 		for i in range(POOL_3D_SIZE):
 			var p := AudioStreamPlayer3D.new()
+			p.bus = "SFX"
 			p.max_distance = 80.0
 			p.unit_size = 12.0
 			add_child(p)

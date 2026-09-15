@@ -13,6 +13,33 @@ func _ready() -> void:
 	ui_manager.initialize(hud, player)
 	ui_manager.restart_pressed.connect(start_game)
 	player.player_died.connect(_on_player_died)
+	
+	if OS.get_name() in ["Android", "iOS"]:
+		if has_node("WorldEnvironment") and $WorldEnvironment.environment:
+			var env = $WorldEnvironment.environment
+			env.volumetric_fog_enabled = false
+			env.sdfgi_enabled = false
+			env.ssao_enabled = false
+			env.glow_enabled = false # Glow causa crashes en muchos móviles con Vulkan
+			# Activamos niebla clásica en lugar de volumétrica para no perder el ambiente
+			env.fog_enabled = true
+			env.fog_density = 0.015
+			
+		# [Optimizacion] Reducir la resolucion interna del 3D al 65% para duplicar FPS sin afectar los botones 2D
+		get_viewport().scaling_3d_scale = 0.65
+			
+		if has_node("DirectionalLight3D"):
+			$DirectionalLight3D.shadow_enabled = false # Sombras 3D direccionales causan picos enormes en móvil
+	else:
+		if has_node("WorldEnvironment") and $WorldEnvironment.environment:
+			var env = $WorldEnvironment.environment
+			env.volumetric_fog_enabled = true
+			env.fog_enabled = false
+	
+	# Instantiate Touch Controls
+	var MobileControls = load("res://scripts/ui/mobile_controls.gd")
+	if MobileControls:
+		add_child(MobileControls.new())
 
 	var env_manager = EnvironmentManager.new()
 	env_manager.name = "EnvironmentManager"

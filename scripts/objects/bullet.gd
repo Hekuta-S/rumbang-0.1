@@ -47,8 +47,14 @@ func setup(dir: Vector3, dmg: float, speed_val: float, enemy_flag: bool = false,
 	_setup_trail(mat, bullet_color)
 
 func _setup_trail(mat: StandardMaterial3D, col: Color) -> void:
-	var trail := CPUParticles3D.new()
-	trail.name = "TrailParticles"
+	var trail: CPUParticles3D
+	if has_node("TrailParticles"):
+		trail = get_node("TrailParticles")
+	else:
+		trail = CPUParticles3D.new()
+		trail.name = "TrailParticles"
+		add_child(trail)
+
 	trail.local_coords = false
 	trail.amount = 25
 	trail.lifetime = 0.18
@@ -78,7 +84,6 @@ func _setup_trail(mat: StandardMaterial3D, col: Color) -> void:
 	color_ramp.add_point(1.0, Color(col.r, col.g, col.b, 0.0))
 	trail.color_ramp = color_ramp
 	
-	add_child(trail)
 	trail.emitting = true
 
 func _physics_process(delta: float) -> void:
@@ -104,7 +109,7 @@ func _physics_process(delta: float) -> void:
 	global_position = next_pos
 	lifetime += delta
 	if lifetime >= max_lifetime:
-		queue_free()
+		PoolManager.return_bullet(self)
 
 func _on_body_entered(body: Node3D) -> void:
 	if is_hit: return
@@ -123,21 +128,21 @@ func _on_impact(body: Node3D, hit_pos: Vector3, hit_normal: Vector3) -> void:
 			is_hit = true
 			body.take_damage(damage)
 			spawn_impact_sparks(get_parent(), hit_pos, hit_normal, bullet_color)
-			queue_free()
+			PoolManager.return_bullet(self)
 		elif not body.is_in_group("enemies") and not body.is_in_group("bullets"):
 			is_hit = true
 			spawn_impact_sparks(get_parent(), hit_pos, hit_normal, bullet_color)
-			queue_free()
+			PoolManager.return_bullet(self)
 	else:
 		if body.is_in_group("enemies") and body.has_method("take_damage"):
 			is_hit = true
 			body.take_damage(damage, direction)
 			spawn_impact_sparks(get_parent(), hit_pos, hit_normal, bullet_color)
-			queue_free()
+			PoolManager.return_bullet(self)
 		elif not body.is_in_group("player") and not body.is_in_group("bullets"):
 			is_hit = true
 			spawn_impact_sparks(get_parent(), hit_pos, hit_normal, bullet_color)
-			queue_free()
+			PoolManager.return_bullet(self)
 
 static var CACHED_RING_MATS: Dictionary = {}
 static var CACHED_SPARK_MATS: Dictionary = {}

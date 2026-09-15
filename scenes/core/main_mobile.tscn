@@ -1,0 +1,47 @@
+[gd_scene format=3 uid="uid://dnbx0dv3s36kk"]
+
+[ext_resource type="Script" uid="uid://djd2p3iwg3r6b" path="res://scripts/core/main.gd" id="1_main"]
+[ext_resource type="PackedScene" uid="uid://dqy7o3vjc7mm" path="res://scenes/entities/player.tscn" id="2_player"]
+[ext_resource type="PackedScene" uid="uid://cocanoaidmmt5" path="res://scenes/ui/hud.tscn" id="3_hud"]
+[ext_resource type="PackedScene" uid="uid://mseetw8vjjww" path="res://scenes/core/mapa_principal/terreno_principal.tscn" id="4_terrain"]
+[ext_resource type="PackedScene" path="res://scenes/core/mapa_principal/terreno_mobile_mesh.tscn" id="4_terrain_mobile"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_m1"]
+sky_top_color = Color(0.3, 0.5, 0.8, 1)
+sky_horizon_color = Color(0.6, 0.75, 0.9, 1)
+
+[sub_resource type="Sky" id="Sky_m2"]
+sky_material = SubResource("ProceduralSkyMaterial_m1")
+
+[sub_resource type="Environment" id="Environment_m3"]
+background_mode = 2
+sky = SubResource("Sky_m2")
+ambient_light_color = Color(0.3, 0.4, 0.5, 1)
+tonemap_mode = 2
+glow_enabled = true
+fog_enabled = true
+fog_light_color = Color(0.4, 0.43, 0.47, 1)
+fog_density = 0.003
+fog_sky_affect = 0.8
+volumetric_fog_enabled = false
+volumetric_fog_density = 0.01
+volumetric_fog_albedo = Color(0.6, 0.65, 0.7, 1)
+volumetric_fog_emission = Color(0.2, 0.2, 0.2, 1)
+
+[node name="Main" type="Node3D" unique_id=1930337006]
+script = ExtResource("1_main")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1631498321]
+environment = SubResource("Environment_m3")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1069279131]
+transform = Transform3D(0.866025, -0.433013, 0.25, 0, 0.5, 0.866025, -0.5, -0.75, 0.433013, 10, 20, 10)
+shadow_enabled = true
+
+[node name="Player" parent="." unique_id=2044621313 instance=ExtResource("2_player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16.179981, 0.23861313, -177.30225)
+
+[node name="HUD" parent="." unique_id=945406127 instance=ExtResource("3_hud")]
+
+[node name="TerrainMobileMesh" parent="." unique_id=1803774805 instance=ExtResource("4_terrain_mobile")]
+

@@ -59,3 +59,11 @@ MIT — [localkeep.ai](https://localkeep.ai)
 "# rumbang" 
 "# rumbang-0.1" 
 "# rumbang-0.1" 
+
+## Historial de Refactorización y Control de Cambios
+
+### Tarea 3 - Refactorización de Arquitectura (SOLID)
+
+- **[CC-01] PlayerCombatController (SRP / OCP):** 
+  - **Qué se cambió:** Se eliminaron los métodos gigantes `attack_*` y los bloques `match` dentro del `PlayerCombatController`. En su lugar, se implementó el **Patrón Strategy**. Se creó el archivo `weapon_strategy.gd` con una clase base `WeaponStrategy` y subclases para cada tipo de arma (ej: `EnergySwordStrategy`). 
+  - **Por qué:** El controlador era un "God Object" que acoplaba toda la lógica de combate de todas las armas en un solo archivo, lo que volvía inviable el mantenimiento y violaba el Principio Abierto/Cerrado (OCP). Ahora, el controlador solo delega la ejecución (`_strategies[arma].attack()`), permitiendo agregar nuevas armas sin tocar su código.

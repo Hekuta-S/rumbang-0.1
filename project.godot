@@ -25,8 +25,11 @@ GameData="*res://scripts/core/game_data.gd"
 SaveManager="*res://scripts/core/save_manager.gd"
 AudioManager="*res://scripts/core/audio_manager.gd"
 ItemDB="*res://scripts/core/item_db.gd"
-SceneLoader="*res://scripts/core/scene_loader.gd"
 MCPRuntimeServer="*res://addons/godot_mcp_toolkit/runtime/mcp_runtime_server.gd"
+SceneLoader="*res://scripts/core/scene_loader.gd"
+SettingsManager="*res://scripts/core/settings_manager.gd"
+VirtualInput="*res://scripts/core/virtual_input.gd"
+PoolManager="*res://scripts/core/pool_manager.gd"
 
 [display]
 
@@ -92,7 +95,8 @@ status="No .mcp.json found — use Project > Tools > MCP Toolkit > Write .mcp.js
 
 [rendering]
 
-occlusion_culling/use_occlusion_culling=true
-environment/volumetric_fog/volume_size=64
-environment/volumetric_fog/use_filter=1
 textures/canvas_textures/default_texture_filter=0
+renderer/rendering_method="mobile"
+textures/vram_compression/import_etc2_astc=true
+environment/defaults/default_clear_color=Color(0.054902, 0.0705882, 0.109804, 1)
+occlusion_culling/use_occlusion_culling=true

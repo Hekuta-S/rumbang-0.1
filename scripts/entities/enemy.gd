@@ -52,54 +52,23 @@ func _ready() -> void:
 		
 	_apply_type_config()
 
+var behavior: EnemyBehavior
+
 func _apply_type_config() -> void:
-	scale = Vector3.ONE
-	base_color = Color.WHITE
-	
 	match type:
 		EnemyType.GOBLIN_RANGED:
-			max_hp = 30.0
-			hp = 30.0
-			speed = 3.0
-			attack_range = 14.0
-			damage = 2.0
-			gold_reward = 6
-			base_color = Color.WHITE
+			behavior = EnemyBehavior.RangedGoblinBehavior.new(self)
 		EnemyType.NORMAL_GOBLIN:
-			max_hp = 40.0
-			hp = 40.0
-			speed = 4.5
-			attack_range = 1.0
-			damage = 0.5
-			gold_reward = 8
-			base_color = Color.WHITE
+			behavior = EnemyBehavior.NormalGoblinBehavior.new(self)
 		EnemyType.HEAVY_BRUTE:
-			max_hp = 90.0
-			hp = 90.0
-			speed = 2.0
-			attack_range = 1.4
-			damage = 0.5
-			gold_reward = 15
-			scale = Vector3(1.5, 1.5, 1.5)
-			base_color = Color.WHITE
+			behavior = EnemyBehavior.HeavyBruteBehavior.new(self)
 		EnemyType.SNIPER_GOBLIN:
-			max_hp = 45.0
-			hp = 45.0
-			speed = 3.5
-			attack_range = 9.0
-			damage = 6.0
-			gold_reward = 20
-			scale = Vector3(1.1, 1.25, 1.1)
-			base_color = Color.WHITE
+			behavior = EnemyBehavior.SniperGoblinBehavior.new(self)
 		EnemyType.ZOMBIE_GOBLIN:
-			max_hp = 25.0
-			hp = 25.0
-			speed = 1.5
-			attack_range = 1.2
-			damage = 1.0
-			gold_reward = 3
-			scale = Vector3(0.9, 0.9, 0.9)
-			base_color = Color.WHITE
+			behavior = EnemyBehavior.ZombieGoblinBehavior.new(self)
+	
+	if behavior:
+		behavior.apply_config()
 			
 	_setup_model()
 
@@ -117,26 +86,11 @@ func _setup_model() -> void:
 	var walk_path := ""
 	var tex_path := ""
 	
-	if type == EnemyType.GOBLIN_RANGED or type == EnemyType.SNIPER_GOBLIN:
-		# Mago Goblin (Rango)
-		idle_path = "res://assets/models/entities/enemigos/goblins/idle_magoblin.fbx"
-		walk_path = "res://assets/models/entities/enemigos/goblins/caminar_magoblin.fbx"
-		tex_path = "res://assets/textures/enemigos/textura_mago_goblin.png"
-	elif type == EnemyType.ZOMBIE_GOBLIN:
-		# Zombie Goblin
-		idle_path = "res://assets/models/entities/enemigos/goblins/goblin_idle_zombie.fbx"
-		walk_path = "res://assets/models/entities/enemigos/goblins/goblin_caminar_zombie.fbx"
-		tex_path = "res://assets/textures/enemigos/textura_zombie_goblin.png"
-	elif type == EnemyType.HEAVY_BRUTE:
-		# Brute Goblin
-		idle_path = "res://assets/models/entities/enemigos/goblins/idle_goblin_bruto.fbx"
-		walk_path = "res://assets/models/entities/enemigos/goblins/caminar_goblin_bruto.fbx"
-		tex_path = "res://assets/textures/enemigos/textura_goblin_bruto.png"
-	else:
-		# Normal Goblin (NORMAL_GOBLIN)
-		idle_path = "res://assets/models/entities/enemigos/goblins/idle_normal_goblin.fbx"
-		walk_path = "res://assets/models/entities/enemigos/goblins/caminar_normal_goblin.fbx"
-		tex_path = "res://assets/textures/enemigos/texture_normal_goblin.png"
+	if behavior:
+		var paths = behavior.get_model_paths()
+		idle_path = paths.get("idle", "")
+		walk_path = paths.get("walk", "")
+		tex_path = paths.get("tex", "")
 		
 	var idle_scene: PackedScene = null
 	if not GameData.cache_enemy_models.has(idle_path):
@@ -361,46 +315,8 @@ func _physics_process(delta: float) -> void:
 	var effective_speed := speed * slow_multiplier
 	
 	var next_vel = Vector3.ZERO
-	if type == EnemyType.GOBLIN_RANGED:
-		if dist > 11.5:
-			next_vel = to_player.normalized() * effective_speed
-		elif dist < 8.0:
-			next_vel = -to_player.normalized() * effective_speed
-
-		if dist <= attack_range and attack_cooldown <= 0:
-			attack_cooldown = 1.6
-			var bullet = bullet_scene.instantiate()
-			get_parent().add_child(bullet)
-			bullet.global_position = global_position + Vector3(0, 1.0, 0)
-			bullet.setup(to_player, damage, 16.0, true, Color(1.0, 0.1, 0.3), get_rid())
-
-	elif type == EnemyType.SNIPER_GOBLIN:
-		if dist > 8.5:
-			next_vel = to_player.normalized() * effective_speed
-		elif dist < 5.0:
-			next_vel = -to_player.normalized() * effective_speed
-
-		if dist <= attack_range and attack_cooldown <= 0:
-			attack_cooldown = 2.0
-			var bullet = bullet_scene.instantiate()
-			get_parent().add_child(bullet)
-			bullet.global_position = global_position + Vector3(0, 1.0, 0)
-			bullet.setup(to_player, damage, 34.0, true, Color(1.0, 0.1, 0.3), get_rid())
-
-	else:
-		if dist > (attack_range - 0.2):
-			next_vel = to_player.normalized() * effective_speed
-
-		if dist <= attack_range:
-			if attack_cooldown <= 0:
-				attack_windup += delta
-				if attack_windup >= 0.4: # Delay to prevent instant damage
-					attack_cooldown = 2.0
-					attack_windup = 0.0
-					if player.has_method("take_damage"):
-						player.take_damage(damage)
-		else:
-			attack_windup = 0.0
+	if behavior:
+		next_vel = behavior.process_ai(delta, to_player, dist, effective_speed)
 
 	velocity = next_vel + knockback_velocity
 	velocity.y = current_vy
@@ -430,10 +346,8 @@ func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 		# If a unit vector was passed, use a modest push (3.0) for standard bullets
 		var push_speed = kb_len if kb_len > 1.05 else 3.0
 		
-		# Heavy Brute resists 70% of knockback
-		if type == EnemyType.HEAVY_BRUTE:
-			push_speed *= 0.3
-			
+		if behavior:
+			push_speed *= behavior.get_knockback_resistance()
 		knockback_velocity = kb_norm * clampf(push_speed, 1.0, 24.0)
 		
 	# White flash on damage

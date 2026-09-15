@@ -9,9 +9,9 @@ static func spawn(parent: Node, world_pos: Vector3, amount: float, color: Color 
 	if not parent or not is_instance_valid(parent):
 		return null
 		
-	var label = Label3D.new()
-	label.script = load("res://scripts/objects/floating_damage.gd")
-	parent.add_child(label)
+	var label = PoolManager.get_floating_damage()
+	if not label:
+		return null
 	
 	if custom_text != "":
 		label.text = custom_text
@@ -63,4 +63,4 @@ func _process(delta: float) -> void:
 		outline_modulate.a = alpha
 		
 	if time_alive >= lifetime:
-		queue_free()
+		PoolManager.return_floating_damage(self)

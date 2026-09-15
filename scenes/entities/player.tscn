@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://dqy7o3vjc7mm"]
 
-[ext_resource type="Script" uid="uid://cj6kpfoo3n7oj" path="res://scripts/entities/player.gd" id="1_player"]
+[ext_resource type="Script" uid="uid://ce2urxvpxabav" path="res://scripts/entities/player.gd" id="1_player"]
+[ext_resource type="Script" uid="uid://435c4x216fjo" path="res://scripts/entities/camera_controller.gd" id="99_cam_ctrl"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_p1"]
 radius = 0.45
@@ -49,7 +50,7 @@ spring_length = 5.5
 margin = 0.2
 
 [node name="Camera3D" type="Camera3D" parent="SpringArm3D" unique_id=1769909717]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0.4, 0)
+transform = Transform3D(1, 0, 0, 0, 0.9999997, -2.9802322e-08, 0, 0, 0.9999997, 0.6, 0.36515284, -0.012683392)
 far = 6000.0
 
 [node name="KnightMesh" type="Node3D" parent="." unique_id=1977370396]
@@ -78,3 +79,6 @@ shape = SubResource("BoxShape3D_p6")
 transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0.45, 0.8, -0.3)
 material_override = SubResource("StandardMaterial3D_p7")
 mesh = SubResource("BoxMesh_p8")
+
+[node name="CameraController" type="Node" parent="." unique_id=533270087]
+script = ExtResource("99_cam_ctrl")

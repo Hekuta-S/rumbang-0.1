@@ -47,6 +47,10 @@ func _physics_process(delta: float) -> void:
 		target_yaw -= joy_look_x * 3.0 * delta
 	if abs(joy_look_y) > 0.1:
 		target_pitch = clampf(target_pitch - joy_look_y * 3.0 * delta, -1.2, 0.9)
+		
+	if VirtualInput.look_vector.length_squared() > 0.0:
+		target_yaw -= VirtualInput.look_vector.x * player.mouse_sensitivity
+		target_pitch = clampf(target_pitch - VirtualInput.look_vector.y * player.mouse_sensitivity, -1.2, 0.9)
 	
 	spring_arm.rotation.x = lerp_angle(spring_arm.rotation.x, target_pitch, smooth)
 	spring_arm.rotation.y = lerp_angle(spring_arm.rotation.y, target_yaw, smooth)

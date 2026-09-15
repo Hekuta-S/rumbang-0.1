@@ -20,10 +20,21 @@ const PLAYABLE_MAX_X: float = 2300.0
 const PLAYABLE_MIN_Z: float = -2300.0
 const PLAYABLE_MAX_Z: float = 2300.0
 
+var wave_config: Dictionary = {}
+
 func _ready() -> void:
 	spawn_timer = Timer.new()
 	add_child(spawn_timer)
 	spawn_timer.timeout.connect(_on_spawn_tick)
+	_load_wave_config()
+
+func _load_wave_config() -> void:
+	var path = "res://resources/wave_config.json"
+	if FileAccess.file_exists(path):
+		var file = FileAccess.open(path, FileAccess.READ)
+		var json = JSON.new()
+		if json.parse(file.get_as_text()) == OK:
+			wave_config = json.data
 
 func start_wave(lvl: int, p_player: Node3D) -> void:
 	current_level = lvl
@@ -93,20 +104,23 @@ func _spawn_single_enemy() -> void:
 			break
 			
 	enemy.position = spawn_pos
-	var roll = randf()
 	var type_val = 1
 	var is_zombie = false
-	if roll < 0.45:
-		type_val = 1 # NORMAL_GOBLIN
-	elif roll < 0.70:
-		type_val = 2 # HEAVY_BRUTE
-	elif roll < 0.85:
-		type_val = 0 # GOBLIN_RANGED
-	elif roll < 0.93:
-		type_val = 3 # SNIPER_GOBLIN
-	else:
-		type_val = 4 # ZOMBIE_GOBLIN
-		is_zombie = true
+	
+	var pool: Array = wave_config.get(str(current_level), wave_config.get("default", []))
+	if pool.size() > 0:
+		var total_weight = 0.0
+		for entry in pool:
+			total_weight += float(entry.get("weight", 0))
+			
+		var roll = randf() * total_weight
+		var current_weight = 0.0
+		for entry in pool:
+			current_weight += float(entry.get("weight", 0))
+			if roll <= current_weight:
+				type_val = int(entry.get("type", 1))
+				is_zombie = bool(entry.get("is_zombie", false))
+				break
 		
 	var spawn_count = randi_range(3, 5) if is_zombie else 1
 	

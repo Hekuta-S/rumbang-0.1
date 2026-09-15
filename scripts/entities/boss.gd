@@ -136,8 +136,7 @@ func fire_bullet_ring(count: int, dmg: float, bullet_spd: float) -> void:
 	for i in range(count):
 		var angle = ((float(i) / float(count)) * TAU) + ring_rotation_offset
 		var dir = Vector3(cos(angle), 0, sin(angle))
-		var bullet = bullet_scene.instantiate()
-		get_parent().add_child(bullet)
+		var bullet = PoolManager.get_bullet()
 		bullet.global_position = global_position + Vector3(0, 1.5, 0)
 		bullet.setup(dir, dmg, bullet_spd, true, Color(1.0, 0.1, 0.3), get_rid())
 

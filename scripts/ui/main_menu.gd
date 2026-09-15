@@ -86,8 +86,7 @@ func _build_ui() -> void:
 	vbox.add_child(btn_upgrades)
 	
 	var btn_opts := _make_button("  OPCIONES", C_BTN_BORDER)
-	btn_opts.disabled = true
-	btn_opts.modulate.a = 0.45
+	btn_opts.pressed.connect(_on_options_menu)
 	vbox.add_child(btn_opts)
 
 	var btn_quit := _make_button("  SALIR", C_BTN_BORDER)
@@ -262,3 +261,8 @@ func _on_upgrades_menu() -> void:
 
 func _on_quit() -> void:
 	get_tree().quit()
+
+func _on_options_menu() -> void:
+	var SettingsMenu = load("res://scripts/ui/settings_menu.gd")
+	var sm = SettingsMenu.new()
+	add_child(sm)

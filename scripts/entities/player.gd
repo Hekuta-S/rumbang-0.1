@@ -8,31 +8,33 @@ signal weapon_attacked(weapon_type)
 signal reload_state_changed(weapon_type, ammo, max_ammo, is_reloading, progress)
 signal player_died
 
-var stats: Node
+var health_comp: Node
+var energy_comp: Node
+var experience_comp: Node
 
 @export var max_hp: float:
-	get: return stats.max_hp if stats else 10.0
-	set(v): if stats: stats.max_hp = v
+	get: return health_comp.max_hp if health_comp else 10.0
+	set(v): if health_comp: health_comp.max_hp = v
 
 @export var max_shield: float:
-	get: return stats.max_shield if stats else 5.0
-	set(v): if stats: stats.max_shield = v
+	get: return health_comp.max_shield if health_comp else 5.0
+	set(v): if health_comp: health_comp.max_shield = v
 
 @export var max_energy: float:
-	get: return stats.max_energy if stats else 200.0
-	set(v): if stats: stats.max_energy = v
+	get: return energy_comp.max_energy if energy_comp else 200.0
+	set(v): if energy_comp: energy_comp.max_energy = v
 
 var hp: float:
-	get: return stats.hp if stats else 10.0
-	set(v): if stats: stats.hp = v
+	get: return health_comp.hp if health_comp else 10.0
+	set(v): if health_comp: health_comp.hp = v
 
 var shield: float:
-	get: return stats.shield if stats else 5.0
-	set(v): if stats: stats.shield = v
+	get: return health_comp.shield if health_comp else 5.0
+	set(v): if health_comp: health_comp.shield = v
 
 var energy: float:
-	get: return stats.energy if stats else 200.0
-	set(v): if stats: stats.energy = v
+	get: return energy_comp.energy if energy_comp else 200.0
+	set(v): if energy_comp: energy_comp.energy = v
 
 @export var move_speed: float = 8.5
 @export var roll_speed: float = 18.0
@@ -51,12 +53,12 @@ var skill_cd_timer: float = 0.0
 @export var skill_cooldown: float = 10.0
 
 var time_since_damage: float:
-	get: return stats.time_since_damage if stats else 0.0
-	set(v): if stats: stats.time_since_damage = v
+	get: return health_comp.time_since_damage if health_comp else 0.0
+	set(v): if health_comp: health_comp.time_since_damage = v
 
 var shield_regen_delay: float:
-	get: return stats.shield_regen_delay if stats else 4.0
-	set(v): if stats: stats.shield_regen_delay = v
+	get: return health_comp.shield_regen_delay if health_comp else 4.0
+	set(v): if health_comp: health_comp.shield_regen_delay = v
 
 
 ## Mikeura's signature weapon: a spear-lance with a melee thrust AND a ranged throw.
@@ -204,13 +206,36 @@ func _ready() -> void:
 	inventory.name = "InventoryComponent"
 	add_child(inventory)
 
-	stats = load("res://scripts/components/stats_component.gd").new()
-	stats.name = "StatsComponent"
-	stats.stats_changed.connect(func(h, mh, s, ms, e, me): emit_signal("stats_changed", h, mh, s, ms, e, me))
-	stats.entity_died.connect(func(): emit_signal("player_died"))
-	stats.experience_gained.connect(func(amount, current_xp, required_xp): emit_signal("experience_gained", amount, current_xp, required_xp))
-	stats.leveled_up.connect(func(new_level): emit_signal("leveled_up", new_level))
-	add_child(stats)
+	health_comp = load("res://scripts/components/health_component.gd").new()
+	health_comp.name = "HealthComponent"
+	add_child(health_comp)
+	
+	energy_comp = load("res://scripts/components/energy_component.gd").new()
+	energy_comp.name = "EnergyComponent"
+	add_child(energy_comp)
+	
+	experience_comp = load("res://scripts/components/experience_component.gd").new()
+	experience_comp.name = "ExperienceComponent"
+	add_child(experience_comp)
+
+	health_comp.health_changed.connect(func(h, mh, s, ms): emit_signal("stats_changed", h, mh, s, ms, energy_comp.energy, energy_comp.max_energy))
+	energy_comp.energy_changed.connect(func(e, me): emit_signal("stats_changed", health_comp.hp, health_comp.max_hp, health_comp.shield, health_comp.max_shield, e, me))
+	health_comp.entity_died.connect(func(): emit_signal("player_died"))
+	experience_comp.experience_gained.connect(func(amount, current_xp, required_xp): emit_signal("experience_gained", amount, current_xp, required_xp))
+	experience_comp.leveled_up.connect(func(new_level): emit_signal("leveled_up", new_level))
+
+	health_comp.damage_taking.connect(func(data):
+		if passive and passive.has_method("on_take_damage"):
+			data["amount"] = passive.on_take_damage(self, data["amount"])
+	)
+	health_comp.check_shield_regen.connect(func(results):
+		if passive and passive.has_method("allow_shield_regen"):
+			results.append(passive.allow_shield_regen(self))
+	)
+	health_comp.shield_recharged.connect(func():
+		if passive and passive.has_method("on_shield_recharged"):
+			passive.on_shield_recharged()
+	)
 	
 	if combat_controller.is_auto_combat_enabled:
 		var auto_combat_script = load("res://scripts/components/auto_combat_controller.gd")
@@ -240,8 +265,7 @@ func _ready() -> void:
 		passive.apply_to_player(self)
 	
 	# Setup 3rd Person Camera System
-	camera_controller = load("res://scripts/entities/camera_controller.gd").new()
-	add_child(camera_controller)
+	camera_controller = $CameraController
 	
 	setup_weapon_models()
 	
@@ -256,29 +280,10 @@ func _ready() -> void:
 	combat_controller.weapon_slots.clear()
 	# Each character starts with their signature weapon.
 	var selected_char: Dictionary = GameData.get_selected()
-	match selected_char.get("id", ""):
-		"vangry":
-			combat_controller.weapon_slots.append(WeaponData.WeaponType.FLAME_THROWER)
-		"bronch":
-			combat_controller.weapon_slots.append(WeaponData.WeaponType.SPORE_BAZOOKA)
-		"crane":
-			combat_controller.weapon_slots.append(WeaponData.WeaponType.DUAL_DAGGERS)
-		"kaionz":
-			combat_controller.weapon_slots.append(WeaponData.WeaponType.AIR_FISTS)
-		"tatan":
-			combat_controller.weapon_slots.append(WeaponData.WeaponType.DUSTS)
-		"joel":
-			combat_controller.weapon_slots.append(WeaponData.WeaponType.SERPENTS)
-		"riva":
-			combat_controller.weapon_slots.append(WeaponData.WeaponType.TRI_SHOTGUN)
-		"garri":
-			combat_controller.weapon_slots.append(WeaponData.WeaponType.SPINNING_AXE)
-		"saimon":
-			combat_controller.weapon_slots.append(WeaponData.WeaponType.ELEMENTS_CYCLE)
-		"heckler":
-			combat_controller.weapon_slots.append(WeaponData.WeaponType.ZOMBIE_ARM)
-		_:
-			combat_controller.weapon_slots.append(WeaponData.WeaponType.SPEAR_LANCE)
+	var initial_weapons: Array = selected_char.get("initial_weapons", [WeaponData.WeaponType.SPEAR_LANCE])
+	for w in initial_weapons:
+		combat_controller.weapon_slots.append(w)
+		
 	combat_controller.current_slot = 0
 	select_slot(0)
 	
@@ -336,8 +341,8 @@ func _input(event) -> void:
 		camera_controller.handle_input(event)
 
 	if event is InputEventKey and event.pressed and event.keycode == KEY_U:
-		if stats and stats.has_method("gain_experience"):
-			stats.gain_experience(stats.experience_required - stats.experience)
+		if experience_comp and experience_comp.has_method("gain_experience"):
+			experience_comp.gain_experience(experience_comp.experience_required - experience_comp.experience)
 
 
 	# ── Cursor release / recapture ─────────────────────────────────────────
@@ -374,8 +379,15 @@ var reloading_weapon: int:
 	set(v): if combat_controller: combat_controller.reloading_weapon = v
 
 var auto_combat_target: Node3D:
-	get: return combat_controller.auto_combat_target if combat_controller else null
-	set(v): if combat_controller: combat_controller.auto_combat_target = v
+	get:
+		if is_instance_valid(combat_controller) and "auto_combat_target" in combat_controller:
+			var target = combat_controller.get("auto_combat_target")
+			if is_instance_valid(target):
+				return target as Node3D
+		return null
+	set(v):
+		if is_instance_valid(combat_controller) and "auto_combat_target" in combat_controller:
+			combat_controller.set("auto_combat_target", v)
 
 var dust_speed_boost_timer: float:
 	get: return combat_controller.dust_speed_boost_timer if combat_controller else 0.0
@@ -495,9 +507,9 @@ func activate_skill() -> void:
 
 ## Raycasts from the camera center out through the crosshair point.
 func get_camera_aim_point() -> Vector3:
-	if combat_controller and not combat_controller.weapon_slots.is_empty():
-		if is_instance_valid(combat_controller.auto_combat_target):
-			return combat_controller.auto_combat_target.global_position + Vector3(0, 1.0, 0)
+	if is_instance_valid(combat_controller) and "weapon_slots" in combat_controller and not combat_controller.weapon_slots.is_empty():
+		if "auto_combat_target" in combat_controller and is_instance_valid(combat_controller.get("auto_combat_target")):
+			return combat_controller.get("auto_combat_target").global_position + Vector3(0, 1.0, 0)
 			
 	var viewport_rect = get_viewport().get_visible_rect()
 	var screen_center = viewport_rect.size * 0.5
@@ -631,18 +643,18 @@ func create_muzzle_flash(flash_color: Color, scale_multiplier: float = 1.0) -> v
 
 
 
-func take_damage(amount: float) -> void:
+func take_damage(amount: float, _direction: Vector3 = Vector3.ZERO) -> void:
 
-	if stats and stats.has_method("take_damage"):
-		stats.take_damage(amount)
+	if health_comp and health_comp.has_method("take_damage"):
+		health_comp.take_damage(amount)
 
 func heal(amount: float) -> void:
-	if stats and stats.has_method("heal"):
-		stats.heal(amount)
+	if health_comp and health_comp.has_method("heal"):
+		health_comp.heal(amount)
 
 func restore_energy(amount: float) -> void:
-	if stats and stats.has_method("restore_energy"):
-		stats.restore_energy(amount)
+	if energy_comp and energy_comp.has_method("restore_energy"):
+		energy_comp.restore_energy(amount)
 
 # ══════════════════════════════════════════════════════════════════════════
 # KAIONZ — AIR FISTS COMBAT SYSTEM

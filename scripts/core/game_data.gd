@@ -241,3 +241,33 @@ func apply_to_player(player: CharacterBody3D) -> void:
 		"tatan":
 			# Tatan has no dedicated passive yet; fall through with no passive.
 			player.passive = null
+func preload_assets() -> void:
+	var paths = [
+		"res://assets/models/entities/enemigos/goblins/idle_magoblin.fbx",
+		"res://assets/models/entities/enemigos/goblins/caminar_magoblin.fbx",
+		"res://assets/models/entities/enemigos/goblins/goblin_idle_zombie.fbx",
+		"res://assets/models/entities/enemigos/goblins/goblin_caminar_zombie.fbx",
+		"res://assets/models/entities/enemigos/goblins/idle_goblin_bruto.fbx",
+		"res://assets/models/entities/enemigos/goblins/caminar_goblin_bruto.fbx",
+		"res://assets/models/entities/enemigos/goblins/idle_normal_goblin.fbx",
+		"res://assets/models/entities/enemigos/goblins/caminar_normal_goblin.fbx",
+		"res://assets/textures/enemigos/textura_mago_goblin.png",
+		"res://assets/textures/enemigos/textura_zombie_goblin.png",
+		"res://assets/textures/enemigos/textura_goblin_bruto.png",
+		"res://assets/textures/enemigos/texture_normal_goblin.png",
+		"res://scripts/objects/floating_damage.gd",
+		"res://scenes/objects/bullet.tscn",
+		"res://scenes/objects/weapon_pickup.tscn",
+		"res://scenes/objects/xp_orb.tscn",
+		"res://scenes/objects/item_pickup.tscn"
+	]
+	
+	for path in paths:
+		if path.ends_with(".fbx"):
+			if not cache_enemy_models.has(path):
+				cache_enemy_models[path] = load(path)
+		elif path.ends_with(".png"):
+			if not cache_enemy_textures.has(path):
+				cache_enemy_textures[path] = load(path)
+		else:
+			load(path) # Cache it in memory for Godot's internal ResourceCache

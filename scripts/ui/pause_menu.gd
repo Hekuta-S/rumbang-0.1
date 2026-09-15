@@ -2,6 +2,7 @@ extends CanvasLayer
 
 @onready var resume_btn = $Control/VBox/ResumeBtn
 @onready var menu_btn = $Control/VBox/MenuBtn
+@onready var options_btn = $Control/VBox/OptionsBtn
 @onready var quit_btn = $Control/VBox/QuitBtn
 
 func _ready():
@@ -9,6 +10,7 @@ func _ready():
 	visible = false
 	resume_btn.pressed.connect(_on_resume_pressed)
 	menu_btn.pressed.connect(_on_menu_pressed)
+	options_btn.pressed.connect(_on_options_pressed)
 	quit_btn.pressed.connect(_on_quit_pressed)
 
 func _input(event):
@@ -34,6 +36,11 @@ func _on_resume_pressed():
 func _on_menu_pressed():
 	get_tree().paused = false
 	SceneLoader.load_scene("res://scenes/ui/main_menu.tscn")
+
+func _on_options_pressed():
+	var SettingsMenu = load("res://scripts/ui/settings_menu.gd")
+	var sm = SettingsMenu.new()
+	add_child(sm)
 
 func _on_quit_pressed():
 	get_tree().quit()

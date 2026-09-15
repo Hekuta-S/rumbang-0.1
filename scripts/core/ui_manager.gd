@@ -74,10 +74,14 @@ func _on_player_stats_changed(hp, max_hp, shield, max_shield, energy, max_energy
 	hud.update_stats(hp, max_hp, shield, max_shield, energy, max_energy)
 
 func _on_player_experience_gained(amount, current_xp, required_xp) -> void:
-	var stats = player.get_node_or_null("StatsComponent")
+	var exp_comp = player.get_node_or_null("ExperienceComponent")
 	var lvl = 1
-	if stats:
-		lvl = stats.level
+	if exp_comp:
+		lvl = exp_comp.level
+	else:
+		var stats = player.get_node_or_null("StatsComponent")
+		if stats:
+			lvl = stats.level
 	hud.update_xp(lvl, current_xp, required_xp)
 
 func _on_player_leveled_up(new_level) -> void:

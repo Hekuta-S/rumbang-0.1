@@ -67,9 +67,14 @@ func _physics_process(delta: float) -> void:
 func _on_body_entered(body: Node3D) -> void:
 	if body.is_in_group("player"):
 		# Get stats component to add XP
-		var stats = body.get_node_or_null("StatsComponent")
-		if not stats:
-			stats = body.get("stats")
-		if stats and stats.has_method("gain_experience"):
-			stats.gain_experience(xp_amount)
+		var exp_comp = body.get_node_or_null("ExperienceComponent")
+		if exp_comp and exp_comp.has_method("gain_experience"):
+			exp_comp.gain_experience(xp_amount)
 			queue_free()
+		else:
+			var stats = body.get_node_or_null("StatsComponent")
+			if not stats:
+				stats = body.get("stats")
+			if stats and stats.has_method("gain_experience"):
+				stats.gain_experience(xp_amount)
+				queue_free()

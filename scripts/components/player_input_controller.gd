@@ -27,7 +27,7 @@ func _physics_process(_delta: float) -> void:
 	if joy_just_pressed(JOY_BUTTON_LEFT_SHOULDER):
 		emit_signal("weapon_cycle", -1)
 
-	if Input.is_action_just_pressed("activate_skill") or joy_just_pressed(JOY_BUTTON_Y):
+	if Input.is_action_just_pressed("activate_skill") or joy_just_pressed(JOY_BUTTON_Y) or VirtualInput.just_pressed_skill:
 		emit_signal("skill_pressed")
 
 	if Input.is_key_pressed(KEY_T):
@@ -36,15 +36,15 @@ func _physics_process(_delta: float) -> void:
 	var lt = Input.get_joy_axis(0, JOY_AXIS_TRIGGER_LEFT)
 	var rt = Input.get_joy_axis(0, JOY_AXIS_TRIGGER_RIGHT)
 	
-	if Input.is_action_just_pressed("alt_attack") or (lt > 0.5 and not _last_joy_buttons.get("LT", false)):
+	if Input.is_action_just_pressed("alt_attack") or (lt > 0.5 and not _last_joy_buttons.get("LT", false)) or VirtualInput.is_alt_attack:
 		emit_signal("alt_attack_pressed")
 	_last_joy_buttons["LT"] = (lt > 0.5)
 	
-	if (rt > 0.5 and not _last_joy_buttons.get("RT", false)):
+	if (rt > 0.5 and not _last_joy_buttons.get("RT", false)) or VirtualInput.is_attacking:
 		emit_signal("attack_pressed")
 	_last_joy_buttons["RT"] = (rt > 0.5)
 	
-	if joy_just_pressed(JOY_BUTTON_X):
+	if joy_just_pressed(JOY_BUTTON_X) or VirtualInput.just_pressed_reload:
 		emit_signal("reload_pressed")
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -69,6 +69,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 func get_movement_vector() -> Vector2:
+	if VirtualInput.movement_vector.length_squared() > 0.01:
+		return VirtualInput.movement_vector
+
 	var x := 0.0
 	var y := 0.0
 	if Input.is_physical_key_pressed(KEY_W) or Input.is_key_pressed(KEY_W): y -= 1.0

@@ -29,7 +29,7 @@ func get_floor_y(x: float, z: float) -> float:
 
 	var space_state = get_world_3d().direct_space_state
 	var query = PhysicsRayQueryParameters3D.create(Vector3(x, 100.0, z), Vector3(x, -100.0, z))
-	query.collision_mask = 1 | 2 | 4
+	query.collision_mask = 1 # Solo detectar el mundo (Layer 1), ignorar al jugador (2) y enemigos (4)
 	var hit = space_state.intersect_ray(query)
 	if not hit.is_empty():
 		return hit.position.y
