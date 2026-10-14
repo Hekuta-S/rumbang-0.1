@@ -1,4 +1,4 @@
-## GameData.gd — Autoload Singleton
+## GameData.gd â€” Autoload Singleton
 ## Stores character definitions and the player's selection across scenes.
 extends Node
 
@@ -16,7 +16,7 @@ const CHARACTERS: Array = [
 		"id": "mikeura",
 		"name": "Mikeura",
 		"subtitle": "Guerrero del Escudo",
-		"lore": "Portador de una armadura ancestral imbuida con magia de barrera. Su escudo no es solo protección — es su arma más poderosa.",
+		"lore": "Portador de una armadura ancestral imbuida con magia de barrera. Su escudo no es solo protecciÃ³n â€” es su arma mÃ¡s poderosa.",
 		"color": Color(0.2, 0.55, 1.0),
 		"portrait_label": "M",
 		"stats": {
@@ -27,13 +27,13 @@ const CHARACTERS: Array = [
 		},
 		"passive_name": "Escudo Irrompible",
 		"passive_color": Color(0.35, 0.75, 1.0),
-		"passive_desc": "El escudo mitiga el 55% del daño recibido. No se recarga mientras conserve carga. Al vaciarse por completo, genera un estallido que empuja a todos los enemigos cercanos.",
+		"passive_desc": "El escudo mitiga el 55% del daÃ±o recibido. No se recarga mientras conserve carga. Al vaciarse por completo, genera un estallido que empuja a todos los enemigos cercanos.",
 	},
 	{
 		"id": "heckler",
 		"name": "Heckler",
 		"subtitle": "Zombi Teletransportador",
-		"lore": "Un no muerto que olvidó cómo correr, pero aprendió a rasgar el espacio-tiempo. Usa su propio brazo desprendible como un bumerán letal.",
+		"lore": "Un no muerto que olvidÃ³ cÃ³mo correr, pero aprendiÃ³ a rasgar el espacio-tiempo. Usa su propio brazo desprendible como un bumerÃ¡n letal.",
 		"color": Color(0.4, 0.7, 0.3),
 		"portrait_label": "H",
 		"stats": {
@@ -42,15 +42,15 @@ const CHARACTERS: Array = [
 			"max_energy": 150.0,
 			"move_speed": 7.0,
 		},
-		"passive_name": "Paso del Vacío",
+		"passive_name": "Paso del VacÃ­o",
 		"passive_color": Color(0.5, 0.8, 0.4),
-		"passive_desc": "No puede correr. Al usar la tecla de correr, consume 40 de energía para teletransportarse instantáneamente hacia adelante.",
+		"passive_desc": "No puede correr. Al usar la tecla de correr, consume 40 de energÃ­a para teletransportarse instantÃ¡neamente hacia adelante.",
 	},
 	{
 		"id": "vangry",
 		"name": "Vangry",
-		"subtitle": "Titán Radiactivo",
-		"lore": "Forjado en un reactor nuclear derretido, Vangry convirtió la radiación que lo quemó en su mayor arma. Los enemigos que se acercan se pudren en su aura tóxica.",
+		"subtitle": "TitÃ¡n Radiactivo",
+		"lore": "Forjado en un reactor nuclear derretido, Vangry convirtiÃ³ la radiaciÃ³n que lo quemÃ³ en su mayor arma. Los enemigos que se acercan se pudren en su aura tÃ³xica.",
 		"color": Color(0.5, 0.9, 0.25),
 		"portrait_label": "V",
 		"stats": {
@@ -59,15 +59,15 @@ const CHARACTERS: Array = [
 			"max_energy": 150.0,
 			"move_speed": 7.8,
 		},
-		"passive_name": "Zona de Radiación",
+		"passive_name": "Zona de RadiaciÃ³n",
 		"passive_color": Color(0.45, 1.0, 0.3),
-		"passive_desc": "Una pequeña zona radiactiva rodea a Vangry y daña continuamente a todos los enemigos que se encuentren dentro de ella.",
+		"passive_desc": "Una pequeÃ±a zona radiactiva rodea a Vangry y daÃ±a continuamente a todos los enemigos que se encuentren dentro de ella.",
 	},
 	{
 		"id": "bronch",
 		"name": "Bronch",
-		"subtitle": "Químico de Esporas",
-		"lore": "Botánico chiflado obsesionado con hongos mutantes. Su bazuca lanza esporas que explotan en nubes corrosivas, devorando todo lo que tocan.",
+		"subtitle": "QuÃ­mico de Esporas",
+		"lore": "BotÃ¡nico chiflado obsesionado con hongos mutantes. Su bazuca lanza esporas que explotan en nubes corrosivas, devorando todo lo que tocan.",
 		"color": Color(0.78, 0.92, 0.25),
 		"portrait_label": "B",
 		"stats": {
@@ -78,13 +78,13 @@ const CHARACTERS: Array = [
 		},
 		"passive_name": "Esporas Superpotenciadas",
 		"passive_color": Color(0.8, 0.95, 0.3),
-		"passive_desc": "Las esporas de Bronch son más potentes: el impacto y las nubes de la bazuca infligen +50% de daño y duran más tiempo.",
+		"passive_desc": "Las esporas de Bronch son mÃ¡s potentes: el impacto y las nubes de la bazuca infligen +50% de daÃ±o y duran mÃ¡s tiempo.",
 	},
 	{
 		"id": "crane",
 		"name": "Crane",
 		"subtitle": "Asesina de Doble Daga",
-		"lore": "Sombra de la noche, Crane baila entre sus enemigos con dos dagas gemelas — una roja, una azul. Cortes veloces de corto alcance, y un golpe cruzado con ambas dagas para rematar.",
+		"lore": "Sombra de la noche, Crane baila entre sus enemigos con dos dagas gemelas â€” una roja, una azul. Cortes veloces de corto alcance, y un golpe cruzado con ambas dagas para rematar.",
 		"color": Color(1.0, 0.35, 0.55),
 		"portrait_label": "C",
 		"stats": {
@@ -95,13 +95,13 @@ const CHARACTERS: Array = [
 		},
 		"passive_name": "Sin pasiva",
 		"passive_color": Color(0.6, 0.6, 0.65),
-		"passive_desc": "Crane aún no tiene pasiva asignada. Por ahora confía en sus dagas gemelas roja y azul.",
+		"passive_desc": "Crane aÃºn no tiene pasiva asignada. Por ahora confÃ­a en sus dagas gemelas roja y azul.",
 	},
 	{
 		"id": "kaionz",
 		"name": "Kaionz",
 		"subtitle": "Maestro del Viento",
-		"lore": "Forjado en el ojo de un huracán eterno, Kaionz convirtió el viento en sus propios puños. Cada golpe es una ráfaga de aire comprimido. Al chocar sus dos puños, genera una onda expansiva que ralentiza a todos los enemigos cercanos.",
+		"lore": "Forjado en el ojo de un huracÃ¡n eterno, Kaionz convirtiÃ³ el viento en sus propios puÃ±os. Cada golpe es una rÃ¡faga de aire comprimido. Al chocar sus dos puÃ±os, genera una onda expansiva que ralentiza a todos los enemigos cercanos.",
 		"color": Color(0.55, 0.88, 1.0),
 		"portrait_label": "K",
 		"stats": {
@@ -112,13 +112,13 @@ const CHARACTERS: Array = [
 		},
 		"passive_name": "Viento Perpetuo",
 		"passive_color": Color(0.55, 0.88, 1.0),
-		"passive_desc": "Kaionz se mueve más rápido que sus rivales y el cooldown de su habilidad se reduce un 15%. El viento siempre sopla a su favor.",
+		"passive_desc": "Kaionz se mueve mÃ¡s rÃ¡pido que sus rivales y el cooldown de su habilidad se reduce un 15%. El viento siempre sopla a su favor.",
 	},
 	{
 		"id": "tatan",
 		"name": "Tatan",
 		"subtitle": "Duende Alquimista",
-		"lore": "Un astuto duende experto en alquimia y polvos mágicos. Su morral nunca se vacía de brebajes explosivos, curativos y estimulantes.",
+		"lore": "Un astuto duende experto en alquimia y polvos mÃ¡gicos. Su morral nunca se vacÃ­a de brebajes explosivos, curativos y estimulantes.",
 		"color": Color(0.4, 0.85, 0.5),
 		"portrait_label": "T",
 		"stats": {
@@ -129,13 +129,13 @@ const CHARACTERS: Array = [
 		},
 		"passive_name": "Sin pasiva",
 		"passive_color": Color(0.6, 0.6, 0.65),
-		"passive_desc": "Tatan aún no tiene pasiva asignada. Confía plenamente en sus polvos alquímicos de tres modos.",
+		"passive_desc": "Tatan aÃºn no tiene pasiva asignada. ConfÃ­a plenamente en sus polvos alquÃ­micos de tres modos.",
 	},
 	{
 		"id": "joel",
 		"name": "Joel",
 		"subtitle": "Druida de la Floresta",
-		"lore": "Vehemente guardián de un bosque ancestral, Joel canaliza la esencia de la naturaleza en serpientes de esmeralda. Al atacar, invoca tres serpientes que se abren en abanico: una al centro y dos en los bordes.",
+		"lore": "Vehemente guardiÃ¡n de un bosque ancestral, Joel canaliza la esencia de la naturaleza en serpientes de esmeralda. Al atacar, invoca tres serpientes que se abren en abanico: una al centro y dos en los bordes.",
 		"color": Color(0.3, 0.85, 0.4),
 		"portrait_label": "J",
 		"stats": {
@@ -146,13 +146,13 @@ const CHARACTERS: Array = [
 		},
 		"passive_name": "Sin pasiva",
 		"passive_color": Color(0.6, 0.6, 0.65),
-		"passive_desc": "Joel aún no tiene pasiva asignada. Por ahora confía en sus serpientes de esmeralda disparadas en cono.",
+		"passive_desc": "Joel aÃºn no tiene pasiva asignada. Por ahora confÃ­a en sus serpientes de esmeralda disparadas en cono.",
 	},
 	{
 		"id": "riva",
 		"name": "Riva",
 		"subtitle": "Llamarada Veloz",
-		"lore": "Corredora curtida en las cenizas de la forja volcánica. Cuanto más corre, más velocidad acumula: al llegar a su máximo entra en ráfaga y el suelo bajo sus pies arde, dejando una estela de humo hirviente que quema a todo lo que pisa.",
+		"lore": "Corredora curtida en las cenizas de la forja volcÃ¡nica. Cuanto mÃ¡s corre, mÃ¡s velocidad acumula: al llegar a su mÃ¡ximo entra en rÃ¡faga y el suelo bajo sus pies arde, dejando una estela de humo hirviente que quema a todo lo que pisa.",
 		"color": Color(1.0, 0.45, 0.1),
 		"portrait_label": "R",
 		"stats": {
@@ -163,7 +163,7 @@ const CHARACTERS: Array = [
 		},
 		"passive_name": "Pies Humeantes",
 		"passive_color": Color(1.0, 0.6, 0.15),
-		"passive_desc": "Mientras se mueve, la velocidad de Riva aumenta progresivamente. Al alcanzar su velocidad máxima entra en ráfaga: súper carrera con la animación riva-corre-rapido y deja una estela de humo abrasador que quema a los enemigos por segundo.",
+		"passive_desc": "Mientras se mueve, la velocidad de Riva aumenta progresivamente. Al alcanzar su velocidad mÃ¡xima entra en rÃ¡faga: sÃºper carrera con la animaciÃ³n riva-corre-rapido y deja una estela de humo abrasador que quema a los enemigos por segundo.",
 	},
 	{
 		"id": "garri",
@@ -186,7 +186,7 @@ const CHARACTERS: Array = [
 		"id": "saimon",
 		"name": "Saimon",
 		"subtitle": "Maestro Elemental",
-		"lore": "Un enigmático mago capaz de manipular los cinco elementos primordiales. Dispara proyectiles elementales en una secuencia constante: Fuego, Hielo, Viento, Agua y Planta.",
+		"lore": "Un enigmÃ¡tico mago capaz de manipular los cinco elementos primordiales. Dispara proyectiles elementales en una secuencia constante: Fuego, Hielo, Viento, Agua y Planta.",
 		"color": Color(0.8, 0.4, 0.9),
 		"portrait_label": "S",
 		"stats": {
@@ -197,7 +197,8 @@ const CHARACTERS: Array = [
 		},
 		"passive_name": "Sin pasiva",
 		"passive_color": Color(0.6, 0.6, 0.65),
-		"passive_desc": "Saimon aún no tiene pasiva asignada. Confía en su ciclo de proyectiles elementales.",
+		"passive_desc": "Saimon aÃºn no tiene pasiva asignada. ConfÃ­a en su ciclo de proyectiles elementales.",
+		"initial_weapons": [WeaponData.WeaponType.ELEMENTS_CYCLE],
 	},
 ]
 

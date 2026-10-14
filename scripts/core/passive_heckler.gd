@@ -9,7 +9,7 @@ func apply_to_player(player: CharacterBody3D) -> void:
 func override_run(player: CharacterBody3D, wish_dir: Vector3, delta: float) -> void:
 	var current_time = Time.get_ticks_msec()
 	if current_time - last_tp_time > 1200:
-		if player.stats.consume_energy(40.0):
+		if true:
 			var space_state = player.get_world_3d().direct_space_state
 			var target_pos = player.global_position + wish_dir.normalized() * 10.0
 			target_pos.y += 0.5
@@ -25,5 +25,5 @@ func override_run(player: CharacterBody3D, wish_dir: Vector3, delta: float) -> v
 			last_tp_time = current_time
 			player.velocity = Vector3.ZERO
 			
-			if AudioManager.has_method("play"):
-				AudioManager.play("ataque-espalanza", -2.0, 1.2)
+			if Engine.has_singleton("AudioManager"):
+				Engine.get_singleton("AudioManager").play("ataque-espalanza", -2.0, 1.2)

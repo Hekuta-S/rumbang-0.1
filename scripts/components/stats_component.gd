@@ -1,19 +1,17 @@
 class_name StatsComponent
 extends Node
 
-signal stats_changed(hp, max_hp, shield, max_shield, energy, max_energy)
+signal stats_changed(hp, max_hp, shield, max_shield)
 signal entity_died
 signal experience_gained(amount, current_xp, required_xp)
 signal leveled_up(new_level)
 
 @export var max_hp: float = 100.0
 @export var max_shield: float = 50.0
-@export var max_energy: float = 200.0
 @export var shield_regen_delay: float = 4.0
 
 var hp: float
 var shield: float
-var energy: float
 
 var level: int = 1
 var experience: float = 0.0
@@ -26,7 +24,6 @@ var _parent: Node
 func _ready() -> void:
 	hp = max_hp
 	shield = max_shield
-	energy = max_energy
 	_parent = get_parent()
 
 func _process(delta: float) -> void:
@@ -35,10 +32,6 @@ func _process(delta: float) -> void:
 		
 	time_since_damage += delta
 	_handle_shield_regen(delta)
-	
-	if energy < max_energy:
-		energy = min(max_energy, energy + delta * 15.0)
-		_emit_stats()
 
 func _handle_shield_regen(delta: float) -> void:
 	# If parent has a passive that blocks regen, check it
@@ -92,19 +85,8 @@ func heal(amount: float) -> void:
 	hp = min(max_hp, hp + amount)
 	_emit_stats()
 
-func restore_energy(amount: float) -> void:
-	energy = min(max_energy, energy + amount)
-	_emit_stats()
-
-func consume_energy(amount: float) -> bool:
-	if energy >= amount:
-		energy -= amount
-		_emit_stats()
-		return true
-	return false
-
 func _emit_stats() -> void:
-	emit_signal("stats_changed", hp, max_hp, shield, max_shield, energy, max_energy)
+	emit_signal("stats_changed", hp, max_hp, shield, max_shield)
 
 func gain_experience(amount: float) -> void:
 	experience += amount

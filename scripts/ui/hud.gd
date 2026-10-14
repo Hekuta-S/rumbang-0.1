@@ -8,11 +8,9 @@ signal restart_pressed
 @onready var shield_bar: ProgressBar = $Control/StatsPanel/Margin/VBox/BarsWithPortrait/DomeClipping/BarsHBox/ShieldBar
 @onready var shield_label: Label = $Control/StatsPanel/Margin/VBox/BarsWithPortrait/LabelsHBox/ShieldLabel
 
-@onready var energy_bar: ProgressBar = $Control/StatsPanel/Margin/VBox/BarsWithPortrait/DomeClipping/BarsHBox/EnergyBar
-@onready var energy_label: Label = $Control/StatsPanel/Margin/VBox/BarsWithPortrait/LabelsHBox/EnergyLabel
-
 @onready var floor_label: Label = $Control/TopRight/FloorPanel/Margin/FloorLabel
 @onready var gold_label: Label = $Control/TopRight/GoldPanel/Margin/GoldLabel
+@onready var time_label: Label = $Control/TimeLabel
 
 @onready var crosshair: Control = $Control/Crosshair
 @onready var game_over_screen: Control = $GameOverScreen
@@ -41,44 +39,15 @@ var weapon_textures: Dictionary = {
 	"Polvos Alquímicos": preload("res://assets/ui/ingame_hub/armas/polvos.png")
 }
 @onready var stats_panel: Control = $Control/StatsPanel
-var _stats_base_pos: Vector2
-var _last_camera_pos: Vector3
-var _current_sway: Vector2 = Vector2.ZERO
+var _last_stats: Array = []
 
 func _ready() -> void:
-	if stats_panel:
-		_stats_base_pos = stats_panel.position
 	_create_fps_label()
 	call_deferred("_connect_to_player")
 
 func _process(delta: float) -> void:
 	if is_instance_valid(fps_label):
 		fps_label.text = "FPS: %d" % Engine.get_frames_per_second()
-		
-	# Efecto de sway dinámico para la barra de estado
-	if stats_panel:
-		var cam = get_viewport().get_camera_3d()
-		if cam:
-			if _last_camera_pos == Vector3.ZERO:
-				_last_camera_pos = cam.global_position
-			
-			var delta_pos = cam.global_position - _last_camera_pos
-			_last_camera_pos = cam.global_position
-			
-			# Calculamos el empuje inverso (si la cámara va a la derecha, la UI se inclina a la izquierda)
-			# Usamos Z para el eje Y de la pantalla (cámara top-down)
-			var sway_push = Vector2(-delta_pos.x, -delta_pos.z) * 800.0
-			
-			# Integramos el empuje y lo suavizamos de vuelta a 0
-			_current_sway = _current_sway.lerp(sway_push, 15.0 * delta)
-			
-			# Limitamos el sway máximo
-			if _current_sway.length() > 30.0:
-				_current_sway = _current_sway.normalized() * 30.0
-				
-			stats_panel.position = stats_panel.position.lerp(_stats_base_pos + _current_sway, 10.0 * delta)
-		else:
-			stats_panel.position = stats_panel.position.lerp(_stats_base_pos, 10.0 * delta)
 
 func _create_fps_label() -> void:
 	fps_label = Label.new()
@@ -118,7 +87,12 @@ func trigger_crosshair_kickback(weapon_type: int = -1, strength: float = 1.0) ->
 
 
 
-func update_stats(hp: float, max_hp: float, shield: float, max_shield: float, energy: float, max_energy: float) -> void:
+func update_stats(hp: float, max_hp: float, shield: float, max_shield: float) -> void:
+	var stats := [hp, max_hp, shield, max_shield]
+	if stats == _last_stats:
+		return
+	_last_stats = stats
+
 	if hp_bar:
 		hp_bar.max_value = max_hp
 		hp_bar.value = hp
@@ -130,12 +104,6 @@ func update_stats(hp: float, max_hp: float, shield: float, max_shield: float, en
 		shield_bar.value = shield
 	if shield_label:
 		shield_label.text = str(int(ceil(shield)))
-
-	if energy_bar:
-		energy_bar.max_value = max_energy
-		energy_bar.value = energy
-	if energy_label:
-		energy_label.text = str(int(ceil(energy)))
 
 func update_xp(_level: int, current_xp: float, required_xp: float) -> void:
 	if xp_bar:
@@ -174,6 +142,59 @@ func update_reload(_weapon_type: int, _ammo: int, _max_ammo: int, is_reloading: 
 func update_floor(sub_lvl: int) -> void:
 	if floor_label:
 		floor_label.text = "NIVEL 1-" + str(sub_lvl)
+
+func update_elapsed_time(elapsed_seconds: float) -> void:
+	if not time_label:
+		return
+	var total_seconds := maxi(0, int(elapsed_seconds))
+	var minutes := total_seconds / 60
+	var seconds := total_seconds % 60
+	time_label.text = "%02d:%02d" % [minutes, seconds]
+
+func play_level_up_confetti() -> void:
+	var overlay := Control.new()
+	overlay.name = "LevelUpConfetti"
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	$Control.add_child(overlay)
+
+	var flash := ColorRect.new()
+	flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	flash.color = Color(1.0, 0.9, 0.45, 0.16)
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.add_child(flash)
+	var flash_tween := overlay.create_tween()
+	flash_tween.tween_property(flash, "modulate:a", 0.0, 0.35)
+
+	var viewport_size := get_viewport().get_visible_rect().size
+	var colors := [
+		Color(1.0, 0.25, 0.35),
+		Color(1.0, 0.8, 0.2),
+		Color(0.25, 0.85, 1.0),
+		Color(0.35, 1.0, 0.55),
+		Color(0.8, 0.4, 1.0)
+	]
+
+	for i in range(120):
+		var piece := ColorRect.new()
+		piece.color = colors[i % colors.size()]
+		piece.size = Vector2(randf_range(4.0, 9.0), randf_range(8.0, 16.0))
+		piece.position = Vector2(randf_range(0.0, viewport_size.x), viewport_size.y + randf_range(0.0, 80.0))
+		piece.rotation = randf_range(-0.8, 0.8)
+		piece.pivot_offset = piece.size * 0.5
+		piece.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		overlay.add_child(piece)
+
+		var rise_time := randf_range(1.4, 2.5)
+		var rise_tween := overlay.create_tween().set_parallel(true)
+		rise_tween.tween_property(piece, "position:y", -40.0, rise_time).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		rise_tween.tween_property(piece, "position:x", piece.position.x + randf_range(-160.0, 160.0), rise_time)
+		rise_tween.tween_property(piece, "rotation", piece.rotation + randf_range(-5.0, 5.0), rise_time)
+		rise_tween.tween_property(piece, "modulate:a", 0.0, rise_time * 0.35).set_delay(rise_time * 0.65)
+
+	var cleanup := overlay.create_tween()
+	cleanup.tween_interval(2.7)
+	cleanup.tween_callback(overlay.queue_free)
 
 func update_gold(gold: int) -> void:
 	if gold_label:

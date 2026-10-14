@@ -9,6 +9,7 @@ var is_spinning_in_place: bool = false
 var spin_duration: float = 2.0
 var spin_timer: float = 0.0
 var tick_timer: float = 0.0
+var has_hit_enemy: bool = false
 const DAMAGE_TICK_RATE = 0.2
 
 @onready var visual = $Visual
@@ -23,7 +24,7 @@ var spin_sfx: AudioStreamPlayer3D
 
 func _ready():
 	collision_layer = 0
-	collision_mask = 1 # enemies
+	collision_mask = 4 # enemies
 	body_entered.connect(_on_body_entered)
 	
 	spin_sfx = AudioStreamPlayer3D.new()
@@ -78,6 +79,14 @@ func _physics_process(delta: float):
 	
 	if not is_spinning_in_place:
 		var move = direction * speed * delta
+		var space_state = get_world_3d().direct_space_state
+		var query = PhysicsRayQueryParameters3D.create(global_position, global_position + move)
+		query.collision_mask = 4
+		var hit = space_state.intersect_ray(query)
+		if not hit.is_empty() and hit.collider.is_in_group("enemies"):
+			global_position = hit.position
+			_on_body_entered(hit.collider)
+			return
 		global_position += move
 		traveled += move.length()
 		if traveled >= max_range:
@@ -94,8 +103,9 @@ func _physics_process(delta: float):
 			queue_free()
 
 func _on_body_entered(body: Node3D):
-	if not is_spinning_in_place and body.is_in_group("enemies"):
+	if not is_spinning_in_place and not has_hit_enemy and body.is_in_group("enemies"):
 		if body.has_method("take_damage"):
+			has_hit_enemy = true
 			body.take_damage(damage, direction)
 		_start_spinning_in_place()
 

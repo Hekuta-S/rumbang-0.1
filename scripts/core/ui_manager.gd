@@ -24,18 +24,20 @@ func initialize(p_hud: Node, p_player: Node3D) -> void:
 	level_up_sfx.volume_db = 0.0
 	add_child(level_up_sfx)
 	
-	player.stats_changed.connect(_on_player_stats_changed)
-	player.player_died.connect(_on_player_died)
+	if player.has_signal("stats_changed"):
+		player.connect("stats_changed", _on_player_stats_changed)
+	if player.has_signal("player_died"):
+		player.connect("player_died", _on_player_died)
 	if player.has_signal("weapon_attacked"):
-		player.weapon_attacked.connect(_on_player_weapon_attacked)
+		player.connect("weapon_attacked", _on_player_weapon_attacked)
 	if player.has_signal("weapon_changed"):
-		player.weapon_changed.connect(_on_player_weapon_changed)
+		player.connect("weapon_changed", _on_player_weapon_changed)
 	if player.has_signal("reload_state_changed"):
-		player.reload_state_changed.connect(_on_player_reload_changed)
+		player.connect("reload_state_changed", _on_player_reload_changed)
 	if player.has_signal("experience_gained"):
-		player.experience_gained.connect(_on_player_experience_gained)
+		player.connect("experience_gained", _on_player_experience_gained)
 	if player.has_signal("leveled_up"):
-		player.leveled_up.connect(_on_player_leveled_up)
+		player.connect("leveled_up", _on_player_leveled_up)
 		
 	hud.restart_pressed.connect(func(): restart_pressed.emit())
 	
@@ -45,6 +47,10 @@ func initialize(p_hud: Node, p_player: Node3D) -> void:
 
 func update_floor(sub_level: int) -> void:
 	hud.update_floor(sub_level)
+
+func update_elapsed_time(elapsed_seconds: float) -> void:
+	if hud and hud.has_method("update_elapsed_time"):
+		hud.update_elapsed_time(elapsed_seconds)
 
 func update_gold(gold: int) -> void:
 	hud.update_gold(gold)
@@ -70,8 +76,8 @@ func show_item_choice() -> void:
 func _on_item_selected(item_id: String) -> void:
 	player.inventory.add_item(item_id)
 
-func _on_player_stats_changed(hp, max_hp, shield, max_shield, energy, max_energy) -> void:
-	hud.update_stats(hp, max_hp, shield, max_shield, energy, max_energy)
+func _on_player_stats_changed(hp, max_hp, shield, max_shield, _energy = 0.0, _max_energy = 0.0) -> void:
+	hud.update_stats(hp, max_hp, shield, max_shield)
 
 func _on_player_experience_gained(amount, current_xp, required_xp) -> void:
 	var exp_comp = player.get_node_or_null("ExperienceComponent")
@@ -96,6 +102,8 @@ func _on_player_leveled_up(new_level) -> void:
 		add_child(ui)
 		ui.choice_made.connect(_on_upgrade_choice_made)
 	$UpgradeChoiceUI.present_choices(player)
+	if hud and hud.has_method("play_level_up_confetti"):
+		hud.play_level_up_confetti()
 
 func _on_upgrade_choice_made(choice_type: String, choice_id: String) -> void:
 	if bg_music:
@@ -114,7 +122,7 @@ func _on_player_weapon_attacked(weapon_type: int) -> void:
 	if hud and hud.has_method("trigger_crosshair_kickback"):
 		hud.trigger_crosshair_kickback(weapon_type)
 
-func _on_player_weapon_changed(_weapon_index: int, _weapon_name: String, _energy_cost: float) -> void:
+func _on_player_weapon_changed(_weapon_index: int, _weapon_name: String) -> void:
 	refresh_weapon_ui()
 
 func _on_player_reload_changed(weapon_type: int, ammo: int, max_ammo: int, is_reloading: bool, progress: float) -> void:

@@ -3,14 +3,16 @@ extends CharacterBody3D
 signal stats_changed(hp, max_hp, shield, max_shield, energy, max_energy)
 signal experience_gained(amount, current_xp, required_xp)
 signal leveled_up(new_level)
-signal weapon_changed(weapon_index, weapon_name, energy_cost)
+signal weapon_changed(weapon_index, weapon_name)
 signal weapon_attacked(weapon_type)
 signal reload_state_changed(weapon_type, ammo, max_ammo, is_reloading, progress)
 signal player_died
 
+# PlayerWeaponInventory and PlayerCameraAndAimController are globally available via class_name
+
 var health_comp: Node
-var energy_comp: Node
 var experience_comp: Node
+var energy_comp: Node
 
 @export var max_hp: float:
 	get: return health_comp.max_hp if health_comp else 10.0
@@ -79,6 +81,8 @@ const PlayerAnimationController = preload("res://scripts/components/player_anima
 
 var movement_controller: PlayerMovementController
 var animation_controller: PlayerAnimationController
+var weapon_inventory: PlayerWeaponInventory
+var camera_aim_controller: PlayerCameraAndAimController
 
 
 
@@ -101,41 +105,45 @@ var animation_controller: PlayerAnimationController
 func get_weapon_data(weapon_type: int) -> WeaponData:
 	return WeaponData.get_weapon_data(weapon_type)
 
-var weapon_levels: Dictionary = {}
+var weapon_levels: Dictionary:
+	get: return weapon_inventory.weapon_levels if weapon_inventory else {}
+	set(v): if weapon_inventory: weapon_inventory.weapon_levels = v
 
 func get_weapon_level(w_id: int) -> int:
+	if weapon_inventory:
+		return weapon_inventory.get_weapon_level(w_id)
 	return weapon_levels.get(w_id, 1)
 
 func upgrade_weapon(w_id: int) -> void:
-	weapon_levels[w_id] = get_weapon_level(w_id) + 1
+	if weapon_inventory:
+		weapon_inventory.upgrade_weapon(w_id)
+	else:
+		weapon_levels[w_id] = get_weapon_level(w_id) + 1
 
 func get_weapon_modifiers(w_id: int) -> Dictionary:
+	if weapon_inventory:
+		return weapon_inventory.get_weapon_modifiers(w_id)
 	var lvl = get_weapon_level(w_id)
 	var data = get_weapon_data(w_id)
-	var cat = data.category # "melee", "ranged", "special"
-	
+	var cat = data.category
 	var mods = {
 		"damage": 1.0,
 		"size": 1.0,
-		"cooldown": 1.0, # attack speed / cooldown multiplier
+		"cooldown": 1.0,
 		"quantity_bonus": 0,
 		"pierce_bonus": 0,
 		"duration": 1.0
 	}
-	
 	if lvl >= 2: mods.damage += 0.15
 	if lvl >= 3:
 		if cat == "melee" or cat == "special": mods.size += 0.10
 		elif cat == "ranged": mods.quantity_bonus += 1
-	if lvl >= 4:
-		mods.cooldown *= 0.85 # -15% cooldown / +15% attack speed (approximated)
+	if lvl >= 4: mods.cooldown *= 0.85
 	if lvl >= 5: mods.damage += 0.15
 	if lvl >= 6:
 		if cat == "ranged": mods.pierce_bonus += 1
 		else: mods.quantity_bonus += 1
-	if lvl >= 7:
-		mods.size += 0.15
-		
+	if lvl >= 7: mods.size += 0.15
 	return mods
 
 func _weapon_damage(weapon_type: int) -> float:
@@ -154,11 +162,10 @@ func _weapon_heavy_damage(weapon_type: int) -> float:
 ## Nombre / coste / icono por arma. Re-exportados desde WeaponData (módulo
 ## canónico) para no tocar a los consumidores (HUD, señales, UI).
 var weapon_names: Dictionary = WeaponData.weapon_names
-var weapon_energy_costs: Dictionary = WeaponData.weapon_energy_costs
 var weapon_icons: Dictionary = WeaponData.weapon_icons
 
 @onready var spring_arm: SpringArm3D = $SpringArm3D
-@onready var camera: Camera3D = $SpringArm3D/Camera3D
+@onready var camera: Camera3D = spring_arm.find_child("Camera3D", true, false) as Camera3D
 @onready var mesh: Node3D = $KnightMesh
 @onready var muzzle: Marker3D = $KnightMesh/Muzzle
 @onready var melee_area: Area3D = $KnightMesh/MeleeArea
@@ -197,29 +204,44 @@ var weapon_visuals: Node = null
 
 func _ready() -> void:
 	add_to_group("player")
+
+	camera_aim_controller = PlayerCameraAndAimController.new()
+	camera_aim_controller.name = "PlayerCameraAndAimController"
+	camera_aim_controller.player = self
+	camera_aim_controller.spring_arm = spring_arm
+	camera_aim_controller.camera = camera
+	camera_aim_controller.muzzle = muzzle
+	camera_aim_controller.mesh = mesh
+	add_child(camera_aim_controller)
+
+	weapon_inventory = PlayerWeaponInventory.new()
+	weapon_inventory.name = "PlayerWeaponInventory"
+	add_child(weapon_inventory)
 	
-	combat_controller = load("res://scripts/components/player_combat_controller.gd").new()
+	combat_controller = PlayerCombatController.new()
 	combat_controller.name = "PlayerCombatController"
 	add_child(combat_controller)
 
-	inventory = load("res://scripts/components/inventory_component.gd").new()
+	inventory = InventoryComponent.new()
 	inventory.name = "InventoryComponent"
 	add_child(inventory)
 
-	health_comp = load("res://scripts/components/health_component.gd").new()
+	health_comp = HealthComponent.new()
 	health_comp.name = "HealthComponent"
 	add_child(health_comp)
 	
-	energy_comp = load("res://scripts/components/energy_component.gd").new()
-	energy_comp.name = "EnergyComponent"
-	add_child(energy_comp)
-	
-	experience_comp = load("res://scripts/components/experience_component.gd").new()
+	experience_comp = ExperienceComponent.new()
 	experience_comp.name = "ExperienceComponent"
 	add_child(experience_comp)
 
-	health_comp.health_changed.connect(func(h, mh, s, ms): emit_signal("stats_changed", h, mh, s, ms, energy_comp.energy, energy_comp.max_energy))
-	energy_comp.energy_changed.connect(func(e, me): emit_signal("stats_changed", health_comp.hp, health_comp.max_hp, health_comp.shield, health_comp.max_shield, e, me))
+	energy_comp = EnergyComponent.new()
+	energy_comp.name = "EnergyComponent"
+	add_child(energy_comp)
+
+	weapon_inventory.weapon_changed.connect(func(idx, name_value, cost): emit_signal("weapon_changed", idx, name_value, cost))
+	weapon_inventory.reload_state_changed.connect(func(weapon_type, ammo, max_ammo, is_reloading, progress): emit_signal("reload_state_changed", weapon_type, ammo, max_ammo, is_reloading, progress))
+
+	health_comp.health_changed.connect(func(h, mh, s, ms): emit_signal("stats_changed", h, mh, s, ms, energy, max_energy))
 	health_comp.entity_died.connect(func(): emit_signal("player_died"))
 	experience_comp.experience_gained.connect(func(amount, current_xp, required_xp): emit_signal("experience_gained", amount, current_xp, required_xp))
 	experience_comp.leveled_up.connect(func(new_level): emit_signal("leveled_up", new_level))
@@ -257,7 +279,6 @@ func _ready() -> void:
 
 	hp = max_hp
 	shield = max_shield
-	energy = max_energy
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	
 	# Apply passive overrides BEFORE emitting stats (passive may change shield/hp).
@@ -277,17 +298,29 @@ func _ready() -> void:
 	animation_controller.name = "PlayerAnimationController"
 	add_child(animation_controller)
 	
-	combat_controller.weapon_slots.clear()
+	weapon_inventory.weapon_slots.clear()
 	# Each character starts with their signature weapon.
 	var selected_char: Dictionary = GameData.get_selected()
 	var initial_weapons: Array = selected_char.get("initial_weapons", [WeaponData.WeaponType.SPEAR_LANCE])
 	for w in initial_weapons:
-		combat_controller.weapon_slots.append(w)
+		weapon_inventory.weapon_slots.append(w)
 		
-	combat_controller.current_slot = 0
+	weapon_inventory.current_slot = 0
+	if combat_controller:
+		combat_controller.weapon_slots = weapon_inventory.weapon_slots
+		combat_controller.current_slot = weapon_inventory.current_slot
+		combat_controller.weapon_ammo = weapon_inventory.weapon_ammo
+		combat_controller.reloading_weapon = weapon_inventory.reloading_weapon
+		combat_controller.reload_timer = weapon_inventory.reload_timer
+		combat_controller.total_reload_time = weapon_inventory.total_reload_time
+		combat_controller.weapon_mag_size = weapon_inventory.weapon_mag_size
+		combat_controller.weapon_reload_time = weapon_inventory.weapon_reload_time
 	select_slot(0)
 	
-	emit_signal("stats_changed", hp, max_hp, shield, max_shield, energy, max_energy)
+	# Spawn elemental orbs if the player starts with Ciclo Elemental
+	_try_spawn_elemental_orbs()
+	
+	emit_signal("stats_changed", hp, max_hp, shield, max_shield)
 
 # Per-frame combat + movement + camera + animation hook.
 func _physics_process(delta: float) -> void:
@@ -321,20 +354,23 @@ func _physics_process(delta: float) -> void:
 ## hold-to-fire weapons, cooldowns and the Kaionz charge mechanic are stable.
 
 func select_slot(slot_idx: int) -> void:
-	if not combat_controller: return
-	if slot_idx < 0 or slot_idx >= combat_controller.weapon_slots.size():
+	if not weapon_inventory: return
+	if slot_idx < 0 or slot_idx >= weapon_inventory.weapon_slots.size():
 		return
-	combat_controller.current_slot = slot_idx
-	var wt: int = combat_controller.weapon_slots[slot_idx]
+	weapon_inventory.current_slot = slot_idx
+	if combat_controller:
+		combat_controller.current_slot = slot_idx
+		combat_controller.weapon_slots = weapon_inventory.weapon_slots
+	var wt: int = weapon_inventory.weapon_slots[slot_idx]
 	update_weapon_visuals()
 	if weapon_names.has(wt):
-		emit_signal("weapon_changed", slot_idx, weapon_names[wt], weapon_energy_costs.get(wt, 0))
+		emit_signal("weapon_changed", slot_idx, weapon_names[wt])
 	
 
 func cycle_slots(delta_idx: int) -> void:
-	if not combat_controller or combat_controller.weapon_slots.is_empty():
+	if not weapon_inventory or weapon_inventory.weapon_slots.is_empty():
 		return
-	select_slot((combat_controller.current_slot + delta_idx) % combat_controller.weapon_slots.size())
+	select_slot((weapon_inventory.current_slot + delta_idx) % weapon_inventory.weapon_slots.size())
 
 func _input(event) -> void:
 	if camera_controller:
@@ -363,20 +399,20 @@ func _input(event) -> void:
 
 	
 var weapon_slots: Array:
-	get: return combat_controller.weapon_slots if combat_controller else []
-	set(v): if combat_controller: combat_controller.weapon_slots = v
+	get: return weapon_inventory.weapon_slots if weapon_inventory else []
+	set(v): if weapon_inventory: weapon_inventory.weapon_slots = v
 
 var current_slot: int:
-	get: return combat_controller.current_slot if combat_controller else 0
-	set(v): if combat_controller: combat_controller.current_slot = v
+	get: return weapon_inventory.current_slot if weapon_inventory else 0
+	set(v): if weapon_inventory: weapon_inventory.current_slot = v
 
 var is_spear_thrown: bool:
 	get: return combat_controller.is_spear_thrown if combat_controller else false
 	set(v): if combat_controller: combat_controller.is_spear_thrown = v
 
 var reloading_weapon: int:
-	get: return combat_controller.reloading_weapon if combat_controller else -1
-	set(v): if combat_controller: combat_controller.reloading_weapon = v
+	get: return weapon_inventory.reloading_weapon if weapon_inventory else -1
+	set(v): if weapon_inventory: weapon_inventory.reloading_weapon = v
 
 var auto_combat_target: Node3D:
 	get:
@@ -402,20 +438,9 @@ var spore_cloud_duration: float:
 	set(v): if combat_controller: combat_controller.spore_cloud_duration = v
 
 func get_weapons_list() -> Array:
-	var list: Array = []
-	if not combat_controller: return list
-	for wt in combat_controller.weapon_slots:
-		var info: Dictionary = {
-			"icon": weapon_icons.get(wt, "⚔️"),
-			"name": weapon_names.get(wt, "Arma"),
-			"cost": weapon_energy_costs.get(wt, 0),
-		}
-		var mag: int = combat_controller.weapon_mag_size.get(wt, 0)
-		if mag > 0:
-			info["max_ammo"] = mag
-			info["ammo"] = combat_controller.weapon_ammo.get(wt, mag)
-		list.append(info)
-	return list
+	if weapon_inventory:
+		return weapon_inventory.get_weapons_list()
+	return []
 
 func setup_weapon_models() -> void:
 	# Construye las mallas 3D de las armas en un componente dedicado
@@ -426,6 +451,21 @@ func setup_weapon_models() -> void:
 	weapon_models = weapon_visuals.weapon_models
 
 # end of setup_weapon_models() — everything below is gameplay helpers.
+
+## Spawns the ElementalOrbs node if ELEMENTS_CYCLE is in the loadout and
+## the orbs haven't been created yet.
+func _try_spawn_elemental_orbs() -> void:
+	if not combat_controller:
+		return
+	if combat_controller.elemental_orbs != null and is_instance_valid(combat_controller.elemental_orbs):
+		return
+	if not weapon_inventory or not weapon_inventory.weapon_slots.has(WeaponData.WeaponType.ELEMENTS_CYCLE):
+		return
+	var orbs_node := ElementalOrbs.new()
+	orbs_node.name = "ElementalOrbs"
+	combat_controller.elemental_orbs = orbs_node
+	get_parent().add_child.call_deferred(orbs_node)
+	orbs_node.setup.call_deferred(self)
 
 # ══════════════════════════════════════════════════════════════════════════
 # MOVEMENT & CAMERA
@@ -438,13 +478,12 @@ const GRAVITY := 22.0
 ## Shows only the model of the currently selected weapon slot. The spear stays
 ## hidden while it is flying through the air.
 func update_weapon_visuals() -> void:
-	if not combat_controller or combat_controller.weapon_slots.is_empty():
+	if not weapon_inventory or weapon_inventory.weapon_slots.is_empty():
 		return
-	var active: int = combat_controller.weapon_slots[combat_controller.current_slot]
+	var active: int = weapon_inventory.weapon_slots[weapon_inventory.current_slot]
 	for wt in weapon_models:
 		var m: Node3D = weapon_models[wt]
 		if m != null and is_instance_valid(m):
-			# Por defecto, ocultamos todas las armas (el jugador pidió que solo aparezcan al atacar)
 			m.visible = false
 
 func show_weapon_temporarily(duration: float = 0.5) -> void:
@@ -456,10 +495,9 @@ func show_weapon_temporarily(duration: float = 0.5) -> void:
 		timer.timeout.connect(func(): m.visible = false)
 
 func current_weapon() -> int:
-	if not combat_controller or combat_controller.weapon_slots.is_empty():
-		return WeaponData.WeaponType.SPEAR_LANCE
-	var slot = clamp(combat_controller.current_slot, 0, combat_controller.weapon_slots.size() - 1)
-	return combat_controller.weapon_slots[slot]
+	if weapon_inventory:
+		return weapon_inventory.get_current_weapon()
+	return WeaponData.WeaponType.SPEAR_LANCE
 
 func on_spear_returned() -> void:
 	if combat_controller and combat_controller.has_method("on_spear_returned"):
@@ -467,25 +505,25 @@ func on_spear_returned() -> void:
 
 ## Add a weapon to the next free slot. Returns false if the loadout is full.
 func add_weapon(w_type: int) -> bool:
-	if not combat_controller: return false
-	if combat_controller.weapon_slots.size() >= combat_controller.MAX_WEAPON_SLOTS:
+	if not weapon_inventory: return false
+	if not weapon_inventory.add_weapon(w_type):
 		return false
-	combat_controller.weapon_slots.append(w_type)
+	if combat_controller:
+		combat_controller.weapon_slots = weapon_inventory.weapon_slots
+		combat_controller.current_slot = weapon_inventory.current_slot
 	update_weapon_visuals()
-	emit_signal("weapon_changed", combat_controller.current_slot, weapon_names[current_weapon()], weapon_energy_costs[current_weapon()])
-	
+	emit_signal("weapon_changed", weapon_inventory.current_slot, weapon_names[current_weapon()])
+	if w_type == WeaponData.WeaponType.ELEMENTS_CYCLE:
+		_try_spawn_elemental_orbs()
 	return true
 
 ## Current ammo for a weapon (-1 means the weapon has no magazine / infinite).
 
 
 func _emit_reload_state() -> void:
-	if not combat_controller: return
-	var w: int = combat_controller.reloading_weapon if combat_controller.reloading_weapon >= 0 else current_weapon()
-	var progress: float = 0.0
-	if combat_controller.reloading_weapon >= 0:
-		progress = clamp(combat_controller.reload_timer / combat_controller.total_reload_time, 0.0, 1.0)
-	emit_signal("reload_state_changed", w, combat_controller.get_weapon_ammo(w), combat_controller.weapon_mag_size.get(w, 0), combat_controller.reloading_weapon >= 0, progress)
+	if not weapon_inventory: return
+	weapon_inventory.emit_reload_state()
+	emit_signal("reload_state_changed", weapon_inventory.reloading_weapon if weapon_inventory.reloading_weapon >= 0 else current_weapon(), weapon_inventory.get_weapon_ammo(weapon_inventory.reloading_weapon if weapon_inventory.reloading_weapon >= 0 else current_weapon()), weapon_inventory.weapon_mag_size.get(weapon_inventory.reloading_weapon if weapon_inventory.reloading_weapon >= 0 else current_weapon(), 0), weapon_inventory.reloading_weapon >= 0, clamp(weapon_inventory.reload_timer / max(weapon_inventory.total_reload_time, 0.0001), 0.0, 1.0))
 
 # ══════════════════════════════════════════════════════════════════════════
 # COMBAT
@@ -507,112 +545,28 @@ func activate_skill() -> void:
 
 ## Raycasts from the camera center out through the crosshair point.
 func get_camera_aim_point() -> Vector3:
-	if is_instance_valid(combat_controller) and "weapon_slots" in combat_controller and not combat_controller.weapon_slots.is_empty():
-		if "auto_combat_target" in combat_controller and is_instance_valid(combat_controller.get("auto_combat_target")):
+	if camera_aim_controller and camera_aim_controller.has_method("get_camera_aim_point"):
+		if is_instance_valid(combat_controller) and "auto_combat_target" in combat_controller and is_instance_valid(combat_controller.get("auto_combat_target")):
 			return combat_controller.get("auto_combat_target").global_position + Vector3(0, 1.0, 0)
-			
-	var viewport_rect = get_viewport().get_visible_rect()
-	var screen_center = viewport_rect.size * 0.5
-
-	var ray_origin = camera.project_ray_origin(screen_center)
-	var ray_normal = camera.project_ray_normal(screen_center)
-	var max_range = 100.0
-	var ray_target = ray_origin + ray_normal * max_range
-
-	var space_state = get_world_3d().direct_space_state
-	var query = PhysicsRayQueryParameters3D.create(ray_origin, ray_target)
-	query.exclude = [get_rid()]
-	query.collision_mask = 1 # Only hit terrain and enemies, ignore projectiles (Layer 4)
-
-	var result = space_state.intersect_ray(query)
-	if not result.is_empty():
-		return result.position
-	return ray_target
+		return camera_aim_controller.get_camera_aim_point()
+	return Vector3.ZERO
 
 ## Calculates a flattened horizontal forward vector toward the current aim point.
 func get_attack_forward_dir() -> Vector3:
-	var aim = get_camera_aim_point()
-	var dir = aim - global_position
-	dir.y = 0
-	if dir.length_squared() < 0.001:
-		return -mesh.global_transform.basis.z
-	return dir.normalized()
+	if camera_aim_controller and camera_aim_controller.has_method("get_attack_forward_dir"):
+		return camera_aim_controller.get_attack_forward_dir()
+	return Vector3.FORWARD
 
 func orient_player_to_aim(_aim_point: Vector3) -> void:
-	# The model no longer rotates to face the aim target when attacking;
-	# the attack effect plays in place without turning the character.
-	pass
+	if camera_aim_controller and camera_aim_controller.has_method("orient_player_to_aim"):
+		camera_aim_controller.orient_player_to_aim(_aim_point)
 
 func apply_camera_recoil(pitch_amount: float, yaw_amount: float, kick_z: float = 0.08) -> void:
-	pass
+	return
 
 func create_muzzle_flash(flash_color: Color, scale_multiplier: float = 1.0) -> void:
-	if not is_inside_tree(): return
-	var parent = get_parent()
-	if not parent or not is_instance_valid(parent) or not parent.is_inside_tree(): return
-	var flash_node = Node3D.new()
-	parent.add_child(flash_node)
-	flash_node.global_position = muzzle.global_position
-
-	var light = OmniLight3D.new()
-	light.light_color = flash_color
-	light.light_energy = 7.0 * scale_multiplier
-	light.omni_range = 5.0 * scale_multiplier
-	flash_node.add_child(light)
-
-	var flash_mesh = MeshInstance3D.new()
-	var sphere = SphereMesh.new()
-	sphere.radius = 0.2 * scale_multiplier
-	sphere.height = 0.4 * scale_multiplier
-	flash_mesh.mesh = sphere
-
-	var mat = StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = Color.WHITE.lerp(flash_color, 0.4)
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.emission_enabled = true
-	mat.emission = flash_color
-	mat.emission_energy_multiplier = 5.0
-	flash_mesh.material_override = mat
-
-	flash_node.add_child(flash_mesh)
-
-	# --- Dynamic Muzzle Sparks Burst ---
-	var particles = CPUParticles3D.new()
-	particles.amount = int(18 * scale_multiplier)
-	particles.lifetime = 0.18 * scale_multiplier
-	particles.explosiveness = 1.0
-	particles.one_shot = true
-	particles.spread = 35.0
-	particles.initial_velocity_min = 7.0 * scale_multiplier
-	particles.initial_velocity_max = 16.0 * scale_multiplier
-	
-	# Point particles in the direction the player is looking
-	if spring_arm:
-		particles.direction = -spring_arm.global_transform.basis.z
-	else:
-		particles.direction = Vector3.FORWARD
-
-	var p_mesh = BoxMesh.new()
-	p_mesh.size = Vector3(0.06, 0.06, 0.22) * scale_multiplier
-	particles.mesh = p_mesh
-	
-	var p_mat = StandardMaterial3D.new()
-	p_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	p_mat.albedo_color = Color.WHITE.lerp(flash_color, 0.3)
-	p_mat.emission_enabled = true
-	p_mat.emission = flash_color
-	p_mat.emission_energy_multiplier = 5.0
-	particles.material_override = p_mat
-	
-	flash_node.add_child(particles)
-	particles.emitting = true
-
-	var tween = flash_node.create_tween().set_parallel(true)
-	tween.tween_property(light, "light_energy", 0.0, 0.12)
-	tween.tween_property(flash_mesh, "scale", Vector3(2.4, 2.4, 2.4) * scale_multiplier, 0.1)
-	tween.tween_property(mat, "albedo_color:a", 0.0, 0.12)
-	tween.chain().tween_callback(flash_node.queue_free)
+	if camera_aim_controller and camera_aim_controller.has_method("create_muzzle_flash"):
+		camera_aim_controller.create_muzzle_flash(flash_color, scale_multiplier)
 
 
 
@@ -652,9 +606,6 @@ func heal(amount: float) -> void:
 	if health_comp and health_comp.has_method("heal"):
 		health_comp.heal(amount)
 
-func restore_energy(amount: float) -> void:
-	if energy_comp and energy_comp.has_method("restore_energy"):
-		energy_comp.restore_energy(amount)
 
 # ══════════════════════════════════════════════════════════════════════════
 # KAIONZ — AIR FISTS COMBAT SYSTEM

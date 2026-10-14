@@ -2,7 +2,7 @@ class_name CameraController
 extends Node
 
 @export_group("Camera Settings")
-@export var camera_offset: Vector3 = Vector3(0.6, 0.4, 0.0)
+@export var camera_offset: Vector3 = Vector3(0.6, 0.1, 0.0)
 @export var min_spring_length: float = 2.5
 @export var max_spring_length: float = 10.0
 @export var zoom_speed: float = 0.5
@@ -12,7 +12,7 @@ extends Node
 var camera_kick_z: float = 0.0
 var target_yaw: float = 0.0
 var target_pitch: float = 0.0
-var target_spring_length: float = 5.5
+var target_spring_length: float = 4.0
 
 @onready var player = get_parent()
 @onready var spring_arm: SpringArm3D = player.get_node("SpringArm3D")

@@ -34,6 +34,7 @@ var spore_damage_mult: float = 1.0
 var spore_cloud_duration: float = 3.5
 
 var saimon_element_index: int = 0
+var elemental_orbs: ElementalOrbs = null
 
 var weapon_mag_size: Dictionary = {
 	WeaponData.WeaponType.SPORE_BAZOOKA: 1,
@@ -111,7 +112,7 @@ func auto_attack(target: Node3D) -> void:
 				start_reload()
 			continue
 			
-		var cost = player.weapon_energy_costs[w]
+		var cost = WeaponData.weapon_energy_costs.get(w, 0)
 		if player.energy < cost: continue
 		
 		if cost > 0:
@@ -167,7 +168,7 @@ func attack() -> void:
 		start_reload()
 		return
 
-	var cost = player.weapon_energy_costs[player.current_weapon()]
+	var cost = WeaponData.weapon_energy_costs.get(player.current_weapon(), 0)
 	if player.energy < cost: return
 
 	if cost > 0:

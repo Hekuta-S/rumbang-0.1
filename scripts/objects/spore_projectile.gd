@@ -81,7 +81,7 @@ func _physics_process(delta: float) -> void:
 	# Step collision so fast projectiles don't tunnel through geometry/enemies.
 	var space_state = get_world_3d().direct_space_state
 	var query = PhysicsRayQueryParameters3D.create(current_pos, next_pos)
-	query.collision_mask = 1 # World + enemies layer
+	query.collision_mask = 5 # World layer (1) + enemy layer (4)
 	var hit = space_state.intersect_ray(query)
 	if not hit.is_empty():
 		global_position = hit.position
