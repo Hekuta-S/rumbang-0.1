@@ -750,17 +750,21 @@ func setup_weapon_models(mount: Node3D) -> void:
 	sp_pommel.material_override = mat_sp_pommel
 	spear_node.add_child(sp_pommel)
 
-	# -- Slash Shader Effect --
+	# -- Thrust Shader Effect (dedicated Espalanza shader) --
 	var sp_slash := MeshInstance3D.new()
 	var sp_slash_mesh := QuadMesh.new()
-	sp_slash_mesh.size = Vector2(2.5, 2.5)
+	sp_slash_mesh.size = Vector2(3.0, 1.8)   # wider for the lance thrust beam
 	sp_slash.mesh = sp_slash_mesh
 	sp_slash.position = Vector3(0, 1.5, 0)
 	var mat_sp_slash := ShaderMaterial.new()
-	mat_sp_slash.shader = load("res://assets/shaders/sword_slash.gdshader")
+	mat_sp_slash.shader = load("res://assets/shaders/spear_thrust.gdshader")
 	mat_sp_slash.set_shader_parameter("emission_color", Color(0.3, 1.0, 0.5))
-	mat_sp_slash.set_shader_parameter("energy", 3.0)
+	mat_sp_slash.set_shader_parameter("energy", 4.0)
 	mat_sp_slash.set_shader_parameter("progress", 0.0) # Animar en ataque
+	mat_sp_slash.set_shader_parameter("thickness", 0.12)
+	mat_sp_slash.set_shader_parameter("trail_length", 1.6)
+	mat_sp_slash.set_shader_parameter("rune_speed", 8.0)
+	mat_sp_slash.set_shader_parameter("rune_intensity", 0.35)
 	sp_slash.material_override = mat_sp_slash
 	spear_node.add_child(sp_slash)
 

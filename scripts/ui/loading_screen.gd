@@ -59,9 +59,7 @@ func _process(_delta):
 		GameData.preload_assets()
 		
 		# Compile shaders before switching scene
-		var compile_task = _compile_shaders()
-		if compile_task is Signal: await compile_task
-		elif typeof(compile_task) == TYPE_OBJECT and compile_task.has_signal("completed"): await compile_task
+		await _compile_shaders()
 		
 		get_tree().change_scene_to_packed(new_scene)
 	elif scene_load_status == ResourceLoader.THREAD_LOAD_FAILED or scene_load_status == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:

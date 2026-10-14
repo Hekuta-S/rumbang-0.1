@@ -13,4 +13,13 @@ Thumbs.db
 addons/ziva_agent/zivacode/windows_x86_64/zivacode.exe
 
 assets/
-.godot/
+
+# Builds y binarios
+*.apk
+*.idsig
+
+# Documentos de texto, diagramas y logs temporales/locales
+*.txt
+*.puml
+Formato_Control_Cambios.md
+run_log.txt

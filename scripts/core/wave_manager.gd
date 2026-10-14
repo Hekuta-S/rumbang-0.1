@@ -5,8 +5,7 @@ signal enemy_died(pos: Vector3, gold_val: int)
 signal boss_died(pos: Vector3, gold_val: int)
 signal wave_cleared()
 
-var enemy_scene = preload("res://scenes/entities/enemy.tscn")
-var boss_scene = preload("res://scenes/entities/boss.tscn")
+	# Se removieron los preload explícitos. Ahora usamos EnemyFactory.
 
 var spawn_timer: Timer
 var enemies_to_spawn_this_floor: int = 0
@@ -15,10 +14,10 @@ var current_level: int = 1
 
 var player: Node3D
 
-const PLAYABLE_MIN_X: float = -2300.0
-const PLAYABLE_MAX_X: float = 2300.0
-const PLAYABLE_MIN_Z: float = -2300.0
-const PLAYABLE_MAX_Z: float = 2300.0
+const PLAYABLE_MIN_X: float = -95.0
+const PLAYABLE_MAX_X: float = 95.0
+const PLAYABLE_MIN_Z: float = -95.0
+const PLAYABLE_MAX_Z: float = 95.0
 
 var wave_config: Dictionary = {}
 
@@ -48,13 +47,17 @@ func start_wave(lvl: int, p_player: Node3D) -> void:
 
 	if lvl >= 3 and lvl % 3 == 0:
 		# BOSS FLOOR
-		var boss = boss_scene.instantiate()
+		enemies_to_spawn_this_floor = 1
+		enemies_spawned = 0
+		# --- APLICACIÓN DEL PATRÓN FACTORY METHOD ---
+		var boss = EnemyFactory.create_enemy("boss")
 		var main_node = get_tree().current_scene
 		var boss_y = (main_node.get_floor_y(0, -12) if main_node.has_method("get_floor_y") else 0.0)
 		boss.position = Vector3(0, boss_y, -12)
 		boss.connect("boss_died", _on_boss_died_internal)
 		_scale_boss(boss, int(lvl / 3.0))
 		get_parent().add_child(boss)
+		enemies_spawned = 1
 		AudioManager.play("boss_sting")
 	else:
 		# NORMAL FLOOR
@@ -74,14 +77,15 @@ func _on_spawn_tick() -> void:
 		spawn_timer.stop()
 		return
 		
-	var batch = 1 + (current_level / 2)
+	var batch: int = 1 + int(current_level / 2.0)
 	for i in range(batch):
 		if enemies_spawned >= enemies_to_spawn_this_floor:
 			break
 		_spawn_single_enemy()
 
 func _spawn_single_enemy() -> void:
-	var enemy = enemy_scene.instantiate()
+	# --- APLICACIÓN DEL PATRÓN FACTORY METHOD ---
+	var enemy = EnemyFactory.create_enemy("basic")
 	
 	var spawn_pos: Vector3
 	var player_pos = player.global_position if player else Vector3.ZERO
@@ -125,7 +129,7 @@ func _spawn_single_enemy() -> void:
 	var spawn_count = randi_range(3, 5) if is_zombie else 1
 	
 	for i in range(spawn_count):
-		var en = enemy if i == 0 else enemy_scene.instantiate()
+		var en = enemy if i == 0 else EnemyFactory.create_enemy("basic")
 		en.set("type", type_val)
 		en.connect("enemy_died", _on_enemy_died_internal)
 		

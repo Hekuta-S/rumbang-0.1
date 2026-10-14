@@ -220,11 +220,11 @@ func _add_transition(sm: AnimationNodeStateMachine, from: String, to: String, xf
 	for i in range(sm.get_transition_count()):
 		if sm.get_transition_from(i) == from and sm.get_transition_to(i) == to:
 			return
-	var tr := AnimationNodeStateMachineTransition.new()
-	tr.switch_mode = 0
-	tr.advance_mode = 1
-	tr.xfade_time = xfade
-	sm.add_transition(from, to, tr)
+	var trans := AnimationNodeStateMachineTransition.new()
+	trans.switch_mode = AnimationNodeStateMachineTransition.SWITCH_MODE_IMMEDIATE
+	trans.advance_mode = AnimationNodeStateMachineTransition.ADVANCE_MODE_ENABLED
+	trans.xfade_time = xfade
+	sm.add_transition(from, to, trans)
 
 func _fit_model() -> void:
 	if not model: return

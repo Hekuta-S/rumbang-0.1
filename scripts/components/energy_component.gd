@@ -1,28 +1,23 @@
 class_name EnergyComponent
 extends Node
 
-signal energy_changed(energy, max_energy)
+signal energy_changed(current_energy, max_energy)
 
 @export var max_energy: float = 200.0
-@export var energy_regen_rate: float = 15.0
-
 var energy: float
 
 func _ready() -> void:
 	energy = max_energy
 
-func _process(delta: float) -> void:
-	if energy < max_energy:
-		energy = min(max_energy, energy + delta * energy_regen_rate)
-		energy_changed.emit(energy, max_energy)
+## Tries to consume the given amount of energy. Returns true if successful.
+func consume_energy(amount: float) -> bool:
+	if energy < amount:
+		return false
+	energy -= amount
+	energy_changed.emit(energy, max_energy)
+	return true
 
+## Restores the given amount of energy, clamped to max.
 func restore_energy(amount: float) -> void:
 	energy = min(max_energy, energy + amount)
 	energy_changed.emit(energy, max_energy)
-
-func consume_energy(amount: float) -> bool:
-	if energy >= amount:
-		energy -= amount
-		energy_changed.emit(energy, max_energy)
-		return true
-	return false

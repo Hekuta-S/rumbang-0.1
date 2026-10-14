@@ -115,7 +115,7 @@ class FlameAxeStrategy extends WeaponStrategy:
 		c.attack_cooldown = c.player.get_weapon_data(WeaponData.WeaponType.FLAME_AXE).base_cooldown * cd_mult
 		var player_pos = c.player.global_position
 		var dmg = c.player._weapon_damage(WeaponData.WeaponType.FLAME_AXE)
-		var aoe_radius = c.player.get_weapon_data(WeaponData.WeaponType.FLAME_AXE).range
+		var aoe_radius = c.player.get_weapon_data(WeaponData.WeaponType.FLAME_AXE).weapon_range
 	
 		# Hitbox is now handled by the instantiated weapon scene
 		var axe_scene = preload("res://scenes/objects/flame_axe.tscn").instantiate()
@@ -231,20 +231,73 @@ class TriShotgunStrategy extends WeaponStrategy:
 		AudioManager.play("disparo-escopeta", -10.0)
 	
 		var dmg = c.player._weapon_damage(WeaponData.WeaponType.TRI_SHOTGUN)
-		# Smoke shotgun: disparos gris humo
-		var pellet_color = Color(0.65, 0.65, 0.7)
-	
+		var pellet_color = Color(0.55, 0.58, 0.64)
+		var close_range := 5.0
 		var angles = [-12.0, -6.0, 0.0, 6.0, 12.0]
+		var space_state = c.player.get_world_3d().direct_space_state
 		for deg in angles:
 			var spread_rot = Transform3D().rotated(Vector3.UP, deg_to_rad(deg + randf_range(-1.5, 1.5)))
 			var pellet_dir = (spread_rot.basis * base_dir).normalized()
+			var query = PhysicsRayQueryParameters3D.create(start_pos, start_pos + pellet_dir * close_range)
+			query.exclude = [c.player.get_rid()]
+			query.collision_mask = 3
+			var hit = space_state.intersect_ray(query)
+			if not hit.is_empty():
+				var body = hit.collider
+				if body.is_in_group("enemies") and body.has_method("take_damage"):
+					body.take_damage(dmg, pellet_dir)
 	
-			var bullet = PoolManager.get_bullet()
-			bullet.global_position = start_pos
-			bullet.setup(pellet_dir, dmg, c.player.get_weapon_data(WeaponData.WeaponType.TRI_SHOTGUN).projectile_speed, false, pellet_color, c.player.get_rid())
-	
-		c.player.apply_camera_recoil(0.038, randf_range(-0.01, 0.01), 0.12)
-		c.player.create_muzzle_flash(pellet_color, 1.4)
+		_create_smoke_burst(start_pos, base_dir, pellet_color)
+
+	func _create_smoke_burst(pos: Vector3, direction: Vector3, color: Color) -> void:
+		var burst := Node3D.new()
+		c.player.get_parent().add_child(burst)
+		burst.global_position = pos
+
+		var cloud := MeshInstance3D.new()
+		var cloud_mesh := SphereMesh.new()
+		cloud_mesh.radius = 0.18
+		cloud_mesh.height = 0.36
+		cloud_mesh.radial_segments = 8
+		cloud_mesh.rings = 4
+		cloud.mesh = cloud_mesh
+		var cloud_mat := StandardMaterial3D.new()
+		cloud_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		cloud_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		cloud_mat.albedo_color = Color(color.r, color.g, color.b, 0.8)
+		cloud_mat.emission_enabled = true
+		cloud_mat.emission = color
+		cloud_mat.emission_energy_multiplier = 1.2
+		cloud.material_override = cloud_mat
+		burst.add_child(cloud)
+
+		var smoke := CPUParticles3D.new()
+		smoke.amount = 24
+		smoke.lifetime = 0.65
+		smoke.one_shot = true
+		smoke.explosiveness = 0.95
+		smoke.direction = direction
+		smoke.spread = 55.0
+		smoke.initial_velocity_min = 1.5
+		smoke.initial_velocity_max = 4.0
+		smoke.gravity = Vector3(0, 0.4, 0)
+		smoke.scale_amount_min = 0.35
+		smoke.scale_amount_max = 0.8
+		var smoke_mesh := SphereMesh.new()
+		smoke_mesh.radius = 0.08
+		smoke_mesh.height = 0.16
+		smoke.mesh = smoke_mesh
+		var smoke_mat := cloud_mat.duplicate() as StandardMaterial3D
+		smoke_mat.albedo_color = Color(color.r, color.g, color.b, 0.7)
+		smoke_mat.emission_energy_multiplier = 0.8
+		smoke.material_override = smoke_mat
+		burst.add_child(smoke)
+		smoke.emitting = true
+
+		var tween := burst.create_tween().set_parallel(true)
+		tween.tween_property(cloud, "scale", Vector3(3.0, 2.0, 3.0), 0.3)
+		tween.tween_property(cloud_mat, "albedo_color:a", 0.0, 0.35)
+		tween.chain().tween_callback(burst.queue_free)
 	
 	## Serpientes de Joel: 3 serpientes de esmeralda en cono (una al centro, dos en
 	## los bordes desviadas ±half_angle del arma).
@@ -262,7 +315,7 @@ class RailgunStrategy extends WeaponStrategy:
 	
 		c.player.orient_player_to_aim(aim_point)
 	
-		var max_range = c.player.get_weapon_data(WeaponData.WeaponType.RAILGUN).range
+		var max_range = c.player.get_weapon_data(WeaponData.WeaponType.RAILGUN).weapon_range
 		var end_pos = start_pos + aim_dir * max_range
 		var dmg = c.player._weapon_damage(WeaponData.WeaponType.RAILGUN)
 	
@@ -328,12 +381,14 @@ class RailgunStrategy extends WeaponStrategy:
 
 
 class SpearLanceStrategy extends WeaponStrategy:
+	const ENABLE_SPEAR_THROW: bool = false
 
 	func attack(cd_mult: float) -> void:
 		# Make it slower (e.g. 1.4x base cooldown)
 		c.attack_cooldown = c.player.get_weapon_data(WeaponData.WeaponType.SPEAR_LANCE).base_cooldown * cd_mult * 1.4
-		c.player.orient_player_to_aim(c.player.get_camera_aim_point())
-		var forward_dir = c.player.get_attack_forward_dir()
+		
+		# El tajo debe ser estrictamente hacia donde mira el modelo del personaje (frente físico), no hacia la cámara (crosshair)
+		var forward_dir = -c.player.mesh.global_transform.basis.z.normalized()
 		var player_pos = c.player.global_position
 		var dmg = c.player._weapon_damage(WeaponData.WeaponType.SPEAR_LANCE)
 	
@@ -349,71 +404,93 @@ class SpearLanceStrategy extends WeaponStrategy:
 		spear_scene.global_position = player_pos + forward_dir * 1.8
 		spear_scene.look_at(spear_scene.global_position + forward_dir, Vector3.UP)
 		
-		# Half sweep size (scale) and slightly longer active duration (0.35s)
-		spear_scene.scale = Vector3(1.25, 1.0, 1.25) 
+		# Narrower hitbox for the horizontal slash (requires more aim)
+		spear_scene.scale = Vector3(0.7, 1.0, 1.3) 
 		spear_scene.setup(dmg, 0.35, 16.0, forward_dir)
 	
 		animate_weapon_swing(WeaponData.WeaponType.SPEAR_LANCE, slash_side)
 		create_spear_slash_visual(player_pos, forward_dir, slash_side)
 		
-		# Delay then automatically throw the spear towards the closest enemy
-		var combo_tween = c.player.create_tween()
-		combo_tween.tween_interval(0.35)
-		combo_tween.tween_callback(func():
-			if not is_instance_valid(c.player) or c.player.current_weapon() != WeaponData.WeaponType.SPEAR_LANCE:
-				return
-				
-			var enemies = c.player.get_tree().get_nodes_in_group("enemies")
-			var closest: Node3D = null
-			var min_dist = 45.0
-			
-			for e in enemies:
-				if not is_instance_valid(e): continue
-				var d = e.global_position.distance_to(c.player.global_position)
-				if d < min_dist:
-					min_dist = d
-					closest = e
-					
-			var start_pos = c.player.muzzle.global_position
-			var aim_dir = c.player.get_attack_forward_dir()
-			
-			if closest:
-				var target_pos = closest.global_position + Vector3(0, 1.0, 0)
-				aim_dir = (target_pos - start_pos).normalized()
-				c.player.orient_player_to_aim(target_pos)
-				
-			# Do not hide the spear from hand; these are spectral summons!
-			
-			var proj = c.spear_projectile_scene.instantiate()
-			c.player.get_parent().add_child(proj)
-			proj.global_position = start_pos
-			proj.setup(aim_dir, 35.0, 48.0, c.player.get_rid())
-			AudioManager.play("ataque-espalanza", -6.0, 1.3)
-		)
+		# Launch code is preserved but disabled while the weapon is slash-only.
+		if ENABLE_SPEAR_THROW:
+			var combo_tween = c.player.create_tween()
+			combo_tween.tween_interval(0.35)
+			combo_tween.tween_callback(func():
+				if not is_instance_valid(c.player) or c.player.current_weapon() != WeaponData.WeaponType.SPEAR_LANCE:
+					return
+
+				var enemies = c.player.get_tree().get_nodes_in_group("enemies")
+				var closest: Node3D = null
+				var min_dist = 45.0
+
+				for e in enemies:
+					if not is_instance_valid(e): continue
+					var d = e.global_position.distance_to(c.player.global_position)
+					if d < min_dist:
+						min_dist = d
+						closest = e
+
+				var start_pos = c.player.muzzle.global_position
+				var aim_dir = c.player.get_attack_forward_dir()
+
+				if closest:
+					var target_pos = closest.global_position + Vector3(0, 1.0, 0)
+					aim_dir = (target_pos - start_pos).normalized()
+					c.player.orient_player_to_aim(target_pos)
+
+				# Do not hide the spear from hand; these are spectral summons!
+
+				var proj = c.spear_projectile_scene.instantiate()
+				c.player.get_parent().add_child(proj)
+				proj.global_position = start_pos
+				proj.setup(aim_dir, 35.0, 48.0, c.player.get_rid())
+				AudioManager.play("ataque-espalanza", -6.0, 1.3)
+			)
 	
 	## Throws the spear-lance (right mouse). Costs a little c.player.energy; the spear is
 	## gone from the c.player's hand until it returns.
 
+	func animate_weapon_swing(weapon_type: int, side: float) -> void:
+		var weapon: Node3D = c.player.weapon_models.get(weapon_type)
+		if not weapon or not is_instance_valid(weapon):
+			return
+		var base_transform: Transform3D = weapon.transform
+		var base_rot: Vector3 = base_transform.basis.get_euler()
+
+		# Tajo horizontal apretado solo al frente del personaje
+		var start_rot: Vector3 = base_rot + Vector3(0.0, deg_to_rad(20.0 * side), deg_to_rad(-5.0))
+		var end_rot: Vector3 = base_rot + Vector3(0.0, deg_to_rad(-20.0 * side), deg_to_rad(10.0))
+		weapon.rotation = start_rot
+
+		var tween = c.player.create_tween()
+		tween.tween_property(weapon, "rotation", end_rot, 0.16).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tween.tween_callback(func() -> void:
+			if is_instance_valid(weapon) and weapon.is_inside_tree():
+				weapon.transform = base_transform
+		)
+
 	func create_spear_slash_visual(pos: Vector3, facing_dir: Vector3, side: float) -> void:
 		var pivot = Node3D.new()
 		c.player.get_parent().add_child(pivot)
-		pivot.global_position = pos + facing_dir * 1.8 + Vector3(0, 1.0, 0)
+		# Empieza al frente del personaje
+		pivot.global_position = pos + facing_dir * 1.5 + Vector3(0, 1.0, 0)
 		if facing_dir.cross(Vector3.UP).length() > 0.001:
 			pivot.look_at(pivot.global_position + facing_dir, Vector3.UP)
 	
 		var arc = MeshInstance3D.new()
-		var mesh_inst = PrismMesh.new()
-		mesh_inst.size = Vector3(3.6, 0.4, 1.8)
+		# Estela horizontal delgada (como un rastro de espada) en vez del cuadrado
+		var mesh_inst = BoxMesh.new()
+		mesh_inst.size = Vector3(2.5, 0.05, 0.3)
 		arc.mesh = mesh_inst
 		pivot.add_child(arc)
 	
 		var mat = StandardMaterial3D.new()
 		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		mat.albedo_color = Color(0.4, 1.0, 0.55, 0.45)
+		mat.albedo_color = Color(0.4, 1.0, 0.55, 0.7)
 		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		mat.emission_enabled = true
 		mat.emission = Color(0.3, 1.0, 0.5)
-		mat.emission_energy_multiplier = 2.0
+		mat.emission_energy_multiplier = 3.0
 		arc.material_override = mat
 	
 		# --- Emerald Slash Energy Wisps ---
@@ -421,13 +498,13 @@ class SpearLanceStrategy extends WeaponStrategy:
 		energy_particles.amount = 16
 		energy_particles.lifetime = 0.25
 		energy_particles.one_shot = true
-		energy_particles.explosiveness = 0.85
-		energy_particles.direction = facing_dir + Vector3(side * 0.4, 0.0, 0).normalized()
-		energy_particles.spread = 45.0
-		energy_particles.initial_velocity_min = 7.0
-		energy_particles.initial_velocity_max = 15.0
-		energy_particles.scale_amount_min = 0.4
-		energy_particles.scale_amount_max = 0.9
+		energy_particles.explosiveness = 0.95
+		energy_particles.direction = facing_dir + Vector3(side * 0.15, 0.0, 0).normalized()
+		energy_particles.spread = 15.0
+		energy_particles.initial_velocity_min = 10.0
+		energy_particles.initial_velocity_max = 18.0
+		energy_particles.scale_amount_min = 0.3
+		energy_particles.scale_amount_max = 0.7
 	
 		var ep_mesh := SphereMesh.new()
 		ep_mesh.radius = 0.08
@@ -437,21 +514,21 @@ class SpearLanceStrategy extends WeaponStrategy:
 		var ep_mat := StandardMaterial3D.new()
 		ep_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		ep_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		ep_mat.albedo_color = Color(0.5, 1.0, 0.6, 0.5)
+		ep_mat.albedo_color = Color(0.5, 1.0, 0.6, 0.6)
 		ep_mat.emission_enabled = true
 		ep_mat.emission = Color(0.3, 1.0, 0.5)
-		ep_mat.emission_energy_multiplier = 2.0
+		ep_mat.emission_energy_multiplier = 2.5
 		energy_particles.material_override = ep_mat
 	
 		pivot.add_child(energy_particles)
 		energy_particles.emitting = true
 	
-		# Sweep the arc horizontally across the front, opposite to the weapon swing.
-		pivot.rotation.y = deg_to_rad(-45.0 * side)
+		# Tajo horizontal mucho más estrecho (solo al frente, no cubre los lados)
+		pivot.rotation.y = deg_to_rad(-18.0 * side)
 		var tween = c.player.create_tween().set_parallel(true)
-		tween.tween_property(pivot, "rotation:y", deg_to_rad(45.0 * side), 0.16).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		tween.tween_property(arc, "scale", Vector3(1.6, 1.0, 1.6), 0.16)
-		tween.tween_property(mat, "albedo_color:a", 0.0, 0.22)
+		tween.tween_property(pivot, "rotation:y", deg_to_rad(18.0 * side), 0.16).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tween.tween_property(arc, "scale", Vector3(1.2, 1.0, 0.2), 0.16)
+		tween.tween_property(mat, "albedo_color:a", 0.0, 0.2)
 		tween.chain().tween_callback(pivot.queue_free)
 	
 	## Flamethrower fire effect: a hot white-yellow inner core plus an outer
@@ -460,6 +537,7 @@ class SpearLanceStrategy extends WeaponStrategy:
 
 	func throw_spear() -> void:
 		if c.player.current_weapon() != WeaponData.WeaponType.SPEAR_LANCE: return
+		if not ENABLE_SPEAR_THROW: return
 		if c.attack_cooldown > 0: return
 	
 		var cost = c.SPEAR_THROW_COST
@@ -687,7 +765,7 @@ class SporeBazookaStrategy extends WeaponStrategy:
 		c.player.get_parent().add_child(proj)
 		proj.global_position = start_pos
 		proj.setup(aim_dir, dmg, c.player.get_weapon_data(WeaponData.WeaponType.SPORE_BAZOOKA).projectile_speed,
-			cloud_dps, c.spore_cloud_duration, c.player.get_weapon_data(WeaponData.WeaponType.SPORE_BAZOOKA).range)
+			cloud_dps, c.spore_cloud_duration, c.player.get_weapon_data(WeaponData.WeaponType.SPORE_BAZOOKA).weapon_range)
 	
 		c.player.apply_camera_recoil(0.05, randf_range(-0.008, 0.008), 0.14)
 		c.player.create_muzzle_flash(spore_color, 1.6)
@@ -1116,50 +1194,24 @@ class SpinningAxeStrategy extends WeaponStrategy:
 		var proj = preload("res://scenes/objects/spinning_axe_projectile.tscn").instantiate()
 		c.player.get_parent().add_child(proj)
 		proj.global_position = start_pos
-		proj.setup(aim_dir, dmg, c.player.get_weapon_data(WeaponData.WeaponType.SPINNING_AXE).projectile_speed, c.player.get_weapon_data(WeaponData.WeaponType.SPINNING_AXE).range)
+		proj.setup(aim_dir, dmg, c.player.get_weapon_data(WeaponData.WeaponType.SPINNING_AXE).projectile_speed, c.player.get_weapon_data(WeaponData.WeaponType.SPINNING_AXE).weapon_range)
 	
 		c.player.apply_camera_recoil(0.02, 0.0, 0.1)
 		c.player.create_muzzle_flash(Color(0.2, 0.9, 0.3), 1.2)
-	
-	## Ciclo Elemental (Saimon): Fuego -> Hielo -> Viento -> Agua -> Planta
 
 
 class ElementsCycleStrategy extends WeaponStrategy:
 
 	func attack(cd_mult: float) -> void:
 		c.attack_cooldown = c.player.get_weapon_data(WeaponData.WeaponType.ELEMENTS_CYCLE).base_cooldown * cd_mult
-		var aim_point = c.player.get_camera_aim_point()
-		c.player.orient_player_to_aim(aim_point)
-		var start_pos = c.player.muzzle.global_position
-		var aim_dir = (aim_point - start_pos).normalized()
-		if (aim_point - start_pos).length_squared() < 0.04:
-			aim_dir = -c.player.spring_arm.global_transform.basis.z
-	
-		var colors = [
-			Color(1.0, 0.3, 0.1), # Fuego
-			Color(0.2, 0.8, 1.0), # Hielo
-			Color(0.8, 0.8, 0.8), # Viento
-			Color(0.1, 0.4, 1.0), # Agua
-			Color(0.3, 0.9, 0.2)  # Planta
-		]
-		
-		var elements = ["fuego", "hielo", "viento", "agua", "planta"]
-		var current_element = elements[c.saimon_element_index]
-		var pellet_color = colors[c.saimon_element_index]
-		
-		c.saimon_element_index = (c.saimon_element_index + 1) % 5
-	
-		var dmg = c.player._weapon_damage(WeaponData.WeaponType.ELEMENTS_CYCLE)
-		
-		var bullet = PoolManager.get_bullet()
-		bullet.global_position = start_pos
-		bullet.setup(aim_dir, dmg, c.player.get_weapon_data(WeaponData.WeaponType.ELEMENTS_CYCLE).projectile_speed, false, pellet_color, c.player.get_rid())
-		
-		# Add a small meta tag to let the bullet know it's elemental if we want to add effects later
-		bullet.set_meta("element", current_element)
-	
-		c.player.apply_camera_recoil(0.015, randf_range(-0.005, 0.005), 0.1)
-		c.player.create_muzzle_flash(pellet_color, 1.3)
+
+		# El daño lo hacen las esferas al orbitar y tocar enemigos (ver
+		# elemental_orbs.gd, _tick_contact_damage); el ataque solo hace
+		# destellar el ciclo elemental.
+		var orbs_node: ElementalOrbs = c.elemental_orbs
+		if not orbs_node or orbs_node.orbs.is_empty():
+			return
+		orbs_node.flash_cycle()
 
 
 class ZombieArmStrategy extends WeaponStrategy:
@@ -1181,4 +1233,3 @@ class ZombieArmStrategy extends WeaponStrategy:
 		AudioManager.play("ataque-espalanza", -12.0, 0.8)
 		
 		c.player.apply_camera_recoil(0.015, randf_range(-0.005, 0.005), 0.05)
-

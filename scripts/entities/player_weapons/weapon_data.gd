@@ -24,7 +24,7 @@ extends Resource
 ## Disparos por activación (1 = normal). La dispersión real la define cada arma.
 @export var pellet_count: int = 1
 ## Alcance efectivo / radio (m): cono melee, AOE radial o rayo.
-@export var range: float = 3.0
+@export var weapon_range: float = 3.0
 ## Semi-ángulo del cono frontal en grados (180 = 360° / sin cono).
 @export var half_angle: float = 180.0
 ## Radio del rayo "beam" (Armas tipo railgun).
@@ -42,50 +42,6 @@ extends Resource
 @export var heavy_range: float = 0.0
 @export var heavy_half_angle: float = 0.0
 
-
-## Factory explícita. Posicional para que la tabla central sea legible.
-static func make(
-	p_id: int,
-	p_display_name: String,
-	p_icon: String,
-	p_category: String,
-	p_energy_cost: int,
-	p_base_damage: float,
-	p_base_cooldown: float,
-	p_berserk_mult: float,
-	p_projectile_speed: float,
-	p_pellet_count: int,
-	p_range: float,
-	p_half_angle: float,
-	p_beam_radius: float,
-	p_mag_size: int,
-	p_reload_time: float,
-	p_heavy_damage: float,
-	p_heavy_cooldown: float,
-	p_heavy_range: float,
-	p_heavy_half_angle: float,
-) -> WeaponData:
-	var data := WeaponData.new()
-	data.id = p_id
-	data.display_name = p_display_name
-	data.icon = p_icon
-	data.category = p_category
-	data.energy_cost = p_energy_cost
-	data.base_damage = p_base_damage
-	data.base_cooldown = p_base_cooldown
-	data.berserk_mult = p_berserk_mult
-	data.projectile_speed = p_projectile_speed
-	data.pellet_count = p_pellet_count
-	data.range = p_range
-	data.half_angle = p_half_angle
-	data.beam_radius = p_beam_radius
-	data.mag_size = p_mag_size
-	data.reload_time = p_reload_time
-	data.heavy_damage = p_heavy_damage
-	data.heavy_cooldown = p_heavy_cooldown
-	data.heavy_range = p_heavy_range
-	data.heavy_half_angle = p_heavy_half_angle
-	return data
 
 ## ---------------------------------------------------------------------------
 ## WeaponType: la llave primaria de TODA la tabla de armas. Centralizado aquí
@@ -117,72 +73,90 @@ enum WeaponType {
 ## ---------------------------------------------------------------------------
 static var _weapon_table_cache: Dictionary = {}
 
-## Tabla canónica de stats (WeaponType -> WeaponData), valores idénticos a los
-## literales originales de cada attack_*.
+## --- APLICACIÓN DEL PATRÓN BUILDER ---
 static func _build_weapon_table() -> Dictionary:
 	var table: Dictionary = {
-		WeaponType.ENERGY_SWORD: WeaponData.make(
-			0, "Espada de Energía", "🗡️", "melee",
-			0, 12.0, 0.45, 1.5, 0.0, 1, 3.2, 75.0, 0.0, 0, 2.0,
-			0.0, 0.0, 0.0, 0.0),
-		WeaponType.FLAME_AXE: WeaponData.make(
-			1, "Hacha de Fuego", "🪓", "melee",
-			0, 25.0, 0.90, 1.5, 0.0, 1, 4.5, 180.0, 0.0, 0, 2.0,
-			0.0, 0.0, 0.0, 0.0),
-		WeaponType.PLASMA_RIFLE: WeaponData.make(
-			2, "Rifle de Plasma", "🔫", "ranged",
-			1, 5.0, 0.35, 1.3, 42.0, 1, 0.0, 180.0, 0.0, 0, 2.0,
-			0.0, 0.0, 0.0, 0.0),
-		WeaponType.TRI_SHOTGUN: WeaponData.make(
-			3, "Escopeta de Humo", "💨", "ranged",
-			3, 4.0, 0.80, 1.3, 36.0, 5, 0.0, 180.0, 0.0, 0, 2.0,
-			0.0, 0.0, 0.0, 0.0),
-		WeaponType.RAILGUN: WeaponData.make(
-			4, "Cañón Railgun", "🔮", "ranged",
-			5, 45.0, 1.50, 1.3, 0.0, 1, 50.0, 180.0, 1.4, 0, 2.0,
-			0.0, 0.0, 0.0, 0.0),
-		WeaponType.SPEAR_LANCE: WeaponData.make(
-			5, "Espalanza de Mikeura", "🔱", "melee",
-			0, 15.0, 0.50, 1.5, 0.0, 1, 5.0, 80.0, 0.0, 0, 2.0,
-			0.0, 0.0, 0.0, 0.0),
-		WeaponType.FLAME_THROWER: WeaponData.make(
-			6, "Lanzallamas", "🔥", "melee",
-			0, 2.0, 0.20, 1.5, 0.0, 1, 11.0, 35.0, 0.0, 0, 2.0,
-			0.0, 0.0, 0.0, 0.0),
-		WeaponType.SPORE_BAZOOKA: WeaponData.make(
-			7, "Bazuca de Esporas", "🍄", "ranged",
-			0, 25.0, 0.80, 1.5, 10.0, 1, 2.6, 180.0, 0.0, 1, 2.4,
-			0.0, 0.0, 0.0, 0.0),
-		WeaponType.DUAL_DAGGERS: WeaponData.make(
-			8, "Dagas Gemelas de Crane", "🔪", "melee",
-			0, 6.0, 0.30, 1.5, 0.0, 1, 2.6, 75.0, 0.0, 0, 2.0,
-			15.0, 0.8, 3.0, 90.0),
-		WeaponType.AIR_FISTS: WeaponData.make(
-			9, "Puños de Aire de Kaionz", "🌀", "melee",
-			0, 9.0, 0.35, 1.5, 0.0, 1, 2.8, 55.0, 0.0, 0, 2.0,
-			25.0, 0.8, 3.8, 0.0),
-		WeaponType.DUSTS: WeaponData.make(
-			10, "Polvos Alquímicos", "🧪", "special",
-			15, 0.0, 1.0, 1.5, 0.0, 1, 0.0, 180.0, 0.0, 0, 2.0,
-			0.0, 0.0, 0.0, 0.0),
-		WeaponType.SERPENTS: WeaponData.make(
-			11, "Serpientes de Joel", "🐍", "ranged",
-			0, 5.0, 1.0, 1.3, 24.0, 3, 0.0, 15.0, 0.0, 0, 2.0,
-			0.0, 0.0, 0.0, 0.0),
-		WeaponType.SPINNING_AXE: WeaponData.make(
-			12, "Hacha Giratoria", "🪓", "ranged",
-			0, 9.0, 0.8, 1.3, 20.0, 1, 10.0, 180.0, 0.0, 0, 2.0,
-			0.0, 0.0, 0.0, 0.0),
-		WeaponType.ELEMENTS_CYCLE: WeaponData.make(
-			13, "Ciclo Elemental", "🔮", "ranged",
-			0, 7.0, 0.6, 1.3, 22.0, 1, 0.0, 180.0, 0.0, 0, 2.0,
-			0.0, 0.0, 0.0, 0.0),
-		WeaponType.ZOMBIE_ARM: WeaponData.make(
-			14, "Brazo Bumerán", "🧟", "ranged",
-			0, 18.0, 0.8, 1.3, 20.0, 1, 0.0, 180.0, 0.0, 0, 2.0,
-			0.0, 0.0, 0.0, 0.0),
+		WeaponType.ENERGY_SWORD: WeaponBuilder.new(0, "Espada de Energía", "🗡️", "melee")\
+			.set_combat(12.0, 0.45, 3.2)\
+			.set_projectile(0.0, 1, 75.0)\
+			.build(),
+			
+		WeaponType.FLAME_AXE: WeaponBuilder.new(1, "Hacha de Fuego", "🪓", "melee")\
+			.set_combat(25.0, 0.90, 4.5)\
+			.set_projectile(0.0)\
+			.build(),
+			
+		WeaponType.PLASMA_RIFLE: WeaponBuilder.new(2, "Rifle de Plasma", "🔫", "ranged")\
+			.set_combat(5.0, 0.35)\
+			.set_projectile(42.0)\
+			
+			.build(),
+			
+		WeaponType.TRI_SHOTGUN: WeaponBuilder.new(3, "Escopeta de Humo", "💨", "ranged")\
+			.set_combat(4.0, 0.80)\
+			.set_projectile(36.0, 5)\
+			
+			.build(),
+			
+		WeaponType.RAILGUN: WeaponBuilder.new(4, "Cañón Railgun", "🔮", "ranged")\
+			.set_combat(45.0, 1.50, 50.0)\
+			
+			.build(),
+			
+		WeaponType.SPEAR_LANCE: WeaponBuilder.new(5, "Espalanza de Mikeura", "🔱", "melee")\
+			.set_combat(15.0, 0.50, 5.0)\
+			.set_projectile(0.0, 1, 80.0)\
+			.build(),
+			
+		WeaponType.FLAME_THROWER: WeaponBuilder.new(6, "Lanzallamas", "🔥", "melee")\
+			.set_combat(2.0, 0.20, 11.0)\
+			.set_projectile(0.0, 1, 35.0)\
+			.build(),
+			
+		WeaponType.SPORE_BAZOOKA: WeaponBuilder.new(7, "Bazuca de Esporas", "🍄", "ranged")\
+			.set_combat(25.0, 0.80, 2.6)\
+			.set_projectile(10.0)\
+			.set_ammo(1, 2.4)\
+			.build(),
+			
+		WeaponType.DUAL_DAGGERS: WeaponBuilder.new(8, "Dagas Gemelas de Crane", "🔪", "melee")\
+			.set_combat(6.0, 0.30, 2.6)\
+			.set_projectile(0.0, 1, 75.0)\
+			.set_heavy_attack(15.0, 0.8, 3.0, 90.0)\
+			.build(),
+			
+		WeaponType.AIR_FISTS: WeaponBuilder.new(9, "Puños de Aire de Kaionz", "🌀", "melee")\
+			.set_combat(9.0, 0.35, 2.8)\
+			.set_projectile(0.0, 1, 55.0)\
+			.set_heavy_attack(25.0, 0.8, 3.8, 0.0)\
+			.build(),
+			
+		WeaponType.DUSTS: WeaponBuilder.new(10, "Polvos Alquímicos", "🧪", "special")\
+			
+			.build(),
+			
+		WeaponType.SERPENTS: WeaponBuilder.new(11, "Serpientes de Joel", "🐍", "ranged")\
+			.set_combat(5.0, 1.0)\
+			.set_projectile(24.0, 3, 15.0)\
+			.build(),
+			
+		WeaponType.SPINNING_AXE: WeaponBuilder.new(12, "Hacha Giratoria", "🪓", "ranged")\
+			.set_combat(9.0, 0.8, 10.0)\
+			.set_projectile(20.0)\
+			.build(),
+			
+		WeaponType.ELEMENTS_CYCLE: WeaponBuilder.new(13, "Ciclo Elemental", "🔮", "ranged")\
+			.set_combat(7.0, 0.6)\
+			.set_projectile(22.0)\
+			.build(),
+			
+		WeaponType.ZOMBIE_ARM: WeaponBuilder.new(14, "Brazo Bumerán", "🧟", "ranged")\
+			.set_combat(18.0, 0.8)\
+			.set_projectile(20.0)\
+			.build(),
 	}
 	return table
+## ---------------------------------------------
 
 static func get_weapon_table() -> Dictionary:
 	if _weapon_table_cache.is_empty():
@@ -212,7 +186,7 @@ static var weapon_names: Dictionary = {
 	WeaponType.ZOMBIE_ARM: "Brazo Bumerán",
 }
 
-## Coste de energía por disparo (0 = gratis).
+## Coste de energía por arma (UI / combate).
 static var weapon_energy_costs: Dictionary = {
 	WeaponType.ENERGY_SWORD: 0,
 	WeaponType.FLAME_AXE: 0,
@@ -260,4 +234,3 @@ static func weapon_heavy_damage(weapon_type: int, p_is_berserk: bool) -> float:
 	var data := get_weapon_data(weapon_type)
 	var dmg: float = data.heavy_damage if data.heavy_damage > 0.0 else data.base_damage
 	return dmg * (data.berserk_mult if p_is_berserk else 1.0)
-

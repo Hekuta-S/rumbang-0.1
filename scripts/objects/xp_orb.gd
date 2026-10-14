@@ -6,7 +6,6 @@ extends Area3D
 @export var attract_radius: float = 8.0
 
 var target: Node3D = null
-var _velocity: Vector3 = Vector3.ZERO
 var _magnetized: bool = false
 
 func _ready() -> void:

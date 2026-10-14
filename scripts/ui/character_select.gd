@@ -257,10 +257,9 @@ func _refresh_card() -> void:
 	_portrait_label.add_theme_color_override("font_color", char_color)
 	_passive_dot.color     = c.get("passive_color", C_ACCENT)
 
-	_lbl_stats.text = "HP:       %s\nEscudo:   %s\nEnergía:  %s\nVelocidad: %s" % [
+	_lbl_stats.text = "HP:       %s\nEscudo:   %s\nVelocidad: %s" % [
 		stats.get("max_hp",     "—"),
 		stats.get("max_shield", "—"),
-		stats.get("max_energy", "—"),
 		stats.get("move_speed", "—"),
 	]
 

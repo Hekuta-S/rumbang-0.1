@@ -32,8 +32,8 @@ static func spawn(parent: Node, world_pos: Vector3, amount: float, color: Color 
 	label.font_size = 46 if is_crit else 34
 	
 	# Slight random offset so numbers don't stack on top of each other
-	var offset = Vector3(randf_range(-0.35, 0.35), randf_range(0.1, 0.4), randf_range(-0.35, 0.35))
-	label.global_position = world_pos + offset
+	var dmg_offset := Vector3(randf_range(-0.35, 0.35), randf_range(0.1, 0.4), randf_range(-0.35, 0.35))
+	label.global_position = world_pos + dmg_offset
 	
 	var dmg_script = label as Object
 	dmg_script.velocity = Vector3(
