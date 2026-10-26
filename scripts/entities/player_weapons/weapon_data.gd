@@ -11,8 +11,6 @@ extends Resource
 @export var icon: String = ""
 ## "melee", "ranged" o "special".
 @export var category: String = "melee"
-## Coste de energía por disparo (0 = gratis).
-@export var energy_cost: int = 0
 
 # --- Stats de combate ------------------------------------------------------
 @export var base_damage: float = 0.0
@@ -49,21 +47,17 @@ extends Resource
 ## compartan el mismo enum.
 ## ---------------------------------------------------------------------------
 enum WeaponType {
-	ENERGY_SWORD,
-	FLAME_AXE,
-	PLASMA_RIFLE,
-	TRI_SHOTGUN,
-	RAILGUN,
-	SPEAR_LANCE,
-	FLAME_THROWER,
-	SPORE_BAZOOKA,
-	DUAL_DAGGERS,
-	AIR_FISTS,
-	DUSTS,
-	SERPENTS,
-	SPINNING_AXE,
-	ELEMENTS_CYCLE,
-	ZOMBIE_ARM,
+	ENERGY_SWORD = 0,
+	TRI_SHOTGUN = 3,
+	RAILGUN = 4,
+	SPEAR_LANCE = 5,
+	FLAME_THROWER = 6,
+	SPORE_BAZOOKA = 7,
+	DUSTS = 10,
+	SERPENTS = 11,
+	SPINNING_AXE = 12,
+	ELEMENTS_CYCLE = 13,
+	ZOMBIE_ARM = 14,
 }
 
 ## ---------------------------------------------------------------------------
@@ -76,21 +70,8 @@ static var _weapon_table_cache: Dictionary = {}
 ## --- APLICACIÓN DEL PATRÓN BUILDER ---
 static func _build_weapon_table() -> Dictionary:
 	var table: Dictionary = {
-		WeaponType.ENERGY_SWORD: WeaponBuilder.new(0, "Espada de Energía", "🗡️", "melee")\
-			.set_combat(12.0, 0.45, 3.2)\
-			.set_projectile(0.0, 1, 75.0)\
-			.build(),
-			
-		WeaponType.FLAME_AXE: WeaponBuilder.new(1, "Hacha de Fuego", "🪓", "melee")\
-			.set_combat(25.0, 0.90, 4.5)\
-			.set_projectile(0.0)\
-			.build(),
-			
-		WeaponType.PLASMA_RIFLE: WeaponBuilder.new(2, "Rifle de Plasma", "🔫", "ranged")\
-			.set_combat(5.0, 0.35)\
-			.set_projectile(42.0)\
-			
-			.build(),
+		WeaponType.ENERGY_SWORD: WeaponDirector.construct_melee(
+				WeaponBuilder.new(0, "Espada de Energía", "🗡️", "melee"), 12.0, 0.45, 3.2, 75.0),
 			
 		WeaponType.TRI_SHOTGUN: WeaponBuilder.new(3, "Escopeta de Humo", "💨", "ranged")\
 			.set_combat(4.0, 0.80)\
@@ -103,64 +84,73 @@ static func _build_weapon_table() -> Dictionary:
 			
 			.build(),
 			
-		WeaponType.SPEAR_LANCE: WeaponBuilder.new(5, "Espalanza de Mikeura", "🔱", "melee")\
-			.set_combat(15.0, 0.50, 5.0)\
-			.set_projectile(0.0, 1, 80.0)\
-			.build(),
+		WeaponType.SPEAR_LANCE: WeaponDirector.construct_melee(
+				WeaponBuilder.new(5, "Espalanza de Mikeura", "🔱", "melee"), 15.0, 0.50, 5.0, 80.0),
 			
-		WeaponType.FLAME_THROWER: WeaponBuilder.new(6, "Lanzallamas", "🔥", "melee")\
-			.set_combat(2.0, 0.20, 11.0)\
-			.set_projectile(0.0, 1, 35.0)\
-			.build(),
+		WeaponType.FLAME_THROWER: WeaponDirector.construct_melee(
+				WeaponBuilder.new(6, "Lanzallamas", "🔥", "melee"), 2.0, 0.20, 11.0, 35.0),
 			
 		WeaponType.SPORE_BAZOOKA: WeaponBuilder.new(7, "Bazuca de Esporas", "🍄", "ranged")\
-			.set_combat(25.0, 0.80, 2.6)\
+			.set_combat(70.0, 2.2, 2.6)\
 			.set_projectile(10.0)\
-			.set_ammo(1, 2.4)\
-			.build(),
-			
-		WeaponType.DUAL_DAGGERS: WeaponBuilder.new(8, "Dagas Gemelas de Crane", "🔪", "melee")\
-			.set_combat(6.0, 0.30, 2.6)\
-			.set_projectile(0.0, 1, 75.0)\
-			.set_heavy_attack(15.0, 0.8, 3.0, 90.0)\
-			.build(),
-			
-		WeaponType.AIR_FISTS: WeaponBuilder.new(9, "Puños de Aire de Kaionz", "🌀", "melee")\
-			.set_combat(9.0, 0.35, 2.8)\
-			.set_projectile(0.0, 1, 55.0)\
-			.set_heavy_attack(25.0, 0.8, 3.8, 0.0)\
 			.build(),
 			
 		WeaponType.DUSTS: WeaponBuilder.new(10, "Polvos Alquímicos", "🧪", "special")\
 			
 			.build(),
 			
-		WeaponType.SERPENTS: WeaponBuilder.new(11, "Serpientes de Joel", "🐍", "ranged")\
-			.set_combat(5.0, 1.0)\
-			.set_projectile(24.0, 3, 15.0)\
+		WeaponType.SERPENTS: WeaponBuilder.new(11, "Espíritus de Joel", "🦎", "melee")\
+			.set_combat(14.0, 1.6)\
 			.build(),
+
+		WeaponType.SPINNING_AXE: WeaponDirector.construct_ranged(
+				WeaponBuilder.new(12, "Hacha Giratoria", "🪓", "ranged"), 9.0, 1.0, 20.0, 10.0),
 			
-		WeaponType.SPINNING_AXE: WeaponBuilder.new(12, "Hacha Giratoria", "🪓", "ranged")\
-			.set_combat(9.0, 0.8, 10.0)\
-			.set_projectile(20.0)\
-			.build(),
+		WeaponType.ELEMENTS_CYCLE: WeaponDirector.construct_ranged(
+				WeaponBuilder.new(13, "Ciclo Elemental", "🔮", "ranged"), 7.0, 0.6, 22.0),
 			
-		WeaponType.ELEMENTS_CYCLE: WeaponBuilder.new(13, "Ciclo Elemental", "🔮", "ranged")\
-			.set_combat(7.0, 0.6)\
-			.set_projectile(22.0)\
-			.build(),
-			
-		WeaponType.ZOMBIE_ARM: WeaponBuilder.new(14, "Brazo Bumerán", "🧟", "ranged")\
-			.set_combat(18.0, 0.8)\
-			.set_projectile(20.0)\
-			.build(),
+		WeaponType.ZOMBIE_ARM: WeaponDirector.construct_ranged(
+				WeaponBuilder.new(14, "Brazo Bumerán", "🧟", "ranged"), 18.0, 0.8, 20.0),
 	}
 	return table
 ## ---------------------------------------------
 
+## ── Balance global (afinar aquí) ─────────────────────────────────────────────
+## Las armas empiezan más débiles y lentas para que las mejoras por nivel importen.
+const BASE_COOLDOWN_MULT := 1.5      ## ×1.5 tiempo entre ataques
+const BASE_DAMAGE_MULT := 0.85       ## -15 % de daño base
+const PROJECTILE_SPEED_MULT := 0.65  ## proyectiles un 35 % más lentos
+const MIN_PROJECTILE_SPEED := 8.0    ## ningún proyectil baja de esta velocidad
+## Armas de fuego continuo (ticks muy rápidos, p. ej. el lanzallamas) no se ralentizan
+## ni se debilitan: su balance es por ticks, no por golpe.
+const CONTINUOUS_COOLDOWN := 0.25
+
+static func _apply_balance(table: Dictionary) -> void:
+	for key in table:
+		var d: WeaponData = table[key]
+		if d.base_cooldown >= CONTINUOUS_COOLDOWN:
+			d.base_cooldown *= BASE_COOLDOWN_MULT
+			if d.heavy_cooldown > 0.0:
+				d.heavy_cooldown *= BASE_COOLDOWN_MULT
+			d.base_damage *= BASE_DAMAGE_MULT
+			if d.heavy_damage > 0.0:
+				d.heavy_damage *= BASE_DAMAGE_MULT
+		if d.projectile_speed > 0.0:
+			d.projectile_speed = maxf(d.projectile_speed * PROJECTILE_SPEED_MULT, MIN_PROJECTILE_SPEED)
+
+## --- APLICACIÓN DEL PATRÓN PROTOTYPE ---
+## Operación clone() del Prototype: copia independiente de la ficha (todos los campos son @export).
+func clone() -> WeaponData:
+	return duplicate() as WeaponData
+
 static func get_weapon_table() -> Dictionary:
 	if _weapon_table_cache.is_empty():
-		_weapon_table_cache = _build_weapon_table()
+		# Los prototipos construidos quedan intactos en el registro; la tabla de juego son clones balanceados.
+		WeaponPrototypeRegistry.register_all(_build_weapon_table())
+		for key in WeaponType.values():
+			if WeaponPrototypeRegistry.has_prototype(key):
+				_weapon_table_cache[key] = WeaponPrototypeRegistry.clone_of(key)
+		_apply_balance(_weapon_table_cache)
 	return _weapon_table_cache
 
 ## Devuelve la ficha del arma; ante un id desconocido, cae a la espada.
@@ -170,55 +160,28 @@ static func get_weapon_data(weapon_type: int) -> WeaponData:
 ## Nombre por arma (UI / HUD / señales).
 static var weapon_names: Dictionary = {
 	WeaponType.ENERGY_SWORD: "Espada de Energía",
-	WeaponType.FLAME_AXE: "Hacha de Fuego",
-	WeaponType.PLASMA_RIFLE: "Rifle de Plasma",
 	WeaponType.TRI_SHOTGUN: "Escopeta Triple",
 	WeaponType.RAILGUN: "Cañón Railgun",
 	WeaponType.SPEAR_LANCE: "Espalanza de Mikeura",
 	WeaponType.FLAME_THROWER: "Lanzallamas",
 	WeaponType.SPORE_BAZOOKA: "Bazuca de Esporas",
-	WeaponType.DUAL_DAGGERS: "Dagas Gemelas de Crane",
-	WeaponType.AIR_FISTS: "Puños de Aire de Kaionz",
 	WeaponType.DUSTS: "Polvos Alquímicos",
-	WeaponType.SERPENTS: "Serpientes de Joel",
+	WeaponType.SERPENTS: "Espíritus de Joel",
 	WeaponType.SPINNING_AXE: "Hacha Giratoria",
 	WeaponType.ELEMENTS_CYCLE: "Ciclo Elemental",
 	WeaponType.ZOMBIE_ARM: "Brazo Bumerán",
 }
 
-## Coste de energía por arma (UI / combate).
-static var weapon_energy_costs: Dictionary = {
-	WeaponType.ENERGY_SWORD: 0,
-	WeaponType.FLAME_AXE: 0,
-	WeaponType.PLASMA_RIFLE: 1,
-	WeaponType.TRI_SHOTGUN: 3,
-	WeaponType.RAILGUN: 5,
-	WeaponType.SPEAR_LANCE: 0,
-	WeaponType.FLAME_THROWER: 0,
-	WeaponType.SPORE_BAZOOKA: 0,
-	WeaponType.DUAL_DAGGERS: 0,
-	WeaponType.AIR_FISTS: 0,
-	WeaponType.DUSTS: 15,
-	WeaponType.SERPENTS: 0,
-	WeaponType.SPINNING_AXE: 0,
-	WeaponType.ELEMENTS_CYCLE: 0,
-	WeaponType.ZOMBIE_ARM: 0,
-}
-
 ## Icono por arma (HUD / señales).
 static var weapon_icons: Dictionary = {
 	WeaponType.ENERGY_SWORD: "🗡️",
-	WeaponType.FLAME_AXE: "🪓",
-	WeaponType.PLASMA_RIFLE: "🔫",
 	WeaponType.TRI_SHOTGUN: "💥",
 	WeaponType.RAILGUN: "🔮",
 	WeaponType.SPEAR_LANCE: "🔱",
 	WeaponType.FLAME_THROWER: "🔥",
 	WeaponType.SPORE_BAZOOKA: "🍄",
-	WeaponType.DUAL_DAGGERS: "🔪",
-	WeaponType.AIR_FISTS: "🌀",
 	WeaponType.DUSTS: "🧪",
-	WeaponType.SERPENTS: "🐍",
+	WeaponType.SERPENTS: "🦎",
 	WeaponType.SPINNING_AXE: "🪓",
 	WeaponType.ELEMENTS_CYCLE: "🔮",
 	WeaponType.ZOMBIE_ARM: "🧟",

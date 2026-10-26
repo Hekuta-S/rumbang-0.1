@@ -2,13 +2,17 @@ extends Node
 class_name InventoryComponent
 
 signal items_changed
+signal item_added(item_id: String)
 
 var collected_items: Array = []
 
 func add_item(item_id: String) -> void:
 	if ItemDB.get_item(item_id).is_empty():
 		return
+	if count_item(item_id) >= ItemDB.get_max_stacks(item_id):
+		return
 	collected_items.append(item_id)
+	item_added.emit(item_id)
 	items_changed.emit()
 
 func remove_item(item_id: String) -> void:
@@ -17,8 +21,15 @@ func remove_item(item_id: String) -> void:
 		collected_items.remove_at(idx)
 		items_changed.emit()
 
+func clear_items() -> void:
+	collected_items.clear()
+	items_changed.emit()
+
 func has_item(item_id: String) -> bool:
 	return collected_items.has(item_id)
+
+func count_item(item_id: String) -> int:
+	return collected_items.count(item_id)
 
 func get_stat_multiplier(stat_name: String, base_value: float = 1.0) -> float:
 	var mult: float = base_value

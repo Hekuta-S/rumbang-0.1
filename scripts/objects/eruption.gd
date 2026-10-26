@@ -23,7 +23,7 @@ func _ready():
 	particles.emitting = false
 	particles.one_shot = true
 	particles.explosiveness = 0.85
-	particles.amount = 45
+	particles.amount = maxi(10, int(round(45.0 * Quality.particle_factor())))
 	particles.lifetime = 0.8
 	particles.mesh = QuadMesh.new()
 	particles.mesh.size = Vector2(0.6, 0.6)
@@ -52,15 +52,28 @@ func _ready():
 	
 	add_child(particles)
 
+## Sacudida breve de cámara si el jugador está cerca del estallido.
+func _shake_camera() -> void:
+	var player := get_tree().get_first_node_in_group("player")
+	if player and player.has_method("apply_camera_recoil") and global_position.distance_to(player.global_position) < 18.0:
+		player.apply_camera_recoil(0.02, randf_range(-0.01, 0.01), 0.12)
+
 func _physics_process(delta):
 	timer += delta
 	
 	if not active:
+		# Telegrafía: el disco se va llenando de color y late más rápido al acercarse el estallido
+		if visual and visual.material_override is StandardMaterial3D:
+			var t := clampf(timer / maxf(delay, 0.01), 0.0, 1.0)
+			var pulse := 0.5 + 0.5 * sin(timer * (8.0 + 16.0 * t))
+			(visual.material_override as StandardMaterial3D).albedo_color.a = lerpf(0.2, 0.6, t) + 0.15 * pulse * t
 		if timer >= delay:
 			active = true
 			timer = 0.0
 			if visual:
 				visual.visible = false
+			NecroVFX.shockwave(get_parent(), global_position, 4.5, Color(0.75, 0.25, 1.0))
+			_shake_camera()
 			
 			if particles:
 				particles.emitting = true

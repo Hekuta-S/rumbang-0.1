@@ -5,6 +5,8 @@ const SETTINGS_PATH := "user://settings.json"
 var master_vol: float = 0.5
 var sfx_vol: float = 0.5
 var music_vol: float = 0.5
+## Calidad gráfica guardada (Quality.Level); -1 = automática según la plataforma.
+var quality_level: int = -1
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -23,6 +25,7 @@ func load_settings() -> void:
 		master_vol = data.get("master", 0.5)
 		sfx_vol = data.get("sfx", 0.5)
 		music_vol = data.get("music", 0.5)
+		quality_level = int(data.get("quality", -1))
 
 func save_settings() -> void:
 	var file := FileAccess.open(SETTINGS_PATH, FileAccess.WRITE)
@@ -31,7 +34,8 @@ func save_settings() -> void:
 	var payload := {
 		"master": master_vol,
 		"sfx": sfx_vol,
-		"music": music_vol
+		"music": music_vol,
+		"quality": quality_level
 	}
 	file.store_string(JSON.stringify(payload))
 

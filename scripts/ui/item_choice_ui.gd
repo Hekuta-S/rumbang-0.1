@@ -15,18 +15,28 @@ signal item_selected(item_id)
 func _ready():
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
+	var Style := preload("res://scripts/ui/rumbang_style.gd")
+	$Control.theme = Style.get_theme()
+	$Control/ColorRect.color = Color(0.02, 0.01, 0.05, 0.72)
+	$Control/TitleLabel.add_theme_color_override("font_color", Style.TITLE)
+	$Control/TitleLabel.add_theme_font_size_override("font_size", 26)
+	for b in [btn1, btn2]:
+		b.add_theme_color_override("font_color", Style.TEXT)
 	btn1.pressed.connect(func(): _select_item(opt1_id))
 	btn2.pressed.connect(func(): _select_item(opt2_id))
 
 func present_choices():
-	var all = ItemDB.get_all_items()
-	all.shuffle()
-	
-	if all.size() < 2: return # Failsafe
-	
+	var player := get_tree().get_first_node_in_group("player")
+	var inv: InventoryComponent = player.get("inventory") if player else null
+	var all: Array = ItemDB.roll_choices(inv, 2)
+
+	if all.is_empty(): return # Failsafe: todo al máximo
+	if all.size() == 1:
+		all.append(all[0])
+
 	opt1_id = all[0]["id"]
 	opt2_id = all[1]["id"]
-	
+
 	title1.text = all[0]["name"]
 	desc1.text = all[0]["description"]
 	title2.text = all[1]["name"]

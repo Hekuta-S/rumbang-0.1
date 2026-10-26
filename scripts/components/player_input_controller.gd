@@ -68,20 +68,17 @@ func _unhandled_input(event: InputEvent) -> void:
 		emit_signal("toggle_mouse_capture")
 		get_viewport().set_input_as_handled()
 
-func get_movement_vector() -> Vector2:
-	if VirtualInput.movement_vector.length_squared() > 0.01:
-		return VirtualInput.movement_vector
+## --- APLICACIÓN DEL PATRÓN ADAPTER (Client) ---
+## El táctil tiene prioridad; teclado y mando se suman. Cada fuente se adapta a MovementSource.
+var _touch_source: MovementSource = TouchMovementAdapter.new()
+var _direct_sources: Array[MovementSource] = [KeyboardMovementAdapter.new(), GamepadMovementAdapter.new()]
 
-	var x := 0.0
-	var y := 0.0
-	if Input.is_physical_key_pressed(KEY_W) or Input.is_key_pressed(KEY_W): y -= 1.0
-	if Input.is_physical_key_pressed(KEY_S) or Input.is_key_pressed(KEY_S): y += 1.0
-	if Input.is_physical_key_pressed(KEY_A) or Input.is_key_pressed(KEY_A): x -= 1.0
-	if Input.is_physical_key_pressed(KEY_D) or Input.is_key_pressed(KEY_D): x += 1.0
-	
-	var joy_x = Input.get_joy_axis(0, JOY_AXIS_LEFT_X)
-	var joy_y = Input.get_joy_axis(0, JOY_AXIS_LEFT_Y)
-	if abs(joy_x) > 0.2: x += joy_x
-	if abs(joy_y) > 0.2: y += joy_y
-	
-	return Vector2(x, y).limit_length(1.0)
+func get_movement_vector() -> Vector2:
+	var touch: Vector2 = _touch_source.get_movement_vector()
+	if touch != Vector2.ZERO:
+		return touch
+
+	var total := Vector2.ZERO
+	for source in _direct_sources:
+		total += source.get_movement_vector()
+	return total.limit_length(1.0)

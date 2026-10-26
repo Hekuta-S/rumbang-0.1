@@ -19,6 +19,8 @@ var hp: float
 var shield: float
 var time_since_damage: float = 0.0
 var invincibility_time: float = 0.0
+var hp_regen: float = 0.0          ## vida por segundo (la fija PlayerStatBlock)
+var _regen_accum: float = 0.0
 
 func _ready() -> void:
 	hp = max_hp
@@ -30,6 +32,7 @@ func _process(delta: float) -> void:
 		
 	time_since_damage += delta
 	_handle_shield_regen(delta)
+	_handle_hp_regen(delta)
 
 func _handle_shield_regen(delta: float) -> void:
 	var can_regen: bool = true
@@ -44,6 +47,17 @@ func _handle_shield_regen(delta: float) -> void:
 		shield = min(max_shield, shield + delta * 2.5)
 		if was_empty and shield >= max_shield:
 			shield_recharged.emit()
+		_emit_stats()
+
+func _handle_hp_regen(delta: float) -> void:
+	if hp_regen <= 0.0 or hp <= 0.0 or hp >= max_hp:
+		_regen_accum = 0.0
+		return
+	_regen_accum += hp_regen * delta
+	if _regen_accum >= 0.1: # curar a golpes de 0.1 para no emitir señales cada frame
+		var amount := _regen_accum
+		_regen_accum = 0.0
+		hp = min(max_hp, hp + amount)
 		_emit_stats()
 
 func take_damage(amount: float) -> void:

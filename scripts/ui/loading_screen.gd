@@ -5,8 +5,14 @@ extends Control
 var progress = []
 var scene_load_status = 0
 var use_sync_load = false
+## Recursos de partida (enemigos, personaje elegido, jefe) cargados en segundo plano mientras carga la escena.
+var _assets: AssetPreloader
 
 func _ready():
+	var Style := preload("res://scripts/ui/rumbang_style.gd")
+	theme = Style.get_theme()
+	$ColorRect.color = Style.BG
+	$VBoxContainer/Label.add_theme_color_override("font_color", Style.ACCENT)
 	if SceneLoader.next_scene_path == "":
 		push_error("No scene path provided to SceneLoader")
 		return
@@ -19,6 +25,11 @@ func _ready():
 		_do_sync_load.call_deferred()
 	else:
 		ResourceLoader.load_threaded_request(SceneLoader.next_scene_path, "", true)
+		_assets = AssetPreloader.new()
+		_assets.add_many(GameData.preload_paths())
+		_assets.add_many(GameData.BOSS_ASSET_PATHS)
+		_assets.add_many(GameData.get_character_asset_paths(String(GameData.get_selected().get("id", "mikeura"))))
+		_assets.start()
 
 func _do_sync_load() -> void:
 	# Permitimos que la pantalla se dibuje 2 frames antes de congelarla con la carga pesada
@@ -51,12 +62,20 @@ func _process(_delta):
 		
 	scene_load_status = ResourceLoader.load_threaded_get_status(SceneLoader.next_scene_path, progress)
 	
+	var assets_progress: float = _assets.progress() if _assets else 1.0
 	if scene_load_status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
-		progress_bar.value = progress[0] * 100
+		progress_bar.value = (float(progress[0]) * 0.7 + assets_progress * 0.3) * 100.0
 	elif scene_load_status == ResourceLoader.THREAD_LOAD_LOADED:
+		# Esperar a que terminen también los recursos de partida (sin bloquear: se sigue dibujando)
+		if _assets and not _assets.is_done():
+			progress_bar.value = (0.7 + assets_progress * 0.3) * 100.0
+			return
 		set_process(false)
 		var new_scene = ResourceLoader.load_threaded_get(SceneLoader.next_scene_path)
+		if _assets:
+			_assets.collect()
 		GameData.preload_assets()
+		progress_bar.value = 100.0
 		
 		# Compile shaders before switching scene
 		await _compile_shaders()

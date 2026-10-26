@@ -13,13 +13,21 @@ func setup_weapon_models(mount: Node3D) -> void:
 	# ─── HELPER: create a StandardMaterial3D quickly ───────────────────────────
 	# (inline closures aren't a GDScript thing, so we use local vars instead)
 	var arm_node := Node3D.new()
-	var arm_mesh := MeshInstance3D.new()
-	var b_mesh := BoxMesh.new()
-	b_mesh.size = Vector3(0.1, 0.1, 0.5)
-	arm_mesh.mesh = b_mesh
-	arm_node.add_child(arm_mesh)
+	var arm_scene = load("res://assets/models/weapons/human_arm_bones.glb")
+	if arm_scene:
+		var arm_inst = arm_scene.instantiate()
+		arm_inst.scale = Vector3(0.12, 0.12, 0.12)
+		arm_inst.position = Vector3(0.0, 0.0, 0.42)
+		arm_node.add_child(arm_inst)
+	else:
+		var arm_mesh := MeshInstance3D.new()
+		var b_mesh := BoxMesh.new()
+		b_mesh.size = Vector3(0.1, 0.1, 0.5)
+		arm_mesh.mesh = b_mesh
+		arm_node.add_child(arm_mesh)
 	arm_node.visible = false
 	mount.add_child(arm_node)
+	arm_node.visible = false
 	weapon_models[WeaponData.WeaponType.ZOMBIE_ARM] = arm_node
 
 	# ══════════════════════════════════════════════════════════════════════════
@@ -110,270 +118,8 @@ func setup_weapon_models(mount: Node3D) -> void:
 		Basis().rotated(Vector3.RIGHT, deg_to_rad(45)),
 		Vector3(0.42, 0.9, -0.28))
 	mount.add_child(sword_node)
+	sword_node.visible = false
 	weapon_models[WeaponData.WeaponType.ENERGY_SWORD] = sword_node
-
-	# ══════════════════════════════════════════════════════════════════════════
-	# 2. FLAME AXE — Hacha de Fuego
-	#    Heavy two-bit axe: wrapped pole, thick head with crescent blades,
-	#    molten orange glow with ember yellow hotspots.
-	# ═════════════════════════════════════════════════════════════════════════
-	var axe_node := Node3D.new()
-
-	# -- Handle (wooden-dark cylinder)
-	var axe_handle := MeshInstance3D.new()
-	var axe_handle_mesh := CylinderMesh.new()
-	axe_handle_mesh.top_radius    = 0.028
-	axe_handle_mesh.bottom_radius = 0.035
-	axe_handle_mesh.height        = 1.5
-	axe_handle_mesh.radial_segments = 8
-	axe_handle.mesh     = axe_handle_mesh
-	axe_handle.position = Vector3(0, 0.0, 0)
-	var mat_axe_handle := StandardMaterial3D.new()
-	mat_axe_handle.albedo_color = Color(0.18, 0.10, 0.05)
-	mat_axe_handle.metallic     = 0.05
-	mat_axe_handle.roughness    = 0.9
-	axe_handle.material_override = mat_axe_handle
-	axe_node.add_child(axe_handle)
-
-	# -- Handle wrap rings (3 metal bands)
-	for ring_y in [-0.4, 0.0, 0.45]:
-		var ring := MeshInstance3D.new()
-		var ring_mesh := CylinderMesh.new()
-		ring_mesh.top_radius    = 0.038
-		ring_mesh.bottom_radius = 0.038
-		ring_mesh.height        = 0.05
-		ring_mesh.radial_segments = 10
-		ring.mesh     = ring_mesh
-		ring.position = Vector3(0, ring_y, 0)
-		var mat_ring := StandardMaterial3D.new()
-		mat_ring.albedo_color = Color(0.55, 0.45, 0.3)
-		mat_ring.metallic     = 0.8
-		mat_ring.roughness    = 0.35
-		ring.material_override = mat_ring
-		axe_node.add_child(ring)
-
-	# -- Axe head back-plate (steel base)
-	var axe_back := MeshInstance3D.new()
-	var axe_back_mesh := BoxMesh.new()
-	axe_back_mesh.size = Vector3(0.12, 0.52, 0.18)
-	axe_back.mesh     = axe_back_mesh
-	axe_back.position = Vector3(0.0, 0.76, 0)
-	var mat_axe_back := StandardMaterial3D.new()
-	mat_axe_back.albedo_color = Color(0.35, 0.3, 0.28)
-	mat_axe_back.metallic     = 0.85
-	mat_axe_back.roughness    = 0.25
-	axe_back.material_override = mat_axe_back
-	axe_node.add_child(axe_back)
-
-	# -- Left blade wing (crescent shape approximated with rotated box)
-	var axe_wing_l := MeshInstance3D.new()
-	var axe_wing_l_mesh := BoxMesh.new()
-	axe_wing_l_mesh.size = Vector3(0.42, 0.16, 0.08)
-	axe_wing_l.mesh     = axe_wing_l_mesh
-	axe_wing_l.position = Vector3(-0.22, 0.85, 0)
-	axe_wing_l.rotation = Vector3(0, 0, deg_to_rad(12))
-	var mat_axe_blade := StandardMaterial3D.new()
-	mat_axe_blade.albedo_color            = Color(1.0, 0.22, 0.0)
-	mat_axe_blade.emission_enabled        = true
-	mat_axe_blade.emission                = Color(1.0, 0.38, 0.0)
-	mat_axe_blade.emission_energy_multiplier = 3.0
-	mat_axe_blade.metallic  = 0.6
-	mat_axe_blade.roughness = 0.2
-	axe_wing_l.material_override = mat_axe_blade
-	axe_node.add_child(axe_wing_l)
-
-	# -- Right blade wing (mirror)
-	var axe_wing_r := MeshInstance3D.new()
-	var axe_wing_r_mesh := BoxMesh.new()
-	axe_wing_r_mesh.size = Vector3(0.42, 0.16, 0.08)
-	axe_wing_r.mesh     = axe_wing_r_mesh
-	axe_wing_r.position = Vector3(0.22, 0.68, 0)
-	axe_wing_r.rotation = Vector3(0, 0, deg_to_rad(-12))
-	var mat_axe_blade2 := StandardMaterial3D.new()
-	mat_axe_blade2.albedo_color            = Color(1.0, 0.22, 0.0)
-	mat_axe_blade2.emission_enabled        = true
-	mat_axe_blade2.emission                = Color(1.0, 0.38, 0.0)
-	mat_axe_blade2.emission_energy_multiplier = 3.0
-	mat_axe_blade2.metallic  = 0.6
-	mat_axe_blade2.roughness = 0.2
-	axe_wing_r.material_override = mat_axe_blade2
-	axe_node.add_child(axe_wing_r)
-
-	# -- Ember core gem (bright molten centre)
-	var axe_gem := MeshInstance3D.new()
-	var axe_gem_mesh := SphereMesh.new()
-	axe_gem_mesh.radius = 0.055
-	axe_gem_mesh.height = 0.11
-	axe_gem.mesh     = axe_gem_mesh
-	axe_gem.position = Vector3(0, 0.77, 0.1)
-	var mat_axe_gem := StandardMaterial3D.new()
-	mat_axe_gem.albedo_color            = Color(1.0, 0.85, 0.1)
-	mat_axe_gem.emission_enabled        = true
-	mat_axe_gem.emission                = Color(1.0, 0.9, 0.2)
-	mat_axe_gem.emission_energy_multiplier = 5.5
-	axe_gem.material_override = mat_axe_gem
-	axe_node.add_child(axe_gem)
-	
-	# Fire particles for the axe core
-	var fire_emitter := CPUParticles3D.new()
-	fire_emitter.amount = 16
-	fire_emitter.lifetime = 0.8
-	fire_emitter.mesh = QuadMesh.new()
-	fire_emitter.mesh.size = Vector2(0.08, 0.08)
-	fire_emitter.direction = Vector3(0, 1, 0)
-	fire_emitter.spread = 20.0
-	fire_emitter.gravity = Vector3(0, 1.5, 0)
-	fire_emitter.initial_velocity_min = 0.2
-	fire_emitter.initial_velocity_max = 0.5
-	fire_emitter.scale_amount_min = 0.5
-	fire_emitter.scale_amount_max = 1.5
-	var fire_mat = StandardMaterial3D.new()
-	# BLEND_MODE_ADD below already forces the material into the transparent
-	# pipeline with additive blending, so no explicit transparency flag is needed.
-	fire_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	fire_mat.albedo_color = Color(1.0, 0.5, 0.0, 0.8)
-	fire_mat.emission_enabled = true
-	fire_mat.emission = Color(1.0, 0.4, 0.0)
-	fire_mat.emission_energy_multiplier = 2.0
-	fire_mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	fire_emitter.material_override = fire_mat
-	
-	var fire_curve = Curve.new()
-	fire_curve.add_point(Vector2(0, 0.2))
-	fire_curve.add_point(Vector2(0.2, 1.0))
-	fire_curve.add_point(Vector2(1, 0.0))
-	fire_emitter.scale_amount_curve = fire_curve
-	
-	fire_emitter.position = Vector3(0, 0.77, 0.1)
-	axe_node.add_child(fire_emitter)
-
-	axe_node.transform = Transform3D(
-		Basis().rotated(Vector3.RIGHT, deg_to_rad(30)),
-		Vector3(0.42, 0.85, -0.28))
-	mount.add_child(axe_node)
-	weapon_models[WeaponData.WeaponType.FLAME_AXE] = axe_node
-
-	# ══════════════════════════════════════════════════════════════════════════
-	# 3. PLASMA RIFLE — Rifle de Plasma
-	#    Sleek sci-fi carbine: receiver body, long tapered barrel, scope rail,
-	#    under-barrel energy cell, forward grip, charged muzzle tip.
-	# ══════════════════════════════════════════════════════════════════════════
-	var rifle_node := Node3D.new()
-
-	# -- Main receiver (body)
-	var rf_body := MeshInstance3D.new()
-	var rf_body_mesh := BoxMesh.new()
-	rf_body_mesh.size = Vector3(0.10, 0.18, 0.44)
-	rf_body.mesh     = rf_body_mesh
-	rf_body.position = Vector3(0, 0, -0.08)
-	var mat_rf_body := StandardMaterial3D.new()
-	mat_rf_body.albedo_color = Color(0.08, 0.12, 0.18)
-	mat_rf_body.metallic     = 0.75
-	mat_rf_body.roughness    = 0.28
-	rf_body.material_override = mat_rf_body
-	rifle_node.add_child(rf_body)
-
-	# -- Barrel (long, tapered cylinder)
-	var rf_barrel := MeshInstance3D.new()
-	var rf_barrel_mesh := CylinderMesh.new()
-	rf_barrel_mesh.top_radius    = 0.022
-	rf_barrel_mesh.bottom_radius = 0.038
-	rf_barrel_mesh.height        = 0.72
-	rf_barrel_mesh.radial_segments = 10
-	rf_barrel.mesh     = rf_barrel_mesh
-	rf_barrel.rotation = Vector3(deg_to_rad(90), 0, 0)
-	rf_barrel.position = Vector3(0, 0.02, -0.66)
-	var mat_rf_barrel := StandardMaterial3D.new()
-	mat_rf_barrel.albedo_color = Color(0.10, 0.14, 0.22)
-	mat_rf_barrel.metallic     = 0.85
-	mat_rf_barrel.roughness    = 0.2
-	rf_barrel.material_override = mat_rf_barrel
-	rifle_node.add_child(rf_barrel)
-
-	# -- Muzzle tip (glowing plasma mouth)
-	var rf_muzzle := MeshInstance3D.new()
-	var rf_muzzle_mesh := CylinderMesh.new()
-	rf_muzzle_mesh.top_radius    = 0.032
-	rf_muzzle_mesh.bottom_radius = 0.024
-	rf_muzzle_mesh.height        = 0.07
-	rf_muzzle_mesh.radial_segments = 12
-	rf_muzzle.mesh     = rf_muzzle_mesh
-	rf_muzzle.rotation = Vector3(deg_to_rad(90), 0, 0)
-	rf_muzzle.position = Vector3(0, 0.02, -1.04)
-	var mat_rf_muzzle := StandardMaterial3D.new()
-	mat_rf_muzzle.albedo_color            = Color(0.3, 0.75, 1.0)
-	mat_rf_muzzle.emission_enabled        = true
-	mat_rf_muzzle.emission                = Color(0.0, 0.72, 1.0)
-	mat_rf_muzzle.emission_energy_multiplier = 4.5
-	rf_muzzle.material_override = mat_rf_muzzle
-	rifle_node.add_child(rf_muzzle)
-
-	# -- Top-rail / scope housing
-	var rf_rail := MeshInstance3D.new()
-	var rf_rail_mesh := BoxMesh.new()
-	rf_rail_mesh.size = Vector3(0.045, 0.045, 0.55)
-	rf_rail.mesh     = rf_rail_mesh
-	rf_rail.position = Vector3(0, 0.115, -0.12)
-	var mat_rf_rail := StandardMaterial3D.new()
-	mat_rf_rail.albedo_color = Color(0.05, 0.08, 0.14)
-	mat_rf_rail.metallic     = 0.9
-	mat_rf_rail.roughness    = 0.15
-	rf_rail.material_override = mat_rf_rail
-	rifle_node.add_child(rf_rail)
-
-	# -- Scope lens
-	var rf_scope := MeshInstance3D.new()
-	var rf_scope_mesh := CylinderMesh.new()
-	rf_scope_mesh.top_radius    = 0.028
-	rf_scope_mesh.bottom_radius = 0.028
-	rf_scope_mesh.height        = 0.07
-	rf_scope_mesh.radial_segments = 10
-	rf_scope.mesh     = rf_scope_mesh
-	rf_scope.rotation = Vector3(deg_to_rad(90), 0, 0)
-	rf_scope.position = Vector3(0, 0.115, -0.18)
-	var mat_rf_scope := StandardMaterial3D.new()
-	mat_rf_scope.albedo_color            = Color(0.2, 0.6, 1.0)
-	mat_rf_scope.emission_enabled        = true
-	mat_rf_scope.emission                = Color(0.1, 0.5, 1.0)
-	mat_rf_scope.emission_energy_multiplier = 3.0
-	mat_rf_scope.metallic  = 0.4
-	mat_rf_scope.roughness = 0.1
-	rf_scope.material_override = mat_rf_scope
-	rifle_node.add_child(rf_scope)
-
-	# -- Energy cell / magazine (glowing blue slab under receiver)
-	var rf_cell := MeshInstance3D.new()
-	var rf_cell_mesh := BoxMesh.new()
-	rf_cell_mesh.size = Vector3(0.07, 0.22, 0.12)
-	rf_cell.mesh     = rf_cell_mesh
-	rf_cell.position = Vector3(0, -0.19, -0.06)
-	var mat_rf_cell := StandardMaterial3D.new()
-	mat_rf_cell.albedo_color            = Color(0.1, 0.55, 1.0)
-	mat_rf_cell.emission_enabled        = true
-	mat_rf_cell.emission                = Color(0.0, 0.6, 1.0)
-	mat_rf_cell.emission_energy_multiplier = 2.2
-	mat_rf_cell.metallic  = 0.5
-	mat_rf_cell.roughness = 0.3
-	rf_cell.material_override = mat_rf_cell
-	rifle_node.add_child(rf_cell)
-
-	# -- Pistol grip
-	var rf_grip := MeshInstance3D.new()
-	var rf_grip_mesh := BoxMesh.new()
-	rf_grip_mesh.size = Vector3(0.07, 0.20, 0.10)
-	rf_grip.mesh     = rf_grip_mesh
-	rf_grip.rotation = Vector3(deg_to_rad(-15), 0, 0)
-	rf_grip.position = Vector3(0, -0.17, 0.12)
-	var mat_rf_grip := StandardMaterial3D.new()
-	mat_rf_grip.albedo_color = Color(0.06, 0.09, 0.13)
-	mat_rf_grip.metallic     = 0.2
-	mat_rf_grip.roughness    = 0.85
-	rf_grip.material_override = mat_rf_grip
-	rifle_node.add_child(rf_grip)
-
-	rifle_node.transform = Transform3D(Basis(), Vector3(0.38, 0.92, -0.36))
-	mount.add_child(rifle_node)
-	weapon_models[WeaponData.WeaponType.PLASMA_RIFLE] = rifle_node
 
 	# ══════════════════════════════════════════════════════════════════════════
 	# 4. SMOKE SHOTGUN — Escopeta de Humo
@@ -431,7 +177,7 @@ func setup_weapon_models(mount: Node3D) -> void:
 		
 		# Continuous smoke particles emitted from each barrel
 		var smoke_emitter := CPUParticles3D.new()
-		smoke_emitter.amount = 12
+		smoke_emitter.amount = Quality.count(12)
 		smoke_emitter.lifetime = 1.2
 		smoke_emitter.mesh = QuadMesh.new()
 		smoke_emitter.mesh.size = Vector2(0.1, 0.1)
@@ -492,7 +238,7 @@ func setup_weapon_models(mount: Node3D) -> void:
 	sg_distortion.mesh = sg_distortion_mesh
 	sg_distortion.position = Vector3(0, 0, -1.2) # En frente del cañón
 	var mat_sg_dist := ShaderMaterial.new()
-	mat_sg_dist.shader = load("res://assets/shaders/shotgun_distortion.gdshader")
+	mat_sg_dist.shader = preload("res://assets/shaders/shotgun_distortion.gdshader")
 	mat_sg_dist.set_shader_parameter("distortion_strength", 0.15)
 	mat_sg_dist.set_shader_parameter("progress", 0.0) # Animar en disparo
 	sg_distortion.material_override = mat_sg_dist
@@ -500,6 +246,7 @@ func setup_weapon_models(mount: Node3D) -> void:
 
 	shotgun_node.transform = Transform3D(Basis(), Vector3(0.38, 0.92, -0.36))
 	mount.add_child(shotgun_node)
+	shotgun_node.visible = false
 	weapon_models[WeaponData.WeaponType.TRI_SHOTGUN] = shotgun_node
 
 	# ══════════════════════════════════════════════════════════════════════════
@@ -626,6 +373,7 @@ func setup_weapon_models(mount: Node3D) -> void:
 
 	railgun_node.transform = Transform3D(Basis(), Vector3(0.38, 0.92, -0.36))
 	mount.add_child(railgun_node)
+	railgun_node.visible = false
 	weapon_models[WeaponData.WeaponType.RAILGUN] = railgun_node
 
 	# ══════════════════════════════════════════════════════════════════════════
@@ -757,7 +505,7 @@ func setup_weapon_models(mount: Node3D) -> void:
 	sp_slash.mesh = sp_slash_mesh
 	sp_slash.position = Vector3(0, 1.5, 0)
 	var mat_sp_slash := ShaderMaterial.new()
-	mat_sp_slash.shader = load("res://assets/shaders/spear_thrust.gdshader")
+	mat_sp_slash.shader = preload("res://assets/shaders/spear_thrust.gdshader")
 	mat_sp_slash.set_shader_parameter("emission_color", Color(0.3, 1.0, 0.5))
 	mat_sp_slash.set_shader_parameter("energy", 4.0)
 	mat_sp_slash.set_shader_parameter("progress", 0.0) # Animar en ataque
@@ -772,6 +520,7 @@ func setup_weapon_models(mount: Node3D) -> void:
 		Basis().rotated(Vector3.RIGHT, deg_to_rad(-90)),
 		Vector3(0.42, 0.88, -0.35))
 	mount.add_child(spear_node)
+	spear_node.visible = false
 	weapon_models[WeaponData.WeaponType.SPEAR_LANCE] = spear_node
 
 	# ══════════════════════════════════════════════════════════════════════════
@@ -900,6 +649,7 @@ func setup_weapon_models(mount: Node3D) -> void:
 
 	flamer_node.transform = Transform3D(Basis(), Vector3(0.38, 0.92, -0.36))
 	mount.add_child(flamer_node)
+	flamer_node.visible = false
 	weapon_models[WeaponData.WeaponType.FLAME_THROWER] = flamer_node
 
 	# ══════════════════════════════════════════════════════════════════════════
@@ -1016,111 +766,8 @@ func setup_weapon_models(mount: Node3D) -> void:
 		Basis().rotated(Vector3.RIGHT, deg_to_rad(-90)),
 		Vector3(0.42, 0.88, -0.35))
 	mount.add_child(bazooka_node)
+	bazooka_node.visible = false
 	weapon_models[WeaponData.WeaponType.SPORE_BAZOOKA] = bazooka_node
-
-	# ══════════════════════════════════════════════════════════════════════════
-	# 9. DUAL DAGGERS — Dagas Gemelas de Crane (signature)
-	#    Paired combat knives: narrow tapered blades with ricasso, angular
-	#    guards, wrapped grips. Left blade = crimson, right = sapphire.
-	# ══════════════════════════════════════════════════════════════════════════
-	var daggers_node := Node3D.new()
-
-	for dagger_idx in range(2):
-		var side_sign: float = 1.0 if dagger_idx == 0 else -1.0
-		var dagger_color_blade: Color = Color(1.0, 0.12, 0.12) if dagger_idx == 0 else Color(0.12, 0.38, 1.0)
-		var dagger_emit_blade: Color  = Color(1.0, 0.08, 0.05) if dagger_idx == 0 else Color(0.05, 0.28, 1.0)
-
-		var single_dagger := Node3D.new()
-		single_dagger.position = Vector3(side_sign * 0.115, 0.0, 0.0)
-
-		# Blade (slim tapered box)
-		var dd_blade := MeshInstance3D.new()
-		var dd_blade_mesh := CylinderMesh.new()
-		dd_blade_mesh.top_radius    = 0.004
-		dd_blade_mesh.bottom_radius = 0.025
-		dd_blade_mesh.height        = 0.58
-		dd_blade_mesh.radial_segments = 6
-		dd_blade.mesh     = dd_blade_mesh
-		dd_blade.position = Vector3(0, 0.44, 0)
-		var mat_dd_blade := StandardMaterial3D.new()
-		mat_dd_blade.albedo_color            = dagger_color_blade
-		mat_dd_blade.emission_enabled        = true
-		mat_dd_blade.emission                = dagger_emit_blade
-		mat_dd_blade.emission_energy_multiplier = 3.0
-		mat_dd_blade.metallic  = 0.7
-		mat_dd_blade.roughness = 0.12
-		dd_blade.material_override = mat_dd_blade
-		single_dagger.add_child(dd_blade)
-
-		# Blade flat face highlight
-		var dd_edge := MeshInstance3D.new()
-		var dd_edge_mesh := BoxMesh.new()
-		dd_edge_mesh.size = Vector3(0.006, 0.52, 0.032)
-		dd_edge.mesh     = dd_edge_mesh
-		dd_edge.position = Vector3(0, 0.44, 0)
-		var mat_dd_edge := StandardMaterial3D.new()
-		mat_dd_edge.albedo_color            = Color(0.95, 0.98, 1.0)
-		mat_dd_edge.emission_enabled        = true
-		mat_dd_edge.emission                = Color(0.8, 0.9, 1.0)
-		mat_dd_edge.emission_energy_multiplier = 2.0
-		mat_dd_edge.metallic  = 0.9
-		mat_dd_edge.roughness = 0.05
-		dd_edge.material_override = mat_dd_edge
-		single_dagger.add_child(dd_edge)
-
-		# Guard (angular cross piece)
-		var dd_guard := MeshInstance3D.new()
-		var dd_guard_mesh := BoxMesh.new()
-		dd_guard_mesh.size = Vector3(0.165, 0.038, 0.042)
-		dd_guard.mesh     = dd_guard_mesh
-		dd_guard.position = Vector3(0, 0.13, 0)
-		var mat_dd_guard := StandardMaterial3D.new()
-		mat_dd_guard.albedo_color = Color(0.22, 0.24, 0.28)
-		mat_dd_guard.metallic     = 0.75
-		mat_dd_guard.roughness    = 0.30
-		dd_guard.material_override = mat_dd_guard
-		single_dagger.add_child(dd_guard)
-
-		# Grip (textured cylinder)
-		var dd_grip := MeshInstance3D.new()
-		var dd_grip_mesh := CylinderMesh.new()
-		dd_grip_mesh.top_radius    = 0.022
-		dd_grip_mesh.bottom_radius = 0.025
-		dd_grip_mesh.height        = 0.24
-		dd_grip_mesh.radial_segments = 8
-		dd_grip.mesh     = dd_grip_mesh
-		dd_grip.position = Vector3(0, -0.02, 0)
-		var mat_dd_grip := StandardMaterial3D.new()
-		mat_dd_grip.albedo_color = Color(0.10, 0.11, 0.14)
-		mat_dd_grip.metallic     = 0.15
-		mat_dd_grip.roughness    = 0.88
-		dd_grip.material_override = mat_dd_grip
-		single_dagger.add_child(dd_grip)
-
-		# Pommel cap
-		var dd_pommel := MeshInstance3D.new()
-		var dd_pommel_mesh := SphereMesh.new()
-		dd_pommel_mesh.radius = 0.030
-		dd_pommel_mesh.height = 0.06
-		dd_pommel.mesh     = dd_pommel_mesh
-		dd_pommel.position = Vector3(0, -0.165, 0)
-		var mat_dd_pommel := StandardMaterial3D.new()
-		mat_dd_pommel.albedo_color            = dagger_color_blade
-		mat_dd_pommel.emission_enabled        = true
-		mat_dd_pommel.emission                = dagger_emit_blade
-		mat_dd_pommel.emission_energy_multiplier = 2.5
-		mat_dd_pommel.metallic  = 0.6
-		mat_dd_pommel.roughness = 0.2
-		dd_pommel.material_override = mat_dd_pommel
-		single_dagger.add_child(dd_pommel)
-
-		daggers_node.add_child(single_dagger)
-
-	daggers_node.transform = Transform3D(
-		Basis().rotated(Vector3.RIGHT, deg_to_rad(-90)),
-		Vector3(0.42, 0.88, -0.35))
-	mount.add_child(daggers_node)
-	weapon_models[WeaponData.WeaponType.DUAL_DAGGERS] = daggers_node
 
 	# ══════════════════════════════════════════════════════════════════════════
 	# 10. DUSTS — Polvos Alquímicos (Tatan)  — alchemy flask with glowing dust.
@@ -1154,43 +801,8 @@ func setup_weapon_models(mount: Node3D) -> void:
 		Basis().rotated(Vector3.RIGHT, deg_to_rad(-90)),
 		Vector3(0.42, 0.88, -0.35))
 	mount.add_child(dust_node)
+	dust_node.visible = false
 	weapon_models[WeaponData.WeaponType.DUSTS] = dust_node
-
-	# ══════════════════════════════════════════════════════════════════════════
-	# 11. AIR FISTS — Puños de Aire (Kaionz) — pair of glowing arcane gauntlets.
-	# ══════════════════════════════════════════════════════════════════════════
-	var fists_node := Node3D.new()
-	for fi in range(2):
-		var fist := MeshInstance3D.new()
-		var fist_mesh := BoxMesh.new()
-		fist_mesh.size = Vector3(0.14, 0.2, 0.12)
-		fist.mesh = fist_mesh
-		var fist_mat := StandardMaterial3D.new()
-		fist_mat.albedo_color = Color(0.5, 0.85, 1.0)
-		fist_mat.emission_enabled = true
-		fist_mat.emission = Color(0.3, 0.75, 1.0)
-		fist_mat.emission_energy_multiplier = 2.2
-		fist.material_override = fist_mat
-		fist.position = Vector3((0.12 if fi == 0 else -0.12), 0.05, 0)
-		fists_node.add_child(fist)
-		var fist_glow := MeshInstance3D.new()
-		var glow_mesh := SphereMesh.new()
-		glow_mesh.radius = 0.06
-		glow_mesh.height = 0.1
-		fist_glow.mesh = glow_mesh
-		var glow_mat := StandardMaterial3D.new()
-		glow_mat.albedo_color = Color(0.8, 0.95, 1.0)
-		glow_mat.emission_enabled = true
-		glow_mat.emission = Color(0.5, 0.9, 1.0)
-		glow_mat.emission_energy_multiplier = 3.0
-		fist_glow.material_override = glow_mat
-		fist_glow.position = fist.position + Vector3(0, 0.16, 0)
-		fists_node.add_child(fist_glow)
-	fists_node.transform = Transform3D(
-		Basis().rotated(Vector3.RIGHT, deg_to_rad(-90)),
-		Vector3(0.42, 0.88, -0.35))
-	mount.add_child(fists_node)
-	weapon_models[WeaponData.WeaponType.AIR_FISTS] = fists_node
 
 	# ══════════════════════════════════════════════════════════════════════════
 	# 12. SERPENTS — Serpientes de Joel — esmeralda enroscada alrededor del brazo.
@@ -1249,4 +861,24 @@ func setup_weapon_models(mount: Node3D) -> void:
 		Basis().rotated(Vector3.RIGHT, deg_to_rad(-10)),
 		Vector3(0.35, 0.85, -0.35))
 	mount.add_child(serpent_node)
+	serpent_node.visible = false
 	weapon_models[WeaponData.WeaponType.SERPENTS] = serpent_node
+
+	# ══════════════════════════════════════════════════════════════════════════
+	# 13. SPINNING AXE (Guitarra de Garri) — Axe Guitar
+	# ══════════════════════════════════════════════════════════════════════════
+	var guitar_node := Node3D.new()
+	var guitar_scene = load("res://assets/models/weapons/axe_guitar.glb")
+	if guitar_scene:
+		var guitar_inst = guitar_scene.instantiate()
+		guitar_inst.scale = Vector3(0.045, 0.045, 0.045)
+		guitar_inst.position = Vector3(0.0, -0.45, 0.0)
+		guitar_node.add_child(guitar_inst)
+	guitar_node.visible = false
+	guitar_node.transform = Transform3D(
+		Basis().rotated(Vector3.RIGHT, deg_to_rad(-20)),
+		Vector3(0.35, 0.7, -0.3))
+	mount.add_child(guitar_node)
+	guitar_node.visible = false
+	weapon_models[WeaponData.WeaponType.SPINNING_AXE] = guitar_node
+

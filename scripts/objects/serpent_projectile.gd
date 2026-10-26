@@ -53,6 +53,13 @@ func _physics_process(delta: float) -> void:
 		query.exclude = [shooter_rid]
 
 	var hit = space_state.intersect_ray(query)
+	var eh := EnemyQuery.segment_hit(current_pos, next_pos, 0.15)
+	if not eh.is_empty():
+		var world_dist: float = current_pos.distance_to(hit.position) if not hit.is_empty() else INF
+		if current_pos.distance_to(eh["pos"]) <= world_dist:
+			global_position = eh["pos"]
+			_on_impact(eh["enemy"], eh["pos"], -direction)
+			return
 	if not hit.is_empty():
 		global_position = hit.position
 		_on_impact(hit.collider, hit.position, hit.normal)
@@ -69,7 +76,7 @@ func _on_body_entered(body: Node3D) -> void:
 	if not is_inside_tree(): return
 	_on_impact(body, global_position, -direction)
 
-func _on_impact(body: Node3D, hit_pos: Vector3, hit_normal: Vector3) -> void:
+func _on_impact(body, hit_pos: Vector3, hit_normal: Vector3) -> void:
 	if is_hit or not is_inside_tree(): return
 
 	var BulletScript = load("res://scripts/objects/bullet.gd")
@@ -139,7 +146,7 @@ func _build_visual() -> void:
 		add_child(seg)
 		_body_segments.append(seg)
 
-	var light := OmniLight3D.new()
+	var light := Quality.new_light()
 	light.light_color = bullet_color
 	light.light_energy = 1.8
 	light.omni_range = 3.0
@@ -149,7 +156,7 @@ func _build_visual() -> void:
 	var nature_trail := CPUParticles3D.new()
 	nature_trail.name = "NatureTrail"
 	nature_trail.local_coords = false
-	nature_trail.amount = 18
+	nature_trail.amount = Quality.count(18)
 	nature_trail.lifetime = 0.35
 	nature_trail.emission_shape = CPUParticles3D.EMISSION_SHAPE_POINT
 	nature_trail.gravity = Vector3(0, 0.4, 0)

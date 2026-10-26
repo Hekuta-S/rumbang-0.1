@@ -1,6 +1,11 @@
 class_name WeaponStrategy
 extends RefCounted
 
+const SLASH_VFX = preload("res://scripts/objects/slash_vfx.gd")
+const SPEAR_SLASH_SHADER: Shader = preload("res://assets/shaders/spear_slash.gdshader")
+const DUST_VFX = preload("res://scripts/objects/dust_vfx.gd")
+const CLOUD_SHADER: Shader = preload("res://assets/shaders/alchemical_clouds.gdshader")
+
 var c: PlayerCombatController
 
 func _init(controller: PlayerCombatController) -> void:
@@ -8,6 +13,19 @@ func _init(controller: PlayerCombatController) -> void:
 
 func attack(cd_mult: float) -> void:
 	pass
+
+## Tamaño de ataques cuerpo a cuerpo / proyectiles según objetos (PlayerStatBlock).
+func _melee_size() -> float:
+	return c.player.stat_block.melee_size() if c.player.stat_block else 1.0
+
+func _ranged_size() -> float:
+	return c.player.stat_block.ranged_size() if c.player.stat_block else 1.0
+
+func _scale_melee(node: Node3D) -> void:
+	node.scale = node.scale * _melee_size()
+
+func _scale_ranged(node: Node3D) -> void:
+	node.scale = Vector3.ONE * _ranged_size()
 
 func animate_weapon_swing(weapon_type: int, side: float) -> void:
 	var weapon: Node3D = c.player.weapon_models.get(weapon_type)
@@ -44,261 +62,169 @@ class EnergySwordStrategy extends WeaponStrategy:
 		c.player.get_parent().add_child(sword_scene)
 		sword_scene.global_position = player_pos + forward_dir * 1.5
 		sword_scene.look_at(sword_scene.global_position + forward_dir, Vector3.UP)
+		_scale_melee(sword_scene)
 		sword_scene.setup(dmg, 0.2, 15.0, forward_dir)
 	
-		animate_weapon_swing(WeaponData.WeaponType.ENERGY_SWORD, slash_side)
+		var weapon_model: Node3D = c.player.weapon_models.get(WeaponData.WeaponType.ENERGY_SWORD)
+		if is_instance_valid(weapon_model):
+			weapon_model.visible = false
+
 		create_sword_slash_visual(player_pos, forward_dir)
 
 	func create_sword_slash_visual(pos: Vector3, facing_dir: Vector3) -> void:
-		var arc = MeshInstance3D.new()
-		var mesh_inst = PrismMesh.new()
-		mesh_inst.size = Vector3(2.8, 0.12, 1.6)
-		arc.mesh = mesh_inst
-	
-		var mat = StandardMaterial3D.new()
-		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		mat.albedo_color = Color(0.0, 0.95, 1.0, 0.5)
-		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		mat.emission_enabled = true
-		mat.emission = Color(0.0, 0.85, 1.0)
-		mat.emission_energy_multiplier = 2.5
-		arc.material_override = mat
-	
-		c.player.get_parent().add_child(arc)
-		arc.global_position = pos + facing_dir * 1.4 + Vector3(0, 1.0, 0)
-		if facing_dir.cross(Vector3.UP).length() > 0.001:
-			arc.look_at(arc.global_position + facing_dir, Vector3.UP)
-	
-		# --- Plasma Sparks along edge ---
-		var sparks := CPUParticles3D.new()
-		sparks.amount = 14
-		sparks.lifetime = 0.22
-		sparks.one_shot = true
-		sparks.explosiveness = 0.85
-		sparks.direction = facing_dir
-		sparks.spread = 40.0
-		sparks.initial_velocity_min = 6.0
-		sparks.initial_velocity_max = 14.0
-		sparks.scale_amount_min = 0.4
-		sparks.scale_amount_max = 0.9
-	
-		var p_mesh := BoxMesh.new()
-		p_mesh.size = Vector3(0.05, 0.05, 0.2)
-		sparks.mesh = p_mesh
-	
-		var sp_mat := StandardMaterial3D.new()
-		sp_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		sp_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		sp_mat.albedo_color = Color(0.6, 0.95, 1.0, 0.5)
-		sp_mat.emission_enabled = true
-		sp_mat.emission = Color(0.0, 0.85, 1.0)
-		sp_mat.emission_energy_multiplier = 2.5
-		sparks.material_override = sp_mat
-	
-		c.player.get_parent().add_child(sparks)
-		sparks.global_position = arc.global_position
-		sparks.emitting = true
-	
-		var tween = c.player.create_tween().set_parallel(true)
-		tween.tween_property(arc, "scale", Vector3(1.4, 1.4, 1.4), 0.15).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tween.tween_property(mat, "albedo_color:a", 0.0, 0.2)
-		tween.chain().tween_callback(arc.queue_free)
-	
-		var cleanup = c.player.create_tween()
-		cleanup.tween_interval(0.3)
-		cleanup.tween_callback(sparks.queue_free)
-
-
-class FlameAxeStrategy extends WeaponStrategy:
-
-	func attack(cd_mult: float) -> void:
-		c.attack_cooldown = c.player.get_weapon_data(WeaponData.WeaponType.FLAME_AXE).base_cooldown * cd_mult
-		var player_pos = c.player.global_position
-		var dmg = c.player._weapon_damage(WeaponData.WeaponType.FLAME_AXE)
-		var aoe_radius = c.player.get_weapon_data(WeaponData.WeaponType.FLAME_AXE).weapon_range
-	
-		# Hitbox is now handled by the instantiated weapon scene
-		var axe_scene = preload("res://scenes/objects/flame_axe.tscn").instantiate()
-		c.player.get_parent().add_child(axe_scene)
-		axe_scene.global_position = player_pos
-		axe_scene.setup(dmg, 0.2, 18.0, Vector3.ZERO)
-	
-		create_flame_shockwave_visual(player_pos, aoe_radius)
-
-	func create_flame_shockwave_visual(pos: Vector3, max_radius: float) -> void:
-		var container = Node3D.new()
-		c.player.get_parent().add_child(container)
-		container.global_position = pos + Vector3(0, 0.1, 0)
-	
-		var ring = MeshInstance3D.new()
-		var mesh_inst = TorusMesh.new()
-		mesh_inst.inner_radius = 0.2
-		mesh_inst.outer_radius = 0.6
-		mesh_inst.rings = 20
-		mesh_inst.ring_segments = 16
-		ring.mesh = mesh_inst
-	
-		var mat = StandardMaterial3D.new()
-		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		mat.albedo_color = Color(1.0, 0.4, 0.05, 0.5)
-		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		mat.emission_enabled = true
-		mat.emission = Color(1.0, 0.35, 0.0)
-		mat.emission_energy_multiplier = 2.5
-		ring.material_override = mat
-		container.add_child(ring)
-	
-		var light = OmniLight3D.new()
-		light.light_color = Color(1.0, 0.5, 0.1)
-		light.light_energy = 5.0
-		light.omni_range = max_radius * 1.4
-		container.add_child(light)
-	
-		# --- Fiery Embers & Sparks Burst ---
-		var embers := CPUParticles3D.new()
-		embers.amount = 26
-		embers.lifetime = 0.45
-		embers.one_shot = true
-		embers.explosiveness = 0.9
-		embers.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
-		embers.emission_sphere_radius = 0.8
-		embers.direction = Vector3.UP
-		embers.spread = 75.0
-		embers.initial_velocity_min = 3.5
-		embers.initial_velocity_max = 8.0
-		embers.gravity = Vector3(0, 2.0, 0)
-		embers.scale_amount_min = 0.3
-		embers.scale_amount_max = 0.8
-	
-		var p_mesh := BoxMesh.new()
-		p_mesh.size = Vector3(0.08, 0.08, 0.16)
-		embers.mesh = p_mesh
-	
-		var eb_mat := StandardMaterial3D.new()
-		eb_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		eb_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		eb_mat.albedo_color = Color(1.0, 0.8, 0.2, 0.6)
-		eb_mat.emission_enabled = true
-		eb_mat.emission = Color(1.0, 0.5, 0.1)
-		eb_mat.emission_energy_multiplier = 3.0
-		embers.material_override = eb_mat
-	
-		container.add_child(embers)
-		embers.emitting = true
-	
-		var tween = c.player.create_tween().set_parallel(true)
-		tween.tween_property(ring, "scale", Vector3(max_radius, 1.0, max_radius), 0.3).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
-		tween.tween_property(mat, "albedo_color:a", 0.0, 0.35)
-		tween.tween_property(light, "light_energy", 0.0, 0.4)
-		tween.chain().tween_callback(container.queue_free)
-
-
-class PlasmaRifleStrategy extends WeaponStrategy:
-
-	func attack(cd_mult: float) -> void:
-		c.attack_cooldown = c.player.get_weapon_data(WeaponData.WeaponType.PLASMA_RIFLE).base_cooldown * cd_mult
-		var aim_point = c.player.get_camera_aim_point()
-		var start_pos = c.player.muzzle.global_position
-		var aim_dir = (aim_point - start_pos).normalized()
-		if (aim_point - start_pos).length_squared() < 0.04:
-			aim_dir = -c.player.spring_arm.global_transform.basis.z
-	
-		c.player.orient_player_to_aim(aim_point)
-	
-		var dmg = c.player._weapon_damage(WeaponData.WeaponType.PLASMA_RIFLE)
-		var bullet_color = Color(0.0, 0.9, 1.0)
-	
-		var bullet = PoolManager.get_bullet()
-		bullet.global_position = start_pos
-		bullet.setup(aim_dir, dmg, c.player.get_weapon_data(WeaponData.WeaponType.PLASMA_RIFLE).projectile_speed, false, bullet_color, c.player.get_rid())
-	
-		c.player.apply_camera_recoil(0.012, randf_range(-0.003, 0.003), 0.05)
-		c.player.create_muzzle_flash(bullet_color, 1.0)
+		SLASH_VFX.spawn(c.player, c.player.get_parent(), pos, facing_dir, 3.6 * _melee_size(), 1.5, c._melee_swing_side < 0, {
+			"slash_color": Color(0.2, 0.7, 1.0, 1.0),
+			"core_color": Color(0.9, 0.98, 1.0, 1.0),
+			"zoom": 0.75,
+			"emission_strength": 4.0,
+		})
 
 
 class TriShotgunStrategy extends WeaponStrategy:
 
+	const BASE_PELLETS := 5
+	const MAX_PELLETS := 10
+	const BASE_RANGE := 6.0
+	const BASE_HALF_ANGLE := 14.0
+	const BASE_PUSH := 3.0
+	## Ancho de impacto de cada perdigón alrededor de su trayectoria (radio del enemigo ≈ 0.45)
+	const PELLET_WIDTH := 0.8
+	const SMOKE_COLOR := Color(0.42, 0.44, 0.5)
+	const SmokeTrailZoneRef = preload("res://scripts/objects/smoke_trail_zone.gd")
+
+	static func pellet_count(mods: Dictionary) -> int:
+		return clampi(BASE_PELLETS + int(mods.get("quantity_bonus", 0)), 1, MAX_PELLETS)
+
 	func attack(cd_mult: float) -> void:
-		c.attack_cooldown = c.player.get_weapon_data(WeaponData.WeaponType.TRI_SHOTGUN).base_cooldown * cd_mult
+		var W := WeaponData.WeaponType.TRI_SHOTGUN
+		c.attack_cooldown = c.player.get_weapon_data(W).base_cooldown * cd_mult
 		var aim_point = c.player.get_camera_aim_point()
-		var start_pos = c.player.muzzle.global_position
-		var base_dir = (aim_point - start_pos).normalized()
+		var start_pos: Vector3 = c.player.muzzle.global_position
+		var base_dir: Vector3 = (aim_point - start_pos).normalized()
 		if (aim_point - start_pos).length_squared() < 0.04:
 			base_dir = -c.player.spring_arm.global_transform.basis.z
-	
+		base_dir.y = 0.0   # el cono es horizontal, como el resto de ataques de área
+		if base_dir.length_squared() < 0.0001:
+			base_dir = -c.player.mesh.global_transform.basis.z
+			base_dir.y = 0.0
+		base_dir = base_dir.normalized()
+
 		c.player.orient_player_to_aim(aim_point)
-	
 		AudioManager.play("disparo-escopeta", -10.0)
-	
-		var dmg = c.player._weapon_damage(WeaponData.WeaponType.TRI_SHOTGUN)
-		var pellet_color = Color(0.55, 0.58, 0.64)
-		var close_range := 5.0
-		var angles = [-12.0, -6.0, 0.0, 6.0, 12.0]
+
+		var mods: Dictionary = c.player.get_weapon_modifiers(W)
+		var dmg: float = c.player._weapon_damage(W)
+		# Tamaño: alcanza más lejos y abre más el cono
+		var size: float = maxf(float(mods.get("size", 1.0)), 0.3) * _ranged_size()
+		var reach: float = BASE_RANGE * size
+		var half_angle: float = BASE_HALF_ANGLE * sqrt(size)
+		var push: float = BASE_PUSH * (1.0 + float(mods.get("knockback", 0.0)))
+		var n := pellet_count(mods)
+
+		var enemies: Array = EnemyRegistry.all()
 		var space_state = c.player.get_world_3d().direct_space_state
-		for deg in angles:
-			var spread_rot = Transform3D().rotated(Vector3.UP, deg_to_rad(deg + randf_range(-1.5, 1.5)))
-			var pellet_dir = (spread_rot.basis * base_dir).normalized()
-			var query = PhysicsRayQueryParameters3D.create(start_pos, start_pos + pellet_dir * close_range)
-			query.exclude = [c.player.get_rid()]
-			query.collision_mask = 3
-			var hit = space_state.intersect_ray(query)
-			if not hit.is_empty():
-				var body = hit.collider
-				if body.is_in_group("enemies") and body.has_method("take_damage"):
-					body.take_damage(dmg, pellet_dir)
-	
-		_create_smoke_burst(start_pos, base_dir, pellet_color)
+		for i in range(n):
+			var t: float = 0.5 if n == 1 else float(i) / float(n - 1)
+			var deg: float = lerpf(-half_angle, half_angle, t) + randf_range(-1.5, 1.5)
+			var pellet_dir: Vector3 = base_dir.rotated(Vector3.UP, deg_to_rad(deg))
 
-	func _create_smoke_burst(pos: Vector3, direction: Vector3, color: Color) -> void:
-		var burst := Node3D.new()
-		c.player.get_parent().add_child(burst)
-		burst.global_position = pos
+			# Paredes del mapa (capa 1) cortan el perdigón
+			var max_dist: float = reach
+			var wall_q = PhysicsRayQueryParameters3D.create(start_pos, start_pos + pellet_dir * reach)
+			wall_q.exclude = [c.player.get_rid()]
+			wall_q.collision_mask = 1
+			var wall = space_state.intersect_ray(wall_q)
+			if not wall.is_empty():
+				max_dist = start_pos.distance_to(wall.position)
 
-		var cloud := MeshInstance3D.new()
-		var cloud_mesh := SphereMesh.new()
-		cloud_mesh.radius = 0.18
-		cloud_mesh.height = 0.36
-		cloud_mesh.radial_segments = 8
-		cloud_mesh.rings = 4
-		cloud.mesh = cloud_mesh
-		var cloud_mat := StandardMaterial3D.new()
-		cloud_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		cloud_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		cloud_mat.albedo_color = Color(color.r, color.g, color.b, 0.8)
-		cloud_mat.emission_enabled = true
-		cloud_mat.emission = color
-		cloud_mat.emission_energy_multiplier = 1.2
-		cloud.material_override = cloud_mat
-		burst.add_child(cloud)
+			# Impacto por geometría (más fiable que rayos físicos): el enemigo más cercano
+			# a lo largo de la trayectoria cuya distancia lateral sea menor al ancho del perdigón.
+			var best = null
+			var best_t: float = max_dist + 1.0
+			for e in enemies:
+				if not is_instance_valid(e) or not e.has_method("take_damage"):
+					continue
+				var rel: Vector3 = e.global_position - start_pos
+				if absf(rel.y) > 3.5:
+					continue
+				var along: float = rel.x * pellet_dir.x + rel.z * pellet_dir.z
+				if along < -0.3 or along > max_dist:
+					continue
+				var side: float = absf(rel.x * pellet_dir.z - rel.z * pellet_dir.x)
+				if side <= PELLET_WIDTH and along < best_t:
+					best_t = along
+					best = e
+			if best != null:
+				# Vector con módulo > 1 = velocidad de empuje (ver Enemy.take_damage)
+				best.take_damage(dmg, pellet_dir * push)
 
+		_create_blast(start_pos, base_dir, size, half_angle, reach)
+
+	## Disparo: fogonazo corto + nube de humo gris que se abre en cono y se disipa.
+	func _create_blast(pos: Vector3, dir: Vector3, size: float, half_angle: float, reach: float) -> void:
+		var parent: Node = c.player.get_parent()
+
+		# Fogonazo cálido muy breve
+		var flash := MeshInstance3D.new()
+		var fm := SphereMesh.new()
+		fm.radius = 0.22 * size
+		fm.height = 0.44 * size
+		fm.radial_segments = 8
+		fm.rings = 4
+		flash.mesh = fm
+		var fmat := StandardMaterial3D.new()
+		fmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		fmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		fmat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		fmat.albedo_color = Color(1.0, 0.75, 0.35, 0.9)
+		flash.material_override = fmat
+		flash.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		parent.add_child(flash)
+		flash.global_position = pos + dir * 0.3
+		var ftw := flash.create_tween().set_parallel(true)
+		ftw.tween_property(flash, "scale", Vector3.ONE * 1.8, 0.09)
+		ftw.tween_property(fmat, "albedo_color:a", 0.0, 0.09)
+		ftw.chain().tween_callback(flash.queue_free)
+
+		# Nube de humo: bocanadas grandes y suaves que viajan por el cono y se frenan
 		var smoke := CPUParticles3D.new()
-		smoke.amount = 24
-		smoke.lifetime = 0.65
+		parent.add_child(smoke)
+		smoke.global_position = pos + dir * 0.4
+		smoke.amount = Quality.count(34)
+		smoke.lifetime = 1.5
 		smoke.one_shot = true
-		smoke.explosiveness = 0.95
-		smoke.direction = direction
-		smoke.spread = 55.0
-		smoke.initial_velocity_min = 1.5
-		smoke.initial_velocity_max = 4.0
-		smoke.gravity = Vector3(0, 0.4, 0)
-		smoke.scale_amount_min = 0.35
-		smoke.scale_amount_max = 0.8
-		var smoke_mesh := SphereMesh.new()
-		smoke_mesh.radius = 0.08
-		smoke_mesh.height = 0.16
-		smoke.mesh = smoke_mesh
-		var smoke_mat := cloud_mat.duplicate() as StandardMaterial3D
-		smoke_mat.albedo_color = Color(color.r, color.g, color.b, 0.7)
-		smoke_mat.emission_energy_multiplier = 0.8
-		smoke.material_override = smoke_mat
-		burst.add_child(smoke)
+		smoke.explosiveness = 0.9
+		smoke.direction = dir
+		smoke.spread = clampf(half_angle, 12.0, 40.0)
+		smoke.damping_min = 3.0
+		smoke.damping_max = 3.6
+		smoke.initial_velocity_min = reach * 1.6
+		smoke.initial_velocity_max = reach * 3.2
+		smoke.gravity = Vector3(0, 0.25, 0)
+		smoke.angle_max = 360.0
+		var quad := QuadMesh.new()
+		quad.size = Vector2(1.3, 1.3)
+		smoke.mesh = quad
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+		mat.billboard_keep_scale = true
+		mat.vertex_color_use_as_albedo = true
+		mat.albedo_texture = SmokeTrailZoneRef._soft_puff_texture()
+		smoke.material_override = mat
+		var ramp := Gradient.new()
+		ramp.set_color(0, Color(SMOKE_COLOR.r, SMOKE_COLOR.g, SMOKE_COLOR.b, 0.95))
+		ramp.add_point(0.55, Color(SMOKE_COLOR.r, SMOKE_COLOR.g, SMOKE_COLOR.b, 0.8))   # se mantiene densa
+		ramp.set_color(ramp.get_point_count() - 1, Color(SMOKE_COLOR.r, SMOKE_COLOR.g, SMOKE_COLOR.b, 0.0))
+		smoke.color_ramp = ramp
+		var grow := Curve.new()
+		grow.add_point(Vector2(0.0, 0.6))
+		grow.add_point(Vector2(1.0, 1.8))
+		smoke.scale_amount_curve = grow
 		smoke.emitting = true
+		smoke.get_tree().create_timer(1.8).timeout.connect(smoke.queue_free)
 
-		var tween := burst.create_tween().set_parallel(true)
-		tween.tween_property(cloud, "scale", Vector3(3.0, 2.0, 3.0), 0.3)
-		tween.tween_property(cloud_mat, "albedo_color:a", 0.0, 0.35)
-		tween.chain().tween_callback(burst.queue_free)
-	
 	## Serpientes de Joel: 3 serpientes de esmeralda en cono (una al centro, dos en
 	## los bordes desviadas ±half_angle del arma).
 
@@ -329,8 +255,8 @@ class RailgunStrategy extends WeaponStrategy:
 			end_pos = ray_res.position
 	
 		# Piercing Laser Beam: Pierces ALL enemies along beam line
-		var beam_radius = c.player.get_weapon_data(WeaponData.WeaponType.RAILGUN).beam_radius
-		for enemy in c.player.get_tree().get_nodes_in_group("enemies"):
+		var beam_radius = c.player.get_weapon_data(WeaponData.WeaponType.RAILGUN).beam_radius * _ranged_size()
+		for enemy in EnemyRegistry.all():
 			if not is_instance_valid(enemy): continue
 			var enemy_center = enemy.global_position + Vector3(0, 0.8, 0)
 			var closest_pt = Geometry3D.get_closest_point_to_segment(enemy_center, start_pos, end_pos)
@@ -383,6 +309,15 @@ class RailgunStrategy extends WeaponStrategy:
 class SpearLanceStrategy extends WeaponStrategy:
 	const ENABLE_SPEAR_THROW: bool = false
 
+	## Hasta 8 cortes. Orden de aparición (grados respecto al frente, positivo = derecha):
+	## frente, atrás, derecha, izquierda y luego las 4 diagonales.
+	const BLADE_ANGLES: Array[float] = [0.0, 180.0, 90.0, -90.0, 45.0, -45.0, 135.0, -135.0]
+	const MAX_BLADES: int = 8
+
+	## Cantidad de cortes según las mejoras ("Hoja extra" suma a la hoja base).
+	static func blade_count(mods: Dictionary) -> int:
+		return clampi(1 + int(mods.get("quantity_bonus", 0)), 1, MAX_BLADES)
+
 	func attack(cd_mult: float) -> void:
 		# Make it slower (e.g. 1.4x base cooldown)
 		c.attack_cooldown = c.player.get_weapon_data(WeaponData.WeaponType.SPEAR_LANCE).base_cooldown * cd_mult * 1.4
@@ -391,6 +326,8 @@ class SpearLanceStrategy extends WeaponStrategy:
 		var forward_dir = -c.player.mesh.global_transform.basis.z.normalized()
 		var player_pos = c.player.global_position
 		var dmg = c.player._weapon_damage(WeaponData.WeaponType.SPEAR_LANCE)
+		# Mejoras propias de la Espalanza (tamaño del corte, velocidad, daño...)
+		var mods: Dictionary = c.player.get_weapon_modifiers(WeaponData.WeaponType.SPEAR_LANCE)
 	
 		var slash_side = c._melee_swing_side
 		c._melee_swing_side = -c._melee_swing_side
@@ -398,19 +335,22 @@ class SpearLanceStrategy extends WeaponStrategy:
 		# Slower, deeper sound for a larger sweep
 		AudioManager.play("ataque-espalanza", -10.0, 0.85)
 	
-		# Hitbox is now handled by the instantiated weapon scene
-		var spear_scene = preload("res://scenes/objects/spear_lance_hitbox.tscn").instantiate()
-		c.player.get_parent().add_child(spear_scene)
-		spear_scene.global_position = player_pos + forward_dir * 1.8
-		spear_scene.look_at(spear_scene.global_position + forward_dir, Vector3.UP)
-		
-		# Narrower hitbox for the horizontal slash (requires more aim)
-		spear_scene.scale = Vector3(0.7, 1.0, 1.3) 
-		spear_scene.setup(dmg, 0.35, 16.0, forward_dir)
-	
-		animate_weapon_swing(WeaponData.WeaponType.SPEAR_LANCE, slash_side)
-		create_spear_slash_visual(player_pos, forward_dir, slash_side)
-		
+		# Un hitbox + un tajo por hoja. Comparten la lista de enemigos golpeados:
+		# cada enemigo recibe daño una sola vez por ataque (más hojas = más cobertura).
+		var weapon_model: Node3D = c.player.weapon_models.get(WeaponData.WeaponType.SPEAR_LANCE)
+		if is_instance_valid(weapon_model):
+			weapon_model.visible = false
+
+		# Cada hoja golpea con su PROPIO timing: la primera al instante y las demás repartidas
+		# por igual dentro del ciclo de ataque (ciclo / nº de hojas), no todas a la vez.
+		var blades := blade_count(mods)
+		var step: float = c.attack_cooldown / float(blades)
+		for i in range(blades):
+			if i == 0:
+				_strike_blade(0, slash_side, false)
+			else:
+				c.player.get_tree().create_timer(step * float(i)).timeout.connect(_strike_blade.bind(i, slash_side, true))
+
 		# Launch code is preserved but disabled while the weapon is slash-only.
 		if ENABLE_SPEAR_THROW:
 			var combo_tween = c.player.create_tween()
@@ -419,8 +359,8 @@ class SpearLanceStrategy extends WeaponStrategy:
 				if not is_instance_valid(c.player) or c.player.current_weapon() != WeaponData.WeaponType.SPEAR_LANCE:
 					return
 
-				var enemies = c.player.get_tree().get_nodes_in_group("enemies")
-				var closest: Node3D = null
+				var enemies = EnemyRegistry.all()
+				var closest = null
 				var min_dist = 45.0
 
 				for e in enemies:
@@ -443,11 +383,12 @@ class SpearLanceStrategy extends WeaponStrategy:
 				var proj = c.spear_projectile_scene.instantiate()
 				c.player.get_parent().add_child(proj)
 				proj.global_position = start_pos
-				proj.setup(aim_dir, 35.0, 48.0, c.player.get_rid())
+				_scale_ranged(proj)
+				proj.setup(aim_dir, 35.0 * (c.player.stat_block.damage_mult() if c.player.stat_block else 1.0), 48.0, c.player.get_rid())
 				AudioManager.play("ataque-espalanza", -6.0, 1.3)
 			)
 	
-	## Throws the spear-lance (right mouse). Costs a little c.player.energy; the spear is
+	## Throws the spear-lance (right mouse). The spear is
 	## gone from the c.player's hand until it returns.
 
 	func animate_weapon_swing(weapon_type: int, side: float) -> void:
@@ -469,68 +410,53 @@ class SpearLanceStrategy extends WeaponStrategy:
 				weapon.transform = base_transform
 		)
 
-	func create_spear_slash_visual(pos: Vector3, facing_dir: Vector3, side: float) -> void:
-		var pivot = Node3D.new()
-		c.player.get_parent().add_child(pivot)
-		# Empieza al frente del personaje
-		pivot.global_position = pos + facing_dir * 1.5 + Vector3(0, 1.0, 0)
-		if facing_dir.cross(Vector3.UP).length() > 0.001:
-			pivot.look_at(pivot.global_position + facing_dir, Vector3.UP)
-	
-		var arc = MeshInstance3D.new()
-		# Estela horizontal delgada (como un rastro de espada) en vez del cuadrado
-		var mesh_inst = BoxMesh.new()
-		mesh_inst.size = Vector3(2.5, 0.05, 0.3)
-		arc.mesh = mesh_inst
-		pivot.add_child(arc)
-	
-		var mat = StandardMaterial3D.new()
-		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		mat.albedo_color = Color(0.4, 1.0, 0.55, 0.7)
-		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		mat.emission_enabled = true
-		mat.emission = Color(0.3, 1.0, 0.5)
-		mat.emission_energy_multiplier = 3.0
-		arc.material_override = mat
-	
-		# --- Emerald Slash Energy Wisps ---
-		var energy_particles := CPUParticles3D.new()
-		energy_particles.amount = 16
-		energy_particles.lifetime = 0.25
-		energy_particles.one_shot = true
-		energy_particles.explosiveness = 0.95
-		energy_particles.direction = facing_dir + Vector3(side * 0.15, 0.0, 0).normalized()
-		energy_particles.spread = 15.0
-		energy_particles.initial_velocity_min = 10.0
-		energy_particles.initial_velocity_max = 18.0
-		energy_particles.scale_amount_min = 0.3
-		energy_particles.scale_amount_max = 0.7
-	
-		var ep_mesh := SphereMesh.new()
-		ep_mesh.radius = 0.08
-		ep_mesh.height = 0.16
-		energy_particles.mesh = ep_mesh
-	
-		var ep_mat := StandardMaterial3D.new()
-		ep_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		ep_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		ep_mat.albedo_color = Color(0.5, 1.0, 0.6, 0.6)
-		ep_mat.emission_enabled = true
-		ep_mat.emission = Color(0.3, 1.0, 0.5)
-		ep_mat.emission_energy_multiplier = 2.5
-		energy_particles.material_override = ep_mat
-	
-		pivot.add_child(energy_particles)
-		energy_particles.emitting = true
-	
-		# Tajo horizontal mucho más estrecho (solo al frente, no cubre los lados)
-		pivot.rotation.y = deg_to_rad(-18.0 * side)
-		var tween = c.player.create_tween().set_parallel(true)
-		tween.tween_property(pivot, "rotation:y", deg_to_rad(18.0 * side), 0.16).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		tween.tween_property(arc, "scale", Vector3(1.2, 1.0, 0.2), 0.16)
-		tween.tween_property(mat, "albedo_color:a", 0.0, 0.2)
-		tween.chain().tween_callback(pivot.queue_free)
-	
+	## Un golpe de la hoja `index`: calcula dirección, daño y mejoras en ESTE instante
+	## (el jugador puede haberse movido/girado desde el inicio del ciclo).
+	func _strike_blade(index: int, slash_side: float, delayed: bool) -> void:
+		if not is_instance_valid(c.player) or not c.player.is_inside_tree():
+			return
+		if delayed and c.player.current_weapon() != WeaponData.WeaponType.SPEAR_LANCE and not c.player.weapon_slots.has(WeaponData.WeaponType.SPEAR_LANCE):
+			return
+		var mods: Dictionary = c.player.get_weapon_modifiers(WeaponData.WeaponType.SPEAR_LANCE)
+		var dmg = c.player._weapon_damage(WeaponData.WeaponType.SPEAR_LANCE)
+		var forward_dir: Vector3 = -c.player.mesh.global_transform.basis.z.normalized()
+		var player_pos: Vector3 = c.player.global_position
+		var blade_dir: Vector3 = forward_dir.rotated(Vector3.UP, deg_to_rad(BLADE_ANGLES[index]))
+		if index > 0:
+			AudioManager.play("ataque-espalanza", -13.0, 0.9 + 0.04 * float(index))
+		_spawn_blade_hitbox(player_pos, blade_dir, dmg, mods)
+		create_spear_slash_visual(player_pos, blade_dir, slash_side, mods)
+
+	func _spawn_blade_hitbox(player_pos: Vector3, dir: Vector3, dmg: float, mods: Dictionary) -> void:
+		var spear_scene = preload("res://scenes/objects/spear_lance_hitbox.tscn").instantiate()
+		c.player.get_parent().add_child(spear_scene)
+		# El hitbox nace en el jugador (su forma ya se extiende hacia delante):
+		# así también golpea a los enemigos pegados al cuerpo.
+		spear_scene.global_position = player_pos
+		spear_scene.look_at(spear_scene.global_position + dir, Vector3.UP)
+		# Pasillo estrecho: exige apuntar; el tamaño de la mejora lo ensancha/alarga
+		spear_scene.scale = Vector3(0.7, 1.0, 1.3) * float(mods["size"])
+		_scale_melee(spear_scene)
+		spear_scene.source_weapon = WeaponData.WeaponType.SPEAR_LANCE
+		spear_scene.source_player = c.player
+		spear_scene.setup(dmg, 0.35, 16.0, dir)
+
+	## El tajo refleja las mejoras: tamaño (quad y distancia), velocidad (duración
+	## más corta) y daño (más brillo y núcleo más blanco).
+	func create_spear_slash_visual(pos: Vector3, facing_dir: Vector3, side: float, mods: Dictionary = {}) -> void:
+		var size_mult: float = float(mods.get("size", 1.0)) * _melee_size()
+		var speed_factor: float = clampf(float(mods.get("cooldown", 1.0)), 0.5, 1.0)
+		var dmg_bonus: float = clampf(float(mods.get("damage", 1.0)) - 1.0, 0.0, 1.0)
+		var base_core := Color(0.85, 1.0, 0.9, 1.0)
+		SLASH_VFX.spawn(c.player, c.player.get_parent(), pos, facing_dir, 4.6 * size_mult, 1.7 * size_mult, side < 0, {
+			"slash_color": Color(0.2, 1.0, 0.45, 1.0).lerp(Color(0.55, 1.0, 0.65, 1.0), dmg_bonus),
+			"core_color": base_core.lerp(Color.WHITE, dmg_bonus),
+			"emission_strength": 4.8 + 2.4 * dmg_bonus,
+			"thickness": 0.34,
+			"trail_length": 1.15,
+			"curve": 0.32,
+		}, SLASH_VFX.DURATION * speed_factor, SPEAR_SLASH_SHADER)
+
 	## Flamethrower fire effect: a hot white-yellow inner core plus an outer
 	## cone of orange flames streaming out of the nozzle, lit by a flickering
 	## point light. Everything self-destructs shortly after firing.
@@ -540,11 +466,6 @@ class SpearLanceStrategy extends WeaponStrategy:
 		if not ENABLE_SPEAR_THROW: return
 		if c.attack_cooldown > 0: return
 	
-		var cost = c.SPEAR_THROW_COST
-		if c.player.energy < cost: return
-	
-		c.player.energy -= cost
-		c.player.emit_signal("stats_changed", c.player.hp, c.player.max_hp, c.player.shield, c.player.max_shield, c.player.energy, c.player.max_energy)
 		c.attack_cooldown = c.SPEAR_THROW_CD
 	
 		var aim_point = c.player.get_camera_aim_point()
@@ -561,7 +482,8 @@ class SpearLanceStrategy extends WeaponStrategy:
 		var proj = c.spear_projectile_scene.instantiate()
 		c.player.get_parent().add_child(proj)
 		proj.global_position = start_pos
-		proj.setup(aim_dir, 30.0, 48.0, c.player.get_rid())
+		_scale_ranged(proj)
+		proj.setup(aim_dir, 30.0 * (c.player.stat_block.damage_mult() if c.player.stat_block else 1.0), 48.0, c.player.get_rid())
 	
 		c.player.apply_camera_recoil(0.01, randf_range(-0.004, 0.004), 0.06)
 	
@@ -573,493 +495,164 @@ class SpearLanceStrategy extends WeaponStrategy:
 
 
 class FlameThrowerStrategy extends WeaponStrategy:
+	const FLAME_STREAM = preload("res://scripts/objects/flame_stream.gd")
+	var _stream: Node3D = null
+
+	## Empuje de cada tick. Era 14 (el valor por defecto de MeleeHitbox) y, al ser daño
+	## continuo, desplazaba a los enemigos sin parar; ahora apenas los roza.
+	const FLAME_KNOCKBACK := 1.6
+
+	## Ráfaga: el fuego se mantiene BURST_BASE_S segundos de disparo continuo y luego se
+	## recalienta y descansa REST_S. Si se deja de disparar > IDLE_RESET_S la ráfaga se renueva.
+	const BURST_BASE_S := 3.0
+	const REST_S := 1.2
+	const IDLE_RESET_S := 0.6
+	var _burst_used: float = 0.0
+	var _last_fire_t: float = -100.0
+	var _rest_until: float = -1.0
+
+	func is_overheated() -> bool:
+		return Time.get_ticks_msec() / 1000.0 < _rest_until
+
+	## Dirección del fuego: hacia el objetivo del combate automático (cualquier dirección,
+	## también a la espalda o a los lados) o, sin objetivo, hacia donde apunta la cámara.
+	func _flame_direction() -> Vector3:
+		var target = c.player.auto_combat_target
+		if target != null and is_instance_valid(target):
+			var d: Vector3 = target.global_position - c.player.global_position
+			d.y = 0.0
+			if d.length_squared() > 0.01:
+				return d.normalized()
+		return c.player.get_attack_forward_dir()
 
 	func attack(cd_mult: float) -> void:
 		c.attack_cooldown = c.player.get_weapon_data(WeaponData.WeaponType.FLAME_THROWER).base_cooldown * cd_mult
-		c.player.orient_player_to_aim(c.player.get_camera_aim_point())
-		var forward_dir = c.player.get_attack_forward_dir()
+		var now := Time.get_ticks_msec() / 1000.0
+
+		# Recalentado: no dispara hasta que termina el descanso (sigue intentándolo cada 0.1 s)
+		if now < _rest_until:
+			c.attack_cooldown = 0.1
+			return
+
+		var mods: Dictionary = c.player.get_weapon_modifiers(WeaponData.WeaponType.FLAME_THROWER)
+		var burst_len: float = BURST_BASE_S * float(mods.get("burst_time", 1.0))
+		if now - _last_fire_t > IDLE_RESET_S:
+			_burst_used = 0.0
+		else:
+			_burst_used += now - _last_fire_t
+		_last_fire_t = now
+		if _burst_used >= burst_len:
+			_rest_until = now + REST_S
+			_burst_used = 0.0
+			if _stream != null and is_instance_valid(_stream):
+				_stream.extinguish()
+			c.attack_cooldown = 0.1
+			return
+
+		var forward_dir: Vector3 = _flame_direction()
 		var player_pos = c.player.global_position
-	
 		var dmg = c.player._weapon_damage(WeaponData.WeaponType.FLAME_THROWER)
-		
+		var size_mult: float = float(mods["size"]) * _melee_size()
+
 		# Hitbox is now handled by the instantiated weapon scene
 		var flame_scene = preload("res://scenes/objects/flame_thrower.tscn").instantiate()
 		c.player.get_parent().add_child(flame_scene)
 		flame_scene.global_position = player_pos
 		flame_scene.look_at(flame_scene.global_position + forward_dir, Vector3.UP)
-		flame_scene.setup(dmg, 0.2)
-	
-		create_flame_burst_visual(player_pos, forward_dir)
-	
-	## Spore Bazooka: lobs a canister that bursts into a corrosive cloud.
-	## Fires from the muzzle toward the camera aim point.
+		flame_scene.scale = Vector3.ONE * size_mult
+		flame_scene.setup(dmg, 0.2, FLAME_KNOCKBACK)
+		flame_scene.source_weapon = WeaponData.WeaponType.FLAME_THROWER
+		flame_scene.source_player = c.player
 
-	func create_flame_burst_visual(origin: Vector3, dir: Vector3) -> void:
-		var flat_dir = Vector3(dir.x, 0.0, dir.z)
-		if flat_dir.length() < 0.01:
-			flat_dir = Vector3.FORWARD
-		flat_dir = flat_dir.normalized()
-	
-		# Create a temporary anchor attached to the rotating c.player.mesh
-		# so the emitter follows the c.player's position and rotation
-		var anchor = Node3D.new()
-		c.player.mesh.add_child(anchor)
-		anchor.global_position = origin + flat_dir * 0.8 + Vector3.UP * 1.05
-		anchor.look_at(anchor.global_position + flat_dir, Vector3.UP)
-	
-		# -- Inner core: intense hot white-yellow core streamer
-		var core = _build_flame_cone(Vector3.FORWARD)
-		core.local_coords = false # Trails realistically in the world
-		core.amount = 45
-		core.lifetime = 0.25
-		core.spread = 10.0
-		core.initial_velocity_min = 12.0
-		core.initial_velocity_max = 18.0
-		core.scale_amount_min = 0.25
-		core.scale_amount_max = 0.55
-		core.mesh = _flame_mesh(0.12)
-		core.material_override = _flame_material(Color(1.0, 0.95, 0.7), 6.0)
-		core.color_ramp = _make_flame_ramp([
-			[Color(1.0, 1.0, 0.9, 1.0), 0.0],
-			[Color(1.0, 0.8, 0.2, 0.9), 0.4],
-			[Color(1.0, 0.4, 0.0, 0.0), 1.0],
-		])
-		anchor.add_child(core)
-		core.emitting = true
-	
-		# -- Outer cone: wide intense fiery plume expanding forward
-		var flame = _build_flame_cone(Vector3.FORWARD)
-		flame.local_coords = false
-		flame.amount = 80
-		flame.lifetime = 0.45
-		flame.spread = 22.0
-		flame.initial_velocity_min = 10.0
-		flame.initial_velocity_max = 22.0
-		flame.scale_amount_min = 0.4
-		flame.scale_amount_max = 1.3
-		flame.mesh = _flame_mesh(0.2)
-		flame.material_override = _flame_material(Color(1.0, 0.45, 0.05), 4.5)
-		flame.color_ramp = _make_flame_ramp([
-			[Color(1.0, 0.7, 0.1, 1.0), 0.0],
-			[Color(1.0, 0.35, 0.02, 0.95), 0.3],
-			[Color(0.85, 0.15, 0.0, 0.6), 0.75],
-			[Color(0.2, 0.05, 0.0, 0.0), 1.0],
-		])
-		anchor.add_child(flame)
-		flame.emitting = true
-	
-		# -- High speed bright orange/yellow ember sparks bursting from nozzle
-		var sparks = _build_flame_cone(Vector3.FORWARD)
-		sparks.local_coords = false
-		sparks.amount = 35
-		sparks.lifetime = 0.40
-		sparks.spread = 35.0
-		sparks.initial_velocity_min = 16.0
-		sparks.initial_velocity_max = 28.0
-		sparks.scale_amount_min = 0.08
-		sparks.scale_amount_max = 0.18
-		sparks.gravity = Vector3(0, -3.0, 0)
-		sparks.mesh = _flame_mesh(0.04)
-		sparks.material_override = _flame_material(Color(1.0, 0.9, 0.3), 8.0)
-		sparks.color_ramp = _make_flame_ramp([
-			[Color(1.0, 0.95, 0.5, 1.0), 0.0],
-			[Color(1.0, 0.5, 0.0, 0.8), 0.6],
-			[Color(1.0, 0.2, 0.0, 0.0), 1.0],
-		])
-		anchor.add_child(sparks)
-		sparks.emitting = true
-	
-		# -- Powerful dynamic light flashing along the nozzle path
-		var light = OmniLight3D.new()
-		light.light_color = Color(1.0, 0.6, 0.15)
-		light.light_energy = 8.0
-		light.omni_range = 10.0
-		anchor.add_child(light)
-		# Position the light slightly forward relative to the anchor
-		light.position = Vector3(0, 0, -1.5)
-		
-		var flicker = c.player.create_tween()
-		for i in 6:
-			flicker.tween_property(light, "light_energy", randf_range(5.0, 10.0), 0.04)
-		flicker.tween_property(light, "light_energy", 0.0, 0.12)
-		flicker.tween_callback(light.queue_free)
-	
-		# Cleanup anchor (which holds all particles) after emission completes
-		var cleanup = c.player.create_tween()
-		cleanup.tween_interval(0.7)
-		cleanup.tween_callback(anchor.queue_free)
-	
-	## Builds a base forward-shooting fire cone emitter (one shot, additive).
+		update_continuous_flame(forward_dir, size_mult)
 
-	func _build_flame_cone(dir: Vector3) -> CPUParticles3D:
-		var p = CPUParticles3D.new()
-		p.one_shot = true
-		p.explosiveness = 1.0
-		p.direction = dir
-		p.gravity = Vector3(0, 1.5, 0)
-		p.emission_shape = CPUParticles3D.EMISSION_SHAPE_POINT
-		return p
-	
-	## A low-poly blurred sphere c.player.mesh used for each flame puff.
+	## Chorro de fuego procedural (FlameStream): una sola instancia reutilizada,
+	## apunta a la dirección de ataque y se apaga sola al dejar de disparar.
+	func update_continuous_flame(dir: Vector3, size_mult: float = 1.0) -> void:
+		if _stream == null or not is_instance_valid(_stream):
+			_stream = FLAME_STREAM.new()
+			c.player.get_parent().add_child(_stream)
+			_stream.set_anchor(c.player.muzzle)
+		_stream.aim(dir)
+		_stream.apply_size(size_mult)
+		_stream.keep_alive()
 
-	func _flame_mesh(radius: float) -> SphereMesh:
-		var m = SphereMesh.new()
-		m.radius = radius
-		m.height = radius * 2.0
-		m.radial_segments = 6
-		m.rings = 4
-		return m
-	
-	## Additive, unshaded glowing material for the flame puffs.
-
-	func _flame_material(color: Color, emission: float) -> StandardMaterial3D:
-		var mat = StandardMaterial3D.new()
-		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		# Additive blending glows and fades out (RGB ramps to dark at the tail).
-		mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-		mat.albedo_color = color
-		mat.emission_enabled = true
-		mat.emission = color
-		mat.emission_energy_multiplier = emission
-		return mat
-	
-	## Builds a Gradient ramp from ordered [color, offset] pairs.
-
-	func _make_flame_ramp(points: Array) -> Gradient:
-		var g = Gradient.new()
-		var offsets = PackedFloat32Array()
-		var colors = PackedColorArray()
-		for p in points:
-			offsets.append(p[1])
-			colors.append(p[0])
-		g.offsets = offsets
-		g.colors = colors
-		return g
-	
 	## Procedural melee swing: sweeps the held weapon across a horizontal arc,
 	## alternating sides each attack, then restores the idle pose.
 
 
 class SporeBazookaStrategy extends WeaponStrategy:
 
+	## Hasta 5 proyectiles en abanico (grados respecto al apuntado).
+	const SHOT_ANGLES: Array[float] = [0.0, 9.0, -9.0, 18.0, -18.0]
+	const MAX_SHOTS: int = 5
+	## Separación máxima entre disparos de una misma salva (el ciclo del bazuca es muy largo)
+	const MAX_STAGGER_S := 0.45
+
+	static func shot_count(mods: Dictionary) -> int:
+		return clampi(1 + int(mods.get("quantity_bonus", 0)), 1, MAX_SHOTS)
+
 	func attack(cd_mult: float) -> void:
 		c.attack_cooldown = c.player.get_weapon_data(WeaponData.WeaponType.SPORE_BAZOOKA).base_cooldown * cd_mult
+		c.player.orient_player_to_aim(c.player.get_camera_aim_point())
+
+		var mods: Dictionary = c.player.get_weapon_modifiers(WeaponData.WeaponType.SPORE_BAZOOKA)
+		var shots := shot_count(mods)
+		# Cada proyectil sale con su propio timing (el primero al instante)
+		var step: float = minf(c.attack_cooldown / float(shots), MAX_STAGGER_S)
+		for i in range(shots):
+			if i == 0:
+				_fire_spore(0)
+			else:
+				c.player.get_tree().create_timer(step * float(i)).timeout.connect(_fire_spore.bind(i))
+
+	## Dispara el proyectil `index` con los datos de ESTE instante (apuntado, daño, mejoras).
+	func _fire_spore(index: int) -> void:
+		if not is_instance_valid(c.player) or not c.player.is_inside_tree():
+			return
+		var mods: Dictionary = c.player.get_weapon_modifiers(WeaponData.WeaponType.SPORE_BAZOOKA)
 		var aim_point = c.player.get_camera_aim_point()
 		var start_pos = c.player.muzzle.global_position
-		var aim_dir = (aim_point - start_pos).normalized()
+		var aim_dir: Vector3 = (aim_point - start_pos).normalized()
 		if (aim_point - start_pos).length_squared() < 0.04:
 			aim_dir = -c.player.spring_arm.global_transform.basis.z
-	
-		c.player.orient_player_to_aim(aim_point)
-	
+		aim_dir = aim_dir.rotated(Vector3.UP, deg_to_rad(SHOT_ANGLES[index]))
+
 		var b_stream = AudioManager.get_stream("tiro_bazuca")
 		var b_start_time = b_stream.get_length() * 0.10 if b_stream else 0.0
-		AudioManager.play("tiro_bazuca", -10.0, 1.0, b_start_time)
-	
+		AudioManager.play("tiro_bazuca", -10.0 if index == 0 else -14.0, 1.0 + 0.05 * float(index), b_start_time)
+
+		var data: WeaponData = c.player.get_weapon_data(WeaponData.WeaponType.SPORE_BAZOOKA)
 		var dmg = c.player._weapon_damage(WeaponData.WeaponType.SPORE_BAZOOKA) * c.spore_damage_mult
-		var cloud_dps = 4.0 * c.spore_damage_mult
+		var cloud_dps = 5.0 * c.spore_damage_mult * float(mods["damage"])
+		var size_mult: float = float(mods["size"]) * _ranged_size()
 		var spore_color = Color(0.8, 0.95, 0.3)
-	
+
 		var proj = c.spore_projectile_scene.instantiate()
 		c.player.get_parent().add_child(proj)
 		proj.global_position = start_pos
-		proj.setup(aim_dir, dmg, c.player.get_weapon_data(WeaponData.WeaponType.SPORE_BAZOOKA).projectile_speed,
-			cloud_dps, c.spore_cloud_duration, c.player.get_weapon_data(WeaponData.WeaponType.SPORE_BAZOOKA).weapon_range)
-	
-		c.player.apply_camera_recoil(0.05, randf_range(-0.008, 0.008), 0.14)
+		proj.scale = Vector3.ONE * size_mult
+		proj.setup(aim_dir, dmg, data.projectile_speed, cloud_dps, c.spore_cloud_duration, data.weapon_range * size_mult)
+		proj.source_weapon = WeaponData.WeaponType.SPORE_BAZOOKA
+		proj.source_player = c.player
+
+		c.player.apply_camera_recoil(0.05 if index == 0 else 0.02, randf_range(-0.008, 0.008), 0.14 if index == 0 else 0.06)
 		c.player.create_muzzle_flash(spore_color, 1.6)
-	
+
 	## Twin Daggers: rapid short-range cuts. Alternates red and blue slash visuals.
 
 
-class DualDaggersStrategy extends WeaponStrategy:
-
-	func attack(cd_mult: float) -> void:
-		c.attack_cooldown = c.player.get_weapon_data(WeaponData.WeaponType.DUAL_DAGGERS).base_cooldown * cd_mult
-		c.player.orient_player_to_aim(c.player.get_camera_aim_point())
-		var forward_dir = c.player.get_attack_forward_dir()
-		var player_pos = c.player.global_position
-		var dmg = c.player._weapon_damage(WeaponData.WeaponType.DUAL_DAGGERS)
-	
-		var slash_side = c._melee_swing_side
-		c._melee_swing_side = -c._melee_swing_side
-	
-		var slash_color = Color(1.0, 0.25, 0.25) if slash_side > 0 else Color(0.25, 0.55, 1.0)
-	
-		# Hitbox is now handled by the instantiated weapon scene
-		var daggers_scene = preload("res://scenes/objects/dual_daggers.tscn").instantiate()
-		c.player.get_parent().add_child(daggers_scene)
-		daggers_scene.global_position = player_pos + forward_dir * 1.25
-		daggers_scene.look_at(daggers_scene.global_position + forward_dir, Vector3.UP)
-		daggers_scene.setup(dmg, 0.15, 12.0, forward_dir)
-	
-		animate_weapon_swing(WeaponData.WeaponType.DUAL_DAGGERS, slash_side)
-		create_dual_slash_visual(player_pos, forward_dir, slash_side, slash_color)
-	
-	## Twin Daggers (Right Click): strikes with BOTH daggers in one wide cross,
-	## dealing much more damage than the fast single cuts.
-
-	func attack_dual_daggers_heavy(cd_mult: float) -> void:
-		c.attack_cooldown = c.player.get_weapon_data(WeaponData.WeaponType.DUAL_DAGGERS).heavy_cooldown * cd_mult
-		c.player.orient_player_to_aim(c.player.get_camera_aim_point())
-		var forward_dir = c.player.get_attack_forward_dir()
-		var player_pos = c.player.global_position
-		var dmg = c.player._weapon_heavy_damage(WeaponData.WeaponType.DUAL_DAGGERS)
-	
-		c.player.emit_signal("weapon_attacked", WeaponData.WeaponType.DUAL_DAGGERS)
-	
-		# Hitbox is now handled by the instantiated weapon scene
-		var daggers_scene = preload("res://scenes/objects/dual_daggers.tscn").instantiate()
-		c.player.get_parent().add_child(daggers_scene)
-		# Heavy attack gets a larger hitbox scale
-		daggers_scene.scale = Vector3(1.5, 1.0, 1.5)
-		daggers_scene.global_position = player_pos + forward_dir * 1.5
-		daggers_scene.look_at(daggers_scene.global_position + forward_dir, Vector3.UP)
-		daggers_scene.setup(dmg, 0.25, 18.0, forward_dir)
-	
-		# Cross slash: both daggers sweep toward the center.
-		create_dual_slash_visual(player_pos, forward_dir, 1.0, Color(1.0, 0.25, 0.25))
-		create_dual_slash_visual(player_pos, forward_dir, -1.0, Color(0.25, 0.55, 1.0))
-		c.player.apply_camera_recoil(0.02, randf_range(-0.005, 0.005), 0.05)
-	
-	## Short, colored slash arc for the twin daggers (red for main hand,
-	## blue for off hand). Sweeps across the front, alternating with `side`.
-
-	func create_dual_slash_visual(pos: Vector3, facing_dir: Vector3, side: float, slash_color: Color) -> void:
-		var arc = MeshInstance3D.new()
-		var mesh_inst = PrismMesh.new()
-		mesh_inst.size = Vector3(2.2, 0.08, 1.3)
-		arc.mesh = mesh_inst
-	
-		var mat = StandardMaterial3D.new()
-		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		mat.albedo_color = Color(slash_color.r, slash_color.g, slash_color.b, 0.5)
-		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		mat.emission_enabled = true
-		mat.emission = slash_color
-		mat.emission_energy_multiplier = 2.0
-		arc.material_override = mat
-	
-		c.player.get_parent().add_child(arc)
-		arc.global_position = pos + facing_dir * 1.1 + Vector3(0, 1.0, 0)
-		if facing_dir.cross(Vector3.UP).length() > 0.001:
-			arc.look_at(arc.global_position + facing_dir, Vector3.UP)
-	
-		arc.rotation.y = deg_to_rad(-35.0 * side)
-	
-		# --- Cutting Slash Sparks ---
-		var sparks := CPUParticles3D.new()
-		sparks.amount = 14
-		sparks.lifetime = 0.2
-		sparks.explosiveness = 0.9
-		sparks.one_shot = true
-		sparks.direction = facing_dir + Vector3(side * 0.5, 0.2, 0).normalized()
-		sparks.spread = 30.0
-		sparks.initial_velocity_min = 6.0
-		sparks.initial_velocity_max = 12.0
-		sparks.scale_amount_min = 0.4
-		sparks.scale_amount_max = 0.8
-	
-		var p_mesh := BoxMesh.new()
-		p_mesh.size = Vector3(0.04, 0.04, 0.2)
-		sparks.mesh = p_mesh
-	
-		var sp_mat := StandardMaterial3D.new()
-		sp_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		sp_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		sp_mat.albedo_color = Color(slash_color.r, slash_color.g, slash_color.b, 0.5)
-		sp_mat.emission_enabled = true
-		sp_mat.emission = slash_color
-		sp_mat.emission_energy_multiplier = 2.5
-		sparks.material_override = sp_mat
-	
-		c.player.get_parent().add_child(sparks)
-		sparks.global_position = arc.global_position
-		sparks.emitting = true
-	
-		var tween = c.player.create_tween().set_parallel(true)
-		tween.tween_property(arc, "rotation:y", deg_to_rad(35.0 * side), 0.12).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		tween.tween_property(arc, "scale", Vector3(1.3, 1.3, 1.3), 0.12)
-		tween.tween_property(mat, "albedo_color:a", 0.0, 0.18)
-		tween.chain().tween_callback(arc.queue_free)
-		
-		var cleanup = c.player.create_tween()
-		cleanup.tween_interval(0.3)
-		cleanup.tween_callback(sparks.queue_free)
-	
-	## Mikeura's spear-lance: broad horizontal slash in front of the c.player.
-
-
-class AirFistsStrategy extends WeaponStrategy:
-
-	func attack(cd_mult: float) -> void:
-		c.attack_cooldown = c.player.get_weapon_data(WeaponData.WeaponType.AIR_FISTS).base_cooldown * cd_mult
-		c.player.orient_player_to_aim(c.player.get_camera_aim_point())
-		var forward_dir = c.player.get_attack_forward_dir()
-		var player_pos = c.player.global_position
-		var dmg = c.player._weapon_damage(WeaponData.WeaponType.AIR_FISTS)
-	
-		# Alternate combo step: 0 = left punch, 1 = right punch
-		var punch_side = 1.0 if c._punch_combo_step == 0 else -1.0
-		c._punch_combo_step = (c._punch_combo_step + 1) % 2
-	
-		# Hitbox is now handled by the instantiated weapon scene
-		var fists_scene = preload("res://scenes/objects/air_fists.tscn").instantiate()
-		c.player.get_parent().add_child(fists_scene)
-		fists_scene.global_position = player_pos + forward_dir * 1.5
-		fists_scene.look_at(fists_scene.global_position + forward_dir, Vector3.UP)
-		fists_scene.setup(dmg, 0.15, 14.0, forward_dir)
-	
-		# Animate: snap the punching fist forward then spring back
-		_animate_air_fist_punch(punch_side)
-		create_air_punch_visual(player_pos, forward_dir, punch_side, false)
-	
-	## Charged attack (hold LMB ≥ 0.55 s then release):
-	## Kaionz dashes forward then slams with a massive two-handed air blast.
-
-	func attack_air_fists_charged(cd_mult: float) -> void:
-		c.attack_cooldown = c.player.get_weapon_data(WeaponData.WeaponType.AIR_FISTS).heavy_cooldown * cd_mult
-		c.player.orient_player_to_aim(c.player.get_camera_aim_point())
-		var forward_dir = c.player.get_attack_forward_dir()
-		var player_pos = c.player.global_position
-	
-		# Start the dash
-		c._punch_dash_dir   = forward_dir
-		c._punch_dash_timer = c.PUNCH_DASH_DURATION
-	
-		# Slightly delayed hit (fires at dash midpoint)
-		var dmg = c.player._weapon_heavy_damage(WeaponData.WeaponType.AIR_FISTS)
-		var hit_timer = c.player.create_tween()
-		hit_timer.tween_interval(c.PUNCH_DASH_DURATION * 0.6)
-		hit_timer.tween_callback(func() -> void:
-			if not c.player.is_inside_tree(): return
-			var hit_pos = c.player.global_position
-			var hit_dir = -c.player.mesh.global_transform.basis.z
-			var fists_scene = preload("res://scenes/objects/air_fists.tscn").instantiate()
-			c.player.get_parent().add_child(fists_scene)
-			fists_scene.scale = Vector3(2.0, 1.0, 2.0)
-			fists_scene.global_position = hit_pos + hit_dir * 1.5
-			fists_scene.look_at(fists_scene.global_position + hit_dir, Vector3.UP)
-			fists_scene.setup(dmg, 0.25, 22.0, hit_dir)
-			create_air_punch_visual(hit_pos, hit_dir, 0.0, true)
-			c.player.apply_camera_recoil(0.04, randf_range(-0.01, 0.01), 0.12)
-		)
-	
-		c.player.emit_signal("weapon_attacked", WeaponData.WeaponType.AIR_FISTS)
-		c.player.apply_camera_recoil(0.025, randf_range(-0.005, 0.005), 0.07)
-	
-	## Skill — Choque de Puños (E key):
-	## Kaionz slams both fists together, generating an air shockwave that
-	## radiates outward 9 m and slows all enemies caught in it by 55% for 4 s.
-
-	func _animate_air_fist_punch(side: float) -> void:
-		var fists_root : Node3D = c.player.weapon_models.get(WeaponData.WeaponType.AIR_FISTS)
-		if not fists_root or not is_instance_valid(fists_root): return
-		# side > 0 → left fist (child 0), side < 0 → right fist (child 1)
-		var child_idx = 0 if side > 0 else 1
-		if fists_root.get_child_count() <= child_idx: return
-		var fist : Node3D = fists_root.get_child(child_idx)
-		var orig = fist.position
-		var punched = orig + Vector3(0, 0, -0.22)   # local -Z = forward
-		var tw = c.player.create_tween()
-		tw.tween_property(fist, "position", punched, 0.07).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		tw.tween_property(fist, "position", orig,    0.14).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-	
-	## Short-lived compressed-air impact visual: an expanding flat ring + light burst.
-	## `is_charged` makes a larger, two-ring version for the dash punch.
-
-	func create_air_punch_visual(pos: Vector3, facing_dir: Vector3, side: float, is_charged: bool) -> void:
-		var ring_count = 2 if is_charged else 1
-		var base_scale = 2.2 if is_charged else 1.4
-		var duration = 0.22 if is_charged else 0.16
-	
-		for i in range(ring_count):
-			var ring = MeshInstance3D.new()
-			var ring_mesh = TorusMesh.new()
-			ring_mesh.inner_radius  = 0.05
-			ring_mesh.outer_radius  = 0.18
-			ring_mesh.rings         = 14
-			ring_mesh.ring_segments = 10
-			ring.mesh = ring_mesh
-	
-			var mat = StandardMaterial3D.new()
-			mat.shading_mode  = BaseMaterial3D.SHADING_MODE_UNSHADED
-			mat.albedo_color  = Color(0.6, 0.93, 1.0, 0.45)
-			mat.transparency  = BaseMaterial3D.TRANSPARENCY_ALPHA
-			mat.emission_enabled = true
-			mat.emission      = Color(0.4, 0.85, 1.0)
-			mat.emission_energy_multiplier = 2.0
-			ring.material_override = mat
-	
-			c.player.get_parent().add_child(ring)
-			ring.global_position = pos + facing_dir * (1.0 + i * 0.3) + Vector3(0, 0.9, 0)
-			if facing_dir.cross(Vector3.UP).length() > 0.001:
-				ring.look_at(ring.global_position + facing_dir, Vector3.UP)
-			ring.rotate_object_local(Vector3.RIGHT, deg_to_rad(90))
-	
-			var target_scale = Vector3(base_scale + i * 0.5, base_scale + i * 0.5, base_scale + i * 0.5)
-			var tw = c.player.create_tween().set_parallel(true)
-			tw.tween_property(ring, "scale", target_scale, duration).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
-			tw.tween_property(mat,  "albedo_color:a", 0.0,   duration * 1.3)
-			tw.chain().tween_callback(ring.queue_free)
-	
-		# --- Wind Shockwave Stream ---
-		var wind := CPUParticles3D.new()
-		wind.amount = 18 if is_charged else 12
-		wind.lifetime = 0.25
-		wind.explosiveness = 0.9
-		wind.one_shot = true
-		wind.direction = facing_dir
-		wind.spread = 25.0
-		wind.initial_velocity_min = 9.0 if is_charged else 6.0
-		wind.initial_velocity_max = 18.0 if is_charged else 12.0
-		wind.scale_amount_min = 0.4
-		wind.scale_amount_max = 0.9
-	
-		var wp_mesh := SphereMesh.new()
-		wp_mesh.radius = 0.07
-		wp_mesh.height = 0.2
-		wind.mesh = wp_mesh
-	
-		var wp_mat := StandardMaterial3D.new()
-		wp_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		wp_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		wp_mat.albedo_color = Color(0.75, 0.95, 1.0, 0.45)
-		wp_mat.emission_enabled = true
-		wp_mat.emission = Color(0.5, 0.9, 1.0)
-		wp_mat.emission_energy_multiplier = 1.8
-		wind.material_override = wp_mat
-	
-		var w_ramp := Gradient.new()
-		w_ramp.set_color(0, Color(0.75, 0.95, 1.0, 0.5))
-		w_ramp.add_point(1.0, Color(0.5, 0.85, 1.0, 0.0))
-		wind.color_ramp = w_ramp
-	
-		c.player.get_parent().add_child(wind)
-		wind.global_position = pos + facing_dir * 1.0 + Vector3(0, 0.9, 0)
-		wind.emitting = true
-	
-		var w_clean = c.player.create_tween()
-		w_clean.tween_interval(0.35)
-		w_clean.tween_callback(wind.queue_free)
-	
-		# Impact light
-		var light = OmniLight3D.new()
-		light.light_color  = Color(0.55, 0.90, 1.0)
-		light.light_energy = 5.5 if is_charged else 3.5
-		light.omni_range   = 5.5 if is_charged else 3.5
-		c.player.get_parent().add_child(light)
-		light.global_position = pos + facing_dir * 1.2 + Vector3(0, 0.9, 0)
-		var ltw = c.player.create_tween()
-		ltw.tween_property(light, "light_energy", 0.0, 0.18)
-		ltw.tween_callback(light.queue_free)
-	
-	## Expanding air shockwave for the skill: large torus ring + secondary pulse ring
-	## + a soft point light that fades out over the full animation.
-
-
 class DustsStrategy extends WeaponStrategy:
+
+	const DustProjectileRef = preload("res://scripts/objects/dust_projectile.gd")
+	## Hasta 4 polvazos por lanzamiento (grados de giro respecto al apuntado).
+	const THROW_ANGLES: Array[float] = [0.0, 11.0, -11.0, 22.0]
+	const MAX_THROWS: int = 4
+	const THROW_STAGGER_S := 0.12
+	const BASE_DAMAGE := 38.0
+
+	static func dust_count(mods: Dictionary) -> int:
+		return clampi(1 + int(mods.get("quantity_bonus", 0)), 1, MAX_THROWS)
 
 	func attack(cd_mult: float) -> void:
 		c.attack_cooldown = c.player.get_weapon_data(WeaponData.WeaponType.DUSTS).base_cooldown * cd_mult
@@ -1071,17 +664,39 @@ class DustsStrategy extends WeaponStrategy:
 		if c.current_dust_mode == 1:
 			# Brown dust: burst of speed instead of a throw.
 			c.dust_speed_boost_timer = 4.0
-			create_dust_puff_visual(c.player.muzzle.global_position, Color(0.55, 0.38, 0.18))
+			create_dust_puff_visual(c.player.muzzle.global_position, Color(1.0, 0.93, 0.74))
 			return
 	
-		var proj = c.dust_projectile_scene.instantiate()
-		c.player.get_parent().add_child(proj)
-		proj.setup(c.player.muzzle.global_position, aim_point, c.current_dust_mode, c.player)
-	
-		var dust_color = Color(0.73, 0.25, 0.9) if c.current_dust_mode == 0 else Color(0.2, 0.95, 0.45)
+		var mods: Dictionary = c.player.get_weapon_modifiers(WeaponData.WeaponType.DUSTS)
+		# El polvo sanador es una sola nube; el arcano lanza hasta MAX_THROWS polvazos
+		var throws := dust_count(mods) if c.current_dust_mode == 0 else 1
+		var start_pos: Vector3 = c.player.muzzle.global_position
+		for i in range(throws):
+			if i == 0:
+				_throw_dust(start_pos, aim_point, 0, mods)
+			else:
+				c.player.get_tree().create_timer(THROW_STAGGER_S * float(i)).timeout.connect(
+					_throw_dust.bind(start_pos, aim_point, i, mods))
+
+		var dust_color = Color(0.9, 0.84, 1.0) if c.current_dust_mode == 0 else Color(0.85, 1.0, 0.93)
 		c.player.apply_camera_recoil(0.02, randf_range(-0.004, 0.004), 0.08)
 		c.player.create_muzzle_flash(dust_color, 1.1)
-	
+
+	## Lanza el polvazo `index`: se abre en abanico girando el punto de impacto alrededor del jugador.
+	func _throw_dust(start_pos: Vector3, aim_point: Vector3, index: int, mods: Dictionary) -> void:
+		if not is_instance_valid(c.player) or not c.player.is_inside_tree():
+			return
+		var offset: Vector3 = aim_point - start_pos
+		offset = offset.rotated(Vector3.UP, deg_to_rad(THROW_ANGLES[index]))
+		var dmg: float = BASE_DAMAGE * float(mods["damage"]) * (c.player.stat_block.damage_mult() if c.player.stat_block else 1.0)
+		var radius: float = DustProjectileRef.BASE_RADIUS * float(mods["size"]) * _ranged_size()
+		var proj = c.dust_projectile_scene.instantiate()
+		c.player.get_parent().add_child(proj)
+		_scale_ranged(proj)
+		proj.setup(start_pos, start_pos + offset, c.current_dust_mode, c.player, dmg, radius, float(mods.get("slow", 0.0)))
+		if index > 0:
+			AudioManager.play("ataque-espalanza", -8.0, 1.8 + 0.05 * float(index))
+
 	## Right-click with dusts out: cycle the powder (0 AoE → 1 speed → 2 heal).
 
 	func cycle_dust_mode() -> void:
@@ -1093,109 +708,177 @@ class DustsStrategy extends WeaponStrategy:
 		var container := Node3D.new()
 		c.player.get_parent().add_child(container)
 		container.global_position = pos
-	
-		var light := OmniLight3D.new()
+
+		var light := Quality.new_light()
 		light.light_color = color
-		light.light_energy = 5.0
+		light.light_energy = 3.5
 		light.omni_range = 4.0
 		container.add_child(light)
-	
-		var puff := CPUParticles3D.new()
-		puff.amount              = 28
-		puff.lifetime            = 0.5
-		puff.one_shot            = true
-		puff.explosiveness       = 0.95
-		puff.direction           = Vector3.UP
-		puff.spread              = 90.0
-		puff.initial_velocity_min = 2.0
-		puff.initial_velocity_max = 5.5
-		puff.gravity             = Vector3(0, 0.5, 0)
-		puff.scale_amount_min    = 0.15
-		puff.scale_amount_max    = 0.4
-		puff.emission_shape      = CPUParticles3D.EMISSION_SHAPE_SPHERE
-		puff.emission_sphere_radius = 0.35
-	
-		var p_mesh := SphereMesh.new()
-		p_mesh.radius = 0.04
-		p_mesh.height = 0.08
-		puff.mesh = p_mesh
-	
-		var p_mat := StandardMaterial3D.new()
-		p_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		p_mat.albedo_color = Color(color, 0.9)
-		p_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		p_mat.emission_enabled = true
-		p_mat.emission = color
-		p_mat.emission_energy_multiplier = 3.5
-		puff.material_override = p_mat
-	
-		var color_ramp := Gradient.new()
-		color_ramp.set_color(0, Color(color.r, color.g, color.b, 0.9))
-		color_ramp.add_point(1.0, Color(color.r, color.g, color.b, 0.0))
-		puff.color_ramp = color_ramp
-	
-		container.add_child(puff)
-		puff.emitting = true
-	
+
+		# Bocanada de polvo con el shader de polvo (blanco con un toque cálido)
+		var cloud_mesh := MeshInstance3D.new()
+		var s_mesh := SphereMesh.new()
+		s_mesh.radius = 0.5
+		s_mesh.height = 1.0
+		s_mesh.radial_segments = 16
+		s_mesh.rings = 10
+		cloud_mesh.mesh = s_mesh
+		var mat := ShaderMaterial.new()
+		mat.shader = CLOUD_SHADER
+		mat.set_shader_parameter("clouds_color", Vector3(color.r, color.g, color.b))
+		mat.set_shader_parameter("rim_color", Vector3(1.0, 1.0, 1.0))
+		mat.set_shader_parameter("clouds_speed", 6.0)
+		mat.set_shader_parameter("clouds_scale", 1.8)
+		mat.set_shader_parameter("compression_squish", 1.0)
+		mat.set_shader_parameter("explosion_progress", 0.0)
+		cloud_mesh.material_override = mat
+		cloud_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		container.add_child(cloud_mesh)
+
+		var grains: CPUParticles3D = DUST_VFX.grains(50, 0.7, 0.3, 0.05, 0.1, color, 3.0)
+		grains.one_shot = true
+		grains.explosiveness = 0.95
+		container.add_child(grains)
+		grains.emitting = true
+		var stars: CPUParticles3D = DUST_VFX.sparkles(8, 0.6, 0.3, 0.15, 0.25, color)
+		stars.one_shot = true
+		stars.explosiveness = 0.9
+		container.add_child(stars)
+		stars.emitting = true
+
 		var tween = container.create_tween().set_parallel(true)
-		tween.tween_property(light, "light_energy", 0.0, 0.4)
+		tween.tween_property(cloud_mesh, "scale", Vector3(2.6, 2.6, 2.6), 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tween.tween_property(mat, "shader_parameter/explosion_progress", 1.0, 0.6)
+		tween.tween_property(light, "light_energy", 0.0, 0.5)
+		tween.chain().tween_interval(0.8)
 		tween.chain().tween_callback(container.queue_free)
 
 
 class SerpentsStrategy extends WeaponStrategy:
 
+	## Espíritus de Joel (druida): invoca animales espirituales que atacan por él.
+	## Fase 1: Dragón de Komodo (melee, azota con la cola y deja sangrado).
+	const SEARCH_RANGE := 14.0
+	const SUMMON_DISTANCE := 2.4
+
+	## Dirección horizontal hacia el enemigo más cercano (o el frente del jugador).
+	func _target_dir() -> Vector3:
+		var best = null
+		var best_d := SEARCH_RANGE
+		for e in EnemyRegistry.all():
+			if not is_instance_valid(e):
+				continue
+			var d: float = e.global_position.distance_to(c.player.global_position)
+			if d < best_d:
+				best_d = d
+				best = e
+		var dir: Vector3
+		if best != null:
+			dir = best.global_position - c.player.global_position
+		else:
+			dir = -c.player.mesh.global_transform.basis.z
+		dir.y = 0.0
+		if dir.length_squared() < 0.0001:
+			dir = Vector3.FORWARD
+		return dir.normalized()
+
+	## Rotación de animales: se alternan; si el más cercano está lejos, ataca el búho (a distancia).
+	var _next_animal: int = 0
+	const MELEE_RANGE := 8.0
+
+	func _nearest_enemy():
+		var best = null
+		var best_d := SEARCH_RANGE
+		for e in EnemyRegistry.all():
+			if not is_instance_valid(e):
+				continue
+			var d: float = e.global_position.distance_to(c.player.global_position)
+			if d < best_d:
+				best_d = d
+				best = e
+		return best
+
+	## Animales: 0 Komodo (equilibrado), 1 Búho (rápido, golpea suave), 2 Hipopótamo (lento, golpea fuerte).
+	## base: multiplicadores de partida. Por cada nivel de mejora del animal: daño (+), tamaño (+) y
+	## recarga (×): el tiempo hasta la siguiente invocación se acorta.
+	const SPIRIT_BASE := {0: {"dmg": 1.0, "cd": 1.0}, 1: {"dmg": 0.8, "cd": 0.7}, 2: {"dmg": 1.7, "cd": 1.6}}
+	const SPIRIT_PER_LEVEL := {
+		0: {"dmg": 0.12, "size": 0.08, "cd": 0.94},
+		1: {"dmg": 0.08, "size": 0.06, "cd": 0.90},
+		2: {"dmg": 0.20, "size": 0.10, "cd": 0.96},
+	}
+
 	func attack(cd_mult: float) -> void:
-		c.attack_cooldown = c.player.get_weapon_data(WeaponData.WeaponType.SERPENTS).base_cooldown * cd_mult
-		var aim_point = c.player.get_camera_aim_point()
-		var start_pos = c.player.muzzle.global_position
-		var base_dir = (aim_point - start_pos).normalized()
-		if (aim_point - start_pos).length_squared() < 0.04:
-			base_dir = -c.player.spring_arm.global_transform.basis.z
-	
-		c.player.orient_player_to_aim(aim_point)
-	
-		var s_stream = AudioManager.get_stream("disparo-serpiente")
-		var s_start_time = s_stream.get_length() * 0.35 if s_stream else 0.0
-		AudioManager.play("disparo-serpiente", -10.0, 1.05, s_start_time)
-	
-		var dmg = c.player._weapon_damage(WeaponData.WeaponType.SERPENTS)
-		var half_angle = c.player.get_weapon_data(WeaponData.WeaponType.SERPENTS).half_angle
-		var snake_speed = c.player.get_weapon_data(WeaponData.WeaponType.SERPENTS).projectile_speed
-		var serpent_color = Color(0.3, 0.9, 0.4)
-	
-		var angles = [0.0, -half_angle, half_angle]
-		for deg in angles:
-			var spread_rot = Transform3D().rotated(Vector3.UP, deg_to_rad(deg + randf_range(-1.5, 1.5)))
-			var snake_dir: Vector3 = (spread_rot.basis * base_dir).normalized()
-	
-			var snake = c.serpent_projectile_scene.instantiate()
-			c.player.get_parent().add_child(snake)
-			snake.global_position = start_pos
-			snake.setup(snake_dir, dmg, snake_speed, c.player.get_rid())
-	
-		c.player.apply_camera_recoil(0.012, 0.0, 0.15)
-		c.player.create_muzzle_flash(serpent_color, 1.2)
-	
-	## Hacha Giratoria (Garri): lanza un hacha que vuela hasta max_range o hasta chocar
+		var W := WeaponData.WeaponType.SERPENTS
+		var mods: Dictionary = c.player.get_weapon_modifiers(W)
+		var owned: Array = c.player.weapon_inventory.get_owned_spirits()
+		var enemy = _nearest_enemy()
+		var dir := _target_dir()
+		# Rotación entre los animales que Joel tiene. El Komodo cede su turno al Búho si el enemigo está lejos.
+		var kind: int = owned[_next_animal % owned.size()]
+		_next_animal += 1
+		if enemy == null:
+			if not owned.has(0):
+				c.attack_cooldown = 0.2   # sin enemigos, Búho/Hipopótamo no tienen a quién invocar
+				return
+			kind = 0
+		elif kind == 0 and owned.has(1) and enemy.global_position.distance_to(c.player.global_position) > MELEE_RANGE:
+			kind = 1
+		c.player.orient_player_to_aim(c.player.global_position + dir * 5.0)
+
+		var lvl := int(mods.get(["komodo_lvl", "owl_lvl", "hippo_lvl"][kind], 0))
+		var base: Dictionary = SPIRIT_BASE[kind]
+		var per: Dictionary = SPIRIT_PER_LEVEL[kind]
+		c.attack_cooldown = c.player.get_weapon_data(W).base_cooldown * cd_mult * float(base["cd"]) * pow(float(per["cd"]), lvl)
+		var size: float = maxf(float(mods.get("size", 1.0)), 0.3) * (1.0 + float(per["size"]) * lvl)
+		var dmg: float = c.player._weapon_damage(W) * float(base["dmg"]) * (1.0 + float(per["dmg"]) * lvl)
+		match kind:
+			1:
+				SpiritOwl.summon(c.player.get_parent(), c.player, enemy, dmg, size, W)
+			2:
+				var tgt = SpiritHippo.pick_target(c.player.get_tree(), c.player.global_position, SEARCH_RANGE)
+				SpiritHippo.summon(c.player.get_parent(), c.player, tgt if tgt else enemy, dmg, size, W,
+					SpiritHippo.BASE_CAPACITY + int(mods.get("quantity_bonus", 0)))
+			_:
+				var at: Vector3 = c.player.global_position + dir * SUMMON_DISTANCE * size
+				SpiritKomodo.summon(c.player.get_parent(), c.player, at, dir, dmg, size, W)
+		c.player.create_muzzle_flash(Color(0.4, 1.0, 0.85), 1.0)
 
 
 class SpinningAxeStrategy extends WeaponStrategy:
 
+	## Hasta 5 hachas en abanico (grados respecto a la dirección de tiro).
+	const AXE_ANGLES: Array[float] = [0.0, 14.0, -14.0, 28.0, -28.0]
+	const MAX_AXES: int = 5
+
+	static func axe_count(mods: Dictionary) -> int:
+		return clampi(1 + int(mods.get("quantity_bonus", 0)), 1, MAX_AXES)
+
 	func attack(cd_mult: float) -> void:
-		c.attack_cooldown = c.player.get_weapon_data(WeaponData.WeaponType.SPINNING_AXE).base_cooldown * cd_mult
+		var W := WeaponData.WeaponType.SPINNING_AXE
+		var data = c.player.get_weapon_data(W)
+		c.attack_cooldown = data.base_cooldown * cd_mult
 		var aim_point = c.player.get_camera_aim_point()
 		c.player.orient_player_to_aim(aim_point)
 		var start_pos = c.player.muzzle.global_position
 		var aim_dir = (aim_point - start_pos).normalized()
 		if (aim_point - start_pos).length_squared() < 0.04:
 			aim_dir = -c.player.spring_arm.global_transform.basis.z
-	
-		var dmg = c.player._weapon_damage(WeaponData.WeaponType.SPINNING_AXE)
-		var proj = preload("res://scenes/objects/spinning_axe_projectile.tscn").instantiate()
-		c.player.get_parent().add_child(proj)
-		proj.global_position = start_pos
-		proj.setup(aim_dir, dmg, c.player.get_weapon_data(WeaponData.WeaponType.SPINNING_AXE).projectile_speed, c.player.get_weapon_data(WeaponData.WeaponType.SPINNING_AXE).weapon_range)
-	
+
+		var mods: Dictionary = c.player.get_weapon_modifiers(W)
+		var dmg = c.player._weapon_damage(W)
+		var size_mult: float = float(mods["size"])
+		var spin_time: float = 2.0 * float(mods["duration"])
+		for i in range(axe_count(mods)):
+			var proj = preload("res://scenes/objects/spinning_axe_projectile.tscn").instantiate()
+			c.player.get_parent().add_child(proj)
+			proj.global_position = start_pos
+			_scale_ranged(proj)
+			proj.scale *= size_mult
+			var dir: Vector3 = aim_dir.rotated(Vector3.UP, deg_to_rad(AXE_ANGLES[i]))
+			proj.setup(dir, dmg, data.projectile_speed, data.weapon_range)
+			proj.spin_duration = spin_time
+
 		c.player.apply_camera_recoil(0.02, 0.0, 0.1)
 		c.player.create_muzzle_flash(Color(0.2, 0.9, 0.3), 1.2)
 
@@ -1216,20 +899,68 @@ class ElementsCycleStrategy extends WeaponStrategy:
 
 class ZombieArmStrategy extends WeaponStrategy:
 
+	## Hasta 5 brazos en abanico (grados respecto a la dirección de tiro).
+	const ARM_ANGLES: Array[float] = [0.0, 16.0, -16.0, 32.0, -32.0]
+	const MAX_ARMS: int = 5
+
+	static func arm_count(mods: Dictionary) -> int:
+		return clampi(1 + int(mods.get("quantity_bonus", 0)), 1, MAX_ARMS)
+
+	## Lanza el brazo `index` con los datos de ESTE instante (apuntado, daño, mejoras).
+	func _throw_arm(index: int) -> void:
+		if not is_instance_valid(c.player) or not c.player.is_inside_tree():
+			return
+		var mods: Dictionary = c.player.get_weapon_modifiers(WeaponData.WeaponType.ZOMBIE_ARM)
+		var aim_point = c.player.get_camera_aim_point()
+		# Vuelo a ras del cañón: el aim_point suele estar en el suelo y un brazo con
+		# componente vertical se hundía bajo tierra sin tocar a los enemigos.
+		var base_dir: Vector3 = aim_point - c.player.muzzle.global_position
+		base_dir.y = 0.0
+		if base_dir.length_squared() < 0.0001:
+			base_dir = c.player.get_attack_forward_dir()
+		base_dir = base_dir.normalized()
+		var dmg = c.player._weapon_damage(WeaponData.WeaponType.ZOMBIE_ARM)
+		var size_mult: float = float(mods["size"]) * _ranged_size()
+		var range_mult: float = float(mods["range"])
+		var proj = load("res://scripts/objects/zombie_arm_projectile.tscn").instantiate()
+		c.player.get_parent().add_child(proj)
+		proj.global_position = c.player.muzzle.global_position
+		var dir: Vector3 = base_dir.rotated(Vector3.UP, deg_to_rad(ARM_ANGLES[index]))
+		proj.setup(dir, dmg, c.player)
+		proj.apply_upgrades(size_mult, range_mult)
+		proj.source_weapon = WeaponData.WeaponType.ZOMBIE_ARM
+		proj.source_player = c.player
+		if index > 0:
+			AudioManager.play("ataque-espalanza", -15.0, 0.8)
+
 	func attack(cd_mult: float) -> void:
 		c.attack_cooldown = c.player.get_weapon_data(WeaponData.WeaponType.ZOMBIE_ARM).base_cooldown * cd_mult
 		var aim_point = c.player.get_camera_aim_point()
 		c.player.orient_player_to_aim(aim_point)
-	
+
+		var mods: Dictionary = c.player.get_weapon_modifiers(WeaponData.WeaponType.ZOMBIE_ARM)
 		var proj_scene = load("res://scripts/objects/zombie_arm_projectile.tscn")
-		var proj = proj_scene.instantiate()
-		c.player.get_parent().add_child(proj)
-		
-		var dir = (aim_point - c.player.muzzle.global_position).normalized()
-		proj.global_position = c.player.muzzle.global_position
-		var dmg = WeaponData.weapon_damage(WeaponData.WeaponType.ZOMBIE_ARM, c.player.is_berserk)
-		proj.setup(dir, dmg, c.player)
-		
+		# Vuelo a ras del cañón: el aim_point suele estar en el suelo y un brazo con
+		# componente vertical se hundía bajo tierra sin tocar a los enemigos.
+		var base_dir: Vector3 = aim_point - c.player.muzzle.global_position
+		base_dir.y = 0.0
+		if base_dir.length_squared() < 0.0001:
+			base_dir = c.player.get_attack_forward_dir()
+		base_dir = base_dir.normalized()
+		var dmg = c.player._weapon_damage(WeaponData.WeaponType.ZOMBIE_ARM)
+		var size_mult: float = float(mods["size"]) * _ranged_size()
+		var range_mult: float = float(mods["range"])
+
+		# Cada brazo sale con su propio timing: el primero al instante y los demás repartidos
+		# dentro del ciclo de ataque (ciclo / nº de brazos). Cada uno golpea por su cuenta.
+		var arms := arm_count(mods)
+		var step: float = c.attack_cooldown / float(arms)
+		for i in range(arms):
+			if i == 0:
+				_throw_arm(0)
+			else:
+				c.player.get_tree().create_timer(step * float(i)).timeout.connect(_throw_arm.bind(i))
+
 		AudioManager.play("ataque-espalanza", -12.0, 0.8)
 		
 		c.player.apply_camera_recoil(0.015, randf_range(-0.005, 0.005), 0.05)

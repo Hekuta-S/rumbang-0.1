@@ -9,6 +9,10 @@ var level_up_sfx: AudioStreamPlayer
 
 signal restart_pressed
 
+func start_music() -> void:
+	if bg_music and not bg_music.playing:
+		bg_music.play()
+
 func initialize(p_hud: Node, p_player: Node3D) -> void:
 	hud = p_hud
 	player = p_player
@@ -16,8 +20,7 @@ func initialize(p_hud: Node, p_player: Node3D) -> void:
 	bg_music = AudioStreamPlayer.new()
 	bg_music.stream = load("res://assets/audio/main-soundtrack.mp3")
 	bg_music.volume_db = -6.0
-	bg_music.autoplay = true
-	add_child(bg_music)
+	add_child(bg_music)   # se reproduce con start_music() cuando el mundo está listo
 
 	level_up_sfx = AudioStreamPlayer.new()
 	level_up_sfx.stream = load("res://assets/sfx/level-up.mp3")
@@ -44,9 +47,6 @@ func initialize(p_hud: Node, p_player: Node3D) -> void:
 	var pause_menu = preload("res://scenes/ui/pause_menu.tscn").instantiate()
 	add_child(pause_menu)
 	refresh_weapon_ui()
-
-func update_floor(sub_level: int) -> void:
-	hud.update_floor(sub_level)
 
 func update_elapsed_time(elapsed_seconds: float) -> void:
 	if hud and hud.has_method("update_elapsed_time"):
@@ -76,7 +76,7 @@ func show_item_choice() -> void:
 func _on_item_selected(item_id: String) -> void:
 	player.inventory.add_item(item_id)
 
-func _on_player_stats_changed(hp, max_hp, shield, max_shield, _energy = 0.0, _max_energy = 0.0) -> void:
+func _on_player_stats_changed(hp, max_hp, shield, max_shield) -> void:
 	hud.update_stats(hp, max_hp, shield, max_shield)
 
 func _on_player_experience_gained(amount, current_xp, required_xp) -> void:
@@ -112,6 +112,11 @@ func _on_upgrade_choice_made(choice_type: String, choice_id: String) -> void:
 	var w_id = choice_id.to_int()
 	if choice_type == "new_weapon":
 		player.add_weapon(w_id)
+	elif choice_type == "weapon_stat":
+		# id = "arma:mejora"
+		var parts := choice_id.split(":")
+		if parts.size() == 2:
+			player.weapon_inventory.upgrade_weapon_stat(parts[0].to_int(), parts[1])
 	elif choice_type == "upgrade":
 		player.upgrade_weapon(w_id)
 

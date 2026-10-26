@@ -210,7 +210,7 @@ func _spawn_single_enemy() -> int:
 
 func _spawn_boss() -> void:
 	_boss_spawned = true
-	var boss = EnemyFactory.create_enemy("necromancer")
+	var boss = NecromancerBossCreator.new().create_enemy()
 	if boss == null:
 		return
 	var player_pos = player.global_position if player else Vector3.ZERO

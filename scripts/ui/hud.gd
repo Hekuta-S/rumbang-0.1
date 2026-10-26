@@ -42,6 +42,9 @@ var weapon_textures: Dictionary = {
 var _last_stats: Array = []
 
 func _ready() -> void:
+	# Ya no hay pisos: se oculta el panel de nivel (el cronómetro es la referencia)
+	if floor_label:
+		floor_label.get_parent().get_parent().visible = false
 	_create_fps_label()
 	call_deferred("_connect_to_player")
 
@@ -138,10 +141,6 @@ func update_weapons(active_index: int, weapons_list: Array) -> void:
 
 func update_reload(_weapon_type: int, _ammo: int, _max_ammo: int, is_reloading: bool, progress: float) -> void:
 	pass
-
-func update_floor(sub_lvl: int) -> void:
-	if floor_label:
-		floor_label.text = "NIVEL 1-" + str(sub_lvl)
 
 func update_elapsed_time(elapsed_seconds: float) -> void:
 	if not time_label:

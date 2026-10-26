@@ -67,3 +67,23 @@ MIT — [localkeep.ai](https://localkeep.ai)
 - **[CC-01] PlayerCombatController (SRP / OCP):** 
   - **Qué se cambió:** Se eliminaron los métodos gigantes `attack_*` y los bloques `match` dentro del `PlayerCombatController`. En su lugar, se implementó el **Patrón Strategy**. Se creó el archivo `weapon_strategy.gd` con una clase base `WeaponStrategy` y subclases para cada tipo de arma (ej: `EnergySwordStrategy`). 
   - **Por qué:** El controlador era un "God Object" que acoplaba toda la lógica de combate de todas las armas en un solo archivo, lo que volvía inviable el mantenimiento y violaba el Principio Abierto/Cerrado (OCP). Ahora, el controlador solo delega la ejecución (`_strategies[arma].attack()`), permitiendo agregar nuevas armas sin tocar su código.
+
+
+### Tercera entrega - Patrones de diseño creacionales y estructurales
+
+Tecnologías: Godot 4.7 (Forward Plus), GDScript. Ejecución: abrir la carpeta en Godot 4.7+ y pulsar F5 (escena principal `scenes/ui/main_menu.tscn`).
+Documentación completa en [`docs/entrega3/`](docs/entrega3/): control de cambios (PE-01..PE-09), informe con código antes/después, diagramas UML y guion de sustentación.
+
+| ID | Patrón | Tipo | Clases principales |
+|----|--------|------|--------------------|
+| PE-01 | Factory Method | Creacional | `EnemyCreator`, `BossCreator`, `NecromancerBossCreator` |
+| PE-02 | Abstract Factory | Creacional | `PlatformFactory` + `Mobile/DesktopPlatformFactory` |
+| PE-03 | Builder + Director | Creacional | `WeaponBuilder`, `WeaponDirector` |
+| PE-04 | Prototype | Creacional | `WeaponData.clone()`, `WeaponPrototypeRegistry` |
+| PE-05 | Singleton | Creacional | `GameState` (se elimina el duplicado `GameManagerSingleton`) |
+| PE-06 | Decorator | Estructural | `DamageSource` + decoradores de daño (`Player._damage_chain`) |
+| PE-07 | Flyweight | Estructural | `EnemyTypeFlyweight`, `EnemyTypeFlyweightFactory` |
+| PE-08 | Adapter | Estructural | `MovementSource` + adaptadores táctil/teclado/mando |
+| PE-09 | Facade | Estructural | `GameStartFacade` (existente) |
+
+Además se corrigió `PoolManager` para no reutilizar balas aún en vuelo. El comportamiento del juego no cambia.

@@ -48,11 +48,23 @@ func spawn_item_pickup() -> void:
 	pickup.position = Vector3(px, py + 0.5, pz)
 	get_parent().add_child(pickup)
 
+## Tope de orbes de XP en el suelo: pasado el tope, el XP se suma al orbe más reciente
+## en vez de crear otro nodo con partículas.
+const MAX_XP_ORBS := 90
+var _xp_orbs: Array[XPOrb] = []
+
 func spawn_xp_orb(pos: Vector3) -> void:
-	if xp_orb_scene:
-		var orb = xp_orb_scene.instantiate()
-		orb.position = pos + Vector3(0, 0.5, 0)
-		get_parent().add_child(orb)
+	if not xp_orb_scene:
+		return
+	_xp_orbs = _xp_orbs.filter(func(o): return is_instance_valid(o))
+	if _xp_orbs.size() >= MAX_XP_ORBS:
+		var last: XPOrb = _xp_orbs[_xp_orbs.size() - 1]
+		last.xp_amount += 1.0
+		return
+	var orb = xp_orb_scene.instantiate()
+	orb.position = pos + Vector3(0, 0.5, 0)
+	get_parent().add_child(orb)
+	_xp_orbs.append(orb)
 
 func spawn_debug_orbs() -> void:
 	if not player: return

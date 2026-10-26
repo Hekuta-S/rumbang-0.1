@@ -6,7 +6,10 @@ var active_duration: float = 0.1
 var knockback_force: float = 14.0
 var attack_direction: Vector3 = Vector3.ZERO
 var timer: float = 0.0
-var hit_enemies: Array[Node3D] = []
+var hit_enemies: Array = []
+## Quién golpea y con qué arma (para robo de vida y similares). -1 = sin origen.
+var source_weapon: int = -1
+var source_player: Node = null
 
 func setup(dmg: float, duration: float = 0.1, kb_force: float = 14.0, dir: Vector3 = Vector3.ZERO):
 	damage = dmg
@@ -24,7 +27,13 @@ func _process(delta: float):
 	if timer >= active_duration:
 		queue_free()
 
-func _on_body_entered(body: Node3D):
+## body_entered no se emite para enemigos que YA tocaban el área al aparecer
+## (p. ej. pegados al jugador), así que también se leen los solapamientos.
+func _physics_process(_delta: float) -> void:
+	for body in EnemyQuery.overlapping(self):
+		_on_body_entered(body)
+
+func _on_body_entered(body):
 	if body.is_in_group("enemies") and body.has_method("take_damage"):
 		if not hit_enemies.has(body):
 			hit_enemies.append(body)
@@ -36,4 +45,6 @@ func _on_body_entered(body: Node3D):
 					kb_dir = -global_transform.basis.z
 			kb_dir = kb_dir.normalized()
 			body.take_damage(damage, kb_dir * knockback_force)
+			if source_weapon >= 0 and is_instance_valid(source_player) and source_player.has_method("on_damage_dealt"):
+				source_player.on_damage_dealt(damage, source_weapon)
 

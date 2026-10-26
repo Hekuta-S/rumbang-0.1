@@ -14,13 +14,47 @@ const DAMAGE_TICK_RATE = 0.2
 
 @onready var visual = $Visual
 
+# Dinamismo de lanzamiento
+var spin_axis: Vector3 = Vector3.UP
+var spin_speed: float = 24.0
+var sway_axis: Vector3 = Vector3.RIGHT
+var flight_elapsed: float = 0.0
+
+var spin_sfx: AudioStreamPlayer3D
+
+# Estela principal de trayectoria
+var ribbon_mesh_instance: MeshInstance3D
+var ribbon_mesh: RibbonTrail3D
+
+# Estela orbital / giratoria
+var spin_ribbon_mesh_instance: MeshInstance3D
+var spin_ribbon_mesh: RibbonTrail3D
+var trail_tip: Marker3D
+
 func setup(dir: Vector3, dmg: float, spd: float, rng: float):
-	direction = dir
+	direction = dir.normalized()
 	damage = dmg
 	speed = spd
 	max_range = rng
+	flight_elapsed = 0.0
 
-var spin_sfx: AudioStreamPlayer3D
+	# Variación dinámica de ángulo y giro en cada lanzamiento
+	var rand_tilt_deg = randf_range(-25.0, 25.0)
+	var rand_yaw_deg = randf_range(-15.0, 15.0)
+	spin_speed = randf_range(20.0, 30.0)
+
+	# Eje de rotación dinámico orientado al vuelo
+	var basis_rot = Basis()
+	basis_rot = basis_rot.rotated(Vector3.FORWARD, deg_to_rad(rand_tilt_deg))
+	basis_rot = basis_rot.rotated(Vector3.UP, deg_to_rad(rand_yaw_deg))
+	spin_axis = (basis_rot * Vector3.RIGHT).normalized()
+
+	if visual:
+		visual.rotation = Vector3(
+			deg_to_rad(randf_range(-15.0, 15.0)),
+			deg_to_rad(randf_range(0.0, 360.0)),
+			deg_to_rad(rand_tilt_deg)
+		)
 
 func _ready():
 	collision_layer = 0
@@ -34,58 +68,87 @@ func _ready():
 	spin_sfx.pitch_scale = 1.6
 	add_child(spin_sfx)
 
-	# --- Orbital / Flying Trail ---
-	var trail := CPUParticles3D.new()
-	trail.name = "AxeTrail"
-	trail.local_coords = false
-	trail.amount = 25
-	trail.lifetime = 0.25
-	trail.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
-	trail.emission_sphere_radius = 0.4
-	trail.gravity = Vector3.ZERO
-	trail.spread = 45.0
-	trail.initial_velocity_min = 0.5
-	trail.initial_velocity_max = 2.0
-	trail.scale_amount_min = 0.3
-	trail.scale_amount_max = 0.7
+	_setup_trails()
 
-	var p_mesh := BoxMesh.new()
-	p_mesh.size = Vector3(0.06, 0.06, 0.2)
-	trail.mesh = p_mesh
+func _setup_trails() -> void:
+	var mesh_shader = preload("res://assets/shaders/ribbon_mesh.gdshader")
 
-	var t_mat := StandardMaterial3D.new()
-	t_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	t_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	t_mat.albedo_color = Color(0.2, 0.9, 0.3, 0.45)
-	t_mat.emission_enabled = true
-	t_mat.emission = Color(0.2, 0.9, 0.3)
-	t_mat.emission_energy_multiplier = 2.0
-	trail.material_override = t_mat
+	# 1. Estela principal de trayectoria (Rojo fucsia brillante)
+	ribbon_mesh = RibbonTrail3D.new()
+	ribbon_mesh.trail_width = 0.8
+	ribbon_mesh.lifetime = 0.35
+	ribbon_mesh.max_points = 40
 
-	var color_ramp := Gradient.new()
-	color_ramp.set_color(0, Color(0.2, 0.9, 0.3, 0.5))
-	color_ramp.add_point(1.0, Color(0.1, 0.5, 0.2, 0.0))
-	trail.color_ramp = color_ramp
+	ribbon_mesh_instance = MeshInstance3D.new()
+	ribbon_mesh_instance.top_level = true
+	ribbon_mesh_instance.mesh = ribbon_mesh
 
-	add_child(trail)
-	trail.emitting = true
+	var render_mat := ShaderMaterial.new()
+	render_mat.shader = mesh_shader
+	# Rojo fucsia neón
+	render_mat.set_shader_parameter("trail_color", Vector4(1.0, 0.05, 0.45, 0.95))
+	render_mat.set_shader_parameter("rim_color", Vector4(1.0, 0.35, 0.75, 1.0))
+	render_mat.set_shader_parameter("trail_fade_power", 1.2)
+	ribbon_mesh_instance.material_override = render_mat
+	add_child(ribbon_mesh_instance)
+
+	# 2. Estela giratoria / dando vueltas (anclada a la punta de la pala de la guitarra)
+	trail_tip = Marker3D.new()
+	trail_tip.position = Vector3(0.0, 0.8, 0.4)
+	if visual:
+		visual.add_child(trail_tip)
+	else:
+		add_child(trail_tip)
+
+	spin_ribbon_mesh = RibbonTrail3D.new()
+	spin_ribbon_mesh.trail_width = 0.45
+	spin_ribbon_mesh.lifetime = 0.28
+	spin_ribbon_mesh.max_points = 48
+
+	spin_ribbon_mesh_instance = MeshInstance3D.new()
+	spin_ribbon_mesh_instance.top_level = true
+	spin_ribbon_mesh_instance.mesh = spin_ribbon_mesh
+
+	var spin_mat := ShaderMaterial.new()
+	spin_mat.shader = mesh_shader
+	# Fucsia intenso con resplandor magenta
+	spin_mat.set_shader_parameter("trail_color", Vector4(0.95, 0.0, 0.5, 0.9))
+	spin_mat.set_shader_parameter("rim_color", Vector4(1.0, 0.4, 0.9, 1.0))
+	spin_mat.set_shader_parameter("trail_fade_power", 1.0)
+	spin_ribbon_mesh_instance.material_override = spin_mat
+	add_child(spin_ribbon_mesh_instance)
 
 func _physics_process(delta: float):
-	visual.rotate_y(15.0 * delta)
-	visual.rotate_x(10.0 * delta)
+	flight_elapsed += delta
+
+	# Giro dinámico en su eje variable
+	if visual:
+		visual.rotate_object_local(spin_axis, spin_speed * delta)
+		# Leve balanceo orgánico durante el vuelo
+		visual.rotate_y(sin(flight_elapsed * 8.0) * 1.5 * delta)
+
+	var cam = get_viewport().get_camera_3d()
+	var cam_pos = cam.global_position if cam else global_position + Vector3(0, 5, 5)
+
+	# Actualizar estela de trayectoria
+	if ribbon_mesh and is_instance_valid(ribbon_mesh_instance):
+		ribbon_mesh.add_trail_point(global_position)
+		ribbon_mesh.update_trail(delta, cam_pos)
+
+	# Actualizar estela dando vueltas (en el extremo giratorio)
+	if spin_ribbon_mesh and is_instance_valid(spin_ribbon_mesh_instance) and is_instance_valid(trail_tip):
+		spin_ribbon_mesh.add_trail_point(trail_tip.global_position)
+		spin_ribbon_mesh.update_trail(delta, cam_pos)
 	
 	if spin_sfx and not spin_sfx.playing:
 		spin_sfx.play()
 	
 	if not is_spinning_in_place:
 		var move = direction * speed * delta
-		var space_state = get_world_3d().direct_space_state
-		var query = PhysicsRayQueryParameters3D.create(global_position, global_position + move)
-		query.collision_mask = 4
-		var hit = space_state.intersect_ray(query)
-		if not hit.is_empty() and hit.collider.is_in_group("enemies"):
-			global_position = hit.position
-			_on_body_entered(hit.collider)
+		var hit := EnemyQuery.segment_hit(global_position, global_position + move, 0.3)
+		if not hit.is_empty():
+			global_position = hit["pos"]
+			_on_body_entered(hit["enemy"])
 			return
 		global_position += move
 		traveled += move.length()
@@ -100,9 +163,16 @@ func _physics_process(delta: float):
 			_apply_area_damage()
 			
 		if spin_timer >= spin_duration:
-			queue_free()
+			_cleanup_and_free()
 
-func _on_body_entered(body: Node3D):
+func _cleanup_and_free() -> void:
+	if is_instance_valid(ribbon_mesh_instance):
+		ribbon_mesh_instance.queue_free()
+	if is_instance_valid(spin_ribbon_mesh_instance):
+		spin_ribbon_mesh_instance.queue_free()
+	queue_free()
+
+func _on_body_entered(body):
 	if not is_spinning_in_place and not has_hit_enemy and body.is_in_group("enemies"):
 		if body.has_method("take_damage"):
 			has_hit_enemy = true
@@ -112,47 +182,10 @@ func _on_body_entered(body: Node3D):
 func _start_spinning_in_place():
 	if is_spinning_in_place: return
 	is_spinning_in_place = true
-	# Make the hitbox a bit larger for area damage
 	$CollisionShape3D.shape.radius = 2.0
-
-	# --- Orbital Cutting Sparks ---
-	var orbit_sparks := CPUParticles3D.new()
-	orbit_sparks.name = "OrbitSparks"
-	orbit_sparks.local_coords = true
-	orbit_sparks.amount = 24
-	orbit_sparks.lifetime = 0.35
-	orbit_sparks.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
-	orbit_sparks.emission_ring_radius = 1.8
-	orbit_sparks.emission_ring_inner_radius = 1.2
-	orbit_sparks.direction = Vector3.UP
-	orbit_sparks.spread = 30.0
-	orbit_sparks.initial_velocity_min = 2.0
-	orbit_sparks.initial_velocity_max = 5.0
-	orbit_sparks.scale_amount_min = 0.4
-	orbit_sparks.scale_amount_max = 0.9
-
-	var p_mesh := BoxMesh.new()
-	p_mesh.size = Vector3(0.06, 0.06, 0.18)
-	orbit_sparks.mesh = p_mesh
-
-	var sp_mat := StandardMaterial3D.new()
-	sp_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	sp_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	sp_mat.albedo_color = Color(0.4, 1.0, 0.5, 0.55)
-	sp_mat.emission_enabled = true
-	sp_mat.emission = Color(0.3, 1.0, 0.4)
-	sp_mat.emission_energy_multiplier = 2.5
-	orbit_sparks.material_override = sp_mat
-
-	var sp_ramp = Gradient.new()
-	sp_ramp.set_color(0, Color(0.4, 1.0, 0.5, 0.6))
-	sp_ramp.add_point(1.0, Color(0.2, 0.6, 0.3, 0.0))
-	orbit_sparks.color_ramp = sp_ramp
-
-	add_child(orbit_sparks)
-	orbit_sparks.emitting = true
+	spin_speed *= 1.4 # Acelera el giro al quedarse girando en el lugar
 
 func _apply_area_damage():
-	for body in get_overlapping_bodies():
+	for body in EnemyQuery.overlapping(self):
 		if body.is_in_group("enemies") and body.has_method("take_damage"):
 			body.take_damage(damage * 0.5, Vector3.ZERO)

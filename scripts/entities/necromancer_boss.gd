@@ -13,8 +13,38 @@ var hp: float = 1000.0
 
 var player: Node3D = null
 
-enum BossState { MOVING, IDLE_LIFESTEAL, SUMMONING, ERUPTING }
+enum BossState { MOVING, IDLE_LIFESTEAL, SUMMONING, ERUPTING, VULNERABLE, PHASE_SHIFT }
 var state: BossState = BossState.MOVING
+
+## Fases según la vida: 0 = 100-66 %, 1 = 66-33 %, 2 = <33 % (enfurecido).
+const PHASE_HP_THRESHOLDS: Array[float] = [0.66, 0.33]
+const PHASE_SPEED_MULT: Array[float] = [1.0, 1.35, 1.7]
+const PHASE_COOLDOWN_MULT: Array[float] = [1.0, 0.75, 0.5]
+const PHASE_ZOMBIES: Array[int] = [3, 4, 5]
+const PHASE_ERUPTIONS: Array[int] = [4, 6, 8]
+const PHASE_LIFESTEAL_TIME: Array[float] = [3.0, 3.5, 4.5]
+const PHASE_LIFESTEAL_RANGE: Array[float] = [15.0, 17.0, 20.0]
+const PHASE_LIFESTEAL_DAMAGE: Array[float] = [2.0, 2.5, 3.0]
+const PHASE_TINTS: Array[Color] = [Color.WHITE, Color(1.0, 0.8, 0.9), Color(1.0, 0.55, 0.55)]
+## Tras cada habilidad el jefe queda quieto y vulnerable este tiempo (se acorta con las fases).
+const VULNERABLE_TIME := 1.2
+const PHASE_SHIFT_TIME := 1.3
+var phase: int = 0
+var _tint: Color = Color.WHITE
+## Habilidades pendientes del sorteo actual: se baraja una bolsa para que no se repitan seguidas.
+var _ability_bag: Array = []
+var _last_ability: int = -1
+
+# Efectos visuales (ver necromancer_vfx.gd)
+var _aura: Dictionary = {}
+var _beam: Node3D = null
+var _sparks: CPUParticles3D = null
+var _hit_fx: CPUParticles3D = null
+var _bar: ProgressBar = null
+var _bar_layer: CanvasLayer = null
+var _heal_flash: float = 0.0
+var _vfx_time: float = 0.0
+var _dead: bool = false
 var state_timer: float = 0.0
 var ability_cooldown: float = 2.0
 @onready var ray_mesh: MeshInstance3D = get_node_or_null("LifeStealRay")
@@ -28,16 +58,104 @@ var mesh_instances: Array[MeshInstance3D] = []
 
 func _ready() -> void:
 	add_to_group("enemies")
+	EnemyRegistry.register(self)
 	add_to_group("boss")
 	hp = max_hp
 	player = get_tree().get_first_node_in_group("player")
 	
-	if not zombie_scene:
-		zombie_scene = load("res://scenes/entities/enemy.tscn")
 	if not eruption_scene:
 		eruption_scene = load("res://scenes/objects/eruption.tscn")
 		
 	_setup_model()
+	_setup_vfx()
+
+func _setup_vfx() -> void:
+	_aura = NecroVFX.add_aura(self)
+	_beam = NecroVFX.make_beam()
+	add_child(_beam)
+	_sparks = NecroVFX.make_sparks()
+	add_child(_sparks)
+	_hit_fx = NecroVFX.make_hit_fx()
+	_hit_fx.position = Vector3(0, 2.5, 0)
+	add_child(_hit_fx)
+	_setup_health_bar()
+	# Contorno de luz (rim) para destacar al jefe del resto
+	for mi in mesh_instances:
+		var mat := mi.material_override as StandardMaterial3D
+		if mat:
+			mat.rim_enabled = true
+			mat.rim = 0.8
+			mat.rim_tint = 0.4
+
+## Barra de vida del jefe arriba al centro, con marcas en los cortes de fase (66 % y 33 %).
+func _setup_health_bar() -> void:
+	_bar_layer = CanvasLayer.new()
+	_bar_layer.layer = 20
+	add_child(_bar_layer)
+
+	_bar = ProgressBar.new()
+	_bar.show_percentage = false
+	_bar.max_value = 100.0
+	_bar.value = 100.0
+	_bar.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_bar.offset_left = -260.0
+	_bar.offset_right = 260.0
+	_bar.offset_top = 46.0
+	_bar.offset_bottom = 66.0
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Color(0.6, 0.15, 0.85)
+	fill.set_corner_radius_all(3)
+	var back := StyleBoxFlat.new()
+	back.bg_color = Color(0.05, 0.02, 0.1, 0.85)
+	back.set_corner_radius_all(3)
+	back.set_border_width_all(2)
+	back.border_color = Color(0.85, 0.75, 1.0, 0.9)
+	_bar.add_theme_stylebox_override("fill", fill)
+	_bar.add_theme_stylebox_override("background", back)
+	_bar_layer.add_child(_bar)
+
+	for ratio in PHASE_HP_THRESHOLDS:
+		var mark := ColorRect.new()
+		mark.color = Color(1, 1, 1, 0.9)
+		mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mark.anchor_left = ratio
+		mark.anchor_right = ratio
+		mark.anchor_bottom = 1.0
+		mark.offset_right = 2.0
+		_bar.add_child(mark)
+
+	var title := Label.new()
+	title.text = "NIGROMANTE"
+	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_outline_color", Color.BLACK)
+	title.add_theme_constant_override("outline_size", 5)
+	title.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	title.offset_left = -100.0
+	title.offset_right = 100.0
+	title.offset_top = 20.0
+	title.offset_bottom = 44.0
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_bar_layer.add_child(title)
+
+func _update_bar() -> void:
+	if _bar:
+		_bar.value = clampf(hp / max_hp, 0.0, 1.0) * 100.0
+
+func _process(delta: float) -> void:
+	_vfx_time += delta
+	if _dead:
+		return
+	_heal_flash = maxf(_heal_flash - delta * 3.0, 0.0)
+	var light: OmniLight3D = _aura.get("light")
+	if is_instance_valid(light):
+		light.light_energy = 1.3 + 0.5 * sin(_vfx_time * 2.2) + 2.5 * _heal_flash
+
+## Oculta el haz y las chispas del robo de vida.
+func _stop_drain() -> void:
+	if is_instance_valid(_beam):
+		_beam.visible = false
+	if is_instance_valid(_sparks):
+		_sparks.emitting = false
 
 func _setup_model() -> void:
 	if model and is_instance_valid(model):
@@ -239,7 +357,7 @@ func _physics_process(delta: float) -> void:
 
 	match state:
 		BossState.MOVING:
-			velocity = to_player.normalized() * speed
+			velocity = to_player.normalized() * speed * PHASE_SPEED_MULT[phase]
 			velocity.y = current_vy
 			move_and_slide()
 			play_animation("walk")
@@ -254,23 +372,24 @@ func _physics_process(delta: float) -> void:
 			move_and_slide()
 			play_animation("idle")
 			
-			if ray_mesh:
-				ray_mesh.visible = true
-				var dist = global_position.distance_to(player.global_position)
-				ray_mesh.scale.z = dist
-				ray_mesh.look_at(player.global_position, Vector3.UP)
-			
+			if is_instance_valid(_beam):
+				var from := global_position + Vector3(0, 3.2, 0)
+				var to := player.global_position + Vector3(0, 1.0, 0)
+				_beam.visible = true
+				NecroVFX.update_beam(_beam, from, to, NecroVFX.PHASE_COLORS[phase].lerp(Color(0.3, 1.0, 0.5), 0.6))
+				_sparks.global_position = to
+				_sparks.emitting = true
+
 			if Engine.get_physics_frames() % 10 == 0:
-				if global_position.distance_to(player.global_position) < 15.0:
+				if global_position.distance_to(player.global_position) < PHASE_LIFESTEAL_RANGE[phase]:
 					if player.has_method("take_damage"):
-						player.take_damage(2.0)
-						heal(2.0)
+						player.take_damage(PHASE_LIFESTEAL_DAMAGE[phase])
+						heal(PHASE_LIFESTEAL_DAMAGE[phase])
+						_heal_flash = 1.0
 			
 			if state_timer <= 0:
-				if ray_mesh:
-					ray_mesh.visible = false
-				state = BossState.MOVING
-				ability_cooldown = randf_range(2.0, 4.0)
+				_stop_drain()
+				_end_ability(2.0, 4.0)
 
 		BossState.SUMMONING:
 			state_timer -= delta
@@ -281,8 +400,7 @@ func _physics_process(delta: float) -> void:
 				
 			if state_timer <= 0:
 				spawn_zombies()
-				state = BossState.MOVING
-				ability_cooldown = randf_range(4.0, 6.0)
+				_end_ability(4.0, 6.0)
 
 		BossState.ERUPTING:
 			state_timer -= delta
@@ -293,29 +411,85 @@ func _physics_process(delta: float) -> void:
 				
 			if state_timer <= 0:
 				spawn_eruptions()
+				_end_ability(3.0, 5.0)
+
+		BossState.VULNERABLE:
+			state_timer -= delta
+			velocity = Vector3.ZERO
+			velocity.y = current_vy
+			move_and_slide()
+			play_animation("idle")
+			if state_timer <= 0:
 				state = BossState.MOVING
-				ability_cooldown = randf_range(3.0, 5.0)
+
+		BossState.PHASE_SHIFT:
+			state_timer -= delta
+			velocity = Vector3.ZERO
+			velocity.y = current_vy
+			move_and_slide()
+			play_animation("summon")
+			if state_timer <= 0:
+				state = BossState.MOVING
+				ability_cooldown = 1.0
+
+## Termina una habilidad: breve pausa vulnerable y cooldown (más corto en fases avanzadas).
+func _end_ability(cd_min: float, cd_max: float) -> void:
+	state = BossState.VULNERABLE
+	state_timer = VULNERABLE_TIME / (1.0 + 0.5 * phase)
+	ability_cooldown = randf_range(cd_min, cd_max) * PHASE_COOLDOWN_MULT[phase]
+
+## Bolsa barajada de habilidades: no repite la última al rellenarse.
+func _next_ability() -> int:
+	if _ability_bag.is_empty():
+		_ability_bag = [BossState.IDLE_LIFESTEAL, BossState.SUMMONING, BossState.ERUPTING]
+		_ability_bag.shuffle()
+		if _ability_bag[0] == _last_ability:
+			_ability_bag.reverse()
+	_last_ability = _ability_bag.pop_front()
+	return _last_ability
 
 func choose_next_ability():
-	var roll = randf()
-	if roll < 0.4:
-		state = BossState.IDLE_LIFESTEAL
-		state_timer = 3.0
-	elif roll < 0.7:
-		state = BossState.SUMMONING
-		state_timer = 1.5
-	else:
-		state = BossState.ERUPTING
-		state_timer = 2.0
+	match _next_ability():
+		BossState.IDLE_LIFESTEAL:
+			state = BossState.IDLE_LIFESTEAL
+			state_timer = PHASE_LIFESTEAL_TIME[phase]
+		BossState.SUMMONING:
+			state = BossState.SUMMONING
+			state_timer = 1.5
+		_:
+			state = BossState.ERUPTING
+			state_timer = 2.0
+
+## Cambia de fase al cruzar un umbral de vida: interrumpe lo que hacía, ruge y se enfurece.
+func _update_phase() -> void:
+	var ratio := hp / max_hp
+	var new_phase := 0
+	for i in range(PHASE_HP_THRESHOLDS.size()):
+		if ratio <= PHASE_HP_THRESHOLDS[i]:
+			new_phase = i + 1
+	if new_phase <= phase:
+		return
+	phase = new_phase
+	_tint = PHASE_TINTS[phase]
+	_stop_drain()
+	NecroVFX.shockwave(get_parent(), global_position, 14.0, NecroVFX.PHASE_COLORS[phase])
+	NecroVFX.set_aura_phase(_aura, phase)
+	state = BossState.PHASE_SHIFT
+	state_timer = PHASE_SHIFT_TIME
+	_ability_bag.clear()
+	_apply_tint()
+	if player and is_instance_valid(player) and player.has_method("apply_camera_recoil"):
+		player.apply_camera_recoil(0.05, 0.0, 0.3)
 
 func spawn_zombies():
-	if not zombie_scene: return
-	var num_zombies = 3
+	var num_zombies: int = PHASE_ZOMBIES[phase]
 	for i in range(num_zombies):
-		var z = zombie_scene.instantiate()
-		get_parent().add_child(z)
 		var offset = Vector3(randf_range(-3.0, 3.0), 0, randf_range(-3.0, 3.0))
-		z.global_position = global_position + offset
+		var pos: Vector3 = global_position + offset
+		pos.y = EnemyManager.floor_y(pos.x, pos.z)
+		EnemyManager.spawn(EnemyData.EnemyType.ZOMBIE_GOBLIN, pos)
+		NecroVFX.column(get_parent(), pos, NecroVFX.PHASE_COLORS[phase])
+	NecroVFX.shockwave(get_parent(), global_position, 7.0, NecroVFX.PHASE_COLORS[phase])
 
 func spawn_eruptions():
 	if not eruption_scene or not player: return
@@ -324,7 +498,7 @@ func spawn_eruptions():
 	get_parent().add_child(e)
 	e.global_position = player.global_position
 	
-	var num_eruptions = 4
+	var num_eruptions: int = PHASE_ERUPTIONS[phase]
 	for i in range(num_eruptions):
 		var er = eruption_scene.instantiate()
 		get_parent().add_child(er)
@@ -332,8 +506,15 @@ func spawn_eruptions():
 		er.global_position = player.global_position + offset
 
 func take_damage(amount: float, _knockback_dir: Vector3 = Vector3.ZERO) -> void:
+	if _dead:
+		return
 	hp -= amount
 	emit_signal("boss_hit")
+	_update_bar()
+	if hp > 0.0:
+		_update_phase()
+	if is_instance_valid(_hit_fx):
+		_hit_fx.restart()
 	
 	_flash_hit()
 
@@ -344,8 +525,7 @@ func take_damage(amount: float, _knockback_dir: Vector3 = Vector3.ZERO) -> void:
 		FloatingDamage.spawn(get_parent(), global_position + Vector3(0, 2.2, 0), amount, col, is_crit)
 
 	if hp <= 0:
-		emit_signal("boss_died", global_position, gold_reward)
-		queue_free()
+		_die()
 
 func _flash_hit() -> void:
 	for mi in mesh_instances:
@@ -361,9 +541,53 @@ func _flash_hit() -> void:
 			if is_instance_valid(mi) and mi.material_override:
 				var mat := mi.material_override as StandardMaterial3D
 				if mat:
-					mat.albedo_color = Color.WHITE
+					mat.albedo_color = _tint
 	)
+
+func _apply_tint() -> void:
+	for mi in mesh_instances:
+		if is_instance_valid(mi) and mi.material_override:
+			var mat := mi.material_override as StandardMaterial3D
+			if mat:
+				mat.albedo_color = _tint
 
 func heal(amount: float):
 	hp += amount
 	if hp > max_hp: hp = max_hp
+	_update_bar()
+
+## Muerte: deja de ser un objetivo, se disuelve entre almas y solo entonces avisa (victoria, oro).
+func _die() -> void:
+	if _dead:
+		return
+	_dead = true
+	remove_from_group("enemies")
+	EnemyRegistry.unregister(self)
+	remove_from_group("boss")
+	collision_layer = 0
+	collision_mask = 0
+	set_physics_process(false)
+	_stop_drain()
+	for key in ["fog", "motes"]:
+		if _aura.has(key):
+			_aura[key].emitting = false
+	if is_instance_valid(_bar_layer):
+		_bar_layer.queue_free()
+	NecroVFX.souls(get_parent(), global_position + Vector3(0, 2.0, 0))
+	NecroVFX.shockwave(get_parent(), global_position, 10.0, NecroVFX.PHASE_COLORS[2])
+	var tw := create_tween()
+	tw.set_parallel(true)
+	for mi in mesh_instances:
+		var mat := mi.material_override as StandardMaterial3D if is_instance_valid(mi) else null
+		if mat:
+			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			tw.tween_property(mat, "albedo_color", Color(_tint.r, _tint.g, _tint.b, 0.0), 1.8)
+	if model:
+		tw.tween_property(model, "position:y", model.position.y + 1.2, 1.8)
+	var light: OmniLight3D = _aura.get("light")
+	if is_instance_valid(light):
+		tw.tween_property(light, "light_energy", 0.0, 1.8)
+	tw.chain().tween_callback(func():
+		emit_signal("boss_died", global_position, gold_reward)
+		queue_free()
+	)

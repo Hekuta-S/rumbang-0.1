@@ -42,9 +42,5 @@ func set_heavy_attack(damage: float, cooldown: float, range: float = 0.0, angle:
 	weapon.heavy_half_angle = angle
 	return self
 
-func set_energy_cost(cost: int) -> WeaponBuilder:
-	weapon.energy_cost = cost
-	return self
-
 func build() -> WeaponData:
 	return weapon
