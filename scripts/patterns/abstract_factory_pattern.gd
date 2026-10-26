@@ -44,8 +44,8 @@ class MobilePlatformFactory extends PlatformFactory:
 		env.fog_density = 0.015
 		
 	func configure_viewport(viewport: Viewport) -> void:
-		# Reduce resolución 3D al 65% para mejor rendimiento en móvil
-		viewport.scaling_3d_scale = 0.65
+		# Resolución 3D según la calidad (la gobernadora de rendimiento la ajusta en vivo)
+		viewport.scaling_3d_scale = Quality.scale_3d()
 		
 	func configure_light(light: DirectionalLight3D) -> void:
 		light.shadow_enabled = false # Sombras 3D causan picos en móvil
@@ -65,12 +65,15 @@ class DesktopPlatformFactory extends PlatformFactory:
 	func configure_environment(env: Environment) -> void:
 		env.volumetric_fog_enabled = ProjectSettings.get_setting("rendering/renderer/rendering_method") == "forward_plus"
 		env.fog_enabled = false
+		env.glow_enabled = Quality.glow_enabled()
 		
 	func configure_viewport(viewport: Viewport) -> void:
-		viewport.scaling_3d_scale = 1.0
+		viewport.scaling_3d_scale = Quality.scale_3d()
 		
 	func configure_light(light: DirectionalLight3D) -> void:
-		light.shadow_enabled = true
+		light.shadow_enabled = Quality.shadows_enabled()
+		light.directional_shadow_max_distance = Quality.shadow_distance()
+		light.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 		
 	func create_controls() -> Node:
 		# En PC no creamos controles táctiles, devolvemos null

@@ -51,7 +51,7 @@ func _input(event: InputEvent) -> void:
 			facade.spawn_debug_orbs()
 		elif event.keycode == KEY_O:
 			# --- APLICACIÓN DEL PATRÓN FACTORY METHOD ---
-			var boss = EnemyFactory.create_enemy("necromancer")
+			var boss = NecromancerBossCreator.new().create_enemy()
 			if boss:
 				add_child(boss)
 				if is_instance_valid(player):

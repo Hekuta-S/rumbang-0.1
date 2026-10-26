@@ -42,10 +42,18 @@ func get_bullet() -> Node3D:
 		return null
 		
 	var b = _bullet_pool[_bullet_index]
+	# Prefiere una bala libre (oculta); si todas están en vuelo, recicla la más antigua (anillo)
+	for i in range(BULLET_POOL_SIZE):
+		var candidate = _bullet_pool[(_bullet_index + i) % BULLET_POOL_SIZE]
+		if not candidate.visible:
+			b = candidate
+			_bullet_index = (_bullet_index + i) % BULLET_POOL_SIZE
+			break
 	_bullet_index = (_bullet_index + 1) % BULLET_POOL_SIZE
 	
 	# Wake up bullet
 	b.visible = true
+	b.scale = Vector3.ONE # los proyectiles del jugador pueden venir escalados
 	b.set_process(true)
 	b.set_physics_process(true)
 	b.set_deferred("monitoring", true)
@@ -67,6 +75,12 @@ func get_floating_damage() -> Label3D:
 		return null
 		
 	var label = _floating_damage_pool[_floating_damage_index]
+	for i in range(FLOATING_DAMAGE_POOL_SIZE):
+		var candidate = _floating_damage_pool[(_floating_damage_index + i) % FLOATING_DAMAGE_POOL_SIZE]
+		if not candidate.visible:
+			label = candidate
+			_floating_damage_index = (_floating_damage_index + i) % FLOATING_DAMAGE_POOL_SIZE
+			break
 	_floating_damage_index = (_floating_damage_index + 1) % FLOATING_DAMAGE_POOL_SIZE
 	
 	label.visible = true

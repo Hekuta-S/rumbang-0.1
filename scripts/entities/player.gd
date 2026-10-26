@@ -1,6 +1,6 @@
 extends CharacterBody3D
 
-signal stats_changed(hp, max_hp, shield, max_shield, energy, max_energy)
+signal stats_changed(hp, max_hp, shield, max_shield)
 signal experience_gained(amount, current_xp, required_xp)
 signal leveled_up(new_level)
 signal weapon_changed(weapon_index, weapon_name)
@@ -12,7 +12,6 @@ signal player_died
 
 var health_comp: Node
 var experience_comp: Node
-var energy_comp: Node
 
 @export var max_hp: float:
 	get: return health_comp.max_hp if health_comp else 10.0
@@ -22,10 +21,6 @@ var energy_comp: Node
 	get: return health_comp.max_shield if health_comp else 5.0
 	set(v): if health_comp: health_comp.max_shield = v
 
-@export var max_energy: float:
-	get: return energy_comp.max_energy if energy_comp else 200.0
-	set(v): if energy_comp: energy_comp.max_energy = v
-
 var hp: float:
 	get: return health_comp.hp if health_comp else 10.0
 	set(v): if health_comp: health_comp.hp = v
@@ -33,10 +28,6 @@ var hp: float:
 var shield: float:
 	get: return health_comp.shield if health_comp else 5.0
 	set(v): if health_comp: health_comp.shield = v
-
-var energy: float:
-	get: return energy_comp.energy if energy_comp else 200.0
-	set(v): if energy_comp: energy_comp.energy = v
 
 @export var move_speed: float = 8.5
 @export var roll_speed: float = 18.0
@@ -46,6 +37,7 @@ var camera_controller: Node
 var input_controller: Node
 var combat_controller: Node
 var inventory: Node
+var stat_block: PlayerStatBlock
 
 var is_berserk: bool = false
 var berserk_timer: float = 0.0
@@ -147,14 +139,20 @@ func get_weapon_modifiers(w_id: int) -> Dictionary:
 	return mods
 
 func _weapon_damage(weapon_type: int) -> float:
-	var base_dmg = WeaponData.weapon_damage(weapon_type, is_berserk)
-	var mods = get_weapon_modifiers(weapon_type)
-	return base_dmg * mods.damage
+	return _damage_chain(weapon_type, false).value()
 
 func _weapon_heavy_damage(weapon_type: int) -> float:
-	var base_dmg = WeaponData.weapon_heavy_damage(weapon_type, is_berserk)
-	var mods = get_weapon_modifiers(weapon_type)
-	return base_dmg * mods.damage
+	return _damage_chain(weapon_type, true).value()
+
+## --- APLICACIÓN DEL PATRÓN DECORATOR ---
+## Componente base (daño de la ficha) envuelto por un decorador por cada modificador.
+func _damage_chain(weapon_type: int, heavy: bool) -> DamageSource:
+	var data := get_weapon_data(weapon_type)
+	var dmg: DamageSource = BaseWeaponDamage.new(data, heavy)
+	dmg = BerserkDamageDecorator.new(dmg, data, is_berserk)
+	dmg = UpgradeDamageDecorator.new(dmg, get_weapon_modifiers(weapon_type))
+	dmg = StatBlockDamageDecorator.new(dmg, stat_block)
+	return dmg
 
  ## 0: Purple (AoE), 1: Brown (Speed Boost), 2: Green (Healing Cloud)
 
@@ -226,6 +224,10 @@ func _ready() -> void:
 	inventory.name = "InventoryComponent"
 	add_child(inventory)
 
+	stat_block = PlayerStatBlock.new()
+	stat_block.name = "PlayerStatBlock"
+	add_child(stat_block)
+
 	health_comp = HealthComponent.new()
 	health_comp.name = "HealthComponent"
 	add_child(health_comp)
@@ -234,21 +236,20 @@ func _ready() -> void:
 	experience_comp.name = "ExperienceComponent"
 	add_child(experience_comp)
 
-	energy_comp = EnergyComponent.new()
-	energy_comp.name = "EnergyComponent"
-	add_child(energy_comp)
-
-	weapon_inventory.weapon_changed.connect(func(idx, name_value, cost): emit_signal("weapon_changed", idx, name_value, cost))
+	weapon_inventory.weapon_changed.connect(func(idx, name_value): emit_signal("weapon_changed", idx, name_value))
 	weapon_inventory.reload_state_changed.connect(func(weapon_type, ammo, max_ammo, is_reloading, progress): emit_signal("reload_state_changed", weapon_type, ammo, max_ammo, is_reloading, progress))
 
-	health_comp.health_changed.connect(func(h, mh, s, ms): emit_signal("stats_changed", h, mh, s, ms, energy, max_energy))
-	health_comp.entity_died.connect(func(): emit_signal("player_died"))
+	health_comp.health_changed.connect(func(h, mh, s, ms): emit_signal("stats_changed", h, mh, s, ms))
+	health_comp.entity_died.connect(_on_entity_died)
 	experience_comp.experience_gained.connect(func(amount, current_xp, required_xp): emit_signal("experience_gained", amount, current_xp, required_xp))
 	experience_comp.leveled_up.connect(func(new_level): emit_signal("leveled_up", new_level))
 
 	health_comp.damage_taking.connect(func(data):
 		if passive and passive.has_method("on_take_damage"):
 			data["amount"] = passive.on_take_damage(self, data["amount"])
+		# Armadura de objetos / Tryhard: reducción porcentual final
+		if stat_block:
+			data["amount"] = data["amount"] * (1.0 - stat_block.armor())
 	)
 	health_comp.check_shield_regen.connect(func(results):
 		if passive and passive.has_method("allow_shield_regen"):
@@ -321,6 +322,9 @@ func _ready() -> void:
 	_try_spawn_elemental_orbs()
 	
 	emit_signal("stats_changed", hp, max_hp, shield, max_shield)
+	
+	# El modelo se revela con play_spawn_scan() cuando el mundo está listo (GameStartFacade.start_game)
+	hide_for_spawn()
 
 # Per-frame combat + movement + camera + animation hook.
 func _physics_process(delta: float) -> void:
@@ -414,12 +418,12 @@ var reloading_weapon: int:
 	get: return weapon_inventory.reloading_weapon if weapon_inventory else -1
 	set(v): if weapon_inventory: weapon_inventory.reloading_weapon = v
 
-var auto_combat_target: Node3D:
+var auto_combat_target:
 	get:
 		if is_instance_valid(combat_controller) and "auto_combat_target" in combat_controller:
 			var target = combat_controller.get("auto_combat_target")
 			if is_instance_valid(target):
-				return target as Node3D
+				return target
 		return null
 	set(v):
 		if is_instance_valid(combat_controller) and "auto_combat_target" in combat_controller:
@@ -478,21 +482,18 @@ const GRAVITY := 22.0
 ## Shows only the model of the currently selected weapon slot. The spear stays
 ## hidden while it is flying through the air.
 func update_weapon_visuals() -> void:
-	if not weapon_inventory or weapon_inventory.weapon_slots.is_empty():
-		return
-	var active: int = weapon_inventory.weapon_slots[weapon_inventory.current_slot]
+	# El usuario solicitó que ningún modelo de arma sea visible al atacar ni en combate, solo el efecto/shader
 	for wt in weapon_models:
 		var m: Node3D = weapon_models[wt]
 		if m != null and is_instance_valid(m):
 			m.visible = false
 
-func show_weapon_temporarily(duration: float = 0.5) -> void:
-	var active = current_weapon()
-	if weapon_models.has(active):
-		var m = weapon_models[active]
-		m.visible = true
-		var timer = get_tree().create_timer(duration)
-		timer.timeout.connect(func(): m.visible = false)
+func show_weapon_temporarily(_duration: float = 0.5) -> void:
+	# El usuario solicitó que ninguna arma sea visible al atacar, solo el efecto del ataque
+	for wt in weapon_models:
+		var m: Node3D = weapon_models[wt]
+		if m != null and is_instance_valid(m):
+			m.visible = false
 
 func current_weapon() -> int:
 	if weapon_inventory:
@@ -529,19 +530,17 @@ func _emit_reload_state() -> void:
 # COMBAT
 # ══════════════════════════════════════════════════════════════════════════
 
-## Per-character special ability (E key). Kaionz slams both fists; everyone
-## else enters Berserk mode.
+## Per-character special ability (E key): Berserk, o la habilidad de la pasiva si la tiene (Heckler).
 func activate_skill() -> void:
 	if skill_cd_timer > 0: return
 	skill_cd_timer = skill_cooldown
-	var char_id: String = GameData.get_selected().get("id", "")
-	match char_id:
-		"kaionz":
-			skill_kaionz()
-		_:
-			# Default skill: Berserk mode (all other characters)
-			is_berserk = true
-			berserk_timer = 6.0
+	# Habilidad propia de la pasiva (p. ej. el teletransporte de Heckler)
+	if passive and passive.has_method("on_skill"):
+		passive.on_skill(self)
+		return
+	# Habilidad por defecto: modo Berserk
+	is_berserk = true
+	berserk_timer = 6.0
 
 ## Raycasts from the camera center out through the crosshair point.
 func get_camera_aim_point() -> Vector3:
@@ -602,50 +601,75 @@ func take_damage(amount: float, _direction: Vector3 = Vector3.ZERO) -> void:
 	if health_comp and health_comp.has_method("take_damage"):
 		health_comp.take_damage(amount)
 
+## Aplica veneno/sangrado/quemadura al jugador (ver StatusEffects).
+func apply_status(effect_id: String, dps: float, duration: float, source: Node = null,
+		source_weapon: int = -1, stacks: int = 1) -> void:
+	StatusEffects.apply_to(self, effect_id, dps, duration, source, source_weapon, stacks)
+
 func heal(amount: float) -> void:
 	if health_comp and health_comp.has_method("heal"):
 		health_comp.heal(amount)
 
+# ── Robo de vida ─────────────────────────────────────────────────────────
+const LIFESTEAL_MAX_PER_HIT := 2.0   ## tope de vida robada por golpe
+const LIFESTEAL_MIN_TICK := 0.1      ## se cura al acumular esto (evita emitir señales por fracciones)
+var _lifesteal_accum: float = 0.0
+var _last_heal_fx_time: float = -10.0
 
-# ══════════════════════════════════════════════════════════════════════════
-# KAIONZ — AIR FISTS COMBAT SYSTEM
-# ══════════════════════════════════════════════════════════════════════════
+## Lo llaman hitboxes/proyectiles al dañar a un enemigo. Cada arma define su propio
+## porcentaje de robo (mods.lifesteal, ver WeaponUpgrades); sin mejora vale 0.
+func on_damage_dealt(amount: float, weapon_type: int = -1) -> void:
+	if weapon_type < 0 or weapon_inventory == null or amount <= 0.0:
+		return
+	var steal: float = float(get_weapon_modifiers(weapon_type).get("lifesteal", 0.0))
+	if steal <= 0.0:
+		return
+	if hp <= 0.0 or hp >= max_hp:
+		_lifesteal_accum = 0.0
+		return
+	_lifesteal_accum += minf(amount * steal, LIFESTEAL_MAX_PER_HIT)
+	if _lifesteal_accum >= LIFESTEAL_MIN_TICK:
+		var gained := _lifesteal_accum
+		_lifesteal_accum = 0.0
+		heal(gained)
+		_play_heal_fx()
 
-## Normal attack: alternating left/right air-punch combo.
-## Each hit sends a compressed-air shockwave in front of the player.
-
-
-func skill_kaionz() -> void:
-	var player_pos := global_position
-	var radius     := 9.0
-
-	# Clap animation: bring both fists to centre, then snap back
-	if weapon_models.has(WeaponData.WeaponType.AIR_FISTS) and is_instance_valid(weapon_models[WeaponData.WeaponType.AIR_FISTS]):
-		var fists_root : Node3D = weapon_models[WeaponData.WeaponType.AIR_FISTS]
-		if fists_root.get_child_count() >= 2:
-			var left_fist  : Node3D = fists_root.get_child(0)
-			var right_fist : Node3D = fists_root.get_child(1)
-			var orig_l := left_fist.position
-			var orig_r := right_fist.position
-			var clap_tween := create_tween().set_parallel(true)
-			clap_tween.tween_property(left_fist,  "position", Vector3(0.0, orig_l.y, orig_l.z - 0.08), 0.12)
-			clap_tween.tween_property(right_fist, "position", Vector3(0.0, orig_r.y, orig_r.z - 0.08), 0.12)
-			clap_tween.chain().tween_interval(0.05)
-			clap_tween.chain().set_parallel(true)
-			clap_tween.tween_property(left_fist,  "position", orig_l, 0.18)
-			clap_tween.tween_property(right_fist, "position", orig_r, 0.18)
-
-	# Apply slow to all enemies in radius
-	for enemy in get_tree().get_nodes_in_group("enemies"):
-		if not is_instance_valid(enemy): continue
-		var dist: float = (enemy as Node3D).global_position.distance_to(player_pos)
-		if dist <= radius and enemy.has_method("apply_slow"):
-			enemy.apply_slow(4.0, 0.45)
-
-	create_air_shockwave_visual(player_pos, radius)
-	apply_camera_recoil(0.03, 0.0, 0.1)
-
-## Procedural single-fist punch animation: snaps one fist forward then returns.
+## Destello verde breve al curarse por robo de vida (máx. uno cada 0.25 s).
+func _play_heal_fx() -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	if now - _last_heal_fx_time < 0.25:
+		return
+	_last_heal_fx_time = now
+	var fx := CPUParticles3D.new()
+	fx.amount = Quality.count(8)
+	fx.lifetime = 0.55
+	fx.one_shot = true
+	fx.explosiveness = 0.9
+	fx.direction = Vector3.UP
+	fx.spread = 40.0
+	fx.initial_velocity_min = 1.0
+	fx.initial_velocity_max = 2.2
+	fx.gravity = Vector3(0, -0.5, 0)
+	fx.scale_amount_min = 0.5
+	fx.scale_amount_max = 1.0
+	var m := SphereMesh.new()
+	m.radius = 0.05
+	m.height = 0.1
+	m.radial_segments = 6
+	m.rings = 3
+	fx.mesh = m
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(0.35, 1.0, 0.5)
+	mat.emission_enabled = true
+	mat.emission = Color(0.2, 1.0, 0.4)
+	mat.emission_energy_multiplier = 3.0
+	fx.material_override = mat
+	fx.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(fx)
+	fx.position = Vector3(0.0, 1.0, 0.0)
+	fx.emitting = true
+	get_tree().create_timer(1.0).timeout.connect(fx.queue_free)
 
 
 func create_air_shockwave_visual(center: Vector3, max_radius: float) -> void:
@@ -697,7 +721,7 @@ func create_air_shockwave_visual(center: Vector3, max_radius: float) -> void:
 	tw2.chain().tween_callback(ring2.queue_free)
 
 	# Ambient light burst
-	var swave_light := OmniLight3D.new()
+	var swave_light := Quality.new_light()
 	swave_light.light_color  = Color(0.55, 0.88, 1.0)
 	swave_light.light_energy = 8.0
 	swave_light.omni_range   = max_radius * 1.5
@@ -758,7 +782,7 @@ func get_weapon_ammo(w_type: int) -> int:
 func start_reload() -> void:
 	combat_controller.start_reload()
 
-func auto_attack(target: Node3D) -> void:
+func auto_attack(target) -> void:
 	combat_controller.auto_attack(target)
 
 func attack() -> void:
@@ -768,9 +792,7 @@ func throw_spear() -> void:
 	combat_controller.throw_spear()
 
 func _on_alt_attack_pressed() -> void:
-	if current_weapon() == WeaponData.WeaponType.DUAL_DAGGERS:
-		combat_controller.attack_dual_daggers_heavy(0.5 if is_berserk else 1.0)
-	elif current_weapon() == WeaponData.WeaponType.DUSTS:
+	if current_weapon() == WeaponData.WeaponType.DUSTS:
 		combat_controller.cycle_dust_mode()
 	else:
 		throw_spear()
@@ -782,8 +804,65 @@ func _on_toggle_mouse_capture() -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func _on_spawn_debug_enemy() -> void:
-	var enemy_scene = load("res://scenes/entities/enemy.tscn")
-	var enemy = enemy_scene.instantiate()
-	get_parent().add_child(enemy)
 	var forward_dir = -global_transform.basis.z
-	enemy.global_position = global_position + forward_dir * 10.0 + Vector3(0, 1, 0)
+	var pos: Vector3 = global_position + forward_dir * 10.0
+	EnemyManager.spawn(EnemyData.EnemyType.NORMAL_GOBLIN, pos)
+
+# ══════════════════════════════════════════════════════════════════════════
+# EFECTO DE ESCANEO DE PROFUNDIDAD INVERSO (SPAWN & DEATH)
+# ══════════════════════════════════════════════════════════════════════════
+
+static var depth_scan_shader: Shader = preload("res://assets/shaders/depth_scan_spawn.gdshader")
+var is_playing_death_scan: bool = false
+
+## Oculta el modelo hasta que el mundo esté listo (se revela con play_spawn_scan).
+func hide_for_spawn() -> void:
+	var model: Node3D = animation_controller.model if animation_controller else null
+	if model:
+		model.visible = false
+
+## Materializa al personaje de pies a cabeza con el shader de disolución.
+func play_spawn_scan() -> void:
+	var model: Node3D = animation_controller.model if animation_controller else null
+	if model == null:
+		return
+	SpawnDissolve.play(model, self, 1.6)
+
+func _on_entity_died() -> void:
+	if is_playing_death_scan:
+		return
+	is_playing_death_scan = true
+	play_death_scan()
+
+## Desvanece al personaje al morir usando el escaneo inverso (1.0 -> 0.0)
+func play_death_scan() -> void:
+	var meshes: Array[MeshInstance3D] = _get_player_character_meshes()
+	
+	var scan_mat := ShaderMaterial.new()
+	scan_mat.shader = depth_scan_shader
+	scan_mat.set_shader_parameter("is_dying", true)
+	scan_mat.set_shader_parameter("progress", 1.0)
+	scan_mat.set_shader_parameter("effect_color", Vector4(1.0, 0.25, 0.2, 1.0)) # Carmesí / desintegración
+	scan_mat.set_shader_parameter("glow_color", Vector4(1.0, 0.7, 0.2, 1.0))
+
+	for m in meshes:
+		m.material_override = scan_mat
+
+	var tween := create_tween()
+	# Barre desvaneciendo el cuerpo hacia el vacío en 0.9s
+	tween.tween_property(scan_mat, "shader_parameter/progress", 0.0, 0.9)\
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+
+	# Emitir señal de muerte para Game Over tras finalizar la desintegración
+	tween.tween_callback(func():
+		emit_signal("player_died")
+	)
+
+func _get_player_character_meshes() -> Array[MeshInstance3D]:
+	var result: Array[MeshInstance3D] = []
+	var k_mesh := get_node_or_null("KnightMesh")
+	if k_mesh:
+		for child in k_mesh.get_children():
+			if child is MeshInstance3D and child.name != "Sword":
+				result.append(child)
+	return result
