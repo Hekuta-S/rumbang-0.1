@@ -27,6 +27,7 @@ var bullet_scene = preload("res://scenes/objects/bullet.tscn")
 
 func _ready() -> void:
 	add_to_group("enemies")
+	EnemyRegistry.register(self)
 	add_to_group("boss")
 	max_hp = 600.0
 	hp = max_hp

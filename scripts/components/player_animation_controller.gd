@@ -20,25 +20,13 @@ func _ready() -> void:
 func setup_model() -> void:
 	var char_id: String = GameData.get_selected().get("id", "mikeura")
 	
-	var anim_files = {
-		"cray": { "idle": "cray-idle.fbx", "walk": "cray-caminar.fbx", "run": "cray-correr.fbx", "jump": "cray-saltar.fbx" },
-		"joel": { "idle": "joel-idle.fbx", "walk": "joel-caminar.fbx", "run": "joel-corre.fbx", "jump": "joel-salto.fbx" },
-		"riva": { "idle": "riva-idle.fbx", "walk": "riva-caminar.fbx", "run": "riva-correr.fbx", "jump": "riva-salto.fbx", "fast": "riva-correr-rapido.fbx" },
-		"bronch": { "idle": "bronch-idle.fbx", "walk": "bronch-caminar.fbx", "run": "bronch-correr.fbx", "jump": "bronch-saltar.fbx" },
-		"mikeura": { "idle": "mikeura_idle.fbx", "walk": "mikeura_caminar.fbx", "run": "mikeura-correr.fbx", "jump": "mikeura-saltar.fbx" },
-		"tatan": { "idle": "idle.fbx", "walk": "caminar.fbx", "run": "tatan-correr.fbx" },
-		"vangry": { "idle": "vangry-idle.fbx", "walk": "vangry-caminar.fbx", "run": "vangry-correr.fbx", "jump": "Jumping.fbx" },
-		"kaionz": { "idle": "cray-idle.fbx", "walk": "cray-caminar.fbx", "run": "cray-correr.fbx", "jump": "cray-saltar.fbx" },
-		"crane": { "idle": "cray-idle.fbx", "walk": "cray-caminar.fbx", "run": "cray-correr.fbx", "jump": "cray-saltar.fbx" },
-		"garri": { "idle": "garri-idle.fbx", "walk": "garri-caminar.fbx", "run": "garri-correr.fbx", "jump": "garri-saltar.fbx" },
-		"saimon": { "idle": "saimon-idle.fbx", "walk": "saimon-caminar.fbx", "run": "saimon-correr.fbx", "jump": "saimon-saltar.fbx" }
-	}
+	var anim_files: Dictionary = GameData.ANIM_FILES
 	
 	if not anim_files.has(char_id):
 		char_id = "mikeura"
 		
 	var files = anim_files[char_id]
-	var base_path = "res://assets/models/" + ("cray" if char_id in ["kaionz", "crane"] else char_id) + "/"
+	var base_path = "res://assets/models/" + char_id + "/"
 	
 	var idle_scene = load(base_path + files["idle"]) as PackedScene
 	if idle_scene == null:
@@ -51,7 +39,7 @@ func setup_model() -> void:
 	_fit_model()
 
 	# Apply character texture if it exists
-	var base_tex_name = "cray" if char_id in ["kaionz", "crane"] else char_id
+	var base_tex_name = char_id
 	var tex_path = "res://assets/textures/entities/" + base_tex_name + "/texture_" + base_tex_name + ".png"
 	
 	if FileAccess.file_exists(tex_path) or FileAccess.file_exists(tex_path + ".import"):
@@ -181,7 +169,7 @@ func _process(_delta: float) -> void:
 	
 	var horiz_velocity := Vector2(player.velocity.x, player.velocity.z).length()
 	var moving := horiz_velocity > 1.0
-	var running: bool = horiz_velocity > player.get("move_speed") * 1.2
+	var running: bool = horiz_velocity > float(player.get("move_speed")) * PlayerMovementController.RUN_SPEED_RATIO
 	var current := playback.get_current_node()
 	var fast_available: bool = anim_tree.tree_root.has_node(STATE_FAST)
 	var is_fast: bool = fast_available and bool(player.get("is_riva_fast"))

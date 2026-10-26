@@ -7,6 +7,12 @@ var gravity: float = 22.0
 var dust_particles: CPUParticles3D
 var jump_particles: CPUParticles3D
 
+const BASE_JUMP_VELOCITY := 8.5
+## Pasada esta proporción de la velocidad base se considera "corriendo" (animación de carrera, pasos más rápidos).
+const RUN_SPEED_RATIO := 1.2
+var _jump_was_pressed: bool = false
+var _air_jumps_used: int = 0
+
 func _ready() -> void:
 	player = get_parent() as CharacterBody3D
 	_setup_particles()
@@ -23,7 +29,7 @@ func _spawn_footstep_puff(pos: Vector3, is_running: bool) -> void:
 	if not parent or not is_instance_valid(parent): return
 
 	var puff := CPUParticles3D.new()
-	puff.amount = 14 if is_running else 8
+	puff.amount = Quality.count(int(14 if is_running else 8))
 	puff.lifetime = 0.45
 	puff.one_shot = true
 	puff.explosiveness = 0.95
@@ -68,7 +74,7 @@ func _spawn_jump_burst(pos: Vector3) -> void:
 	if not parent or not is_instance_valid(parent): return
 
 	var jump_puff := CPUParticles3D.new()
-	jump_puff.amount = 26
+	jump_puff.amount = Quality.count(26)
 	jump_puff.lifetime = 0.5
 	jump_puff.one_shot = true
 	jump_puff.explosiveness = 0.98
@@ -117,16 +123,12 @@ func handle_movement(delta: float) -> void:
 	var wish := fwd * -inp.y + right * inp.x
 	wish.y = 0.0
 	
-	var current_speed: float = player.move_speed * (1.3 if player.is_berserk else 1.0) * (1.35 if player.dust_speed_boost_timer > 0 else 1.0)
+	var stat_move: float = player.stat_block.move_mult() if player.stat_block else 1.0
+	var current_speed: float = player.move_speed * stat_move * (1.3 if player.is_berserk else 1.0) * (1.35 if player.dust_speed_boost_timer > 0 else 1.0)
 	
-	# Run mechanic
-	var is_running = false
-	if (Input.is_physical_key_pressed(KEY_SHIFT) or Input.is_joy_button_pressed(0, JOY_BUTTON_LEFT_STICK) or VirtualInput.is_running) and wish.length_squared() > 0.0001 and player.is_on_floor():
-		if player.passive and player.passive.has_method("override_run"):
-			player.passive.override_run(player, wish, delta)
-		elif player.energy_comp.consume_energy(15.0 * delta):
-			current_speed *= 1.8
-			is_running = true
+	# Ya no hay botón de correr: la animación de carrera la decide PlayerAnimationController
+	# cuando la velocidad supera cierto umbral (mejoras, objetos, berserk...).
+	var is_running: bool = current_speed > player.move_speed * RUN_SPEED_RATIO
 
 	var moving = wish.length_squared() > 0.0001
 	if moving and player.is_on_floor():
@@ -152,11 +154,22 @@ func handle_movement(delta: float) -> void:
 	player.velocity.z = wish.z * current_speed
 
 	# Jump mechanic
-	if (Input.is_physical_key_pressed(KEY_SPACE) or Input.is_key_pressed(KEY_SPACE) or Input.is_joy_button_pressed(0, JOY_BUTTON_A) or VirtualInput.is_jumping) and player.is_on_floor():
-		if player.energy_comp.consume_energy(25.0):
-			player.velocity.y = 8.5
+	var jump_pressed: bool = Input.is_physical_key_pressed(KEY_SPACE) or Input.is_key_pressed(KEY_SPACE) or Input.is_joy_button_pressed(0, JOY_BUTTON_A) or VirtualInput.is_jumping
+	var jump_just_pressed: bool = jump_pressed and not _jump_was_pressed
+	_jump_was_pressed = jump_pressed
+	var jump_velocity: float = BASE_JUMP_VELOCITY * (player.stat_block.jump_velocity_mult() if player.stat_block else 1.0)
+
+	if player.is_on_floor():
+		_air_jumps_used = 0
+		if jump_pressed:
+			player.velocity.y = jump_velocity
 			_spawn_jump_burst(player.global_position + Vector3(0, 0.05, 0))
 			# The animation controller will detect the jump automatically
+	elif jump_just_pressed and player.stat_block and _air_jumps_used < player.stat_block.extra_jumps():
+		# Salto en el aire (objetos con saltos extra)
+		_air_jumps_used += 1
+		player.velocity.y = jump_velocity * 0.92
+		_spawn_jump_burst(player.global_position + Vector3(0, 0.05, 0))
 
 	# Gravity / grounding
 	if not player.is_on_floor():

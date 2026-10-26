@@ -4,7 +4,8 @@ class_name AutoCombatController
 @export var detection_radius: float = 15.0
 @export var player: CharacterBody3D
 
-var enemies_in_range: Array[Node3D] = []
+var enemies_in_range: Array = []
+var _scan_timer: float = 0.0
 
 @onready var scanner_area: Area3D = Area3D.new()
 @onready var collision_shape: CollisionShape3D = CollisionShape3D.new()
@@ -37,11 +38,18 @@ func _process(delta):
 	if is_instance_valid(scanner_area):
 		scanner_area.global_position = player.global_position
 
+	# Enemigos a rango: se consultan en el registro (rejilla espacial) 5 veces por segundo
+	_scan_timer -= delta
+	if _scan_timer <= 0.0:
+		_scan_timer = 0.2
+		enemies_in_range = EnemyRegistry.query_radius(player.global_position, detection_radius)
+
 	if enemies_in_range.is_empty():
+		player.auto_combat_target = null
 		return
 		
 	# Limpiar enemigos que hayan sido destruidos
-	enemies_in_range = enemies_in_range.filter(func(e): return is_instance_valid(e) and not e.is_queued_for_deletion())
+	enemies_in_range = enemies_in_range.filter(func(e): return is_instance_valid(e) and not (e is Node and e.is_queued_for_deletion()))
 	
 	if enemies_in_range.is_empty():
 		player.auto_combat_target = null
@@ -52,7 +60,7 @@ func _process(delta):
 		player.auto_combat_target = target
 		fire_available_weapons(target)
 
-func get_closest_enemy() -> Node3D:
+func get_closest_enemy():
 	var closest = null
 	var min_dist = INF
 	if not is_instance_valid(player): return null
@@ -64,7 +72,7 @@ func get_closest_enemy() -> Node3D:
 			closest = enemy
 	return closest
 
-func fire_available_weapons(target: Node3D):
+func fire_available_weapons(target):
 	if player.has_method("auto_attack"):
 		player.auto_attack(target)
 	

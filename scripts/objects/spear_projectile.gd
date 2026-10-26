@@ -39,7 +39,7 @@ func _setup_spear_trail() -> void:
 	var trail := CPUParticles3D.new()
 	trail.name = "SpearTrail"
 	trail.local_coords = false
-	trail.amount = 30
+	trail.amount = Quality.count(30)
 	trail.lifetime = 0.25
 	trail.emission_shape = CPUParticles3D.EMISSION_SHAPE_POINT
 	trail.gravity = Vector3.ZERO
@@ -98,6 +98,13 @@ func _physics_process(delta: float) -> void:
 	if shooter_rid.is_valid():
 		query.exclude.append(shooter_rid)
 	var result = space_state.intersect_ray(query)
+	var eh := EnemyQuery.segment_hit(current_pos, next_pos, 0.25)
+	if not eh.is_empty():
+		var world_dist: float = current_pos.distance_to(result.position) if not result.is_empty() else INF
+		if current_pos.distance_to(eh["pos"]) <= world_dist:
+			_apply_impact(eh["enemy"], eh["pos"], -direction)
+			last_pos = eh["pos"]
+			return
 	if not result.is_empty():
 		var body = result.collider
 		if body and body != self:
@@ -145,9 +152,9 @@ func _on_body_entered(body: Node) -> void:
 	if not result.is_empty() and result.collider == body:
 		_apply_impact(body, result.position, result.normal)
 
-func _apply_impact(body: Node, hit_pos: Vector3, hit_normal: Vector3) -> void:
+func _apply_impact(body, hit_pos: Vector3, hit_normal: Vector3) -> void:
 	var BulletScript = load("res://scripts/objects/bullet.gd")
-	var is_enemy := body.is_in_group("enemies")
+	var is_enemy: bool = body.is_in_group("enemies")
 	if is_enemy and body.has_method("take_damage"):
 		body.take_damage(damage, direction)
 

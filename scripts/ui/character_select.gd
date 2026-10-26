@@ -1,37 +1,60 @@
-## character_select.gd — Character Selection Screen
+## character_select.gd — Selección de personaje (cuadrícula + panel de detalle)
 extends Control
 
-const C_BG          := Color(0.055, 0.072, 0.11)
-const C_ACCENT       := Color(0.15, 0.62, 0.92)
-const C_PANEL        := Color(0.08, 0.11, 0.18, 0.97)
-const C_TEXT         := Color(0.88, 0.90, 0.94)
-const C_TEXT_DIM     := Color(0.45, 0.52, 0.62)
-const C_BTN_BG       := Color(0.10, 0.14, 0.22)
-const C_BTN_BORDER   := Color(0.18, 0.26, 0.40)
-const C_BTN_HOVER    := Color(0.12, 0.20, 0.34)
-const C_BTN_PRESS    := Color(0.08, 0.42, 0.68)
+const Style := preload("res://scripts/ui/rumbang_style.gd")
 
-var _current_index: int = 0
+# Paleta compartida (ver RumbangStyle)
+const C_BG          := Style.BG
+const C_ACCENT      := Style.ACCENT
+const C_PANEL       := Style.PANEL
+const C_TEXT        := Style.TEXT
+const C_TEXT_DIM    := Style.TEXT_DIM
+const C_BTN_BG      := Style.BTN_BG
+const C_BTN_BORDER  := Style.BTN_BORDER
+const C_BTN_HOVER   := Style.BTN_HOVER
+const C_BTN_PRESS   := Style.BTN_PRESS
 
-# UI references updated on card refresh
-var _lbl_name:          Label
-var _lbl_subtitle:      Label
-var _lbl_lore:          Label
-var _lbl_passive_name:  Label
-var _lbl_passive_desc:  Label
-var _lbl_stats:         Label
-var _portrait_rect:     ColorRect
-var _portrait_label:    Label
-var _passive_dot:       ColorRect
+const PIXEL_FONT := Style.FONT
+const GRID_COLUMNS := 4
+const CELL_SIZE := Vector2(118, 118)
+
+var _selected_index: int = 0
+var _cells: Array[Button] = []
+
+# Referencias del panel de detalle
+var _preview: CharacterPreview
+var _preview_bg: PanelContainer
+var _lbl_name: Label
+var _lbl_subtitle: Label
+var _lbl_passive_name: Label
+var _lbl_passive_desc: Label
+var _lbl_weapon_name: Label
+var _lbl_weapon_kind: Label
+var _lbl_stats: Label
+var _btn_start: Button
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	_current_index = GameData.selected_index
+	theme = Style.get_theme()
+	_selected_index = clampi(GameData.selected_index, 0, GameData.CHARACTERS.size() - 1)
 	_build_ui()
-	_refresh_card()
+	CharacterPreview.preload_all(String(GameData.CHARACTERS[_selected_index].get("id", "")))
+	_refresh_detail()
+	_refresh_cells()
+	if _cells.size() > _selected_index:
+		_cells[_selected_index].grab_focus()
+
+func _exit_tree() -> void:
+	CharacterPreview.clear_cache()
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel"):
+		_on_back()
+		get_viewport().set_input_as_handled()
+
+# ───────────────────────────── Construcción de la UI ─────────────────────────────
 
 func _build_ui() -> void:
-	# ── Background ─────────────────────────────────────────────────────────
 	var bg := ColorRect.new()
 	bg.set_anchors_preset(PRESET_FULL_RECT)
 	bg.color = C_BG
@@ -43,288 +66,264 @@ func _build_ui() -> void:
 	accent_bar.color = C_ACCENT
 	add_child(accent_bar)
 
-	# ── Root margin container ──────────────────────────────────────────────
 	var margin := MarginContainer.new()
 	margin.set_anchors_preset(PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left",   60)
-	margin.add_theme_constant_override("margin_right",  60)
-	margin.add_theme_constant_override("margin_top",    40)
-	margin.add_theme_constant_override("margin_bottom", 40)
+	for side in ["left", "right"]:
+		margin.add_theme_constant_override("margin_" + side, 48)
+	margin.add_theme_constant_override("margin_top", 32)
+	margin.add_theme_constant_override("margin_bottom", 32)
 	add_child(margin)
 
-	var root_vbox := VBoxContainer.new()
-	root_vbox.add_theme_constant_override("separation", 24)
-	margin.add_child(root_vbox)
+	var root := VBoxContainer.new()
+	root.add_theme_constant_override("separation", 20)
+	margin.add_child(root)
 
-	# ── Header ─────────────────────────────────────────────────────────────
-	var lbl_title := Label.new()
-	lbl_title.text = "SELECCIONAR PERSONAJE"
-	lbl_title.add_theme_font_size_override("font_size", 28)
-	lbl_title.add_theme_color_override("font_color", C_TEXT)
-	root_vbox.add_child(lbl_title)
+	# Cabecera
+	var header := HBoxContainer.new()
+	root.add_child(header)
+	var title := Label.new()
+	title.text = "ELIGE TU PERSONAJE"
+	title.add_theme_font_override("font", PIXEL_FONT)
+	title.add_theme_font_size_override("font_size", 22)
+	title.add_theme_color_override("font_color", C_ACCENT)
+	header.add_child(title)
+	var fill := Control.new()
+	fill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(fill)
+	var btn_back := _make_button("← ATRÁS", C_BTN_BORDER)
+	btn_back.custom_minimum_size = Vector2(160, 42)
+	btn_back.pressed.connect(_on_back)
+	header.add_child(btn_back)
 
-	var sep := HSeparator.new()
-	var sep_style := StyleBoxFlat.new()
-	sep_style.bg_color = Color(C_ACCENT, 0.3)
-	sep.add_theme_stylebox_override("separator", sep_style)
-	root_vbox.add_child(sep)
+	# Cuerpo: cuadrícula | detalle
+	var body := HBoxContainer.new()
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.add_theme_constant_override("separation", 28)
+	root.add_child(body)
 
-	# ── Card row: arrow ← | card | arrow → ────────────────────────────────
-	var card_row := HBoxContainer.new()
-	card_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	card_row.add_theme_constant_override("separation", 20)
-	card_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root_vbox.add_child(card_row)
+	body.add_child(_build_grid())
+	body.add_child(_build_detail_panel())
 
-	var btn_prev := _make_nav_button("◀")
-	btn_prev.pressed.connect(_on_prev)
-	card_row.add_child(btn_prev)
+func _build_grid() -> Control:
+	var holder := VBoxContainer.new()
+	holder.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN   # ancho fijo; el detalle ocupa el resto
 
-	# ── Character card panel ───────────────────────────────────────────────
-	var card_panel := Panel.new()
-	card_panel.custom_minimum_size = Vector2(620, 400)
-	card_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var card_style := StyleBoxFlat.new()
-	card_style.bg_color = C_PANEL
-	card_style.set_border_width_all(1)
-	card_style.border_color = Color(C_ACCENT, 0.35)
-	card_style.set_corner_radius_all(10)
-	card_panel.add_theme_stylebox_override("panel", card_style)
-	card_row.add_child(card_panel)
+	var grid := GridContainer.new()
+	grid.columns = GRID_COLUMNS
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 10)
+	holder.add_child(grid)
 
-	var card_margin := MarginContainer.new()
-	card_margin.set_anchors_preset(PRESET_FULL_RECT)
-	card_margin.add_theme_constant_override("margin_left",   28)
-	card_margin.add_theme_constant_override("margin_right",  28)
-	card_margin.add_theme_constant_override("margin_top",    24)
-	card_margin.add_theme_constant_override("margin_bottom", 24)
-	card_panel.add_child(card_margin)
+	for i in range(GameData.CHARACTERS.size()):
+		var cell := _make_cell(i)
+		grid.add_child(cell)
+		_cells.append(cell)
+	return holder
 
-	var card_hbox := HBoxContainer.new()
-	card_hbox.add_theme_constant_override("separation", 28)
-	card_margin.add_child(card_hbox)
+func _make_cell(index: int) -> Button:
+	var c: Dictionary = GameData.CHARACTERS[index]
+	var col: Color = c.get("color", C_ACCENT)
 
-	# Left column: portrait + name
-	var left_col := VBoxContainer.new()
-	left_col.custom_minimum_size = Vector2(180, 0)
-	left_col.add_theme_constant_override("separation", 12)
-	card_hbox.add_child(left_col)
+	var btn := Button.new()
+	btn.custom_minimum_size = CELL_SIZE
+	btn.focus_mode = Control.FOCUS_ALL
+	btn.tooltip_text = "%s — %s" % [c.get("name", ""), c.get("subtitle", "")]
+	btn.set_meta("color", col)
+	btn.add_theme_stylebox_override("normal", _cell_style(Color(col, 0.10), Color(col, 0.45), 2))
+	btn.add_theme_stylebox_override("hover", _cell_style(Color(col, 0.22), col, 2))
+	btn.add_theme_stylebox_override("pressed", _cell_style(Color(col, 0.32), col, 3))
+	btn.add_theme_stylebox_override("focus", _cell_style(Color(col, 0.18), C_TEXT, 3))
 
-	# Portrait placeholder
-	var portrait_bg := Panel.new()
-	portrait_bg.custom_minimum_size = Vector2(180, 180)
-	var port_style := StyleBoxFlat.new()
-	port_style.bg_color = Color(0.1, 0.15, 0.22)
-	port_style.set_border_width_all(2)
-	port_style.border_color = Color(C_ACCENT, 0.5)
-	port_style.set_corner_radius_all(8)
-	portrait_bg.add_theme_stylebox_override("panel", port_style)
-	left_col.add_child(portrait_bg)
+	var vb := VBoxContainer.new()
+	vb.set_anchors_preset(PRESET_FULL_RECT)
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vb.add_theme_constant_override("separation", 6)
+	btn.add_child(vb)
 
-	_portrait_rect = ColorRect.new()
-	_portrait_rect.set_anchors_preset(PRESET_FULL_RECT)
-	_portrait_rect.add_theme_constant_override("margin_all", 0)
-	_portrait_rect.color = Color(0.2, 0.55, 1.0, 0.18)
-	portrait_bg.add_child(_portrait_rect)
+	var initial := Label.new()
+	initial.text = c.get("portrait_label", "?")
+	initial.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	initial.add_theme_font_override("font", PIXEL_FONT)
+	initial.add_theme_font_size_override("font_size", 34)
+	initial.add_theme_color_override("font_color", col)
+	initial.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vb.add_child(initial)
 
-	_portrait_label = Label.new()
-	_portrait_label.set_anchors_preset(PRESET_CENTER)
-	_portrait_label.text = "M"
-	_portrait_label.add_theme_font_size_override("font_size", 72)
-	_portrait_label.add_theme_color_override("font_color", Color.WHITE)
-	_portrait_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_portrait_label.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
-	portrait_bg.add_child(_portrait_label)
+	var nm := Label.new()
+	nm.text = c.get("name", "")
+	nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	nm.add_theme_font_size_override("font_size", 13)
+	nm.add_theme_color_override("font_color", C_TEXT)
+	nm.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vb.add_child(nm)
+
+	btn.pressed.connect(_select.bind(index))
+	btn.focus_entered.connect(_select.bind(index))
+	btn.gui_input.connect(func(ev: InputEvent) -> void:
+		if ev is InputEventMouseButton and ev.double_click and ev.button_index == MOUSE_BUTTON_LEFT:
+			_select(index)
+			_on_start()
+	)
+	return btn
+
+func _build_detail_panel() -> Control:
+	var panel := PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.custom_minimum_size = Vector2(430, 0)
+	var ps := StyleBoxFlat.new()
+	ps.bg_color = C_PANEL
+	ps.set_border_width_all(2)
+	ps.border_color = C_BTN_BORDER
+	ps.set_corner_radius_all(6)
+	ps.set_content_margin_all(20)
+	panel.add_theme_stylebox_override("panel", ps)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 10)
+	panel.add_child(vb)
+
+	# Zona de preview (paso 4: aquí irá el modelo 3D)
+	_preview_bg = PanelContainer.new()
+	_preview_bg.custom_minimum_size = Vector2(0, 250)
+	_preview_bg.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vb.add_child(_preview_bg)
+	_preview = CharacterPreview.new()
+	_preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_preview.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_preview.tooltip_text = "Arrastra para girar al personaje"
+	_preview_bg.add_child(_preview)
 
 	_lbl_name = Label.new()
-	_lbl_name.text = "Mikeura"
-	_lbl_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_lbl_name.add_theme_font_size_override("font_size", 22)
+	_lbl_name.add_theme_font_override("font", PIXEL_FONT)
+	_lbl_name.add_theme_font_size_override("font_size", 24)
 	_lbl_name.add_theme_color_override("font_color", C_TEXT)
-	left_col.add_child(_lbl_name)
+	vb.add_child(_lbl_name)
 
 	_lbl_subtitle = Label.new()
-	_lbl_subtitle.text = "Guerrero del Escudo"
-	_lbl_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_lbl_subtitle.add_theme_font_size_override("font_size", 13)
-	_lbl_subtitle.add_theme_color_override("font_color", C_ACCENT)
-	left_col.add_child(_lbl_subtitle)
+	_lbl_subtitle.add_theme_font_size_override("font_size", 14)
+	_lbl_subtitle.add_theme_color_override("font_color", C_TEXT_DIM)
+	vb.add_child(_lbl_subtitle)
 
-	# Stats block
-	var stats_spacer := Control.new()
-	stats_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	left_col.add_child(stats_spacer)
+	vb.add_child(_section_header("PASIVA"))
+	_lbl_passive_name = Label.new()
+	_lbl_passive_name.add_theme_font_size_override("font_size", 17)
+	vb.add_child(_lbl_passive_name)
+	_lbl_passive_desc = Label.new()
+	_lbl_passive_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_lbl_passive_desc.custom_minimum_size = Vector2(0, 62)
+	_lbl_passive_desc.add_theme_font_size_override("font_size", 13)
+	_lbl_passive_desc.add_theme_color_override("font_color", C_TEXT_DIM)
+	vb.add_child(_lbl_passive_desc)
+
+	vb.add_child(_section_header("ARMA PRINCIPAL"))
+	var wrow := HBoxContainer.new()
+	wrow.add_theme_constant_override("separation", 12)
+	vb.add_child(wrow)
+	_lbl_weapon_name = Label.new()
+	_lbl_weapon_name.add_theme_font_size_override("font_size", 17)
+	_lbl_weapon_name.add_theme_color_override("font_color", C_ACCENT)
+	wrow.add_child(_lbl_weapon_name)
+	_lbl_weapon_kind = Label.new()
+	_lbl_weapon_kind.add_theme_font_size_override("font_size", 13)
+	_lbl_weapon_kind.add_theme_color_override("font_color", C_TEXT_DIM)
+	wrow.add_child(_lbl_weapon_kind)
 
 	_lbl_stats = Label.new()
 	_lbl_stats.add_theme_font_size_override("font_size", 13)
 	_lbl_stats.add_theme_color_override("font_color", C_TEXT_DIM)
-	left_col.add_child(_lbl_stats)
+	vb.add_child(_lbl_stats)
 
-	# Right column: lore + passive
-	var right_col := VBoxContainer.new()
-	right_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right_col.add_theme_constant_override("separation", 14)
-	card_hbox.add_child(right_col)
+	_btn_start = _make_button("COMENZAR PARTIDA", C_ACCENT)
+	_btn_start.custom_minimum_size = Vector2(0, 56)
+	_btn_start.pressed.connect(_on_start)
+	vb.add_child(_btn_start)
+	return panel
 
-	_lbl_lore = Label.new()
-	_lbl_lore.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_lbl_lore.add_theme_font_size_override("font_size", 14)
-	_lbl_lore.add_theme_color_override("font_color", C_TEXT_DIM)
-	right_col.add_child(_lbl_lore)
+func _section_header(text: String) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_override("font", PIXEL_FONT)
+	l.add_theme_font_size_override("font_size", 11)
+	l.add_theme_color_override("font_color", C_TEXT_DIM)
+	return l
 
-	var vsep := HSeparator.new()
-	var vsep_style := StyleBoxFlat.new()
-	vsep_style.bg_color = Color(C_ACCENT, 0.2)
-	vsep.add_theme_stylebox_override("separator", vsep_style)
-	right_col.add_child(vsep)
+# ───────────────────────────── Estado ─────────────────────────────
 
-	# Passive section header
-	var passive_header := HBoxContainer.new()
-	passive_header.add_theme_constant_override("separation", 8)
-	right_col.add_child(passive_header)
+func _select(index: int) -> void:
+	if index == _selected_index and _lbl_name and _lbl_name.text != "":
+		return
+	_selected_index = index
+	_refresh_detail()
+	_refresh_cells()
 
-	_passive_dot = ColorRect.new()
-	_passive_dot.custom_minimum_size = Vector2(10, 10)
-	_passive_dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	passive_header.add_child(_passive_dot)
+func _refresh_cells() -> void:
+	for i in range(_cells.size()):
+		var col: Color = _cells[i].get_meta("color")
+		var selected := i == _selected_index
+		_cells[i].add_theme_stylebox_override("normal",
+			_cell_style(Color(col, 0.30 if selected else 0.10), C_ACCENT if selected else Color(col, 0.45), 4 if selected else 2))
 
-	var lbl_passive_hdr := Label.new()
-	lbl_passive_hdr.text = "PASIVA"
-	lbl_passive_hdr.add_theme_font_size_override("font_size", 12)
-	lbl_passive_hdr.add_theme_color_override("font_color", C_TEXT_DIM)
-	passive_header.add_child(lbl_passive_hdr)
+func _main_weapon_type(c: Dictionary) -> int:
+	var list: Array = c.get("initial_weapons", [WeaponData.WeaponType.SPEAR_LANCE])
+	return int(list[0]) if not list.is_empty() else WeaponData.WeaponType.SPEAR_LANCE
 
-	_lbl_passive_name = Label.new()
-	_lbl_passive_name.add_theme_font_size_override("font_size", 17)
-	_lbl_passive_name.add_theme_color_override("font_color", C_TEXT)
-	right_col.add_child(_lbl_passive_name)
-
-	_lbl_passive_desc = Label.new()
-	_lbl_passive_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_lbl_passive_desc.add_theme_font_size_override("font_size", 13)
-	_lbl_passive_desc.add_theme_color_override("font_color", C_TEXT_DIM)
-	right_col.add_child(_lbl_passive_desc)
-
-	var expand_fill := Control.new()
-	expand_fill.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right_col.add_child(expand_fill)
-
-	# Character counter label (e.g. "1 / 1")
-	var lbl_counter := Label.new()
-	lbl_counter.name = "CounterLabel"
-	lbl_counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	lbl_counter.add_theme_font_size_override("font_size", 13)
-	lbl_counter.add_theme_color_override("font_color", C_TEXT_DIM)
-	right_col.add_child(lbl_counter)
-
-	var btn_next := _make_nav_button("▶")
-	btn_next.pressed.connect(_on_next)
-	card_row.add_child(btn_next)
-
-	# ── Bottom button row ──────────────────────────────────────────────────
-	var bottom_row := HBoxContainer.new()
-	bottom_row.add_theme_constant_override("separation", 16)
-	root_vbox.add_child(bottom_row)
-
-	var btn_back := _make_button("← ATRÁS", C_BTN_BORDER)
-	btn_back.pressed.connect(_on_back)
-	bottom_row.add_child(btn_back)
-
-	var fill := Control.new()
-	fill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bottom_row.add_child(fill)
-
-	var btn_select := _make_button("SELECCIONAR  →", C_ACCENT)
-	btn_select.pressed.connect(_on_select)
-	bottom_row.add_child(btn_select)
-
-# ── Card refresh ────────────────────────────────────────────────────────────
-func _refresh_card() -> void:
-	var chars: Array = GameData.CHARACTERS
-	if chars.is_empty(): return
-	var c: Dictionary = chars[_current_index]
+func _refresh_detail() -> void:
+	var c: Dictionary = GameData.CHARACTERS[_selected_index]
+	var col: Color = c.get("color", C_ACCENT)
 	var stats: Dictionary = c.get("stats", {})
 
-	_lbl_name.text         = c.get("name", "")
-	_lbl_subtitle.text     = c.get("subtitle", "")
-	_lbl_lore.text         = c.get("lore", "")
-	_lbl_passive_name.text = c.get("passive_name", "")
-	_lbl_passive_desc.text = c.get("passive_desc", "")
+	_preview.show_character(String(c.get("id", "")), col)
+	var pb := StyleBoxFlat.new()
+	pb.bg_color = Color(col, 0.10)
+	pb.set_border_width_all(2)
+	pb.border_color = Color(col, 0.5)
+	pb.set_corner_radius_all(6)
+	_preview_bg.add_theme_stylebox_override("panel", pb)
 
-	var char_color: Color = c.get("color", C_ACCENT)
-	_portrait_rect.color   = Color(char_color, 0.18)
-	_portrait_label.text   = c.get("portrait_label", "?")
-	_portrait_label.add_theme_color_override("font_color", char_color)
-	_passive_dot.color     = c.get("passive_color", C_ACCENT)
+	_lbl_name.text = String(c.get("name", "")).to_upper()
+	_lbl_name.add_theme_color_override("font_color", col.lerp(Color.WHITE, 0.35))
+	_lbl_subtitle.text = c.get("subtitle", "")
 
-	_lbl_stats.text = "HP:       %s\nEscudo:   %s\nVelocidad: %s" % [
-		stats.get("max_hp",     "—"),
-		stats.get("max_shield", "—"),
-		stats.get("move_speed", "—"),
-	]
+	_lbl_passive_name.text = c.get("passive_name", "Sin pasiva")
+	_lbl_passive_name.add_theme_color_override("font_color", c.get("passive_color", C_TEXT))
+	var pdesc: String = c.get("passive_desc", "")
+	_lbl_passive_desc.text = pdesc if pdesc != "" else "Este héroe no tiene habilidad pasiva."
 
-	# Update counter
-	var counter := find_child("CounterLabel") as Label
-	if counter:
-		counter.text = "%d / %d" % [_current_index + 1, chars.size()]
+	var w := _main_weapon_type(c)
+	_lbl_weapon_name.text = String(WeaponData.weapon_names.get(w, "Arma"))
+	var kind: String = WeaponData.get_weapon_data(w).category
+	_lbl_weapon_kind.text = {"melee": "Cuerpo a cuerpo", "ranged": "A distancia", "special": "Especial"}.get(kind, kind)
 
-# ── Navigation ──────────────────────────────────────────────────────────────
-func _on_prev() -> void:
-	_current_index = (_current_index - 1 + GameData.CHARACTERS.size()) % GameData.CHARACTERS.size()
-	_refresh_card()
+	_lbl_stats.text = "Vida %s    Escudo %s    Velocidad %s" % [
+		_fmt(float(stats.get("max_hp", 0.0)) + GameData.BASE_HP_BONUS), _fmt(stats.get("max_shield")),
+		_fmt(stats.get("move_speed"))]
 
-func _on_next() -> void:
-	_current_index = (_current_index + 1) % GameData.CHARACTERS.size()
-	_refresh_card()
+func _fmt(v) -> String:
+	return "—" if v == null else str(int(v)) if float(v) == floorf(float(v)) else str(v)
 
-func _on_select() -> void:
-	GameData.selected_index = _current_index
-	if OS.get_name() in ["Android", "iOS"]:
-		SceneLoader.load_scene("res://scenes/core/main_mobile.tscn")
-	else:
-		SceneLoader.load_scene("res://scenes/core/main.tscn")
-	#get_tree().change_scene_to_file("res://scenes/core/main.tscn")
+# ───────────────────────────── Acciones ─────────────────────────────
+
+func _on_start() -> void:
+	GameData.selected_index = _selected_index
+	# El mapa procedural es el único mapa (PC y móvil)
+	SceneLoader.load_scene("res://scenes/core/main_procedural.tscn")
 
 func _on_back() -> void:
 	SceneLoader.load_scene("res://scenes/ui/main_menu.tscn")
-	#get_tree().change_scene_to_file("res://scenes/ui/main_menu.tscn")
 
-# ── Helpers ─────────────────────────────────────────────────────────────────
-func _make_nav_button(txt: String) -> Button:
-	var btn := Button.new()
-	btn.text = txt
-	btn.custom_minimum_size = Vector2(52, 52)
-	btn.add_theme_font_size_override("font_size", 20)
-	btn.add_theme_color_override("font_color", C_TEXT_DIM)
-	btn.add_theme_color_override("font_hover_color", Color.WHITE)
-	btn.add_theme_stylebox_override("normal",  _btn_style(C_BTN_BG,   C_BTN_BORDER, 8))
-	btn.add_theme_stylebox_override("hover",   _btn_style(C_BTN_HOVER, C_ACCENT,    8))
-	btn.add_theme_stylebox_override("pressed", _btn_style(C_BTN_PRESS, C_ACCENT,    8))
-	btn.add_theme_stylebox_override("focus",   _btn_style(C_BTN_BG,   C_ACCENT,     8))
-	return btn
+# ───────────────────────────── Estilos ─────────────────────────────
 
 func _make_button(txt: String, border_col: Color) -> Button:
-	var btn := Button.new()
-	btn.text = txt
-	btn.custom_minimum_size = Vector2(200, 50)
-	btn.add_theme_font_size_override("font_size", 16)
-	btn.add_theme_color_override("font_color", C_TEXT)
-	btn.add_theme_color_override("font_hover_color", Color.WHITE)
-	btn.add_theme_color_override("font_pressed_color", Color.WHITE)
-	btn.add_theme_stylebox_override("normal",  _btn_style(C_BTN_BG,    border_col, 6))
-	btn.add_theme_stylebox_override("hover",   _btn_style(C_BTN_HOVER, C_ACCENT,   6))
-	btn.add_theme_stylebox_override("pressed", _btn_style(C_BTN_PRESS, C_ACCENT,   6))
-	btn.add_theme_stylebox_override("focus",   _btn_style(C_BTN_BG,    C_ACCENT,   6))
-	return btn
+	return Style.make_button(txt, border_col, Vector2(240, 50))
 
 func _btn_style(bg: Color, border: Color, radius: int) -> StyleBoxFlat:
+	return Style.button_style(bg, border, radius)
+
+func _cell_style(bg: Color, border: Color, width: int) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
 	s.bg_color = bg
-	s.set_border_width_all(2)
+	s.set_border_width_all(width)
 	s.border_color = border
-	s.set_corner_radius_all(radius)
-	s.content_margin_left   = 14
-	s.content_margin_right  = 14
-	s.content_margin_top    = 10
-	s.content_margin_bottom = 10
+	s.set_corner_radius_all(6)
 	return s

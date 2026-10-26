@@ -71,9 +71,56 @@ func _ready() -> void:
 	speed_bar.add_theme_stylebox_override("fill", fill)
 	vbox.add_child(speed_bar)
 
+## Llamas y humo que salen de los pies de Riva mientras está en ráfaga.
+var _feet_fx: CPUParticles3D
+
+func _build_feet_fx() -> void:
+	_feet_fx = CPUParticles3D.new()
+	_feet_fx.amount = Quality.count(8)
+	_feet_fx.lifetime = 0.45
+	_feet_fx.local_coords = false          # la estela se queda atrás al correr
+	_feet_fx.direction = Vector3.UP
+	_feet_fx.spread = 35.0
+	_feet_fx.initial_velocity_min = 0.6
+	_feet_fx.initial_velocity_max = 1.6
+	_feet_fx.gravity = Vector3(0, 1.2, 0)
+	_feet_fx.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	_feet_fx.emission_sphere_radius = 0.28
+	_feet_fx.angle_max = 360.0
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.3, 0.3)
+	_feet_fx.mesh = quad
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	mat.billboard_keep_scale = true
+	mat.vertex_color_use_as_albedo = true
+	mat.albedo_texture = _smoke_zone_script._soft_puff_texture()
+	_feet_fx.material_override = mat
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(1.0, 0.85, 0.35, 0.5))
+	ramp.add_point(0.4, Color(1.0, 0.4, 0.08, 0.3))
+	ramp.set_color(ramp.get_point_count() - 1, Color(0.3, 0.12, 0.05, 0.0))
+	_feet_fx.color_ramp = ramp
+	var shrink := Curve.new()
+	shrink.add_point(Vector2(0.0, 1.0))
+	shrink.add_point(Vector2(1.0, 0.3))
+	_feet_fx.scale_amount_curve = shrink
+	_feet_fx.position = Vector3(0, 0.1, 0)
+	_feet_fx.emitting = false
+	player.add_child(_feet_fx)
+
+func _exit_tree() -> void:
+	if is_instance_valid(_feet_fx):
+		_feet_fx.queue_free()
+
 func _physics_process(delta: float) -> void:
 	if not is_instance_valid(player):
 		return
+	if _feet_fx == null:
+		_build_feet_fx()
 
 	var moving: bool = player.input_controller.get_movement_vector().length_squared() > 0.0001
 	if moving:
@@ -84,6 +131,8 @@ func _physics_process(delta: float) -> void:
 	var boost: float = player.move_speed - base_speed
 	var is_fast: bool = moving and boost >= fast_threshold_boost - 0.01
 	player.is_riva_fast = is_fast
+	if is_instance_valid(_feet_fx):
+		_feet_fx.emitting = is_fast
 
 	if is_instance_valid(speed_bar):
 		speed_bar.max_value = max_speed_boost

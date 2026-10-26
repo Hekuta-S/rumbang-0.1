@@ -82,60 +82,96 @@ func create_muzzle_flash(flash_color: Color, scale_multiplier: float = 1.0) -> v
 	var parent = player.get_parent()
 	if not parent or not is_instance_valid(parent) or not parent.is_inside_tree():
 		return
-	var flash_node = Node3D.new()
-	parent.add_child(flash_node)
-	flash_node.global_position = muzzle.global_position
+	# Pool de fogonazos: antes cada disparo creaba nodo, luz, malla, material y partículas (≈ 0,45 ms)
+	_flash_pool = _flash_pool.filter(func(en): return is_instance_valid(en["root"]) and en["root"].is_inside_tree())
+	var entry: Dictionary = {}
+	for en in _flash_pool:
+		if not en["busy"]:
+			entry = en
+			break
+	if entry.is_empty():
+		if _flash_pool.size() >= FLASH_POOL_MAX:
+			return
+		entry = _build_flash_entry(parent)
+		_flash_pool.append(entry)
+	entry["busy"] = true
 
-	var light = OmniLight3D.new()
+	var flash_node: Node3D = entry["root"]
+	var light: OmniLight3D = entry["light"]
+	var flash_mesh: MeshInstance3D = entry["mesh"]
+	var sphere: SphereMesh = flash_mesh.mesh
+	var mat: StandardMaterial3D = entry["mat"]
+	var particles: CPUParticles3D = entry["particles"]
+	var p_mat: StandardMaterial3D = entry["p_mat"]
+
+	flash_node.global_position = muzzle.global_position
+	flash_node.visible = true
 	light.light_color = flash_color
 	light.light_energy = 7.0 * scale_multiplier
 	light.omni_range = 5.0 * scale_multiplier
-	flash_node.add_child(light)
-
-	var flash_mesh = MeshInstance3D.new()
-	var sphere = SphereMesh.new()
-	sphere.radius = 0.2 * scale_multiplier
-	sphere.height = 0.4 * scale_multiplier
-	flash_mesh.mesh = sphere
-
-	var mat = StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	if not is_equal_approx(sphere.radius, 0.2 * scale_multiplier):
+		sphere.radius = 0.2 * scale_multiplier
+		sphere.height = 0.4 * scale_multiplier
+	flash_mesh.scale = Vector3.ONE
 	mat.albedo_color = Color.WHITE.lerp(flash_color, 0.4)
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.emission_enabled = true
 	mat.emission = flash_color
-	mat.emission_energy_multiplier = 5.0
-	flash_mesh.material_override = mat
-	flash_node.add_child(flash_mesh)
 
-	var particles = CPUParticles3D.new()
-	particles.amount = int(18 * scale_multiplier)
+	var amount: int = Quality.count(int(18 * scale_multiplier))
+	if particles.amount != amount:      # cambiar la cantidad realoca el buffer: solo si hace falta
+		particles.amount = amount
 	particles.lifetime = 0.18 * scale_multiplier
-	particles.explosiveness = 1.0
-	particles.one_shot = true
-	particles.spread = 35.0
 	particles.initial_velocity_min = 7.0 * scale_multiplier
 	particles.initial_velocity_max = 16.0 * scale_multiplier
 	if spring_arm and is_instance_valid(spring_arm):
 		particles.direction = -spring_arm.global_transform.basis.z
 	else:
 		particles.direction = Vector3.FORWARD
-
-	var p_mesh = BoxMesh.new()
-	p_mesh.size = Vector3(0.06, 0.06, 0.22) * scale_multiplier
-	particles.mesh = p_mesh
-	var p_mat = StandardMaterial3D.new()
-	p_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var box_size := Vector3(0.06, 0.06, 0.22) * scale_multiplier
+	if (particles.mesh as BoxMesh).size != box_size:
+		(particles.mesh as BoxMesh).size = box_size
 	p_mat.albedo_color = Color.WHITE.lerp(flash_color, 0.3)
-	p_mat.emission_enabled = true
 	p_mat.emission = flash_color
-	p_mat.emission_energy_multiplier = 5.0
-	particles.material_override = p_mat
-	flash_node.add_child(particles)
+	particles.restart()
 	particles.emitting = true
 
 	var tween = flash_node.create_tween().set_parallel(true)
 	tween.tween_property(light, "light_energy", 0.0, 0.12)
 	tween.tween_property(flash_mesh, "scale", Vector3(2.4, 2.4, 2.4) * scale_multiplier, 0.1)
 	tween.tween_property(mat, "albedo_color:a", 0.0, 0.12)
-	tween.chain().tween_callback(flash_node.queue_free)
+	tween.chain().tween_callback(func():
+		flash_node.visible = false
+		particles.emitting = false
+		entry["busy"] = false)
+
+static var _flash_pool: Array = []
+const FLASH_POOL_MAX := 12
+
+static func _build_flash_entry(parent: Node) -> Dictionary:
+	var root := Node3D.new()
+	parent.add_child(root)
+	var light = Quality.new_light()
+	light.light_energy = 0.0
+	root.add_child(light)
+	var flash_mesh := MeshInstance3D.new()
+	flash_mesh.mesh = SphereMesh.new()
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.emission_enabled = true
+	mat.emission_energy_multiplier = 5.0
+	flash_mesh.material_override = mat
+	root.add_child(flash_mesh)
+	var particles := CPUParticles3D.new()
+	particles.explosiveness = 1.0
+	particles.one_shot = true
+	particles.spread = 35.0
+	particles.mesh = BoxMesh.new()
+	var p_mat := StandardMaterial3D.new()
+	p_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	p_mat.emission_enabled = true
+	p_mat.emission_energy_multiplier = 5.0
+	particles.material_override = p_mat
+	root.add_child(particles)
+	particles.emitting = false
+	root.visible = false
+	return {"root": root, "light": light, "mesh": flash_mesh, "mat": mat, "particles": particles, "p_mat": p_mat, "busy": false}

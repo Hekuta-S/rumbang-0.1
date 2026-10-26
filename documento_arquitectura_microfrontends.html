@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Documento de Arquitectura de Micro Frontends - Rumbang Hub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>mermaid.initialize({ startOnLoad: true, theme: 'dark' });</script>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: rgba(18, 26, 43, 0.82);
+      --card-border: rgba(99, 102, 241, 0.25);
+      --accent: #6366f1;
+      --cyan: #06b6d4;
+      --emerald: #10b981;
+      --amber: #f59e0b;
+      --rose: #f43f5e;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: radial-gradient(circle at 50% 0%, #1e1b4b 0%, var(--bg) 65%);
+      color: var(--text);
+      line-height: 1.65;
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 1050px;
+      margin: 0 auto;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 45px;
+      padding: 40px 24px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .badge {
+      display: inline-block;
+      padding: 6px 16px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      background: linear-gradient(135deg, var(--accent), var(--cyan));
+      color: #fff;
+      border-radius: 999px;
+      margin-bottom: 14px;
+    }
+    h1 {
+      font-size: 2.6rem;
+      font-weight: 800;
+      margin-bottom: 8px;
+      background: linear-gradient(to right, #ffffff, #cbd5e1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle {
+      font-size: 1.15rem;
+      color: var(--cyan);
+      font-weight: 500;
+      margin-bottom: 18px;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-top: 20px;
+      text-align: left;
+      font-size: 0.9rem;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      padding-top: 18px;
+    }
+    .meta-item strong { color: var(--accent); }
+    
+    .section-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 32px 28px;
+      margin-bottom: 35px;
+      backdrop-filter: blur(8px);
+    }
+    h2 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 2px solid rgba(99, 102, 241, 0.3);
+      padding-bottom: 8px;
+    }
+    h3 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--cyan);
+      margin: 22px 0 10px 0;
+    }
+    p, li {
+      color: var(--text-muted);
+      font-size: 0.98rem;
+    }
+    ul, ol {
+      margin-left: 20px;
+      margin-bottom: 15px;
+    }
+    li { margin-bottom: 6px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      font-size: 0.9rem;
+    }
+    th, td {
+      padding: 12px 14px;
+      text-align: left;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    th {
+      background: rgba(99, 102, 241, 0.2);
+      color: #fff;
+      font-weight: 600;
+    }
+    tr:nth-child(even) {
+      background: rgba(255,255,255,0.02);
+    }
+    
+    pre, code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    pre {
+      background: #060911;
+      padding: 16px;
+      border-radius: 10px;
+      overflow-x: auto;
+      border: 1px solid rgba(255,255,255,0.08);
+      font-size: 0.88rem;
+      margin: 15px 0;
+      color: #cbd5e1;
+    }
+
+    .highlight-box {
+      border-left: 4px solid var(--accent);
+      background: rgba(99, 102, 241, 0.08);
+      padding: 14px 18px;
+      border-radius: 0 10px 10px 0;
+      margin: 18px 0;
+    }
+    .diagram-container {
+      background: #070b14;
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 24px;
+      margin: 20px 0;
+      overflow-x: auto;
+      text-align: center;
+    }
+
+    .pill-win {
+      display: inline-block;
+      padding: 2px 8px;
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+
+    .print-btn {
+      position: fixed;
+      bottom: 25px;
+      right: 25px;
+      background: linear-gradient(135deg, var(--accent), var(--cyan));
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 50px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(99, 102, 241, 0.5);
+      transition: transform 0.2s;
+    }
+    .print-btn:hover {
+      transform: scale(1.05);
+    }
+
+    @media print {
+      body { background: #fff; color: #000; padding: 0; }
+      .section-card { border: 1px solid #ddd; background: #fff; page-break-inside: avoid; }
+      .header { border: 1px solid #ddd; background: #fff; }
+      h1, h2, h3 { color: #000 !important; -webkit-text-fill-color: initial !important; }
+      p, li, td { color: #333 !important; }
+      .print-btn { display: none; }
+      th { background: #f1f5f9; color: #000; }
+      pre { background: #f8fafc; color: #0f172a; border: 1px solid #e2e8f0; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+
+    <div class="header">
+      <div class="badge">ACTIVIDAD 1 · DISEÑO ARQUITECTÓNICO</div>
+      <h1>Arquitectura de Micro Frontends: Ecosistema Rumbang</h1>
+      <div class="subtitle">Plataforma Web Integral "Rumbang Hub & Online Portal"</div>
+      
+      <div class="meta-grid">
+        <div class="meta-item"><strong>Dominio:</strong> Videojuegos y E-Sports</div>
+        <div class="meta-item"><strong>Estilo:</strong> Micro Frontends Verticales (DDD)</div>
+        <div class="meta-item"><strong>Enfoque:</strong> Module Federation + Web Components Híbrido</div>
+        <div class="meta-item"><strong>Referencia Teórica:</strong> Cam Jackson (2019) / M. Geers</div>
+      </div>
+    </div>
+
+    <!-- TAREA 1 -->
+    <div class="section-card">
+      <h2>1. Contextos Acotados y Descomposición por Negocio</h2>
+      <p>
+        El ecosistema digital de <strong>Rumbang</strong> se descompone en <strong>Micro Frontends verticales</strong> alineados con las capacidades del negocio (Domain-Driven Design). Cada equipo de desarrollo es dueño absoluto de su vertical, desde los componentes visuales hasta su lógica de integración con servicios backend.
+      </p>
+
+      <div class="highlight-box">
+        <strong>Justificación de División Vertical vs Horizontal:</strong><br>
+        Una división horizontal (separar en "Equipo de UI", "Equipo de Lógica" o "Equipo de APIs") introduce cuellos de botella constantes y despliegues sincronizados de alto riesgo. La división vertical permite que el equipo de la <strong>Tienda</strong> implemente nuevas promociones y despliegue a producción de forma autónoma varias veces al día sin poner en riesgo la estabilidad del <strong>Launcher del juego</strong> ni del <strong>Módulo de Clanes</strong>.
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Micro Frontend</th>
+            <th>Dominio (Bounded Context)</th>
+            <th>Responsabilidad</th>
+            <th>Rutas</th>
+            <th>Equipo</th>
+            <th>Tecnología</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Host Shell</strong></td>
+            <td>Platform & Shell</td>
+            <td>Contenedor base, autenticación SSO, Layout global (Navbar/Footer), Event Bus y notificaciones.</td>
+            <td><code>/</code> (Raíz)</td>
+            <td>Core Platform</td>
+            <td>TypeScript / Webpack MF</td>
+          </tr>
+          <tr>
+            <td><strong>MFE-Launcher</strong></td>
+            <td>Game Runtime</td>
+            <td>Ejecución de Godot 4 Web (WebGL2/Wasm), telemetría de rendimiento y emparejamiento.</td>
+            <td><code>/play/*</code></td>
+            <td>Game Engine Team</td>
+            <td>Godot Wasm / Custom Element</td>
+          </tr>
+          <tr>
+            <td><strong>MFE-Store</strong></td>
+            <td>Monetization</td>
+            <td>Catálogo de armas, skins de personajes, pase de batalla, checkout y pasarelas de pago.</td>
+            <td><code>/store/*</code></td>
+            <td>Commerce Team</td>
+            <td>React 18 + Tailwind</td>
+          </tr>
+          <tr>
+            <td><strong>MFE-Community</strong></td>
+            <td>Social & Clan</td>
+            <td>Tablas de clasificación (Leaderboards), perfiles públicos de supervivientes y chat de hermandad.</td>
+            <td><code>/clans/*</code>, <code>/leaderboards</code></td>
+            <td>Community Team</td>
+            <td>Vue 3 (Composition API)</td>
+          </tr>
+          <tr>
+            <td><strong>MFE-Wiki</strong></td>
+            <td>Content & Lore</td>
+            <td>Base de datos de armas, árboles evolutivos, cálculo de daño y guía de personajes.</td>
+            <td><code>/wiki/*</code></td>
+            <td>Editorial Team</td>
+            <td>SvelteKit (SSG/Client)</td>
+          </tr>
+          <tr>
+            <td><strong>MFE-Account</strong></td>
+            <td>Security & ID</td>
+            <td>Configuración de perfil, 2FA/OTP, historial de compras y preferencias.</td>
+            <td><code>/account/*</code></td>
+            <td>Security Team</td>
+            <td>Vanilla Web Components</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- TAREA 2 -->
+    <div class="section-card">
+      <h2>2. Matriz Ponderada de Decisión del Enfoque de Integración</h2>
+      <p>
+        Para seleccionar la arquitectura de integración, se evaluaron cinco enfoques bajo seis criterios rigurosos de negocio y rendimiento (Puntajes de 1 a 10):
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Criterio</th>
+            <th>Peso</th>
+            <th>(1) Servidor (SSR)</th>
+            <th>(2) Compilación (npm)</th>
+            <th>(3) iframes</th>
+            <th>(4) Runtime JS (Module Fed.)</th>
+            <th>(5) Web Components</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Despliegue Independiente</td>
+            <td>25%</td>
+            <td>8 (2.00)</td>
+            <td>2 (0.50)</td>
+            <td>9 (2.25)</td>
+            <td><strong>10 (2.50)</strong></td>
+            <td>9 (2.25)</td>
+          </tr>
+          <tr>
+            <td>Rendimiento / Deduplicación</td>
+            <td>20%</td>
+            <td>8 (1.60)</td>
+            <td>9 (1.80)</td>
+            <td>3 (0.60)</td>
+            <td><strong>9 (1.80)</strong></td>
+            <td>7 (1.40)</td>
+          </tr>
+          <tr>
+            <td>Soporte Wasm / Heterogéneo</td>
+            <td>20%</td>
+            <td>4 (0.80)</td>
+            <td>5 (1.00)</td>
+            <td><strong>10 (2.00)</strong></td>
+            <td>8 (1.60)</td>
+            <td>8 (1.60)</td>
+          </tr>
+          <tr>
+            <td>Aislamiento de Seguridad</td>
+            <td>15%</td>
+            <td>7 (1.05)</td>
+            <td>4 (0.60)</td>
+            <td><strong>10 (1.50)</strong></td>
+            <td>7 (1.05)</td>
+            <td>8 (1.20)</td>
+          </tr>
+          <tr>
+            <td>SEO y Accesibilidad</td>
+            <td>10%</td>
+            <td><strong>10 (1.00)</strong></td>
+            <td>8 (0.80)</td>
+            <td>2 (0.20)</td>
+            <td>8 (0.80)</td>
+            <td>6 (0.60)</td>
+          </tr>
+          <tr>
+            <td>Simplicidad Operativa</td>
+            <td>10%</td>
+            <td>6 (0.60)</td>
+            <td>8 (0.80)</td>
+            <td>7 (0.70)</td>
+            <td>7 (0.70)</td>
+            <td>6 (0.60)</td>
+          </tr>
+          <tr style="font-weight: bold; background: rgba(99, 102, 241, 0.15);">
+            <td>PUNTAJE PONDERADO</td>
+            <td>100%</td>
+            <td>7.05</td>
+            <td>5.50</td>
+            <td>7.25</td>
+            <td><span class="pill-win">8.45 (Ganador)</span></td>
+            <td>7.65</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="highlight-box">
+        <strong>Justificación del Enfoque Híbrido Elegido:</strong><br>
+        El ganador general es <strong>Runtime JavaScript vía Module Federation (8.45)</strong> por su equilibrio entre despliegue autónomo sin coordinaciones y deduplicación de dependencias. Sin embargo, para el <strong>MFE-Launcher (Juego Godot Wasm)</strong> se aplica una excepción: se encapsula en un <em>Web Component con sandbox de iframe de alto rendimiento</em> para asegurar compatibilidad con <code>SharedArrayBuffer</code> y garantizar que una fuga de memoria de la GPU no congele el Shell ni la pasarela de pagos.
+      </div>
+    </div>
+
+    <!-- TAREA 3 -->
+    <div class="section-card">
+      <h2>3. Contratos entre Equipos y Catálogo de Eventos</h2>
+      
+      <h3>3.1 Contrato Estándar de Ciclo de Vida</h3>
+      <p>Todos los micro frontends exponen el siguiente contrato TypeScript para su orquestación dinámica en el Shell:</p>
+      <pre><code>export interface MFEContext {
+  container: HTMLElement;
+  basePath: string;
+  authToken: string | null;
+  locale: string;
+  eventBus: IRumbangEventBus;
+}
+
+export interface IRumbangMFE {
+  bootstrap(): Promise&lt;void&gt;;
+  mount(context: MFEContext): Promise&lt;void&gt;;
+  unmount(context: MFEContext): Promise&lt;void&gt;;
+}</code></pre>
+
+      <h3>3.2 Catálogo Oficial de Eventos (Event Bus en Ventana)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Evento</th>
+            <th>Publicador</th>
+            <th>Consumidores</th>
+            <th>Estructura del <code>detail</code> (Payload)</th>
+            <th>Versión</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>rumbang:auth:session_changed</code></td>
+            <td>Shell / Account</td>
+            <td>Store, Community, Launcher</td>
+            <td><code>{ user_id: string, token: string, roles: string[], expires_at: number }</code></td>
+            <td>v1.2</td>
+          </tr>
+          <tr>
+            <td><code>rumbang:wallet:balance_updated</code></td>
+            <td>Store</td>
+            <td>Shell, Launcher</td>
+            <td><code>{ currency: 'GOLD'|'GEMS', old_amount: number, new_amount: number }</code></td>
+            <td>v1.0</td>
+          </tr>
+          <tr>
+            <td><code>rumbang:game:match_started</code></td>
+            <td>Launcher</td>
+            <td>Shell, Community</td>
+            <td><code>{ match_id: string, map_id: string, character: string, mode: string }</code></td>
+            <td>v1.1</td>
+          </tr>
+          <tr>
+            <td><code>rumbang:game:match_ended</code></td>
+            <td>Launcher</td>
+            <td>Community, Store, Account</td>
+            <td><code>{ match_id: string, kills: number, gold_earned: number, victory: boolean }</code></td>
+            <td>v1.2</td>
+          </tr>
+          <tr>
+            <td><code>rumbang:store:item_purchased</code></td>
+            <td>Store</td>
+            <td>Launcher, Shell</td>
+            <td><code>{ item_id: string, item_type: 'SKIN'|'WEAPON', price: number }</code></td>
+            <td>v1.0</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- TAREA 4 -->
+    <div class="section-card">
+      <h2>4. Temas Transversales</h2>
+      
+      <h3>4.1 Aislamiento de Estilos CSS</h3>
+      <ul>
+        <li><strong>Scoping por Prefijos:</strong> Tailwind y CSS Modules configurados con prefijos obligatorios de equipo (ej. <code>tw-store-</code>, <code>tw-comm-</code>).</li>
+        <li><strong>Shadow DOM para Componentes Nativos:</strong> Componentes de plataforma encapsulados en Custom Elements para bloquear fugas bidireccionales.</li>
+        <li><strong>Resets Destructivos Prohibidos:</strong> Se prohíbe el uso de selectores universales tipo <code>* { margin: 0 }</code>.</li>
+      </ul>
+
+      <h3>4.2 Biblioteca Compartida: Alcance ("Rumbang UI")</h3>
+      <p>
+        Contiene únicamente <strong>Tokens y Componentes Presentacionales Puros</strong> (Paleta de colores neón, botones, modales, badges de nivel). 
+        <em>Estrictamente prohibido incluir lógica de negocio, clientes HTTP o dependencias pesadas.</em>
+      </p>
+
+      <h3>4.3 Autenticación Centralizada</h3>
+      <p>
+        El <strong>Host Shell</strong> es el dueño exclusivo de la sesión OAuth2/OIDC. Las cookies de sesión son <code>HttpOnly; Secure; SameSite=Strict</code>. El Shell obtiene un Access Token JWT de 15 minutos en memoria y lo inyecta mediante <code>MFEContext</code> a los micro frontends montados.
+      </p>
+
+      <h3>4.4 Backend For Frontend (BFF)</h3>
+      <p>Cada dominio cuenta con su propio BFF optimizado para sus patrones de tráfico:</p>
+      <ul>
+        <li><strong>BFF Launcher:</strong> WebSockets de alta frecuencia para matchmaking y sincronización de sesiones.</li>
+        <li><strong>BFF Store:</strong> REST seguro con integración a Stripe y validación de idempotencia en compras.</li>
+        <li><strong>BFF Community:</strong> GraphQL para consultar agregaciones complejas (rankings + datos de clan + perfiles) en una sola petición.</li>
+      </ul>
+    </div>
+
+    <!-- TAREA 5 -->
+    <div class="section-card">
+      <h2>5. Diagramas Arquitectónicos</h2>
+
+      <h3>5.1 Diagrama C4 Nivel 2: Contenedores del Sistema</h3>
+      <div class="diagram-container">
+        <pre class="mermaid">
+graph TD
+    User["Jugador / Usuario (Navegador)"]
+
+    subgraph ClientLayer ["Cliente Web (Navegador)"]
+        Shell["Host Shell Container (Module Federation)"]
+        MFE_L["MFE-Launcher (Godot WebGL Wasm)"]
+        MFE_S["MFE-Store (React 18)"]
+        MFE_C["MFE-Community (Vue 3)"]
+        MFE_W["MFE-Wiki (Svelte)"]
+        EventBus(("Event Bus en Navegador"))
+    end
+
+    subgraph BFFLayer ["Capa Backend for Frontend (BFF)"]
+        BFF_L["BFF Launcher (WebSockets / Node)"]
+        BFF_S["BFF Store (NestJS / REST)"]
+        BFF_C["BFF Community (GraphQL / Apollo)"]
+    end
+
+    subgraph CoreBackend ["Servicios Core"]
+        GameServer["Servidor de Partidas"]
+        Stripe["Pasarela Stripe"]
+        DB_Eco[("PostgreSQL Economía")]
+        DB_Soc[("MongoDB Clanes")]
+    end
+
+    User --> Shell
+    Shell --> MFE_L & MFE_S & MFE_C & MFE_W
+    MFE_L <-->|Eventos| EventBus
+    MFE_S <-->|Eventos| EventBus
+    MFE_C <-->|Eventos| EventBus
+
+    MFE_L --> BFF_L
+    MFE_S --> BFF_S
+    MFE_C --> BFF_C
+
+    BFF_L --> GameServer
+    BFF_S --> Stripe & DB_Eco
+    BFF_C --> DB_Soc
+        </pre>
+      </div>
+
+      <h3>5.2 Diagrama de Secuencia: Flujo Clave de Compra y Desbloqueo en Juego</h3>
+      <div class="diagram-container">
+        <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Player as Jugador
+    participant Store as MFE-Store (React)
+    participant BFF_S as BFF Store
+    participant Bus as Event Bus
+    participant Shell as Shell Container
+    participant Launcher as MFE-Launcher (Wasm)
+
+    Player->>Store: 1. Selecciona compra de "Espada de Energía" ($4.99)
+    Store->>BFF_S: 2. POST /checkout/order {item_id: "SW_ENERGY"}
+    BFF_S-->>Store: 3. Orden confirmada + Recibo ID
+    Store->>Bus: 4. dispatch("rumbang:store:item_purchased", {item_id, type: "WEAPON"})
+    
+    par Notificación en Shell
+        Bus->>Shell: 5a. Captura evento
+        Shell->>Player: 6a. Muestra Toast: "¡Arma agregada al inventario!"
+    and Desbloqueo en Partida
+        Bus->>Launcher: 5b. Captura evento
+        Launcher->>Launcher: 6b. Actualiza carrusel de armas en tiempo real sin recargar
+    end
+        </pre>
+      </div>
+    </div>
+
+    <!-- TAREA 6 -->
+    <div class="section-card">
+      <h2>6. Gestión de Riesgos y Estrategia de Pruebas</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Riesgo</th>
+            <th>Prob.</th>
+            <th>Impacto</th>
+            <th>Mitigación Concreta</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Payload Duplicado de Runtimes</strong></td>
+            <td>Alta</td>
+            <td>Alto</td>
+            <td>Deduplicación estricta de React con Module Federation + Lazy loading agresivo para que Godot Wasm solo descargue al entrar a <code>/play</code>.</td>
+          </tr>
+          <tr>
+            <td><strong>Colapso de Memoria en WebAssembly</strong></td>
+            <td>Media</td>
+            <td>Crítico</td>
+            <td>Aislamiento de contexto con iframe wrapper + monitoreo de <code>webglcontextlost</code> con botón de reintento suave.</td>
+          </tr>
+          <tr>
+            <td><strong>Ruptura de Esquema en Eventos</strong></td>
+            <td>Media</td>
+            <td>Alto</td>
+            <td>Pruebas de contrato automatizadas con <strong>Pact</strong> en los pipelines de CI/CD para impedir deploys incompatibles.</td>
+          </tr>
+          <tr>
+            <td><strong>Ataques XSS entre Micro Frontends</strong></td>
+            <td>Baja</td>
+            <td>Crítico</td>
+            <td>Cookies de sesión <code>HttpOnly</code> para que ningún script acceda a tokens + CSP (Content Security Policy) restrictiva.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Pirámide de Pruebas</h3>
+      <ul>
+        <li><strong>Unitarias:</strong> Vitest/Jest aislados por equipo para lógica interna y formato.</li>
+        <li><strong>Contrato (Pact):</strong> Verificación de productores y consumidores del Event Bus y APIs de BFF.</li>
+        <li><strong>E2E (Playwright):</strong> Recorridos automáticos de navegación cruzada (Tienda -> Partida) en Staging.</li>
+      </ul>
+    </div>
+
+    <!-- TAREA 7 -->
+    <div class="section-card">
+      <h2>7. Contra-argumento y Respuesta a la Pregunta Difícil</h2>
+      
+      <div class="highlight-box">
+        <strong>Defensa del Monolito Modular:</strong><br>
+        <em>"Para equipos de desarrollo pequeños (menos de 15 ingenieros), los Micro Frontends representan una sobrecarga operativa innecesaria. Un Monolito Modular en Next.js con límites estrictos de carpetas por dominio resolvería el 90% de las necesidades con un costo mucho menor, evitando la complejidad de orquestar cinco repositorios, contratos de eventos y entornos de despliegue fragmentados."</em>
+      </div>
+
+      <h3>Respuesta a la Pregunta Difícil del Escenario:</h3>
+      <p>
+        <strong>¿Cómo garantizar 60 FPS estables en el juego WebGL (Wasm) mientras convive con interfaces dinámicas como la Tienda y la Comunidad?</strong>
+      </p>
+      <p>
+        Se logra desacoplando el hilo de ejecución mediante <strong>Web Workers dedicados para el motor Godot</strong> y activando una regla de suspensión en el Host Shell: cuando el usuario enfoca el MFE-Launcher, el Shell pausa las consultas en segundo plano (polling) de los otros micro frontends, reservando el 100% de la GPU y CPU para el renderizado del juego.
+      </p>
+    </div>
+
+  </div>
+
+  <button class="print-btn" onclick="window.print()">Descargar / Imprimir PDF</button>
+
+</body>
+</html>

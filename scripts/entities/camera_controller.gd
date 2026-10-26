@@ -2,7 +2,7 @@ class_name CameraController
 extends Node
 
 @export_group("Camera Settings")
-@export var camera_offset: Vector3 = Vector3(0.6, 0.1, 0.0)
+@export var camera_offset: Vector3 = Vector3(0.0, 0.1, 0.0)   # x = 0: personaje centrado en pantalla
 @export var min_spring_length: float = 2.5
 @export var max_spring_length: float = 10.0
 @export var zoom_speed: float = 0.5

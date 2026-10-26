@@ -44,10 +44,6 @@ func trigger_kickback(weapon_type: int = -1, strength_mult: float = 1.0) -> void
 	match weapon_type:
 		0: # ENERGY_SWORD (Melee swing)
 			impulse = 11.0
-		1: # FLAME_AXE (Heavy Melee AOE swing)
-			impulse = 18.0
-		2: # PLASMA_RIFLE (Rapid Fire shot)
-			impulse = 8.5
 		3: # TRI_SHOTGUN (Spread Shotgun shot)
 			impulse = 20.0
 		4: # RAILGUN (Heavy Beam shot)
@@ -56,8 +52,6 @@ func trigger_kickback(weapon_type: int = -1, strength_mult: float = 1.0) -> void
 			impulse = 7.0
 		7: # SPORE_BAZOOKA (heavy canister launch)
 			impulse = 26.0
-		8: # DUAL_DAGGERS (rapid short melee cuts)
-			impulse = 9.0
 		_:
 			impulse = 12.0 * strength_mult
 

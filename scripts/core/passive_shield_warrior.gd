@@ -70,10 +70,9 @@ func on_shield_depleted(player: CharacterBody3D) -> void:
 
 ## Pushes every enemy inside [burst_radius] away from the player.
 func _push_nearby_enemies(player: CharacterBody3D) -> void:
-	var enemies := player.get_tree().get_nodes_in_group("enemies")
+	var enemies := EnemyRegistry.all()
 	for enemy in enemies:
 		if not is_instance_valid(enemy): continue
-		if not enemy is Node3D: continue
 		var dist: float = player.global_position.distance_to(enemy.global_position)
 		if dist > burst_radius: continue
 
@@ -92,7 +91,7 @@ func _spawn_burst_vfx(player: CharacterBody3D) -> void:
 	if not parent or not is_instance_valid(parent) or not parent.is_inside_tree(): return
 
 	# --- Flash light ---
-	var light := OmniLight3D.new()
+	var light := Quality.new_light()
 	light.light_color   = burst_color
 	light.light_energy  = 8.0
 	light.omni_range    = burst_radius * 1.5

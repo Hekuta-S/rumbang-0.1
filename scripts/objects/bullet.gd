@@ -16,7 +16,9 @@ func _ready() -> void:
 	body_entered.connect(_on_body_entered)
 	area_entered.connect(_on_area_entered)
 
-func setup(dir: Vector3, dmg: float, speed_val: float, enemy_flag: bool = false, col: Color = Color(0.0, 0.85, 1.0), shooter: RID = RID()) -> void:
+var custom_vfx_node: Node3D = null
+
+func setup(dir: Vector3, dmg: float, speed_val: float, enemy_flag: bool = false, col: Color = Color(0.0, 0.85, 1.0), shooter: RID = RID(), vfx_scene: PackedScene = null) -> void:
 	direction = dir.normalized()
 	damage = dmg
 	speed = speed_val
@@ -26,6 +28,33 @@ func setup(dir: Vector3, dmg: float, speed_val: float, enemy_flag: bool = false,
 
 	if direction.length_squared() > 0.001 and direction.cross(Vector3.UP).length_squared() > 0.001:
 		look_at(global_position + direction, Vector3.UP)
+
+	# Clean up any previously attached custom VFX if bullet is reused from pool
+	if custom_vfx_node and is_instance_valid(custom_vfx_node):
+		custom_vfx_node.queue_free()
+		custom_vfx_node = null
+
+	if vfx_scene != null:
+		# Hide default placeholder mesh and default trail
+		if has_node("MeshInstance3D"):
+			$MeshInstance3D.visible = false
+		if has_node("TrailParticles"):
+			$TrailParticles.emitting = false
+			$TrailParticles.visible = false
+		if has_node("OmniLight3D"):
+			$OmniLight3D.visible = false
+		
+		custom_vfx_node = vfx_scene.instantiate()
+		add_child(custom_vfx_node)
+		# Face forward along bullet velocity direction (bullet looks along -Z)
+		custom_vfx_node.rotation_degrees = Vector3(0, 90, 0)
+		return
+
+	# Default bullet appearance
+	if has_node("MeshInstance3D"):
+		$MeshInstance3D.visible = true
+	if has_node("OmniLight3D"):
+		$OmniLight3D.visible = Quality.bullet_lights()
 
 	var mat = StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -56,7 +85,7 @@ func _setup_trail(mat: StandardMaterial3D, col: Color) -> void:
 		add_child(trail)
 
 	trail.local_coords = false
-	trail.amount = 25
+	trail.amount = Quality.count(25)
 	trail.lifetime = 0.18
 	trail.emission_shape = CPUParticles3D.EMISSION_SHAPE_POINT
 	trail.gravity = Vector3.ZERO
@@ -101,6 +130,15 @@ func _physics_process(delta: float) -> void:
 		query.exclude = [shooter_rid]
 
 	var hit = space_state.intersect_ray(query)
+	# Las balas del jugador también golpean enemigos (por geometría, no por física)
+	if not is_enemy_bullet:
+		var eh := EnemyQuery.segment_hit(current_pos, next_pos, 0.12)
+		if not eh.is_empty():
+			var world_dist: float = current_pos.distance_to(hit.position) if not hit.is_empty() else INF
+			if current_pos.distance_to(eh["pos"]) <= world_dist:
+				global_position = eh["pos"]
+				_on_impact(eh["enemy"], eh["pos"], -direction)
+				return
 	if not hit.is_empty():
 		global_position = hit.position
 		_on_impact(hit.collider, hit.position, hit.normal)
@@ -120,7 +158,7 @@ func _on_body_entered(body: Node3D) -> void:
 func _on_area_entered(_area: Area3D) -> void:
 	pass
 
-func _on_impact(body: Node3D, hit_pos: Vector3, hit_normal: Vector3) -> void:
+func _on_impact(body, hit_pos: Vector3, hit_normal: Vector3) -> void:
 	if is_hit: return
 
 	if is_enemy_bullet:
@@ -147,70 +185,92 @@ func _on_impact(body: Node3D, hit_pos: Vector3, hit_normal: Vector3) -> void:
 static var CACHED_RING_MATS: Dictionary = {}
 static var CACHED_SPARK_MATS: Dictionary = {}
 
-static func spawn_impact_sparks(parent_node: Node, pos: Vector3, normal: Vector3, spark_color: Color) -> void:
-	# Guard: parent must exist, be valid, and be inside the scene tree
-	if not parent_node or not is_instance_valid(parent_node) or not parent_node.is_inside_tree(): return
+## Pool de efectos de impacto: se crean una vez (luz, anillo, chispas) y se reutilizan. Antes cada impacto
+## construía ~12 nodos y recursos nuevos (≈ 0,3 ms en PC, bastante más en móvil).
+static var _spark_pool: Array = []     # entradas {root, light, ring, r_mat, particles, ramp, busy}
+const SPARK_POOL_MAX := 24
 
-	var spark_container = Node3D.new()
-	parent_node.add_child(spark_container)
-	spark_container.global_position = pos
-
-	# 1. Flash Light
-	var light = OmniLight3D.new()
-	light.light_color = spark_color
-	light.light_energy = 4.0
+static func _build_spark_entry(parent_node: Node) -> Dictionary:
+	var root := Node3D.new()
+	parent_node.add_child(root)
+	var light = Quality.new_light()
+	light.light_energy = 0.0
 	light.omni_range = 3.5
-	spark_container.add_child(light)
-
-	# 2. Shockwave Ring (Impact Wave)
-	var ring = MeshInstance3D.new()
-	var torus = TorusMesh.new()
+	root.add_child(light)
+	var ring := MeshInstance3D.new()
+	var torus := TorusMesh.new()
 	torus.inner_radius = 0.08
 	torus.outer_radius = 0.25
 	torus.rings = 16
 	torus.ring_segments = 12
 	ring.mesh = torus
-	
-	var ring_key = spark_color.to_html()
-	var r_mat: StandardMaterial3D
-	if not CACHED_RING_MATS.has(ring_key):
-		r_mat = StandardMaterial3D.new()
-		r_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		r_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		r_mat.albedo_color = Color(spark_color.r, spark_color.g, spark_color.b, 0.45)
-		r_mat.emission_enabled = true
-		r_mat.emission = spark_color
-		r_mat.emission_energy_multiplier = 2.5
-		CACHED_RING_MATS[ring_key] = r_mat
-	else:
-		r_mat = CACHED_RING_MATS[ring_key].duplicate() # Duplicate so we can tween transparency independently
-		
+	var r_mat := StandardMaterial3D.new()
+	r_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	r_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	r_mat.emission_enabled = true
+	r_mat.emission_energy_multiplier = 2.5
 	ring.material_override = r_mat
-	
-	spark_container.add_child(ring)
-	if normal != Vector3.ZERO and normal.cross(Vector3.UP).length_squared() > 0.001:
-		ring.look_at(ring.global_position + normal, Vector3.UP)
-	elif normal != Vector3.ZERO:
-		ring.look_at(ring.global_position + normal, Vector3.FORWARD)
-
-	# 3. High Velocity Flying Sparks
-	var particles = CPUParticles3D.new()
-	particles.amount = 18
+	root.add_child(ring)
+	var particles := CPUParticles3D.new()
+	particles.amount = Quality.count(18)
 	particles.lifetime = 0.3
 	particles.one_shot = true
 	particles.explosiveness = 0.95
-	particles.direction = normal if normal != Vector3.ZERO else Vector3.UP
 	particles.spread = 70.0
 	particles.initial_velocity_min = 6.0
 	particles.initial_velocity_max = 14.0
 	particles.gravity = Vector3(0, -12.0, 0)
 	particles.scale_amount_min = 0.5
 	particles.scale_amount_max = 1.1
-
-	var p_mesh = BoxMesh.new()
+	var p_mesh := BoxMesh.new()
 	p_mesh.size = Vector3(0.06, 0.06, 0.18)
 	particles.mesh = p_mesh
+	var ramp := Gradient.new()
+	particles.color_ramp = ramp
+	root.add_child(particles)
+	particles.emitting = false
+	root.visible = false
+	return {"root": root, "light": light, "ring": ring, "r_mat": r_mat, "particles": particles, "ramp": ramp, "busy": false}
 
+static func spawn_impact_sparks(parent_node: Node, pos: Vector3, normal: Vector3, spark_color: Color) -> void:
+	# Guard: parent must exist, be valid, and be inside the scene tree
+	if not parent_node or not is_instance_valid(parent_node) or not parent_node.is_inside_tree(): return
+
+	# Entradas del pool cuyo nodo ya no existe (cambio de escena) se descartan
+	_spark_pool = _spark_pool.filter(func(en): return is_instance_valid(en["root"]) and en["root"].is_inside_tree())
+	var entry: Dictionary = {}
+	for en in _spark_pool:
+		if not en["busy"]:
+			entry = en
+			break
+	if entry.is_empty():
+		if _spark_pool.size() >= SPARK_POOL_MAX:
+			return   # demasiados impactos a la vez: se omite el efecto
+		entry = _build_spark_entry(parent_node)
+		_spark_pool.append(entry)
+	entry["busy"] = true
+
+	var root: Node3D = entry["root"]
+	var light: OmniLight3D = entry["light"]
+	var ring: MeshInstance3D = entry["ring"]
+	var r_mat: StandardMaterial3D = entry["r_mat"]
+	var particles: CPUParticles3D = entry["particles"]
+	var ramp: Gradient = entry["ramp"]
+
+	root.global_position = pos
+	root.visible = true
+	light.light_color = spark_color
+	light.light_energy = 4.0
+	ring.transform = Transform3D.IDENTITY
+	ring.scale = Vector3.ONE
+	r_mat.albedo_color = Color(spark_color.r, spark_color.g, spark_color.b, 0.45)
+	r_mat.emission = spark_color
+	if normal != Vector3.ZERO and normal.cross(Vector3.UP).length_squared() > 0.001:
+		ring.look_at(ring.global_position + normal, Vector3.UP)
+	elif normal != Vector3.ZERO:
+		ring.look_at(ring.global_position + normal, Vector3.FORWARD)
+
+	particles.direction = normal if normal != Vector3.ZERO else Vector3.UP
 	var mat_key = spark_color.to_html()
 	if not CACHED_SPARK_MATS.has(mat_key):
 		var new_mat = StandardMaterial3D.new()
@@ -221,20 +281,17 @@ static func spawn_impact_sparks(parent_node: Node, pos: Vector3, normal: Vector3
 		new_mat.emission = Color(spark_color.r, spark_color.g, spark_color.b).lerp(Color.WHITE, 0.3)
 		new_mat.emission_energy_multiplier = 2.5
 		CACHED_SPARK_MATS[mat_key] = new_mat
-		
 	particles.material_override = CACHED_SPARK_MATS[mat_key]
-
-	var sp_ramp = Gradient.new()
-	sp_ramp.set_color(0, Color(spark_color.r, spark_color.g, spark_color.b, 0.65))
-	sp_ramp.add_point(1.0, Color(spark_color.r, spark_color.g, spark_color.b, 0.0))
-	particles.color_ramp = sp_ramp
-
-	spark_container.add_child(particles)
+	ramp.offsets = PackedFloat32Array([0.0, 1.0])
+	ramp.colors = PackedColorArray([Color(spark_color.r, spark_color.g, spark_color.b, 0.65), Color(spark_color.r, spark_color.g, spark_color.b, 0.0)])
+	particles.restart()
 	particles.emitting = true
 
-	# 4. Smooth Animations & Cleanup
-	var tween = spark_container.create_tween().set_parallel(true)
+	var tween = root.create_tween().set_parallel(true)
 	tween.tween_property(light, "light_energy", 0.0, 0.25)
 	tween.tween_property(ring, "scale", Vector3(2.5, 2.5, 2.5), 0.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tween.tween_property(r_mat, "albedo_color:a", 0.0, 0.22)
-	tween.chain().tween_callback(spark_container.queue_free)
+	tween.chain().tween_callback(func():
+		root.visible = false
+		particles.emitting = false
+		entry["busy"] = false)

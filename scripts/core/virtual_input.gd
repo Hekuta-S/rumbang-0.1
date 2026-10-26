@@ -4,7 +4,6 @@ var movement_vector: Vector2 = Vector2.ZERO
 var look_vector: Vector2 = Vector2.ZERO
 var is_attacking: bool = false
 var is_jumping: bool = false
-var is_running: bool = false
 var is_alt_attack: bool = false
 var is_skill: bool = false
 var is_reloading: bool = false

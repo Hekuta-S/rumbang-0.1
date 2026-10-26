@@ -11,6 +11,13 @@ var _stream_cache: Dictionary = {}
 var _pool_3d: Array[AudioStreamPlayer3D] = []
 var _pool_3d_index: int = 0
 
+## Límite de voces: máx. MAX_VOICES_PER_SFX sonidos 2D iguales a la vez y MIN_GAP_MS entre repeticiones
+## del mismo sonido (evita saturar el mezclador con muchos golpes/disparos iguales, sobre todo en móvil).
+const MAX_VOICES_PER_SFX: int = 4
+const MIN_GAP_MS: int = 40
+var _voices: Dictionary = {}
+var _last_play_ms: Dictionary = {}
+
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
@@ -39,12 +46,19 @@ func play(sfx_name: String, volume_db: float = 0.0, pitch_scale: float = 1.0, fr
 	var stream := get_stream(sfx_name)
 	if stream == null:
 		return
+	var now := Time.get_ticks_msec()
+	if int(_voices.get(sfx_name, 0)) >= MAX_VOICES_PER_SFX or now - int(_last_play_ms.get(sfx_name, -1000)) < MIN_GAP_MS:
+		return
+	_last_play_ms[sfx_name] = now
+	_voices[sfx_name] = int(_voices.get(sfx_name, 0)) + 1
 	var player := AudioStreamPlayer.new()
 	player.bus = "SFX"
 	player.stream = stream
 	player.volume_db = volume_db - 8.0
 	player.pitch_scale = pitch_scale
-	player.finished.connect(player.queue_free)
+	player.finished.connect(func():
+		_voices[sfx_name] = maxi(int(_voices.get(sfx_name, 1)) - 1, 0)
+		player.queue_free())
 	add_child(player)
 	player.play(from_position)
 

@@ -19,9 +19,31 @@ var cloud_radius: float = 2.6
 
 var cloud_scene = preload("res://scenes/objects/spore_cloud.tscn")
 
+static var spore_shader = preload("res://assets/shaders/spore_fbm_cloud.gdshader")
+
 func _ready() -> void:
 	add_to_group("bullets")
 	body_entered.connect(_on_body_entered)
+
+	# Aplicar el shader FBM orgánico a la cabeza del proyectil
+	var mesh_inst := get_node_or_null("MeshInstance3D") as MeshInstance3D
+	if mesh_inst:
+		var head_mat := ShaderMaterial.new()
+		head_mat.shader = spore_shader
+		head_mat.set_shader_parameter("color_deep", Vector4(0.12, 0.55, 0.2, 1.0))
+		head_mat.set_shader_parameter("color_mid", Vector4(0.6, 1.0, 0.2, 1.0))
+		head_mat.set_shader_parameter("color_peak", Vector4(1.0, 0.95, 0.4, 1.0))
+		head_mat.set_shader_parameter("color_rim", Vector4(0.3, 1.0, 0.85, 1.0))
+		head_mat.set_shader_parameter("height_scale", 0.3)
+		head_mat.set_shader_parameter("wave_speed", 1.6)
+		head_mat.set_shader_parameter("global_transparency", 1.0)
+		head_mat.set_shader_parameter("gas_density", 0.65)      # cápsula densa
+		head_mat.set_shader_parameter("spore_density", 0.8)
+		head_mat.set_shader_parameter("spore_glow", 4.5)
+		head_mat.set_shader_parameter("stretch_along_motion", 1.5)
+		mesh_inst.material_override = head_mat
+		(mesh_inst.mesh as SphereMesh).radius = 0.3
+		(mesh_inst.mesh as SphereMesh).height = 0.6
 
 func setup(dir: Vector3, dmg: float, speed_val: float, cloud_dps_val: float, cloud_dur: float, cloud_rad: float) -> void:
 	direction = dir.normalized()
@@ -37,40 +59,15 @@ func setup(dir: Vector3, dmg: float, speed_val: float, cloud_dps_val: float, clo
 	_setup_spore_trail()
 
 func _setup_spore_trail() -> void:
-	var trail := CPUParticles3D.new()
-	trail.name = "SporeTrail"
-	trail.local_coords = false
-	trail.amount = 24
-	trail.lifetime = 0.28
-	trail.emission_shape = CPUParticles3D.EMISSION_SHAPE_POINT
-	trail.gravity = Vector3(0, 1.0, 0)
-	trail.spread = 20.0
-	trail.initial_velocity_min = 0.5
-	trail.initial_velocity_max = 1.2
-	trail.scale_amount_min = 0.3
-	trail.scale_amount_max = 0.8
-
-	var p_mesh := SphereMesh.new()
-	p_mesh.radius = 0.1
-	p_mesh.height = 0.2
-	trail.mesh = p_mesh
-
-	var t_mat := StandardMaterial3D.new()
-	t_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	t_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	t_mat.albedo_color = Color(0.8, 0.95, 0.3, 0.4)
-	t_mat.emission_enabled = true
-	t_mat.emission = Color(0.7, 0.95, 0.2)
-	t_mat.emission_energy_multiplier = 1.8
-	trail.material_override = t_mat
-
-	var color_ramp := Gradient.new()
-	color_ramp.set_color(0, Color(0.8, 0.95, 0.3, 0.45))
-	color_ramp.add_point(1.0, Color(0.3, 0.7, 0.1, 0.0))
-	trail.color_ramp = color_ramp
-
-	add_child(trail)
-	trail.emitting = true
+	# Estela: jirones de gas que se quedan atrás + esporas brillantes sueltas
+	var gas := SporeVFX.gas(18, 0.55, 0.12, 0.45, 0.8, 0.28)
+	gas.name = "SporeTrail"
+	add_child(gas)
+	gas.emitting = true
+	var specks := SporeVFX.specks(34, 0.5, 0.15, 0.05, 0.11, 1.4)
+	specks.name = "SporeSpecks"
+	add_child(specks)
+	specks.emitting = true
 
 func _physics_process(delta: float) -> void:
 	if is_hit: return
@@ -81,8 +78,15 @@ func _physics_process(delta: float) -> void:
 	# Step collision so fast projectiles don't tunnel through geometry/enemies.
 	var space_state = get_world_3d().direct_space_state
 	var query = PhysicsRayQueryParameters3D.create(current_pos, next_pos)
-	query.collision_mask = 5 # World layer (1) + enemy layer (4)
+	query.collision_mask = 1 # solo el mundo; los enemigos se detectan por geometría
 	var hit = space_state.intersect_ray(query)
+	var eh := EnemyQuery.segment_hit(current_pos, next_pos, 0.2)
+	if not eh.is_empty():
+		var world_dist: float = current_pos.distance_to(hit.position) if not hit.is_empty() else INF
+		if current_pos.distance_to(eh["pos"]) <= world_dist:
+			global_position = eh["pos"]
+			_burst(eh["enemy"], eh["pos"])
+			return
 	if not hit.is_empty():
 		global_position = hit.position
 		_burst(hit.collider, hit.position)
@@ -98,13 +102,12 @@ func _on_body_entered(body: Node3D) -> void:
 	if not is_inside_tree(): return
 	_burst(body, global_position)
 
-func _burst(hit_body: Node3D, hit_pos: Vector3) -> void:
+func _burst(hit_body, hit_pos: Vector3) -> void:
 	if is_hit: return
 	is_hit = true
 
-	# Direct impact damage on the enemy that was hit.
-	if hit_body and hit_body.is_in_group("enemies") and hit_body.has_method("take_damage"):
-		hit_body.take_damage(damage, direction)
+	# Explosión: daño enorme en área (pleno en el centro, 60 % en el borde) a TODOS los enemigos
+	_explode(hit_body, hit_pos)
 
 	# Leave a lingering corrosive cloud.
 	var cloud = cloud_scene.instantiate()
@@ -118,73 +121,71 @@ func _burst(hit_body: Node3D, hit_pos: Vector3) -> void:
 	AudioManager.play_at("explosion_bits", hit_pos)
 	queue_free()
 
+## Radio de la explosión respecto al de la nube de esporas.
+const EXPLOSION_RADIUS_FACTOR := 1.4
+const EXPLOSION_EDGE_DAMAGE := 0.6
+const EXPLOSION_KNOCKBACK := 5.0
+
+## Origen del daño (robo de vida y similares). -1 = sin origen.
+var source_weapon: int = -1
+var source_player: Node = null
+
+func explosion_radius() -> float:
+	return cloud_radius * EXPLOSION_RADIUS_FACTOR
+
+func _explode(hit_body, center: Vector3) -> void:
+	var radius := explosion_radius()
+	var victims: Array = []
+	for e in EnemyRegistry.all():
+		if not is_instance_valid(e) or not e.has_method("take_damage"):
+			continue
+		var d: float = Vector2(e.global_position.x - center.x, e.global_position.z - center.z).length()
+		# La vertical cuenta poco: el enemigo es alto
+		var dy := absf((e.global_position.y + 0.8) - center.y)
+		if e == hit_body or (d <= radius and dy <= radius):
+			victims.append([e, d])
+	for v in victims:
+		var e = v[0]
+		var t: float = clampf(float(v[1]) / maxf(radius, 0.01), 0.0, 1.0)
+		var amount: float = damage * lerpf(1.0, EXPLOSION_EDGE_DAMAGE, t)
+		if e == hit_body:
+			amount = damage            # impacto directo: daño completo
+		var away: Vector3 = (e.global_position - center)
+		away.y = 0.0
+		away = away.normalized() if away.length_squared() > 0.0001 else direction
+		e.take_damage(amount, away * EXPLOSION_KNOCKBACK)
+		if source_weapon >= 0 and is_instance_valid(source_player) and source_player.has_method("on_damage_dealt"):
+			source_player.on_damage_dealt(amount, source_weapon)
+
 func _spawn_burst_visual(pos: Vector3) -> void:
 	if not is_inside_tree(): return
 	var container = Node3D.new()
 	get_parent().add_child(container)
 	container.global_position = pos
 
-	var light = OmniLight3D.new()
-	light.light_color = Color(0.8, 0.95, 0.3)
-	light.light_energy = 5.0
+	var light = Quality.new_light()
+	light.light_color = Color(0.7, 1.0, 0.35)
+	light.light_energy = 3.5
 	light.omni_range = 4.5
 	container.add_child(light)
 
-	# --- Expanding Toxic Gas Ring ---
-	var ring = MeshInstance3D.new()
-	var torus = TorusMesh.new()
-	torus.inner_radius = 0.15
-	torus.outer_radius = 0.45
-	ring.mesh = torus
-	var r_mat = StandardMaterial3D.new()
-	r_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	r_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	r_mat.albedo_color = Color(0.8, 0.95, 0.3, 0.5)
-	r_mat.emission_enabled = true
-	r_mat.emission = Color(0.7, 0.95, 0.2)
-	r_mat.emission_energy_multiplier = 2.0
-	ring.material_override = r_mat
-	container.add_child(ring)
+	# Estallido: esporas lanzadas en todas direcciones + bocanada de gas que se expande
+	var spores := SporeVFX.specks(48, 0.9, 0.25, 0.06, 0.14, 5.5)
+	spores.one_shot = true
+	spores.explosiveness = 0.95
+	spores.gravity = Vector3(0, 0.6, 0)
+	container.add_child(spores)
+	spores.emitting = true
 
-	# --- Violent Spore Shrapnel ---
-	var particles = CPUParticles3D.new()
-	particles.amount = 25
-	particles.lifetime = 0.4
-	particles.one_shot = true
-	particles.explosiveness = 0.95
-	particles.spread = 180.0
-	particles.initial_velocity_min = 5.0
-	particles.initial_velocity_max = 12.0
-	particles.gravity = Vector3(0, 2.0, 0)
-	particles.scale_amount_min = 0.35
-	particles.scale_amount_max = 0.8
-	particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
-	particles.emission_sphere_radius = 0.3
+	var puff := SporeVFX.gas(10, 0.9, 0.3, 0.9, 1.6, 0.34)
+	puff.one_shot = true
+	puff.explosiveness = 0.9
+	puff.initial_velocity_min = 0.8
+	puff.initial_velocity_max = 2.2
+	container.add_child(puff)
+	puff.emitting = true
 
-	var p_mesh = SphereMesh.new()
-	p_mesh.radius = 0.09
-	p_mesh.height = 0.18
-	particles.mesh = p_mesh
-
-	var mat = StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = Color(0.85, 1.0, 0.3, 0.55)
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.emission_enabled = true
-	mat.emission = Color(0.75, 0.95, 0.25)
-	mat.emission_energy_multiplier = 2.5
-	particles.material_override = mat
-
-	var sp_ramp = Gradient.new()
-	sp_ramp.set_color(0, Color(0.85, 1.0, 0.3, 0.6))
-	sp_ramp.add_point(1.0, Color(0.4, 0.8, 0.2, 0.0))
-	particles.color_ramp = sp_ramp
-
-	container.add_child(particles)
-	particles.emitting = true
-
-	var tween = container.create_tween().set_parallel(true)
-	tween.tween_property(light, "light_energy", 0.0, 0.35)
-	tween.tween_property(ring, "scale", Vector3(3.0, 3.0, 3.0), 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	tween.tween_property(r_mat, "albedo_color:a", 0.0, 0.3)
-	tween.chain().tween_callback(container.queue_free)
+	var tween = container.create_tween()
+	tween.tween_property(light, "light_energy", 0.0, 0.4)
+	tween.tween_interval(0.7)
+	tween.tween_callback(container.queue_free)

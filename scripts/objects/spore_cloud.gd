@@ -1,8 +1,8 @@
 extends Area3D
 
 ## SporeCloud.gd
-## A temporary corrosive cloud left behind by Bronch's spore bazooka.
-## Damages every enemy inside on a fixed tick interval, then fades away.
+## Nube corrosiva de esporas dejada por la bazoca de Bronch.
+## Usa el shader FBM biológico con distorsión ondulatoria orgánica en las membranas de esporas.
 
 @export var radius: float = 2.6
 @export var damage_per_tick: float = 3.0
@@ -12,13 +12,17 @@ extends Area3D
 var _tick_accum: float = 0.0
 var _age: float = 0.0
 var _fade_after: float = 0.55
-var _fade_mat: StandardMaterial3D = null
+var _spore_shader_mat: ShaderMaterial = null
+var _particles: Array[CPUParticles3D] = []
+var _particles_stopped: bool = false
+
+static var spore_shader: Shader = preload("res://assets/shaders/spore_fbm_cloud.gdshader")
 
 func _ready() -> void:
 	set_deferred("monitoring", true)
 	set_deferred("monitorable", false)
 	collision_layer = 0
-	collision_mask = 1 # enemies
+	collision_mask = 4 # enemies
 	add_to_group("spore_clouds")
 
 	var shape := SphereShape3D.new()
@@ -35,77 +39,78 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 		return
 
-	# Fade the visuals near the end of the cloud's life.
-	if _age >= lifetime * _fade_after and _fade_mat:
+	# Desvanecimiento orgánico con disolución FBM al final del tiempo de vida
+	if _age >= lifetime * _fade_after and _spore_shader_mat:
 		var t = clamp((_age - lifetime * _fade_after) / (lifetime * (1.0 - _fade_after)), 0.0, 1.0)
-		_fade_mat.albedo_color.a = 0.5 * (1.0 - t)
-		_fade_mat.emission_energy_multiplier = 2.0 * (1.0 - t)
+		_spore_shader_mat.set_shader_parameter("dissolve_fade", t)
+		if not _particles_stopped:
+			_particles_stopped = true
+			for ps in _particles:
+				if is_instance_valid(ps):
+					ps.emitting = false
 
 	_tick_accum += delta
 	if _tick_accum < tick_interval:
 		return
 	_tick_accum = 0.0
-	for body in get_overlapping_bodies():
+	for body in EnemyQuery.overlapping(self):
 		if body.is_in_group("enemies") and body.has_method("take_damage"):
 			body.take_damage(damage_per_tick, Vector3.ZERO)
 
-## Puffy toxic cloud: a cluster of soft spheres + drifting motes.
+## Nube de esporas: gas verde translúcido (shader volumétrico barato sobre unas pocas
+## esferas), jirones de niebla y muchas esporas brillantes flotando. Todo escala con `radius`.
 func _build_visual() -> void:
 	var root := Node3D.new()
 	root.name = "Visual"
 	add_child(root)
 
-	_fade_mat = StandardMaterial3D.new()
-	_fade_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_fade_mat.albedo_color = Color(0.75, 0.95, 0.3, 0.5)
-	_fade_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_fade_mat.emission_enabled = true
-	_fade_mat.emission = Color(0.7, 0.95, 0.25)
-	_fade_mat.emission_energy_multiplier = 2.0
+	_spore_shader_mat = ShaderMaterial.new()
+	_spore_shader_mat.shader = spore_shader
+	_spore_shader_mat.set_shader_parameter("color_deep", Vector4(0.08, 0.42, 0.18, 1.0))
+	_spore_shader_mat.set_shader_parameter("color_mid", Vector4(0.45, 0.9, 0.18, 1.0))
+	_spore_shader_mat.set_shader_parameter("color_peak", Vector4(1.0, 0.92, 0.35, 1.0))
+	_spore_shader_mat.set_shader_parameter("color_rim", Vector4(0.25, 1.0, 0.85, 1.0))
+	_spore_shader_mat.set_shader_parameter("height_scale", 0.35)
+	_spore_shader_mat.set_shader_parameter("wave_speed", 0.7)
+	_spore_shader_mat.set_shader_parameter("global_transparency", 0.9)
+	_spore_shader_mat.set_shader_parameter("gas_density", 0.3)
+	_spore_shader_mat.set_shader_parameter("dissolve_fade", 0.0)
 
-	var offsets = [
-		Vector3(0, 0, 0), Vector3(0.7, 0.2, 0.3), Vector3(-0.6, 0.1, 0.5),
-		Vector3(0.4, 0.5, -0.5), Vector3(-0.5, 0.6, -0.2), Vector3(0.1, 0.9, 0.2),
+	# 5 cúmulos distribuidos por el radio de daño (antes eran 6 esferas de 0.55 m: la nube
+	# se veía mucho más pequeña que su zona real de daño)
+	var offsets := [
+		Vector3(0, 0.35, 0), Vector3(0.55, 0.3, 0.25), Vector3(-0.5, 0.25, 0.45),
+		Vector3(0.3, 0.45, -0.5), Vector3(-0.45, 0.4, -0.3),
 	]
 	for off in offsets:
-		var puff = MeshInstance3D.new()
+		var puff := MeshInstance3D.new()
 		var sphere := SphereMesh.new()
-		sphere.radius = 0.55
-		sphere.height = 1.1
+		sphere.radius = radius * 0.5
+		sphere.height = radius
+		sphere.radial_segments = 16
+		sphere.rings = 10
 		puff.mesh = sphere
-		puff.position = off
-		puff.scale = Vector3(1.0, 0.8, 1.0)
-		puff.material_override = _fade_mat
+		puff.position = (off as Vector3) * radius * 0.9
+		puff.scale = Vector3(1.0, 0.7, 1.0)
+		puff.material_override = _spore_shader_mat
+		puff.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(puff)
 
-	var particles := CPUParticles3D.new()
-	particles.amount = 30
-	particles.lifetime = 1.2
-	particles.one_shot = false
-	particles.direction = Vector3.UP
-	particles.spread = 60.0
-	particles.flatness = 1.0
-	particles.initial_velocity_min = 0.3
-	particles.initial_velocity_max = 1.2
-	particles.gravity = Vector3(0, 0.5, 0)
-	particles.scale_amount_min = 0.2
-	particles.scale_amount_max = 0.45
-	particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
-	particles.emission_sphere_radius = radius * 0.7
+	# Niebla verde de fondo
+	var mist := SporeVFX.gas(16, 2.4, radius * 0.6, radius * 0.9, radius * 1.5, 0.16)
+	mist.position = Vector3(0, 0.5, 0)
+	root.add_child(mist)
+	mist.emitting = true
+	_particles.append(mist)
 
-	var p_mesh := SphereMesh.new()
-	p_mesh.radius = 0.08
-	p_mesh.height = 0.16
-	particles.mesh = p_mesh
-
-	var p_mat := StandardMaterial3D.new()
-	p_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	p_mat.albedo_color = Color(0.85, 1.0, 0.4, 0.8)
-	p_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	p_mat.emission_enabled = true
-	p_mat.emission = Color(0.75, 0.95, 0.25)
-	p_mat.emission_energy_multiplier = 2.5
-	particles.material_override = p_mat
-
-	root.add_child(particles)
-	particles.emitting = true
+	# Esporas pequeñas (muchas) y esporas "vaina" grandes (pocas)
+	var small := SporeVFX.specks(70, 2.2, radius * 0.8, 0.05, 0.1, 0.5)
+	small.position = Vector3(0, 0.6, 0)
+	root.add_child(small)
+	small.emitting = true
+	_particles.append(small)
+	var pods := SporeVFX.specks(10, 2.8, radius * 0.7, 0.16, 0.26, 0.25)
+	pods.position = Vector3(0, 0.7, 0)
+	root.add_child(pods)
+	pods.emitting = true
+	_particles.append(pods)

@@ -1,27 +1,32 @@
 extends Control
 
-const C_BG        := Color(0.055, 0.072, 0.11)
-const C_ACCENT     := Color(0.15, 0.62, 0.92)
-const C_TITLE      := Color(0.15, 0.70, 1.00)
-const C_TEXT       := Color(0.88, 0.90, 0.94)
-const C_TEXT_DIM   := Color(0.45, 0.52, 0.62)
-const C_BTN_BG     := Color(0.10, 0.14, 0.22)
-const C_BTN_BORDER := Color(0.18, 0.26, 0.40)
-const C_BTN_HOVER  := Color(0.12, 0.20, 0.34)
-const C_BTN_PRESS  := Color(0.08, 0.42, 0.68)
+const Style := preload("res://scripts/ui/rumbang_style.gd")
+
+# Paleta compartida (ver RumbangStyle)
+const C_BG         := Style.BG
+const C_ACCENT     := Style.ACCENT
+const C_TITLE      := Style.TITLE
+const C_TITLE_GLOW := Style.GLOW
+const C_TEXT       := Style.TEXT
+const C_TEXT_DIM   := Style.TEXT_DIM
+const C_BTN_BG     := Style.BTN_BG
+const C_BTN_BORDER := Style.BTN_BORDER
+const C_BTN_HOVER  := Style.BTN_HOVER
+const C_BTN_PRESS  := Style.BTN_PRESS
+
+const TITLE_FONT := Style.FONT
+const GAME_TITLE := "RUMBANG"
 
 var weapons = [
-	{"id": "flame_axe", "name": "Hacha de Fuego"},
-	{"id": "air_fists", "name": "Puños de Aire"},
-	{"id": "dual_daggers", "name": "Dagas Gemelas"},
 	{"id": "flame_thrower", "name": "Lanzallamas"},
 	{"id": "radiation_zone", "name": "Zona de Radiación"},
-	{"id": "serpent_projectile", "name": "Serpientes de Joel"},
+	{"id": "serpent_projectile", "name": "Espíritus de Joel"},
 	{"id": "spear_projectile", "name": "Espalanza"},
 	{"id": "spinning_axe_projectile", "name": "Hacha Giratoria"},
 	{"id": "spore_cloud", "name": "Bazuca de Esporas"}
 ]
 
+var _bg_container: SubViewportContainer
 var center_container: CenterContainer
 var upgrades_panel: ColorRect
 var lbl_gold: Label
@@ -29,13 +34,11 @@ var upgrades_container: VBoxContainer
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	theme = Style.get_theme()
 	_build_ui()
 
 func _build_ui() -> void:
-	var bg := ColorRect.new()
-	bg.set_anchors_preset(PRESET_FULL_RECT)
-	bg.color = C_BG
-	add_child(bg)
+	_build_background()
 
 	var accent_bar := ColorRect.new()
 	accent_bar.set_anchors_preset(PRESET_TOP_WIDE)
@@ -53,14 +56,25 @@ func _build_ui() -> void:
 	center_container.add_child(vbox)
 
 	var lbl_title := Label.new()
-	lbl_title.text = "SOUL KNIGHT 3D"
+	lbl_title.text = GAME_TITLE
 	lbl_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl_title.add_theme_font_size_override("font_size", 50)
+	lbl_title.add_theme_font_override("font", TITLE_FONT)
+	lbl_title.add_theme_font_size_override("font_size", 56)
 	lbl_title.add_theme_color_override("font_color", C_TITLE)
+	lbl_title.add_theme_color_override("font_outline_color", Color(0.05, 0.02, 0.10))
+	lbl_title.add_theme_constant_override("outline_size", 12)
+	lbl_title.add_theme_color_override("font_shadow_color", Color(C_TITLE_GLOW, 0.75))
+	lbl_title.add_theme_constant_override("shadow_offset_x", 0)
+	lbl_title.add_theme_constant_override("shadow_offset_y", 6)
+	lbl_title.add_theme_constant_override("shadow_outline_size", 14)
 	vbox.add_child(lbl_title)
+	# Latido suave: el resplandor arcano del título respira
+	var pulse := create_tween().set_loops()
+	pulse.tween_property(lbl_title, "theme_override_colors/font_shadow_color", Color(C_TITLE_GLOW, 0.25), 1.6).set_trans(Tween.TRANS_SINE)
+	pulse.tween_property(lbl_title, "theme_override_colors/font_shadow_color", Color(C_TITLE_GLOW, 0.85), 1.6).set_trans(Tween.TRANS_SINE)
 
 	var lbl_sub := Label.new()
-	lbl_sub.text = "Third Person Roguelike"
+	lbl_sub.text = "Dark Fantasy Roguelike"
 	lbl_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl_sub.add_theme_font_size_override("font_size", 15)
 	lbl_sub.add_theme_color_override("font_color", C_TEXT_DIM)
@@ -96,7 +110,7 @@ func _build_ui() -> void:
 	var lbl_ver := Label.new()
 	lbl_ver.text = "v0.1 - Alpha"
 	lbl_ver.set_anchors_preset(PRESET_BOTTOM_RIGHT)
-	lbl_ver.offset_left  = -120
+	lbl_ver.offset_left  = -260
 	lbl_ver.offset_top   = -36
 	lbl_ver.offset_right = -16
 	lbl_ver.offset_bottom = -12
@@ -105,6 +119,50 @@ func _build_ui() -> void:
 	add_child(lbl_ver)
 	
 	_build_upgrades_panel()
+
+## Panorama 3D del mapa (SubViewport) + viñeta oscura para que el menú se lea.
+func _build_background() -> void:
+	var fallback := ColorRect.new()
+	fallback.set_anchors_preset(PRESET_FULL_RECT)
+	fallback.color = C_BG
+	add_child(fallback)
+
+	var is_mobile := OS.get_name() in ["Android", "iOS"]
+	_bg_container = SubViewportContainer.new()
+	_bg_container.set_anchors_preset(PRESET_FULL_RECT)
+	_bg_container.stretch = true
+	_bg_container.stretch_shrink = 2 if is_mobile else 1   # menos resolución en móvil
+	_bg_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_bg_container)
+
+	var vp := SubViewport.new()
+	vp.handle_input_locally = false
+	vp.msaa_3d = Viewport.MSAA_DISABLED if is_mobile else Viewport.MSAA_2X
+	_bg_container.add_child(vp)
+
+	var bg3d := MenuBackground.new()
+	vp.add_child(bg3d)
+	bg3d.fade_requested.connect(_on_bg_fade)
+
+	# Viñeta radial: centro claro, bordes oscuros
+	var grad := Gradient.new()
+	grad.set_color(0, Color(0, 0, 0, 0.15))
+	grad.set_color(1, Color(0.02, 0.01, 0.05, 0.85))
+	var tex := GradientTexture2D.new()
+	tex.gradient = grad
+	tex.fill = GradientTexture2D.FILL_RADIAL
+	tex.fill_from = Vector2(0.5, 0.5)
+	tex.fill_to = Vector2(1.0, 0.9)
+	var vignette := TextureRect.new()
+	vignette.texture = tex
+	vignette.set_anchors_preset(PRESET_FULL_RECT)
+	vignette.stretch_mode = TextureRect.STRETCH_SCALE
+	vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(vignette)
+
+func _on_bg_fade(to_black: bool, duration: float) -> void:
+	var tw := create_tween()
+	tw.tween_property(_bg_container, "modulate", Color(0, 0, 0, 1) if to_black else Color.WHITE, duration)
 
 func _build_upgrades_panel() -> void:
 	upgrades_panel = ColorRect.new()
@@ -223,33 +281,10 @@ func _refresh_upgrades() -> void:
 		hbox.add_child(btn_buy)
 
 func _make_button(txt: String, border_col: Color) -> Button:
-	var btn := Button.new()
-	btn.text = txt
-	btn.custom_minimum_size = Vector2(320, 54)
-	btn.add_theme_font_size_override("font_size", 17)
-	btn.add_theme_color_override("font_color", C_TEXT)
-	btn.add_theme_color_override("font_hover_color", Color.WHITE)
-	btn.add_theme_color_override("font_pressed_color", Color.WHITE)
-	btn.add_theme_color_override("font_disabled_color", C_TEXT_DIM)
-
-	btn.add_theme_stylebox_override("normal",  _btn_style(C_BTN_BG,    border_col,       5))
-	btn.add_theme_stylebox_override("hover",   _btn_style(C_BTN_HOVER, C_ACCENT,         5))
-	btn.add_theme_stylebox_override("pressed", _btn_style(C_BTN_PRESS, C_ACCENT,         5))
-	btn.add_theme_stylebox_override("disabled",_btn_style(C_BTN_BG,    C_BTN_BORDER,     5))
-	btn.add_theme_stylebox_override("focus",   _btn_style(C_BTN_BG,    C_ACCENT,         5))
-	return btn
+	return Style.make_button(txt, border_col, Vector2(320, 54))
 
 func _btn_style(bg: Color, border: Color, radius: int) -> StyleBoxFlat:
-	var s := StyleBoxFlat.new()
-	s.bg_color = bg
-	s.set_border_width_all(2)
-	s.border_color = border
-	s.set_corner_radius_all(radius)
-	s.content_margin_left   = 16
-	s.content_margin_right  = 16
-	s.content_margin_top    = 10
-	s.content_margin_bottom = 10
-	return s
+	return Style.button_style(bg, border, radius)
 
 func _on_play() -> void:
 	SceneLoader.load_scene("res://scenes/ui/character_select.tscn")

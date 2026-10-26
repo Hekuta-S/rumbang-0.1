@@ -57,6 +57,8 @@ func _build_ui() -> void:
 	_add_slider(vbox, "Efectos (SFX)", SettingsManager.sfx_vol, _on_sfx_changed)
 	_add_slider(vbox, "Música", SettingsManager.music_vol, _on_music_changed)
 	
+	_add_quality_selector(vbox)
+
 	var spacer2 = Control.new()
 	spacer2.custom_minimum_size = Vector2(0, 20)
 	vbox.add_child(spacer2)
@@ -66,6 +68,39 @@ func _build_ui() -> void:
 	close_btn.custom_minimum_size = Vector2(0, 45)
 	close_btn.pressed.connect(func(): queue_free())
 	vbox.add_child(close_btn)
+
+func _add_quality_selector(parent: Control) -> void:
+	var hbox = HBoxContainer.new()
+	parent.add_child(hbox)
+
+	var lbl = Label.new()
+	lbl.text = "Calidad gráfica"
+	lbl.custom_minimum_size = Vector2(150, 0)
+	hbox.add_child(lbl)
+
+	var opt = OptionButton.new()
+	opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for n in ["Bajo", "Medio", "Alto"]:
+		opt.add_item(n)
+	opt.selected = Quality.level()
+	opt.item_selected.connect(_on_quality_changed)
+	hbox.add_child(opt)
+
+## Guarda el nivel y aplica en vivo lo que se puede (resolución 3D, sombras y brillo).
+## Partículas, luces y tope de enemigos se notan en los efectos nuevos y la próxima partida.
+func _on_quality_changed(idx: int) -> void:
+	Quality.set_level(idx)
+	var vp := get_viewport()
+	if vp:
+		vp.scaling_3d_scale = Quality.scale_3d()
+	var scene := get_tree().current_scene
+	if scene:
+		var light := scene.get_node_or_null("DirectionalLight3D") as DirectionalLight3D
+		if light and not Quality.is_mobile():
+			light.shadow_enabled = Quality.shadows_enabled()
+		var we := scene.get_node_or_null("WorldEnvironment") as WorldEnvironment
+		if we and we.environment and not Quality.is_mobile():
+			we.environment.glow_enabled = Quality.glow_enabled()
 
 func _add_slider(parent: Control, label_text: String, start_val: float, callback: Callable) -> void:
 	var hbox = HBoxContainer.new()

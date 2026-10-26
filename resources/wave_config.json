@@ -1,9 +1,151 @@
 {
 	"default": [
-		{"type": 1, "weight": 45, "is_zombie": false},
-		{"type": 2, "weight": 25, "is_zombie": false},
-		{"type": 0, "weight": 15, "is_zombie": false},
-		{"type": 3, "weight": 8, "is_zombie": false},
-		{"type": 4, "weight": 7, "is_zombie": true}
+		{
+			"type": 1,
+			"weight": 55,
+			"is_zombie": false
+		},
+		{
+			"type": 2,
+			"weight": 33,
+			"is_zombie": false
+		},
+		{
+			"type": 0,
+			"weight": 4,
+			"is_zombie": false
+		},
+		{
+			"type": 3,
+			"weight": 1,
+			"is_zombie": false
+		},
+		{
+			"type": 4,
+			"weight": 7,
+			"is_zombie": true
+		},
+		{
+			"type": 5,
+			"weight": 2,
+			"is_zombie": false
+		}
+	],
+	"stages": [
+		{
+			"from": 0,
+			"pool": [
+				{
+					"type": 1,
+					"weight": 75,
+					"is_zombie": false
+				},
+				{
+					"type": 0,
+					"weight": 5,
+					"is_zombie": false
+				},
+				{
+					"type": 2,
+					"weight": 20,
+					"is_zombie": false
+				}
+			]
+		},
+		{
+			"from": 90,
+			"pool": [
+				{
+					"type": 1,
+					"weight": 54,
+					"is_zombie": false
+				},
+				{
+					"type": 2,
+					"weight": 32,
+					"is_zombie": false
+				},
+				{
+					"type": 0,
+					"weight": 4,
+					"is_zombie": false
+				},
+				{
+					"type": 4,
+					"weight": 10,
+					"is_zombie": true
+				}
+			]
+		},
+		{
+			"from": 180,
+			"pool": [
+				{
+					"type": 1,
+					"weight": 51,
+					"is_zombie": false
+				},
+				{
+					"type": 2,
+					"weight": 33,
+					"is_zombie": false
+				},
+				{
+					"type": 0,
+					"weight": 3,
+					"is_zombie": false
+				},
+				{
+					"type": 3,
+					"weight": 1,
+					"is_zombie": false
+				},
+				{
+					"type": 4,
+					"weight": 12,
+					"is_zombie": true
+				},
+				{
+					"type": 5,
+					"weight": 3,
+					"is_zombie": false
+				}
+			]
+		},
+		{
+			"from": 300,
+			"pool": [
+				{
+					"type": 1,
+					"weight": 42,
+					"is_zombie": false
+				},
+				{
+					"type": 2,
+					"weight": 39,
+					"is_zombie": false
+				},
+				{
+					"type": 0,
+					"weight": 3,
+					"is_zombie": false
+				},
+				{
+					"type": 3,
+					"weight": 1,
+					"is_zombie": false
+				},
+				{
+					"type": 4,
+					"weight": 15,
+					"is_zombie": true
+				},
+				{
+					"type": 5,
+					"weight": 4,
+					"is_zombie": false
+				}
+			]
+		}
 	]
 }
