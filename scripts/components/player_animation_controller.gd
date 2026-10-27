@@ -28,8 +28,18 @@ const ATTACK_WINDOWS := {
 	"attack3": [0.45, 0.60]
 }
 
+## Ventanas de enlace [inicio_enlace_s, fin_enlace_s]
+## Permiten encadenar el siguiente golpe durante la recuperación
+const LINK_WINDOWS := {
+	"attack1": [0.30, 0.75],
+	"attack2": [0.45, 0.85],
+	"attack3": [0.55, 0.95]
+}
+
 var current_attack_id: int = 0
 var active_attack_name: String = ""
+var _current_action_name: String = ""
+var _action_elapsed: float = 0.0
 
 var player: CharacterBody3D
 var model: Node3D
@@ -315,11 +325,30 @@ func _trigger_hit_dash(anim_name: String) -> void:
 func play_shout() -> void:
 	_fire_action(ACTION_SHOUT)
 
+func is_attacking() -> bool:
+	if _current_action_name in ATTACKS:
+		if is_instance_valid(anim_tree):
+			return bool(anim_tree.get("parameters/shot/active"))
+	return false
+
+func is_in_link_window() -> bool:
+	if not is_attacking():
+		return false
+	if not LINK_WINDOWS.has(_current_action_name):
+		return false
+	var lw: Array = LINK_WINDOWS[_current_action_name]
+	return _action_elapsed >= float(lw[0]) and _action_elapsed <= float(lw[1])
+
+func advance_combo() -> void:
+	play_attack()
+
 func _fire_action(anim_name: String, from_time: float = -1.0) -> void:
 	if not is_instance_valid(anim_tree) or _action_node == null:
 		return
 	if not anim_player.get_animation_library("").has_animation(anim_name):
 		return
+	_current_action_name = anim_name
+	_action_elapsed = 0.0
 	_action_node.animation = anim_name
 	anim_tree.set(SHOT_PARAM, AnimationNodeOneShot.ONE_SHOT_REQUEST_ABORT)
 	anim_tree.set(SHOT_PARAM, AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
@@ -337,6 +366,7 @@ var _was_on_floor: bool = true
 
 func _process(delta: float) -> void:
 	if not player or not is_instance_valid(playback): return
+	_action_elapsed += delta
 	_combo_timer = maxf(_combo_timer - delta, 0.0)
 	if active_attack_name != "" and is_instance_valid(anim_tree):
 		var shot_active = bool(anim_tree.get("parameters/shot/active"))

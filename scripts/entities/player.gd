@@ -795,7 +795,10 @@ func auto_attack(target) -> void:
 	combat_controller.auto_attack(target)
 
 func attack() -> void:
-	combat_controller.attack()
+	if GameData.game_mode == "dungeon":
+		combat_controller.buffer_attack()
+	else:
+		combat_controller.attack()
 	
 func throw_spear() -> void:
 	combat_controller.throw_spear()

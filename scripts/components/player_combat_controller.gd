@@ -72,8 +72,14 @@ func _ready() -> void:
 	_strategies[WeaponData.WeaponType.ZOMBIE_ARM] = WeaponStrategy.ZombieArmStrategy.new(self)
 
 
+const INPUT_BUFFER_TIME: float = 0.28
+var _attack_buffer_timer: float = 0.0
+
 func _process(delta: float) -> void:
 	_update_spear_charge(delta)
+	if _attack_buffer_timer > 0.0:
+		_attack_buffer_timer -= delta
+		_try_consume_buffered_attack()
 	if attack_cooldown > 0: attack_cooldown -= delta
 	for w in attack_cooldowns.keys():
 		if attack_cooldowns[w] > 0:
@@ -236,6 +242,23 @@ func get_soft_aim_direction(max_angle_deg: float = 60.0, max_dist: float = 8.0) 
 			best_dot = dot
 			best_dir = dir
 	return best_dir
+
+func buffer_attack() -> void:
+	if spear_charge >= 0.0: return
+	_attack_buffer_timer = INPUT_BUFFER_TIME
+	_try_consume_buffered_attack()
+
+func is_attack_buffered() -> bool:
+	return _attack_buffer_timer > 0.0
+
+func _try_consume_buffered_attack() -> void:
+	if _attack_buffer_timer <= 0.0: return
+	if player.animation_controller and player.animation_controller.is_in_link_window():
+		_attack_buffer_timer = 0.0
+		player.animation_controller.advance_combo()
+	elif attack_cooldown <= 0.0 and not (player.animation_controller and player.animation_controller.is_attacking()):
+		_attack_buffer_timer = 0.0
+		attack()
 
 func attack() -> void:
 	if attack_cooldown > 0: return
