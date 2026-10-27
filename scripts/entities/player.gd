@@ -260,7 +260,7 @@ func _ready() -> void:
 			passive.on_shield_recharged()
 	)
 	
-	if combat_controller.is_auto_combat_enabled:
+	if combat_controller.is_auto_combat_enabled and GameData.game_mode != "dungeon":
 		var auto_combat_script = load("res://scripts/components/auto_combat_controller.gd")
 		var auto_combat_node = auto_combat_script.new()
 		auto_combat_node.name = "AutoCombatController"

@@ -212,12 +212,43 @@ func throw_spear() -> void:
 	if strategy:
 		strategy.throw_spear()
 
+func get_soft_aim_direction(max_angle_deg: float = 60.0, max_dist: float = 8.0) -> Vector3:
+	var forward: Vector3 = -player.mesh.global_transform.basis.z.normalized() if (player and player.mesh) else Vector3.FORWARD
+	forward.y = 0.0
+	forward = forward.normalized()
+	
+	var best_dir := forward
+	var best_dot := cos(deg_to_rad(max_angle_deg))
+	var enemies = EnemyRegistry.all()
+	var p_pos = player.global_position if player else Vector3.ZERO
+	
+	for e in enemies:
+		if not is_instance_valid(e) or not e.has_method("take_damage"):
+			continue
+		var to_e = (e.global_position - p_pos)
+		to_e.y = 0.0
+		var d = to_e.length()
+		if d > max_dist or d < 0.2:
+			continue
+		var dir = to_e / d
+		var dot = forward.dot(dir)
+		if dot > best_dot:
+			best_dot = dot
+			best_dir = dir
+	return best_dir
+
 func attack() -> void:
 	if attack_cooldown > 0: return
+	if spear_charge >= 0.0: return
 	# The spear is in the air; melee is unavailable until it returns.
 	if player.current_weapon() == WeaponData.WeaponType.SPEAR_LANCE and is_spear_thrown: return
 	# Cannot fire a weapon while it is being reloaded.
 	if reloading_weapon == player.current_weapon(): return
+
+	if GameData.game_mode == "dungeon" and player and player.mesh:
+		var aim_dir = get_soft_aim_direction()
+		if aim_dir.length_squared() > 0.01:
+			player.mesh.rotation.y = atan2(-aim_dir.x, -aim_dir.z)
 
 	var cd_mult = 0.5 if player.is_berserk else 1.0
 	if player.has_method("get_weapon_modifiers"):
