@@ -317,11 +317,75 @@ class SpearLanceStrategy extends WeaponStrategy:
 	const BLADE_ANGLES: Array[float] = [0.0, 180.0, 90.0, -90.0, 45.0, -45.0, 135.0, -135.0]
 	const MAX_BLADES: int = 8
 
+	var _active_hitbox: Node3D = null
+	var _anim_connected: bool = false
+
+	func _connect_animation_signals() -> void:
+		if _anim_connected: return
+		var ac = c.player.animation_controller if (c.player and is_instance_valid(c.player)) else null
+		if ac and ac.has_signal("hit_window_opened"):
+			ac.hit_window_opened.connect(_on_dungeon_hit_opened)
+			ac.hit_window_closed.connect(_on_dungeon_hit_closed)
+			_anim_connected = true
+
+	func _on_dungeon_hit_opened(attack_id: int, anim_name: String) -> void:
+		if not is_instance_valid(c.player) or not c.player.is_inside_tree():
+			return
+		if c.player.current_weapon() != WeaponData.WeaponType.SPEAR_LANCE:
+			return
+		if is_instance_valid(_active_hitbox):
+			_active_hitbox.queue_free()
+			_active_hitbox = null
+
+		var mods: Dictionary = c.player.get_weapon_modifiers(WeaponData.WeaponType.SPEAR_LANCE)
+		var base_dmg = c.player._weapon_damage(WeaponData.WeaponType.SPEAR_LANCE)
+		var dmg = base_dmg
+		var kb = 16.0
+		var box_size = Vector3(1.0, 1.0, 1.8) * float(mods.get("size", 1.0))
+		var offset = Vector3(0, 0.8, -1.3)
+
+		if anim_name == "attack1":
+			dmg = base_dmg
+			kb = 16.0
+			box_size = Vector3(1.0, 1.0, 1.8) * float(mods.get("size", 1.0))
+			offset = Vector3(0, 0.8, -1.3)
+		elif anim_name == "attack2":
+			dmg = base_dmg * 0.95
+			kb = 14.0
+			box_size = Vector3(2.6, 1.0, 2.6) * float(mods.get("size", 1.0))
+			offset = Vector3(0, 0.8, 0.0)
+		elif anim_name == "attack3":
+			dmg = base_dmg * 1.5
+			kb = 26.0
+			box_size = Vector3(1.8, 1.4, 2.0) * float(mods.get("size", 1.0))
+			offset = Vector3(0, 0.8, -1.6)
+
+		var spear_scene = preload("res://scenes/objects/spear_lance_hitbox.tscn").instantiate()
+		c.player.mesh.add_child(spear_scene)
+		spear_scene.position = offset
+		spear_scene.rotation = Vector3.ZERO
+		spear_scene.scale = box_size
+		_scale_melee(spear_scene)
+		spear_scene.source_weapon = WeaponData.WeaponType.SPEAR_LANCE
+		spear_scene.source_player = c.player
+		spear_scene.setup(dmg, 0.35, kb, -c.player.mesh.global_transform.basis.z.normalized())
+		_active_hitbox = spear_scene
+
+		var trail: BladeTrail = c.player.weapon_visuals.spear_trail if c.player.weapon_visuals else null
+		if is_instance_valid(trail) and trail.is_visible_in_tree():
+			trail.emit(0.4)
+
+	func _on_dungeon_hit_closed(_attack_id: int) -> void:
+		if is_instance_valid(_active_hitbox):
+			_active_hitbox.queue_free()
+			_active_hitbox = null
+
 	## Cantidad de cortes según las mejoras ("Hoja extra" suma a la hoja base).
 	static func blade_count(mods: Dictionary) -> int:
 		return clampi(1 + int(mods.get("quantity_bonus", 0)), 1, MAX_BLADES)
 
 	func attack(cd_mult: float) -> void:
+		_connect_animation_signals()
 		# Make it slower (e.g. 1.4x base cooldown)
 		c.attack_cooldown = c.player.get_weapon_data(WeaponData.WeaponType.SPEAR_LANCE).base_cooldown * cd_mult * 1.4
 		
@@ -338,11 +402,13 @@ class SpearLanceStrategy extends WeaponStrategy:
 		# Slower, deeper sound for a larger sweep
 		AudioManager.play("ataque-espalanza", -10.0, 0.85)
 	
-		# Un hitbox + un tajo por hoja. Comparten la lista de enemigos golpeados:
-		# cada enemigo recibe daño una sola vez por ataque (más hojas = más cobertura).
 		var weapon_model: Node3D = c.player.weapon_models.get(WeaponData.WeaponType.SPEAR_LANCE)
 		if is_instance_valid(weapon_model) and not weapon_model.has_meta("in_hand"):
 			weapon_model.visible = false
+
+		if GameData.game_mode == "dungeon":
+			# En mazmorra, el golpe lo genera _on_dungeon_hit_opened cuando la animacion llega a su ventana
+			return
 
 		# Cada hoja golpea con su PROPIO timing: la primera al instante y las demás repartidas
 		# por igual dentro del ciclo de ataque (ciclo / nº de hojas), no todas a la vez.

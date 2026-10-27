@@ -1,6 +1,9 @@
 extends Node
 class_name PlayerAnimationController
 
+signal hit_window_opened(attack_id: int, anim_name: String)
+signal hit_window_closed(attack_id: int)
+
 const STATE_IDLE = "idle"
 const STATE_WALK = "walk"
 const STATE_RUN  = "run"
@@ -17,6 +20,16 @@ const ACTION_CHARGE = "charge"
 const CHARGE_POSE_T := 0.2
 ## Lunge de cada ataque: [segundos hasta el impulso, velocidad m/s]
 const ATTACK_DASH := {"attack1": [0.14, 17.0], "attack2": [0.2, 7.0], "attack3": [0.2, 11.0]}
+
+## Ventanas activas de golpe por animación [inicio_s, fin_s]
+const ATTACK_WINDOWS := {
+	"attack1": [0.20, 0.36],
+	"attack2": [0.22, 0.55],
+	"attack3": [0.45, 0.60]
+}
+
+var current_attack_id: int = 0
+var active_attack_name: String = ""
 
 var player: CharacterBody3D
 var model: Node3D
@@ -109,6 +122,8 @@ func setup_model() -> void:
 			if action_scene: _merge_first_animation_from_scene(action_scene, lib, action_name)
 			if lib.has_animation(action_name):
 				lib.get_animation(action_name).loop_mode = Animation.LOOP_NONE
+				if ATTACK_WINDOWS.has(action_name):
+					_inject_hit_method_tracks(lib.get_animation(action_name), action_name)
 
 	if lib.has_animation(ATTACKS[0]):
 		lib.add_animation(ACTION_CHARGE, _make_hold_pose(lib.get_animation(ATTACKS[0]), CHARGE_POSE_T))
@@ -255,6 +270,8 @@ func play_attack() -> void:
 
 ## Impulso hacia delante sincronizado con el golpe de la animación.
 func _schedule_dash(anim_name: String) -> void:
+	if GameData.game_mode == "dungeon":
+		return # En mazmorra se dispara exactamente con _on_anim_hit_on
 	var mc = player.get("movement_controller")
 	if not ATTACK_DASH.has(anim_name) or mc == null or not mc.has_method("add_dash"):
 		return
@@ -263,6 +280,36 @@ func _schedule_dash(anim_name: String) -> void:
 		if is_instance_valid(player) and is_instance_valid(mc):
 			var fwd: Vector3 = -player.mesh.global_transform.basis.z
 			mc.add_dash(fwd.normalized() * float(d[1])))
+
+func _inject_hit_method_tracks(anim: Animation, anim_name: String) -> void:
+	if not ATTACK_WINDOWS.has(anim_name) or anim_player == null:
+		return
+	var window: Array = ATTACK_WINDOWS[anim_name]
+	var track_idx = anim.add_track(Animation.TYPE_METHOD)
+	var root_target = anim_player.get_node(anim_player.root_node)
+	anim.track_set_path(track_idx, root_target.get_path_to(self))
+	anim.track_insert_key(track_idx, float(window[0]), {"method": "_on_anim_hit_on", "args": [anim_name]})
+	anim.track_insert_key(track_idx, float(window[1]), {"method": "_on_anim_hit_off", "args": [anim_name]})
+
+func _on_anim_hit_on(anim_name: String) -> void:
+	current_attack_id += 1
+	active_attack_name = anim_name
+	if GameData.game_mode == "dungeon":
+		_trigger_hit_dash(anim_name)
+	hit_window_opened.emit(current_attack_id, anim_name)
+
+func _on_anim_hit_off(_anim_name: String) -> void:
+	if active_attack_name != "":
+		hit_window_closed.emit(current_attack_id)
+		active_attack_name = ""
+
+func _trigger_hit_dash(anim_name: String) -> void:
+	var mc = player.get("movement_controller")
+	if not ATTACK_DASH.has(anim_name) or mc == null or not mc.has_method("add_dash"):
+		return
+	var d: Array = ATTACK_DASH[anim_name]
+	var fwd: Vector3 = -player.mesh.global_transform.basis.z
+	mc.add_dash(fwd.normalized() * float(d[1]))
 
 ## Grito de guerra (al activar Berserk).
 func play_shout() -> void:
@@ -291,6 +338,10 @@ var _was_on_floor: bool = true
 func _process(delta: float) -> void:
 	if not player or not is_instance_valid(playback): return
 	_combo_timer = maxf(_combo_timer - delta, 0.0)
+	if active_attack_name != "" and is_instance_valid(anim_tree):
+		var shot_active = bool(anim_tree.get("parameters/shot/active"))
+		if not shot_active:
+			_on_anim_hit_off(active_attack_name)
 	
 	var is_on_floor = player.is_on_floor()
 	var just_jumped = _was_on_floor and not is_on_floor
