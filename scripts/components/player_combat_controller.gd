@@ -22,6 +22,15 @@ var _punch_dash_dir: Vector3 = Vector3.ZERO
 var current_dust_mode: int = 0
 var dust_speed_boost_timer: float = 0.0
 const SPEAR_THROW_CD: float = 0.9
+## Lanzamiento cargado (click derecho mantenido): segundos hasta la carga máxima.
+const SPEAR_CHARGE_TIME: float = 1.1
+## -1 = no se está cargando; si no, segundos que lleva pulsado.
+var spear_charge: float = -1.0
+var _charge_full_played := false
+## Temblor del modelo al cargar (m): de CHARGE_SHAKE_MIN a CHARGE_SHAKE_MAX según la carga.
+const CHARGE_SHAKE_MIN := 0.006
+const CHARGE_SHAKE_MAX := 0.035
+var _shake_base := Vector3.INF
 const MAX_WEAPON_SLOTS: int = 4
 
 var weapon_ammo: Dictionary = {}
@@ -64,6 +73,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_update_spear_charge(delta)
 	if attack_cooldown > 0: attack_cooldown -= delta
 	for w in attack_cooldowns.keys():
 		if attack_cooldowns[w] > 0:
@@ -137,6 +147,70 @@ func auto_attack(target) -> void:
 ## Primary attack dispatcher. Fires the correct attack for the equipped weapon,
 ## gates on cooldown / roll / spear-in-flight / reload, then consumes
 ## ammo for magazine weapons.
+
+func start_spear_charge() -> void:
+	if player.current_weapon() != WeaponData.WeaponType.SPEAR_LANCE or attack_cooldown > 0.0:
+		return
+	spear_charge = 0.0
+	_charge_full_played = false
+	AudioManager.play("impact_magic", -14.0, 0.6)
+	if player.animation_controller:
+		player.animation_controller.play_charge()
+
+func release_spear_charge() -> void:
+	if spear_charge < 0.0:
+		return
+	var power := clampf(spear_charge / SPEAR_CHARGE_TIME, 0.0, 1.0)
+	spear_charge = -1.0
+	_stop_charge_shake()
+	if player.weapon_visuals:
+		player.weapon_visuals.set_spear_charge(0.0)
+	var strategy = _strategies.get(WeaponData.WeaponType.SPEAR_LANCE)
+	if strategy:
+		strategy.throw_spear_charged(power)
+
+func _update_spear_charge(delta: float) -> void:
+	if spear_charge < 0.0:
+		return
+	if player.current_weapon() != WeaponData.WeaponType.SPEAR_LANCE:
+		spear_charge = -1.0
+		_stop_charge_shake()
+		if player.weapon_visuals:
+			player.weapon_visuals.set_spear_charge(0.0)
+		return
+	spear_charge += delta
+	var power := clampf(spear_charge / SPEAR_CHARGE_TIME, 0.0, 1.0)
+	if player.weapon_visuals:
+		player.weapon_visuals.set_spear_charge(power)
+	_charge_shake(power)
+	if power >= 1.0 and not _charge_full_played:
+		_charge_full_played = true
+		AudioManager.play("impact_zap", -8.0, 1.4)
+
+## El cuerpo tiembla cada vez más mientras acumula energía (al máximo, a lo bestia).
+func _charge_shake(power: float) -> void:
+	var model: Node3D = player.animation_controller.model if player.animation_controller else null
+	if model == null:
+		return
+	if _shake_base == Vector3.INF:
+		_shake_base = model.position
+	var amp := lerpf(CHARGE_SHAKE_MIN, CHARGE_SHAKE_MAX, power * power)
+	if power >= 1.0:
+		amp *= 1.3
+	model.position = _shake_base + Vector3(randf_range(-amp, amp), randf_range(-amp, amp) * 0.5, randf_range(-amp, amp))
+
+func _stop_charge_shake() -> void:
+	var model: Node3D = player.animation_controller.model if player.animation_controller else null
+	if model != null and _shake_base != Vector3.INF:
+		model.position = _shake_base
+	_shake_base = Vector3.INF
+
+## Lanzamiento de la espalanza (click derecho): lo resuelve SpearLanceStrategy
+## (desactivado mientras ENABLE_SPEAR_THROW sea false).
+func throw_spear() -> void:
+	var strategy = _strategies.get(WeaponData.WeaponType.SPEAR_LANCE)
+	if strategy:
+		strategy.throw_spear()
 
 func attack() -> void:
 	if attack_cooldown > 0: return

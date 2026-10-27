@@ -34,6 +34,12 @@ func _physics_process(_delta: float) -> void:
 		_on_body_entered(body)
 
 func _on_body_entered(body):
+	# Barriles, cajas y demás objetos rompibles (DestructibleProp)
+	if body.is_in_group("destructibles"):
+		if not hit_enemies.has(body):
+			hit_enemies.append(body)
+			body.take_damage(damage, attack_direction if attack_direction != Vector3.ZERO else (body.global_position - global_position))
+		return
 	if body.is_in_group("enemies") and body.has_method("take_damage"):
 		if not hit_enemies.has(body):
 			hit_enemies.append(body)
@@ -44,6 +50,7 @@ func _on_body_entered(body):
 				if kb_dir.length_squared() < 0.01:
 					kb_dir = -global_transform.basis.z
 			kb_dir = kb_dir.normalized()
+			HitFeedback.weapon_tag = source_weapon
 			body.take_damage(damage, kb_dir * knockback_force)
 			if source_weapon >= 0 and is_instance_valid(source_player) and source_player.has_method("on_damage_dealt"):
 				source_player.on_damage_dealt(damage, source_weapon)

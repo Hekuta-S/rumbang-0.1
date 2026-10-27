@@ -3,6 +3,8 @@
 extends Node
 
 var selected_index: int = 0
+## Modo de juego: "survival" (oleadas en mapa abierto) o "dungeon" (mazmorra estilo Soul Knight).
+var game_mode: String = "survival"
 
 ## Vida extra de base, igual para todos los personajes (afinar aquí).
 const BASE_HP_BONUS := 15.0
@@ -19,7 +21,8 @@ const ANIM_FILES := {
 	"joel": { "idle": "joel-idle.fbx", "walk": "joel-caminar.fbx", "run": "joel-corre.fbx", "jump": "joel-salto.fbx" },
 	"riva": { "idle": "riva-idle.fbx", "walk": "riva-caminar.fbx", "run": "riva-correr.fbx", "jump": "riva-salto.fbx", "fast": "riva-correr-rapido.fbx" },
 	"bronch": { "idle": "bronch-idle.fbx", "walk": "bronch-caminar.fbx", "run": "bronch-correr.fbx", "jump": "bronch-saltar.fbx" },
-	"mikeura": { "idle": "mikeura_idle.fbx", "walk": "mikeura_caminar.fbx", "run": "mikeura-correr.fbx", "jump": "mikeura-saltar.fbx" },
+	"mikeura": { "idle": "mikeura_idle.fbx", "walk": "mikeura_caminar.fbx", "run": "mikeura-correr.fbx", "jump": "mikeura-saltar.fbx",
+		"attack1": "mikeura_ataque1.fbx", "attack2": "mikeura_ataque2.fbx", "attack3": "mikeura_ataque3.fbx", "shout": "mikeura_grito.fbx" },
 	"tatan": { "idle": "idle.fbx", "walk": "caminar.fbx", "run": "tatan-correr.fbx" },
 	"vangry": { "idle": "vangry-idle.fbx", "walk": "vangry-caminar.fbx", "run": "vangry-correr.fbx", "jump": "Jumping.fbx" },
 	"garri": { "idle": "garri-idle.fbx", "walk": "garri-caminar.fbx", "run": "garri-correr.fbx", "jump": "garri-saltar.fbx" },

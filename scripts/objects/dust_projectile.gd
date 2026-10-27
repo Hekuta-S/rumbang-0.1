@@ -119,6 +119,7 @@ func _aoe_damage(pos: Vector3) -> void:
 		if not is_instance_valid(enemy):
 			continue
 		if enemy.global_position.distance_to(pos) <= blast_radius and enemy.has_method("take_damage"):
+			HitFeedback.weapon_tag = WeaponData.WeaponType.DUSTS
 			enemy.take_damage(dmg, (enemy.global_position - pos).normalized() * 3.5)
 			if slow_amount > 0.0 and enemy.has_method("apply_slow"):
 				enemy.apply_slow(SLOW_DURATION, 1.0 - slow_amount)

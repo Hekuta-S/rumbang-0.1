@@ -201,6 +201,7 @@ func _on_body_entered(body):
 		if hits_this_pass.has(body):
 			return
 		hits_this_pass.append(body)
+		HitFeedback.weapon_tag = WeaponData.WeaponType.ZOMBIE_ARM
 		body.take_damage(damage, direction)
 		if source_weapon >= 0 and is_instance_valid(source_player) and source_player.has_method("on_damage_dealt"):
 			source_player.on_damage_dealt(damage, source_weapon)

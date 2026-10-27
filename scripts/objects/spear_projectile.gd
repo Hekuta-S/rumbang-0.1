@@ -15,6 +15,24 @@ var distance_traveled: float = 0.0
 var shooter_rid: RID = RID()
 var returning: bool = false
 var last_pos: Vector3 = Vector3.ZERO
+## Lanzamiento cargado al máximo: atraviesa enemigos (cada uno recibe un golpe).
+var pierce: bool = false
+var _pierced: Array = []
+
+## Sustituye la malla por la espalanza de obsidiana (lanzamiento cargado de Mikeura).
+func make_espalanza(power: float) -> void:
+	for n in ["Shaft", "Tip"]:
+		var m := get_node_or_null(n) as Node3D
+		if m:
+			m.visible = false
+	var model := (load(PlayerWeaponVisuals.ESPALANZA_SCENE) as PackedScene).instantiate() as Node3D
+	model.position = Vector3(0, -0.9, 0)          # la punta va delante del área de colisión
+	model.scale = Vector3.ONE * (1.0 + 0.5 * power)
+	add_child(model)
+	for mi in model.find_children("*", "MeshInstance3D", true, false):
+		PlayerWeaponVisuals.apply_obsidian(mi as MeshInstance3D, 1.0 + power)
+	pierce = power >= 1.0
+	max_range *= 1.0 + power
 
 func _ready() -> void:
 	add_to_group("spear_projectiles")
@@ -102,9 +120,14 @@ func _physics_process(delta: float) -> void:
 	if not eh.is_empty():
 		var world_dist: float = current_pos.distance_to(result.position) if not result.is_empty() else INF
 		if current_pos.distance_to(eh["pos"]) <= world_dist:
-			_apply_impact(eh["enemy"], eh["pos"], -direction)
-			last_pos = eh["pos"]
-			return
+			if pierce:
+				if not _pierced.has(eh["enemy"]):
+					_pierced.append(eh["enemy"])
+					_apply_impact(eh["enemy"], eh["pos"], -direction)
+			else:
+				_apply_impact(eh["enemy"], eh["pos"], -direction)
+				last_pos = eh["pos"]
+				return
 	if not result.is_empty():
 		var body = result.collider
 		if body and body != self:
@@ -156,6 +179,9 @@ func _apply_impact(body, hit_pos: Vector3, hit_normal: Vector3) -> void:
 	var BulletScript = load("res://scripts/objects/bullet.gd")
 	var is_enemy: bool = body.is_in_group("enemies")
 	if is_enemy and body.has_method("take_damage"):
+		HitFeedback.weapon_tag = WeaponData.WeaponType.SPEAR_LANCE
+		body.take_damage(damage, direction)
+	elif body.is_in_group("destructibles"):
 		body.take_damage(damage, direction)
 
 	# Impact sparks.
@@ -163,6 +189,8 @@ func _apply_impact(body, hit_pos: Vector3, hit_normal: Vector3) -> void:
 		var color := Color(0.35, 1.0, 0.5) if is_enemy else Color(0.7, 0.75, 0.8)
 		BulletScript.spawn_impact_sparks(get_parent(), hit_pos, hit_normal, color)
 
+	if pierce and is_enemy:
+		return
 	_start_return()
 
 func _start_return() -> void:

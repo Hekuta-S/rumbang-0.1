@@ -95,6 +95,10 @@ func _build_ui() -> void:
 	btn_play.pressed.connect(_on_play)
 	vbox.add_child(btn_play)
 
+	var btn_dungeon := _make_button("  MAZMORRA", C_ACCENT)
+	btn_dungeon.pressed.connect(_on_play_dungeon)
+	vbox.add_child(btn_dungeon)
+
 	var btn_upgrades := _make_button("  MEJORAS", C_BTN_BORDER)
 	btn_upgrades.pressed.connect(_on_upgrades_menu)
 	vbox.add_child(btn_upgrades)
@@ -287,6 +291,11 @@ func _btn_style(bg: Color, border: Color, radius: int) -> StyleBoxFlat:
 	return Style.button_style(bg, border, radius)
 
 func _on_play() -> void:
+	GameData.game_mode = "survival"
+	SceneLoader.load_scene("res://scenes/ui/character_select.tscn")
+
+func _on_play_dungeon() -> void:
+	GameData.game_mode = "dungeon"
 	SceneLoader.load_scene("res://scenes/ui/character_select.tscn")
 
 func _on_upgrades_menu() -> void:

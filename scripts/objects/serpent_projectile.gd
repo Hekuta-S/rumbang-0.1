@@ -82,6 +82,7 @@ func _on_impact(body, hit_pos: Vector3, hit_normal: Vector3) -> void:
 	var BulletScript = load("res://scripts/objects/bullet.gd")
 	if body.is_in_group("enemies") and body.has_method("take_damage"):
 		is_hit = true
+		HitFeedback.weapon_tag = WeaponData.WeaponType.SERPENTS
 		body.take_damage(damage, direction)
 		if BulletScript and BulletScript.has_method("spawn_impact_sparks"):
 			BulletScript.spawn_impact_sparks(get_parent(), hit_pos, hit_normal, bullet_color)

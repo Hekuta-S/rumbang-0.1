@@ -316,6 +316,9 @@ func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 			var col := Color(1.0, 0.32, 0.1) if is_crit else Color(1.0, 0.88, 0.22)
 			FloatingDamage.spawn(root, global_position + Vector3(0, 1.4 * scale.y, 0), shown, col, is_crit)
 
+	if not is_dot:
+		HitFeedback.on_enemy_hit(self, amount, knockback_dir, hp <= 0.0)
+
 	if hp <= 0.0:
 		enemy_died.emit(self, global_position, gold_reward)
 		recycle()

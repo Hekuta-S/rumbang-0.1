@@ -174,11 +174,14 @@ func _on_impact(body, hit_pos: Vector3, hit_normal: Vector3) -> void:
 	else:
 		if body.is_in_group("enemies") and body.has_method("take_damage"):
 			is_hit = true
+			HitFeedback.weapon_tag = -1
 			body.take_damage(damage, direction)
 			spawn_impact_sparks(get_parent(), hit_pos, hit_normal, bullet_color)
 			PoolManager.return_bullet(self)
 		elif not body.is_in_group("player") and not body.is_in_group("bullets"):
 			is_hit = true
+			if body.is_in_group("destructibles"):
+				body.take_damage(damage, direction)
 			spawn_impact_sparks(get_parent(), hit_pos, hit_normal, bullet_color)
 			PoolManager.return_bullet(self)
 

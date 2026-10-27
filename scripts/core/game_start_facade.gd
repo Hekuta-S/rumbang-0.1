@@ -48,9 +48,11 @@ func start_game() -> void:
 	_reset_player_position_and_stats()
 	ui_manager.refresh_weapon_ui()
 	_prewarm_effects()
-	wave_manager.start_run(_player)
-	loot_manager.spawn_weapon_pickup()
-	loot_manager.spawn_item_pickup()
+	# Modo mazmorra: por ahora solo exploración (los enemigos por sala llegan después)
+	if GameData.game_mode != "dungeon":
+		wave_manager.start_run(_player)
+		loot_manager.spawn_weapon_pickup()
+		loot_manager.spawn_item_pickup()
 	_reveal_world()
 
 ## Tapa negra mientras se genera el mundo: evita ver la escena vacía y que la

@@ -63,6 +63,7 @@ class EnergySwordStrategy extends WeaponStrategy:
 		sword_scene.global_position = player_pos + forward_dir * 1.5
 		sword_scene.look_at(sword_scene.global_position + forward_dir, Vector3.UP)
 		_scale_melee(sword_scene)
+		sword_scene.source_weapon = WeaponData.WeaponType.ENERGY_SWORD
 		sword_scene.setup(dmg, 0.2, 15.0, forward_dir)
 	
 		var weapon_model: Node3D = c.player.weapon_models.get(WeaponData.WeaponType.ENERGY_SWORD)
@@ -156,6 +157,7 @@ class TriShotgunStrategy extends WeaponStrategy:
 					best = e
 			if best != null:
 				# Vector con módulo > 1 = velocidad de empuje (ver Enemy.take_damage)
+				HitFeedback.weapon_tag = WeaponData.WeaponType.TRI_SHOTGUN
 				best.take_damage(dmg, pellet_dir * push)
 
 		_create_blast(start_pos, base_dir, size, half_angle, reach)
@@ -263,6 +265,7 @@ class RailgunStrategy extends WeaponStrategy:
 			var dist = (enemy_center - closest_pt).length()
 			if dist <= beam_radius:
 				if enemy.has_method("take_damage"):
+					HitFeedback.weapon_tag = WeaponData.WeaponType.RAILGUN
 					enemy.take_damage(dmg, aim_dir)
 					spawn_railgun_hit_sparks(closest_pt, aim_dir)
 	
@@ -338,7 +341,7 @@ class SpearLanceStrategy extends WeaponStrategy:
 		# Un hitbox + un tajo por hoja. Comparten la lista de enemigos golpeados:
 		# cada enemigo recibe daño una sola vez por ataque (más hojas = más cobertura).
 		var weapon_model: Node3D = c.player.weapon_models.get(WeaponData.WeaponType.SPEAR_LANCE)
-		if is_instance_valid(weapon_model):
+		if is_instance_valid(weapon_model) and not weapon_model.has_meta("in_hand"):
 			weapon_model.visible = false
 
 		# Cada hoja golpea con su PROPIO timing: la primera al instante y las demás repartidas
@@ -425,7 +428,13 @@ class SpearLanceStrategy extends WeaponStrategy:
 		if index > 0:
 			AudioManager.play("ataque-espalanza", -13.0, 0.9 + 0.04 * float(index))
 		_spawn_blade_hitbox(player_pos, blade_dir, dmg, mods)
-		create_spear_slash_visual(player_pos, blade_dir, slash_side, mods)
+		# Golpe principal con la espalanza en la mano: la estela sigue la hoja animada.
+		# Las hojas extra (mejoras, otros ángulos) mantienen el tajo de energía.
+		var trail: BladeTrail = c.player.weapon_visuals.spear_trail if c.player.weapon_visuals else null
+		if index == 0 and is_instance_valid(trail) and trail.is_visible_in_tree():
+			trail.emit(0.5)
+		else:
+			create_spear_slash_visual(player_pos, blade_dir, slash_side, mods)
 
 	func _spawn_blade_hitbox(player_pos: Vector3, dir: Vector3, dmg: float, mods: Dictionary) -> void:
 		var spear_scene = preload("res://scenes/objects/spear_lance_hitbox.tscn").instantiate()
@@ -487,6 +496,34 @@ class SpearLanceStrategy extends WeaponStrategy:
 	
 		c.player.apply_camera_recoil(0.01, randf_range(-0.004, 0.004), 0.06)
 	
+	## Lanzamiento cargado (click derecho mantenido). power 0..1: más daño,
+	## velocidad, tamaño y empuje; con carga completa atraviesa enemigos.
+	func throw_spear_charged(power: float) -> void:
+		if c.player.current_weapon() != WeaponData.WeaponType.SPEAR_LANCE: return
+		c.attack_cooldown = c.SPEAR_THROW_CD * 0.6
+		var forward: Vector3 = -c.player.mesh.global_transform.basis.z
+		forward.y = 0.0
+		var aim_dir := forward.normalized()
+		var target = c.player.get("auto_combat_target")
+		var start_pos: Vector3 = c.player.global_position + Vector3(0, 1.3, 0) + aim_dir * 0.6
+		if is_instance_valid(target):
+			aim_dir = ((target.global_position + Vector3(0, 0.9, 0)) - start_pos).normalized()
+		var dmg_mult: float = c.player.stat_block.damage_mult() if c.player.stat_block else 1.0
+		var proj = c.spear_projectile_scene.instantiate()
+		c.player.get_parent().add_child(proj)
+		proj.global_position = start_pos
+		_scale_ranged(proj)
+		proj.setup(aim_dir, lerpf(34.0, 70.0, power), lerpf(25.0, 90.0, power) * dmg_mult, c.player.get_rid())
+		if proj.has_method("make_espalanza"):
+			proj.make_espalanza(power)
+		if c.player.animation_controller:
+			c.player.animation_controller.play_throw()
+		c.player.emit_signal("weapon_attacked", WeaponData.WeaponType.SPEAR_LANCE)
+		AudioManager.play("spear_throw", -4.0, lerpf(1.1, 0.8, power))
+		if power >= 1.0:
+			AudioManager.play("kill_burst", -8.0, 1.3)
+		c.player.apply_camera_recoil(0.01 + 0.02 * power, 0.0, 0.08 + 0.12 * power)
+
 	## Called by the thrown spear when it lands / returns to the c.player.
 
 	func on_spear_returned() -> void:

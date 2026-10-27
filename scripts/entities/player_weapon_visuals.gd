@@ -1,4 +1,5 @@
 extends Node
+class_name PlayerWeaponVisuals
 
 ## Construye las mallas 3D procedurales de las armas del jugador y las cuelga
 ## del mesh del modelo (KnightMesh). Extraído de player.gd (setup_weapon_models,
@@ -6,6 +7,25 @@ extends Node
 ## El player comparte el diccionario weapon_models para alternar visibilidad.
 
 var weapon_models: Dictionary = {}
+
+## Espalanza de obsidiana (assets/models/weapons/espalanza.glb) en la mano derecha
+## del modelo animado; su estela (BladeTrail) sigue la hoja durante los ataques.
+const ESPALANZA_SCENE := "res://assets/models/weapons/espalanza.glb"
+const CRACK_SHADER: Shader = preload("res://assets/shaders/obsidian_cracks.gdshader")
+const HAND_BONE := "mixamorig_RightHand"
+## Agarre: el asta (eje Y del modelo) cruza el puño. Ajustar aquí si se ve torcida.
+const GRIP_ROTATION := Vector3(0.0, 0.0, -90.0)   # grados (X, Y, Z) en ejes del hueso
+const GRIP_OFFSET := Vector3(0.0, 0.08, 0.02)     # metros, en ejes del hueso
+const BLADE_BASE_Y := 1.12                        # m desde el agarre (ver modelo)
+const BLADE_TIP_Y := 1.74
+
+var hand_spear: Node3D
+## Aura de carga del lanzamiento (se crean al primer uso)
+var _aura_particles: CPUParticles3D
+var _aura_shell: MeshInstance3D
+var _aura_light: OmniLight3D
+const AURA_SHADER: Shader = preload("res://assets/shaders/spear_aura.gdshader")
+var spear_trail: BladeTrail
 
 func setup_weapon_models(mount: Node3D) -> void:
 	if mount == null:
@@ -882,3 +902,156 @@ func setup_weapon_models(mount: Node3D) -> void:
 	guitar_node.visible = false
 	weapon_models[WeaponData.WeaponType.SPINNING_AXE] = guitar_node
 
+
+## Cuelga la espalanza del hueso de la mano derecha del modelo animado.
+## Devuelve false si el modelo no tiene ese hueso (se queda el modelo procedural).
+func attach_spear_to_hand(model: Node3D) -> bool:
+	if model == null:
+		return false
+	var skels := model.find_children("*", "Skeleton3D", true, false)
+	if skels.is_empty() or (skels[0] as Skeleton3D).find_bone(HAND_BONE) < 0:
+		return false
+	var skel: Skeleton3D = skels[0]
+	var attach := BoneAttachment3D.new()
+	attach.name = "RightHandSpear"
+	attach.bone_name = HAND_BONE
+	skel.add_child(attach)
+
+	var spear := (load(ESPALANZA_SCENE) as PackedScene).instantiate() as Node3D
+	# El esqueleto viene escalado (FBX en cm + _fit_model): compensar para medir en metros
+	var s := skel.global_transform.basis.get_scale().x
+	var rot := Basis.from_euler(GRIP_ROTATION * PI / 180.0)
+	spear.transform = Transform3D(rot.scaled(Vector3.ONE / s), GRIP_OFFSET / s)
+	attach.add_child(spear)
+	for mi in spear.find_children("*", "MeshInstance3D", true, false):
+		apply_obsidian(mi as MeshInstance3D)
+
+	var base := Marker3D.new()
+	base.position = Vector3(0, BLADE_BASE_Y, 0)
+	spear.add_child(base)
+	var tip := Marker3D.new()
+	tip.position = Vector3(0, BLADE_TIP_Y, 0)
+	spear.add_child(tip)
+	spear_trail = BladeTrail.new()
+	spear_trail.name = "SpearTrail"
+	spear.add_child(spear_trail)
+	spear_trail.setup(base, tip)
+
+	# Reemplaza el modelo procedural antiguo
+	var old: Node3D = weapon_models.get(WeaponData.WeaponType.SPEAR_LANCE)
+	if is_instance_valid(old):
+		old.queue_free()
+	spear.set_meta("in_hand", true)
+	spear.visible = false
+	hand_spear = spear
+	weapon_models[WeaponData.WeaponType.SPEAR_LANCE] = spear
+	return true
+
+## Brillo de las grietas mientras se carga el lanzamiento (0 = normal, 1 = carga máxima).
+func set_spear_charge(power: float) -> void:
+	if not is_instance_valid(hand_spear):
+		return
+	_update_aura(power)
+	for mi in hand_spear.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		for i in m.get_surface_override_material_count():
+			var mat := m.get_surface_override_material(i) as ShaderMaterial
+			if mat:
+				var base: float = mat.get_meta("base_glow", 3.0)
+				mat.set_shader_parameter("glow", base * (1.0 + power * 3.0))
+				mat.set_shader_parameter("pulse_speed", 2.2 + power * 14.0)
+
+## Aura de energía de la carga: halo alrededor del asta, partículas que suben y luz verde.
+func _update_aura(power: float) -> void:
+	if _aura_particles == null:
+		_build_aura()
+	var on := power > 0.001
+	_aura_particles.emitting = on
+	_aura_particles.speed_scale = 0.8 + power * 1.6
+	_aura_particles.initial_velocity_max = 0.6 + power * 2.2
+	_aura_particles.scale_amount_max = 0.6 + power * 1.0
+	_aura_shell.visible = on
+	(_aura_shell.material_override as ShaderMaterial).set_shader_parameter("power", power)
+	_aura_shell.scale = Vector3(1.4 + power * 0.9, 1.0, 1.4 + power * 0.9)
+	_aura_light.visible = on
+	_aura_light.light_energy = power * 1.4 * (0.8 + 0.2 * sin(Time.get_ticks_msec() * 0.03))
+
+func _build_aura() -> void:
+	# Asta de la espalanza: eje Y local, del pomo (-0.74) a la punta (BLADE_TIP_Y)
+	var center_y := (BLADE_TIP_Y - 0.74) * 0.5
+	var length := BLADE_TIP_Y + 0.74
+	_aura_particles = CPUParticles3D.new()
+	_aura_particles.name = "ChargeAura"
+	_aura_particles.amount = Quality.count(48)
+	_aura_particles.lifetime = 0.55
+	_aura_particles.local_coords = false
+	_aura_particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	_aura_particles.emission_box_extents = Vector3(0.06, length * 0.5, 0.06)
+	_aura_particles.position = Vector3(0, center_y, 0)
+	_aura_particles.direction = Vector3.UP
+	_aura_particles.spread = 180.0
+	_aura_particles.gravity = Vector3(0, 2.5, 0)
+	_aura_particles.initial_velocity_min = 0.2
+	_aura_particles.damping_min = 1.0
+	_aura_particles.damping_max = 2.0
+	_aura_particles.scale_amount_min = 0.3
+	var sph := SphereMesh.new()
+	sph.radius = 0.03
+	sph.height = 0.06
+	sph.radial_segments = 4
+	sph.rings = 2
+	var pm := StandardMaterial3D.new()
+	pm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	pm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	pm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	pm.vertex_color_use_as_albedo = true
+	sph.material = pm
+	_aura_particles.mesh = sph
+	var grad := Gradient.new()
+	grad.set_color(0, Color(0.8, 1.0, 0.85, 1.0))
+	grad.add_point(0.35, Color(0.2, 1.0, 0.4, 0.9))
+	grad.set_color(grad.get_point_count() - 1, Color(0.1, 0.8, 0.3, 0.0))
+	_aura_particles.color_ramp = grad
+	_aura_particles.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_aura_particles.emitting = false
+	hand_spear.add_child(_aura_particles)
+
+	_aura_shell = MeshInstance3D.new()
+	_aura_shell.name = "ChargeShell"
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.11
+	cyl.bottom_radius = 0.07
+	cyl.height = length + 0.2
+	cyl.radial_segments = 12
+	cyl.cap_top = false
+	cyl.cap_bottom = false
+	_aura_shell.mesh = cyl
+	_aura_shell.position = Vector3(0, center_y, 0)
+	var sm := ShaderMaterial.new()
+	sm.shader = AURA_SHADER
+	_aura_shell.material_override = sm
+	_aura_shell.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_aura_shell.visible = false
+	hand_spear.add_child(_aura_shell)
+
+	_aura_light = OmniLight3D.new()
+	_aura_light.light_color = Color(0.3, 1.0, 0.45)
+	_aura_light.omni_range = 4.5
+	_aura_light.shadow_enabled = false
+	_aura_light.position = Vector3(0, BLADE_BASE_Y, 0)
+	_aura_light.visible = false
+	hand_spear.add_child(_aura_light)
+
+## Obsidiana negra con grietas verdes; la hoja tiene grietas más finas y brillantes.
+static func apply_obsidian(mi: MeshInstance3D, glow_mult: float = 1.0) -> void:
+	for i in mi.mesh.get_surface_count():
+		var src := mi.mesh.surface_get_material(i)
+		var is_blade := src != null and src.resource_name.contains("blade")
+		var mat := ShaderMaterial.new()
+		mat.shader = CRACK_SHADER
+		mat.set_shader_parameter("crack_scale", 14.0 if is_blade else 8.0)
+		mat.set_shader_parameter("crack_width", 0.08 if is_blade else 0.05)
+		var glow := (5.5 if is_blade else 3.0) * glow_mult
+		mat.set_shader_parameter("glow", glow)
+		mat.set_meta("base_glow", glow)
+		mi.set_surface_override_material(i, mat)

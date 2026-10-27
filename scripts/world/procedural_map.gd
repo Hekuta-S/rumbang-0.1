@@ -46,6 +46,14 @@ const PROPS := {
 	"altar":    {"file": "altar",            "shape": "box", "size": Vector3(3.4, 1.8, 3.4), "scale": Vector2(1.0, 1.0)},
 	"fence":    {"file": "fence",            "shape": "box", "size": Vector3(2.5, 1.4, 0.25), "scale": Vector2(1.0, 1.0)},
 	"mushroom": {"file": "mushroom",         "shape": "",    "size": Vector3.ZERO, "scale": Vector2(0.6, 1.6)},
+	# Campamento goblin / cueva (modo mazmorra)
+	"hut":        {"file": "goblin_hut",        "shape": "cyl", "size": Vector3(1.9, 3.5, 0.0),  "scale": Vector2(0.9, 1.15)},
+	"totem":      {"file": "goblin_totem",      "shape": "cyl", "size": Vector3(0.45, 3.0, 0.0), "scale": Vector2(0.9, 1.25)},
+	"palisade":   {"file": "goblin_palisade",   "shape": "box", "size": Vector3(3.2, 2.0, 0.4),  "scale": Vector2(1.0, 1.0)},
+	"skull_pole": {"file": "goblin_skull_pole", "shape": "cyl", "size": Vector3(0.12, 2.6, 0.0), "scale": Vector2(0.9, 1.2)},
+	"campfire":   {"file": "goblin_campfire",   "shape": "cyl", "size": Vector3(0.75, 0.5, 0.0), "scale": Vector2(1.0, 1.0)},
+	"tent":       {"file": "goblin_tent",       "shape": "cyl", "size": Vector3(1.25, 2.6, 0.0), "scale": Vector2(0.9, 1.15)},
+	"stalagmite": {"file": "cave_stalagmite",   "shape": "cyl", "size": Vector3(0.6, 3.2, 0.0),  "scale": Vector2(0.7, 1.7)},
 }
 
 @export var map_seed: int = 0                       ## 0 = aleatoria en cada partida

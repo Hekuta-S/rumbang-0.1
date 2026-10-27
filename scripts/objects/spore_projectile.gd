@@ -153,6 +153,7 @@ func _explode(hit_body, center: Vector3) -> void:
 		var away: Vector3 = (e.global_position - center)
 		away.y = 0.0
 		away = away.normalized() if away.length_squared() > 0.0001 else direction
+		HitFeedback.weapon_tag = WeaponData.WeaponType.SPORE_BAZOOKA
 		e.take_damage(amount, away * EXPLOSION_KNOCKBACK)
 		if source_weapon >= 0 and is_instance_valid(source_player) and source_player.has_method("on_damage_dealt"):
 			source_player.on_damage_dealt(amount, source_weapon)

@@ -273,7 +273,9 @@ func _ready() -> void:
 	input_controller.weapon_cycle.connect(cycle_slots)
 	input_controller.weapon_select.connect(select_slot)
 	input_controller.skill_pressed.connect(activate_skill)
+	input_controller.attack_pressed.connect(attack)
 	input_controller.alt_attack_pressed.connect(_on_alt_attack_pressed)
+	input_controller.alt_attack_released.connect(_on_alt_attack_released)
 	input_controller.reload_pressed.connect(start_reload)
 	input_controller.toggle_mouse_capture.connect(_on_toggle_mouse_capture)
 	input_controller.spawn_debug_enemy.connect(_on_spawn_debug_enemy)
@@ -298,6 +300,8 @@ func _ready() -> void:
 	animation_controller = PlayerAnimationController.new()
 	animation_controller.name = "PlayerAnimationController"
 	add_child(animation_controller)
+	if weapon_visuals:
+		weapon_visuals.attach_spear_to_hand(animation_controller.model)
 	
 	weapon_inventory.weapon_slots.clear()
 	# Each character starts with their signature weapon.
@@ -482,18 +486,21 @@ const GRAVITY := 22.0
 ## Shows only the model of the currently selected weapon slot. The spear stays
 ## hidden while it is flying through the air.
 func update_weapon_visuals() -> void:
-	# El usuario solicitó que ningún modelo de arma sea visible al atacar ni en combate, solo el efecto/shader
+	# Ningún modelo de arma es visible, solo el efecto/shader; excepción: la espalanza en la mano
 	for wt in weapon_models:
 		var m: Node3D = weapon_models[wt]
 		if m != null and is_instance_valid(m):
-			m.visible = false
+			m.visible = _is_hand_weapon_shown(wt, m)
 
 func show_weapon_temporarily(_duration: float = 0.5) -> void:
-	# El usuario solicitó que ninguna arma sea visible al atacar, solo el efecto del ataque
+	# Ninguna arma es visible al atacar, solo el efecto; excepción: la espalanza en la mano
 	for wt in weapon_models:
 		var m: Node3D = weapon_models[wt]
 		if m != null and is_instance_valid(m):
-			m.visible = false
+			m.visible = _is_hand_weapon_shown(wt, m)
+
+func _is_hand_weapon_shown(wt: int, m: Node3D) -> bool:
+	return m.has_meta("in_hand") and wt == current_weapon() and not (combat_controller and combat_controller.is_spear_thrown)
 
 func current_weapon() -> int:
 	if weapon_inventory:
@@ -541,6 +548,8 @@ func activate_skill() -> void:
 	# Habilidad por defecto: modo Berserk
 	is_berserk = true
 	berserk_timer = 6.0
+	if animation_controller:
+		animation_controller.play_shout()
 
 ## Raycasts from the camera center out through the crosshair point.
 func get_camera_aim_point() -> Vector3:
@@ -794,8 +803,14 @@ func throw_spear() -> void:
 func _on_alt_attack_pressed() -> void:
 	if current_weapon() == WeaponData.WeaponType.DUSTS:
 		combat_controller.cycle_dust_mode()
+	elif current_weapon() == WeaponData.WeaponType.SPEAR_LANCE:
+		combat_controller.start_spear_charge()
 	else:
 		throw_spear()
+
+## Soltar el click derecho lanza la espalanza con la fuerza acumulada.
+func _on_alt_attack_released() -> void:
+	combat_controller.release_spear_charge()
 
 func _on_toggle_mouse_capture() -> void:
 	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:

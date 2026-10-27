@@ -306,8 +306,8 @@ func _fmt(v) -> String:
 
 func _on_start() -> void:
 	GameData.selected_index = _selected_index
-	# El mapa procedural es el único mapa (PC y móvil)
-	SceneLoader.load_scene("res://scenes/core/main_procedural.tscn")
+	var scene := "res://scenes/core/main_dungeon.tscn" if GameData.game_mode == "dungeon" else "res://scenes/core/main_procedural.tscn"
+	SceneLoader.load_scene(scene)
 
 func _on_back() -> void:
 	SceneLoader.load_scene("res://scenes/ui/main_menu.tscn")

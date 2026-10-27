@@ -292,6 +292,7 @@ func _tick_contact_damage(_delta: float) -> void:
 			var to_enemy: Vector3 = (enemy.global_position + Vector3(0, 0.8, 0)) - orb_pos
 			if to_enemy.length_squared() > hit_sq:
 				continue
+			HitFeedback.weapon_tag = WeaponData.WeaponType.ELEMENTS_CYCLE
 			enemy.take_damage(dmg, to_enemy.normalized() * ORB_HIT_KNOCKBACK)
 			_hit_until[cd_key] = now + int(ORB_HIT_INTERVAL * 1000.0)
 			_flash_orb(orb_data)

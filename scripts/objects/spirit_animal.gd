@@ -110,6 +110,7 @@ func _motion(_delta: float) -> void:
 func hit_enemy(e, dmg: float, kb: Vector3) -> bool:
 	if not is_instance_valid(e) or not e.has_method("take_damage"):
 		return false
+	HitFeedback.weapon_tag = source_weapon
 	e.take_damage(dmg, kb)
 	if is_instance_valid(player) and source_weapon >= 0 and player.has_method("on_damage_dealt"):
 		player.on_damage_dealt(dmg, source_weapon)

@@ -176,6 +176,7 @@ func _on_body_entered(body):
 	if not is_spinning_in_place and not has_hit_enemy and body.is_in_group("enemies"):
 		if body.has_method("take_damage"):
 			has_hit_enemy = true
+			HitFeedback.weapon_tag = WeaponData.WeaponType.SPINNING_AXE
 			body.take_damage(damage, direction)
 		_start_spinning_in_place()
 

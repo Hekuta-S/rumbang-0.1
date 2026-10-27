@@ -11,6 +11,9 @@ const BASE_JUMP_VELOCITY := 8.5
 ## Pasada esta proporción de la velocidad base se considera "corriendo" (animación de carrera, pasos más rápidos).
 const RUN_SPEED_RATIO := 1.2
 var _jump_was_pressed: bool = false
+## Dash de ataque: velocidad horizontal extra que se frena sola (DASH_DECEL m/s²).
+const DASH_DECEL := 70.0
+var dash_velocity: Vector3 = Vector3.ZERO
 var _air_jumps_used: int = 0
 
 func _ready() -> void:
@@ -113,6 +116,12 @@ func _spawn_jump_burst(pos: Vector3) -> void:
 	tw.tween_interval(0.6)
 	tw.tween_callback(jump_puff.queue_free)
 
+## Impulso horizontal (lunge de un ataque). Durante el dash el control se reduce.
+func add_dash(v: Vector3) -> void:
+	v.y = 0.0
+	dash_velocity = v
+	_spawn_footstep_puff(player.global_position + Vector3(0, 0.05, 0), true)
+
 func handle_movement(delta: float) -> void:
 	if not player: return
 
@@ -129,6 +138,9 @@ func handle_movement(delta: float) -> void:
 	# Ya no hay botón de correr: la animación de carrera la decide PlayerAnimationController
 	# cuando la velocidad supera cierto umbral (mejoras, objetos, berserk...).
 	var is_running: bool = current_speed > player.move_speed * RUN_SPEED_RATIO
+	# Cargando el lanzamiento de la espalanza: se mueve más lento
+	if player.combat_controller and player.combat_controller.spear_charge >= 0.0:
+		current_speed *= 0.5
 
 	var moving = wish.length_squared() > 0.0001
 	if moving and player.is_on_floor():
@@ -150,8 +162,11 @@ func handle_movement(delta: float) -> void:
 	else:
 		wish = Vector3.ZERO
 		
-	player.velocity.x = wish.x * current_speed
-	player.velocity.z = wish.z * current_speed
+	var dashing := dash_velocity.length_squared() > 1.0
+	var control := 0.25 if dashing else 1.0
+	player.velocity.x = wish.x * current_speed * control + dash_velocity.x
+	player.velocity.z = wish.z * current_speed * control + dash_velocity.z
+	dash_velocity = dash_velocity.move_toward(Vector3.ZERO, DASH_DECEL * delta)
 
 	# Jump mechanic
 	var jump_pressed: bool = Input.is_physical_key_pressed(KEY_SPACE) or Input.is_key_pressed(KEY_SPACE) or Input.is_joy_button_pressed(0, JOY_BUTTON_A) or VirtualInput.is_jumping

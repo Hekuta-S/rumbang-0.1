@@ -2,6 +2,7 @@ extends Node
 
 signal attack_pressed
 signal alt_attack_pressed
+signal alt_attack_released
 signal skill_pressed
 signal weapon_cycle(delta: int)
 signal weapon_select(slot: int)
@@ -38,9 +39,12 @@ func _physics_process(_delta: float) -> void:
 	
 	if Input.is_action_just_pressed("alt_attack") or (lt > 0.5 and not _last_joy_buttons.get("LT", false)) or VirtualInput.is_alt_attack:
 		emit_signal("alt_attack_pressed")
+	if Input.is_action_just_released("alt_attack") or (lt <= 0.5 and _last_joy_buttons.get("LT", false)):
+		emit_signal("alt_attack_released")
 	_last_joy_buttons["LT"] = (lt > 0.5)
 	
-	if (rt > 0.5 and not _last_joy_buttons.get("RT", false)) or VirtualInput.is_attacking:
+	# Click izquierdo (acción "attack"): mantener pulsado repite el ataque; el cooldown del arma marca el ritmo
+	if (rt > 0.5 and not _last_joy_buttons.get("RT", false)) or VirtualInput.is_attacking or Input.is_action_pressed("attack"):
 		emit_signal("attack_pressed")
 	_last_joy_buttons["RT"] = (rt > 0.5)
 	
