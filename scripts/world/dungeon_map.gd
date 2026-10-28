@@ -36,6 +36,8 @@ const CORRIDOR := 2
 
 ## Cavernas: [{slot, center: Vector3, half: Vector2 (m, caja envolvente), type, theme, cells: Array[Vector2i]}]
 var rooms: Array = []
+## Caverna de pruebas de combate (vecina de la inicial, tema "almacén"): ver DungeonEncounter.
+var arena_index: int = -1
 var destructibles: Array[DestructibleProp] = []
 var _cells: Dictionary = {}           # Vector2i -> FLOOR | CORRIDOR
 var _owner: Dictionary = {}           # Vector2i -> índice de caverna
@@ -62,6 +64,11 @@ func generate(p_seed: int = 0) -> void:
 	_wall_boxes.clear()
 	_grass.clear()
 	_breakables.clear()
+	# Navegación del mapa anterior
+	_flow.clear()
+	_flow_target = Vector2i(-99999, -99999)
+	_blocked.clear()
+	_blocked_ready = false
 	used_seed = p_seed if p_seed != 0 else int(Time.get_unix_time_from_system()) ^ randi()
 	_rng.seed = used_seed
 	_edge_noise.seed = used_seed
@@ -147,6 +154,201 @@ func _layout_rooms() -> void:
 			"cells": [],
 		})
 	set_meta("links", links)
+	_pick_arena(links)
+
+## La primera caverna conectada a la inicial (que no sea la final) es la arena del primer encuentro.
+## Se fuerza el tema "almacén" para probar barriles, cajas y empalizadas durante el combate.
+func _pick_arena(links: Array) -> void:
+	arena_index = -1
+	for l in links:
+		var other: Vector2i
+		if l[0] == Vector2i.ZERO:
+			other = l[1]
+		elif l[1] == Vector2i.ZERO:
+			other = l[0]
+		else:
+			continue
+		var idx := _room_index(other)
+		if idx >= 0 and (arena_index < 0 or rooms[arena_index]["type"] == "end"):
+			arena_index = idx
+	if arena_index >= 0 and rooms[arena_index]["type"] == "normal":
+		rooms[arena_index]["theme"] = "storage"
+
+## Centro (mundo) y radio aproximado (m) de una caverna.
+func room_center(i: int) -> Vector3:
+	return rooms[i]["center"]
+
+## Bocas de túnel de la caverna `i`: celdas de túnel pegadas a su suelo, agrupadas por túnel.
+## Cada boca es un Array de posiciones de mundo (centros de celda). Las usan las puertas.
+func room_mouths(i: int) -> Array:
+	var mouth: Dictionary = {}
+	for c in (rooms[i]["cells"] as Array):
+		for d in DIRS8:
+			var n: Vector2i = c + d
+			if _cells.get(n, 0) == CORRIDOR:
+				mouth[n] = true
+	var groups: Array = []
+	var seen: Dictionary = {}
+	for start in mouth:
+		if seen.has(start):
+			continue
+		var group: Array = []
+		var stack: Array = [start]
+		seen[start] = true
+		while not stack.is_empty():
+			var c: Vector2i = stack.pop_back()
+			group.append(_cell_pos(c))
+			for d in DIRS8:
+				var n: Vector2i = c + d
+				if mouth.has(n) and not seen.has(n):
+					seen[n] = true
+					stack.append(n)
+		groups.append(group)
+	return groups
+
+## ¿Está esta posición sobre el suelo propio (no túnel) de la caverna `i`?
+func is_in_room(p: Vector3, i: int) -> bool:
+	return _owner.get(world_to_cell(p), -1) == i
+
+func room_reach(i: int) -> float:
+	var r0: Vector2 = rooms[i]["blobs"][0][1]
+	return minf(r0.x, r0.y) * CELL
+
+# ───────────────────────────── Navegación ─────────────────────────────
+# Campo de flujo sobre la rejilla de suelo: un BFS desde la celda objetivo da a cada celda
+# su distancia en pasos. Se recalcula solo cuando el objetivo cambia de celda.
+
+var _flow: Dictionary = {}            # Vector2i -> pasos hasta el objetivo
+var _flow_target := Vector2i(-99999, -99999)
+var _blocked: Dictionary = {}         # Vector2i -> true (celdas tapadas por props fijos: vallas, tiendas...)
+var _blocked_ready := false
+const BLOCKED_COST := 6
+
+## Celdas de suelo que ocupa algún colisionador de PropColliders (huella AABB, más medio
+## cuerpo de margen).
+func _collect_blocked() -> void:
+	_blocked_ready = true
+	var body := get_node_or_null("PropColliders")
+	if body == null:
+		return
+	for cs in body.get_children():
+		if not (cs is CollisionShape3D) or cs.shape == null:
+			continue
+		var half := Vector3.ONE * 0.5
+		if cs.shape is BoxShape3D:
+			half = (cs.shape as BoxShape3D).size * 0.5
+		elif cs.shape is CylinderShape3D:
+			var r: float = (cs.shape as CylinderShape3D).radius
+			half = Vector3(r, 1.0, r)
+		var xf: Transform3D = cs.global_transform
+		var lo := Vector2(INF, INF)
+		var hi := Vector2(-INF, -INF)
+		for sx in [-1.0, 1.0]:
+			for sz in [-1.0, 1.0]:
+				var w := xf * Vector3(half.x * sx, 0.0, half.z * sz)
+				lo = Vector2(minf(lo.x, w.x), minf(lo.y, w.z))
+				hi = Vector2(maxf(hi.x, w.x), maxf(hi.y, w.z))
+		for cx in range(roundi(lo.x / CELL), roundi(hi.x / CELL) + 1):
+			for cz in range(roundi(lo.y / CELL), roundi(hi.y / CELL) + 1):
+				var c := Vector2i(cx, cz)
+				# Solo si el prop cubre de verdad el centro de la celda (± medio cuerpo)
+				var cp := Vector2(cx * CELL, cz * CELL)
+				if _cells.has(c) and cp.x > lo.x - 0.5 and cp.x < hi.x + 0.5 and cp.y > lo.y - 0.5 and cp.y < hi.y + 0.5:
+					_blocked[c] = true
+
+func world_to_cell(p: Vector3) -> Vector2i:
+	return Vector2i(roundi(p.x / CELL), roundi(p.z / CELL))
+
+## Siguientes `count` puntos (mundo, centros de celda) del camino de `from` a `to` rodeando
+## las paredes. Vacío si alguno de los dos está fuera del suelo.
+func flow_path(from: Vector3, to: Vector3, count: int = 6) -> Array[Vector3]:
+	var out: Array[Vector3] = []
+	var tc := world_to_cell(to)
+	if not _cells.has(tc):
+		return out
+	if tc != _flow_target:
+		_build_flow(tc)
+	var cur := world_to_cell(from)
+	if not _flow.has(cur):
+		# Pegado a un prop (celda bloqueada): salir por la vecina más cercana al objetivo
+		var best := -1
+		for d in DIRS8:
+			var n: Vector2i = cur + d
+			if _flow.has(n) and (best < 0 or int(_flow[n]) < best):
+				best = _flow[n]
+				cur = n
+		if best < 0:
+			return out
+		out.append(_cell_pos(cur))
+	for i in count:
+		var nxt := _flow_step(cur)
+		if nxt == cur:
+			break
+		cur = nxt
+		out.append(to if cur == tc else _cell_pos(cur))
+	return out
+
+## true si un cuerpo de radio `radius` va en línea recta de `a` a `b` sin salir del suelo
+## (solo paredes: comprobación exacta sobre la rejilla, sin física).
+func segment_walkable(a: Vector3, b: Vector3, radius: float) -> bool:
+	var d := Vector2(b.x - a.x, b.z - a.z)
+	var n := maxi(int(d.length() / (CELL * 0.25)), 1)
+	var side := Vector2(-d.y, d.x).normalized() * radius
+	for i in n + 1:
+		var p := Vector2(a.x, a.z) + d * (float(i) / n)
+		for o in [Vector2.ZERO, side, -side]:
+			var q: Vector2 = p + o
+			if not _cells.has(Vector2i(roundi(q.x / CELL), roundi(q.y / CELL))):
+				return false
+	return true
+
+func _flow_step(c: Vector2i) -> Vector2i:
+	var best := c
+	var best_d: int = _flow[c]
+	for d in DIRS8:
+		var n: Vector2i = c + d
+		if not _flow.has(n) or int(_flow[n]) >= best_d:
+			continue
+		# Sin cortar esquinas en diagonal
+		if d.x != 0 and d.y != 0 and not (_cells.has(c + Vector2i(d.x, 0)) and _cells.has(c + Vector2i(0, d.y))):
+			continue
+		best = n
+		best_d = _flow[n]
+	return best
+
+## Un enemigo se ha atascado al entrar en la celda de `p`: encarecerla y recalcular el flujo.
+func penalize_cell(p: Vector3) -> void:
+	var c := world_to_cell(p)
+	if _cells.has(c) and not _blocked.has(c):
+		_blocked[c] = true
+		_flow_target = Vector2i(-99999, -99999)
+
+## Dijkstra con cola de cubetas (los costes son enteros pequeños): las celdas tapadas por un
+## prop cuestan BLOCKED_COST en vez de 1, así el camino las evita sin quedar nunca cortado.
+func _build_flow(target: Vector2i) -> void:
+	if not _blocked_ready:
+		_collect_blocked()
+	_flow_target = target
+	_flow.clear()
+	_flow[target] = 0
+	var buckets: Array = [[target]]
+	var dist := 0
+	while dist < buckets.size():
+		for cur in buckets[dist]:
+			if int(_flow[cur]) != dist:
+				continue   # entrada obsoleta: ya se encontró un camino más corto
+			for d in DIRS:
+				var n: Vector2i = cur + d
+				if not _cells.has(n):
+					continue
+				var nd: int = dist + (BLOCKED_COST if _blocked.has(n) else 1)
+				if _flow.has(n) and int(_flow[n]) <= nd:
+					continue
+				_flow[n] = nd
+				while buckets.size() <= nd:
+					buckets.append([])
+				buckets[nd].append(n)
+		dist += 1
 
 func _linked(links: Array, a: Vector2i, b: Vector2i) -> bool:
 	for l in links:

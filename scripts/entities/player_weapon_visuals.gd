@@ -947,6 +947,20 @@ func attach_spear_to_hand(model: Node3D) -> bool:
 	weapon_models[WeaponData.WeaponType.SPEAR_LANCE] = spear
 	return true
 
+## Arma sujeta con las dos manos (mazmorra): su modelo va en el ancla animada del personaje y
+## sustituye al modelo procedural.
+func attach_held_weapon(p_player: Node3D, anchor: Node3D, weapon_type: int, weapon_scale: float = 1.0) -> bool:
+	var rig := HeldWeaponRig.attach(p_player, anchor, weapon_type, weapon_scale)
+	if rig == null:
+		return false
+	var old: Node3D = weapon_models.get(weapon_type)
+	if is_instance_valid(old):
+		old.queue_free()
+	rig.set_meta("in_hand", true)
+	rig.visible = false
+	weapon_models[weapon_type] = rig
+	return true
+
 ## Brillo de las grietas mientras se carga el lanzamiento (0 = normal, 1 = carga máxima).
 func set_spear_charge(power: float) -> void:
 	if not is_instance_valid(hand_spear):

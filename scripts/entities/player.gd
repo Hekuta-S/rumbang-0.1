@@ -75,6 +75,7 @@ var movement_controller: PlayerMovementController
 var animation_controller: PlayerAnimationController
 var weapon_inventory: PlayerWeaponInventory
 var camera_aim_controller: PlayerCameraAndAimController
+var target_lock: TargetLockController ## Fijar objetivo (solo mazmorra)
 
 
 
@@ -273,6 +274,10 @@ func _ready() -> void:
 	input_controller.weapon_cycle.connect(cycle_slots)
 	input_controller.weapon_select.connect(select_slot)
 	input_controller.skill_pressed.connect(activate_skill)
+	input_controller.dodge_pressed.connect(func():
+		if movement_controller:
+			movement_controller.perform_dodge()
+	)
 	input_controller.attack_pressed.connect(attack)
 	input_controller.alt_attack_pressed.connect(_on_alt_attack_pressed)
 	input_controller.alt_attack_released.connect(_on_alt_attack_released)
@@ -290,6 +295,12 @@ func _ready() -> void:
 	
 	# Setup 3rd Person Camera System
 	camera_controller = $CameraController
+
+	if GameData.game_mode == "dungeon":
+		target_lock = TargetLockController.new()
+		target_lock.name = "TargetLockController"
+		target_lock.player = self
+		add_child(target_lock)
 	
 	setup_weapon_models()
 	
@@ -300,7 +311,9 @@ func _ready() -> void:
 	animation_controller = PlayerAnimationController.new()
 	animation_controller.name = "PlayerAnimationController"
 	add_child(animation_controller)
-	if weapon_visuals:
+	# Espalanza visible en la mano (con estela, aura y animaciones): solo en la mazmorra.
+	# En supervivencia se queda el modelo procedural oculto de siempre.
+	if weapon_visuals and GameData.game_mode == "dungeon":
 		weapon_visuals.attach_spear_to_hand(animation_controller.model)
 	
 	weapon_inventory.weapon_slots.clear()
@@ -487,6 +500,8 @@ const GRAVITY := 22.0
 ## hidden while it is flying through the air.
 func update_weapon_visuals() -> void:
 	# Ningún modelo de arma es visible, solo el efecto/shader; excepción: la espalanza en la mano
+	if animation_controller:
+		animation_controller.set_held_weapon(current_weapon())
 	for wt in weapon_models:
 		var m: Node3D = weapon_models[wt]
 		if m != null and is_instance_valid(m):
@@ -548,7 +563,8 @@ func activate_skill() -> void:
 	# Habilidad por defecto: modo Berserk
 	is_berserk = true
 	berserk_timer = 6.0
-	if animation_controller:
+	# Grito animado: solo en la mazmorra (en supervivencia, como antes)
+	if animation_controller and GameData.game_mode == "dungeon":
 		animation_controller.play_shout()
 
 ## Raycasts from the camera center out through the crosshair point.
@@ -605,10 +621,12 @@ func create_muzzle_flash(flash_color: Color, scale_multiplier: float = 1.0) -> v
 
 
 
-func take_damage(amount: float, _direction: Vector3 = Vector3.ZERO) -> void:
-
+func take_damage(amount: float, direction: Vector3 = Vector3.ZERO) -> void:
 	if health_comp and health_comp.has_method("take_damage"):
+		var landed: bool = health_comp.invincibility_time <= 0.0
 		health_comp.take_damage(amount)
+		if landed:
+			HitFeedback.on_player_hit(self, amount, direction)
 
 ## Aplica veneno/sangrado/quemadura al jugador (ver StatusEffects).
 func apply_status(effect_id: String, dps: float, duration: float, source: Node = null,
@@ -804,10 +822,19 @@ func throw_spear() -> void:
 	combat_controller.throw_spear()
 
 func _on_alt_attack_pressed() -> void:
-	if current_weapon() == WeaponData.WeaponType.DUSTS:
+	if current_weapon() == WeaponData.WeaponType.DUSTS and GameData.game_mode == "dungeon":
+		combat_controller.dust_face()
+	elif current_weapon() == WeaponData.WeaponType.DUSTS:
 		combat_controller.cycle_dust_mode()
-	elif current_weapon() == WeaponData.WeaponType.SPEAR_LANCE:
+	elif current_weapon() == WeaponData.WeaponType.SPEAR_LANCE and GameData.game_mode == "dungeon":
+		# Lanzamiento cargado (con pose y aura): solo en la mazmorra
 		combat_controller.start_spear_charge()
+	elif current_weapon() == WeaponData.WeaponType.FLAME_THROWER and GameData.game_mode == "dungeon":
+		combat_controller.flame_blast()
+	elif current_weapon() == WeaponData.WeaponType.SPORE_BAZOOKA and GameData.game_mode == "dungeon":
+		combat_controller.spore_shotgun()
+	elif current_weapon() == WeaponData.WeaponType.TRI_SHOTGUN and GameData.game_mode == "dungeon":
+		combat_controller.shotgun_burst()
 	else:
 		throw_spear()
 

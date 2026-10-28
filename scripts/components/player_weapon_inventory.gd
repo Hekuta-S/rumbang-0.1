@@ -82,6 +82,9 @@ func get_available_upgrades(w_id: int) -> Array:
 var _spirit_order: Array = []
 
 func get_owned_spirits() -> Array:
+	# Mazmorra: por ahora Joel solo tiene al Komodo (el resto de espíritus aún no tienen animaciones propias)
+	if GameData.game_mode == "dungeon":
+		return [0]
 	if _spirit_order.is_empty():
 		_spirit_order = [0, 1, 2]
 		_spirit_order.shuffle()

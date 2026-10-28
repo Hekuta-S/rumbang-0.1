@@ -213,12 +213,44 @@ func _stop_charge_shake() -> void:
 
 ## Lanzamiento de la espalanza (click derecho): lo resuelve SpearLanceStrategy
 ## (desactivado mientras ENABLE_SPEAR_THROW sea false).
+## Explosión de fuego del lanzallamas (click derecho en la mazmorra).
+func flame_blast() -> bool:
+	var strategy = _strategies.get(WeaponData.WeaponType.FLAME_THROWER)
+	return strategy != null and strategy.flame_blast()
+
+## Click derecho de los polvos en supervivencia: cambia de polvo (arcano → velocidad → sanador).
+func cycle_dust_mode() -> void:
+	var strategy = _strategies.get(WeaponData.WeaponType.DUSTS)
+	if strategy:
+		strategy.cycle_dust_mode()
+
+## Polvo a la cara de Tatan (click derecho en la mazmorra): velocidad y un poco de vida.
+func dust_face() -> bool:
+	var strategy = _strategies.get(WeaponData.WeaponType.DUSTS)
+	return strategy != null and strategy.dust_face()
+
+## Ráfaga de escopetazos de Riva (click derecho en la mazmorra).
+func shotgun_burst() -> bool:
+	var strategy = _strategies.get(WeaponData.WeaponType.TRI_SHOTGUN)
+	return strategy != null and strategy.shotgun_burst()
+
+## Perdigonazo de la bazuca de esporas (click derecho en la mazmorra).
+func spore_shotgun() -> bool:
+	var strategy = _strategies.get(WeaponData.WeaponType.SPORE_BAZOOKA)
+	return strategy != null and strategy.spore_shotgun()
+
 func throw_spear() -> void:
 	var strategy = _strategies.get(WeaponData.WeaponType.SPEAR_LANCE)
 	if strategy:
 		strategy.throw_spear()
 
 func get_soft_aim_direction(max_angle_deg: float = 60.0, max_dist: float = 8.0) -> Vector3:
+	# Con un objetivo fijado el golpe siempre va hacia él
+	if player and player.target_lock and player.target_lock.has_target():
+		var to_t: Vector3 = player.target_lock.target.global_position - player.global_position
+		to_t.y = 0.0
+		if to_t.length_squared() > 0.01:
+			return to_t.normalized()
 	var forward: Vector3 = -player.mesh.global_transform.basis.z.normalized() if (player and player.mesh) else Vector3.FORWARD
 	forward.y = 0.0
 	forward = forward.normalized()
@@ -243,6 +275,13 @@ func get_soft_aim_direction(max_angle_deg: float = 60.0, max_dist: float = 8.0) 
 			best_dir = dir
 	return best_dir
 
+## Mazmorra: orienta a Mikeura hacia el objetivo fijado o el enemigo más alineado.
+func _face_soft_aim() -> void:
+	if GameData.game_mode == "dungeon" and player and player.mesh:
+		var aim_dir = get_soft_aim_direction()
+		if aim_dir.length_squared() > 0.01:
+			player.mesh.rotation.y = atan2(-aim_dir.x, -aim_dir.z)
+
 func buffer_attack() -> void:
 	if spear_charge >= 0.0: return
 	_attack_buffer_timer = INPUT_BUFFER_TIME
@@ -253,8 +292,11 @@ func is_attack_buffered() -> bool:
 
 func _try_consume_buffered_attack() -> void:
 	if _attack_buffer_timer <= 0.0: return
+	# Durante la esquiva el clic se guarda y sale al terminar el rodamiento
+	if player.movement_controller and player.movement_controller.is_dodging(): return
 	if player.animation_controller and player.animation_controller.is_in_link_window():
 		_attack_buffer_timer = 0.0
+		_face_soft_aim()
 		player.animation_controller.advance_combo()
 	elif attack_cooldown <= 0.0 and not (player.animation_controller and player.animation_controller.is_attacking()):
 		_attack_buffer_timer = 0.0
@@ -268,10 +310,7 @@ func attack() -> void:
 	# Cannot fire a weapon while it is being reloaded.
 	if reloading_weapon == player.current_weapon(): return
 
-	if GameData.game_mode == "dungeon" and player and player.mesh:
-		var aim_dir = get_soft_aim_direction()
-		if aim_dir.length_squared() > 0.01:
-			player.mesh.rotation.y = atan2(-aim_dir.x, -aim_dir.z)
+	_face_soft_aim()
 
 	var cd_mult = 0.5 if player.is_berserk else 1.0
 	if player.has_method("get_weapon_modifiers"):

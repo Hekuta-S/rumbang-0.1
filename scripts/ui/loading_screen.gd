@@ -2,10 +2,12 @@ extends Control
 
 @onready var progress_bar = $VBoxContainer/ProgressBar
 
-var progress = []
-var scene_load_status = 0
-var use_sync_load = false
-## Recursos de partida (enemigos, personaje elegido, jefe) cargados en segundo plano mientras carga la escena.
+## La escena de juego se carga en el hilo principal (cuando la pantalla ya se dibujó) y los datos
+## pesados (modelos, texturas, audio) en hilos aparte. Antes la escena también se cargaba por hilos
+## a la vez que otros recursos: sus scripts se compilaban en paralelo y, al pisarse, la carga
+## fallaba o se bloqueaba al azar y la pantalla se quedaba congelada para siempre.
+const DATA_EXTENSIONS := ["fbx", "glb", "png", "jpg", "ogg", "wav", "mp3"]
+const DATA_TIMEOUT_S := 30.0      ## si los datos tardan más, se continúa igualmente
 var _assets: AssetPreloader
 
 func _ready():
@@ -16,74 +18,57 @@ func _ready():
 	if SceneLoader.next_scene_path == "":
 		push_error("No scene path provided to SceneLoader")
 		return
-		
-	# En Android, la carga multihilo con Terrain3D a menudo causa deadlocks (bloqueos) en el RenderingServer.
-	# Haremos una carga síncrona forzada en móviles.
-	if OS.get_name() in ["Android", "iOS"]:
-		use_sync_load = true
-		progress_bar.value = 10
-		_do_sync_load.call_deferred()
-	else:
-		ResourceLoader.load_threaded_request(SceneLoader.next_scene_path, "", true)
-		_assets = AssetPreloader.new()
-		_assets.add_many(GameData.preload_paths())
-		_assets.add_many(GameData.BOSS_ASSET_PATHS)
-		_assets.add_many(GameData.get_character_asset_paths(String(GameData.get_selected().get("id", "mikeura"))))
-		_assets.start()
+	progress_bar.value = 5
+	_load.call_deferred()
 
-func _do_sync_load() -> void:
-	# Permitimos que la pantalla se dibuje 2 frames antes de congelarla con la carga pesada
+static func _only_data(list: Array) -> Array:
+	return list.filter(func(p): return String(p).get_extension().to_lower() in DATA_EXTENSIONS)
+
+func _load() -> void:
+	var mobile: bool = OS.get_name() in ["Android", "iOS"]
+	var label := get_node_or_null("VBoxContainer/Label") as Label
+	# Deja que la pantalla se dibuje antes de la carga pesada
 	await get_tree().process_frame
 	await get_tree().process_frame
-	
-	progress_bar.value = 50
-	
-	var lbl = Label.new()
-	lbl.text = "Generando Mundo 3D...\n(Puede tardar 2-3 minutos en móviles. NO CIERRES EL JUEGO)"
-	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	lbl.position.y -= 100
-	lbl.add_theme_font_size_override("font_size", 20)
-	add_child(lbl)
-	
-	GameData.preload_assets()
+
+	var path := SceneLoader.next_scene_path
+	var new_scene := ResourceLoader.load(path) as PackedScene
+	if new_scene == null:
+		push_error("No se pudo cargar la escena: " + path)
+		if label:
+			label.text = "No se pudo cargar. Volviendo al menú..."
+		await get_tree().create_timer(2.5).timeout
+		SceneLoader.next_scene_path = "res://scenes/ui/main_menu.tscn"
+		get_tree().change_scene_to_file("res://scenes/ui/main_menu.tscn")
+		return
+	progress_bar.value = 40
+	await get_tree().process_frame
+
+	if mobile:
+		# En móviles la carga multihilo con Terrain3D provocaba bloqueos: todo síncrono
+		GameData.preload_assets()
+	else:
+		_assets = AssetPreloader.new()
+		_assets.add_many(_only_data(GameData.preload_paths()))
+		_assets.add_many(_only_data(GameData.BOSS_ASSET_PATHS))
+		_assets.add_many(_only_data(GameData.get_character_asset_paths(String(GameData.get_selected().get("id", "mikeura")))))
+		_assets.start()
+		var waited := 0.0
+		while not _assets.is_done() and waited < DATA_TIMEOUT_S:
+			progress_bar.value = (0.4 + _assets.progress() * 0.5) * 100.0
+			waited += get_process_delta_time()
+			await get_tree().process_frame
+		if waited >= DATA_TIMEOUT_S:
+			push_warning("Los datos de partida tardaron más de %d s: se continúa." % int(DATA_TIMEOUT_S))
+		_assets.collect()
+		# Scripts y escenas pequeñas (.gd/.tscn), ya sin hilos en marcha
+		GameData.preload_assets()
+
+	progress_bar.value = 95
 	await _compile_shaders()
-	
-	var new_scene = load(SceneLoader.next_scene_path)
 	progress_bar.value = 100
-	lbl.text = "Inicializando Entorno... (Casi listo)"
-	
 	await get_tree().process_frame
 	get_tree().change_scene_to_packed(new_scene)
-
-func _process(_delta):
-	if use_sync_load or SceneLoader.next_scene_path == "":
-		return
-		
-	scene_load_status = ResourceLoader.load_threaded_get_status(SceneLoader.next_scene_path, progress)
-	
-	var assets_progress: float = _assets.progress() if _assets else 1.0
-	if scene_load_status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
-		progress_bar.value = (float(progress[0]) * 0.7 + assets_progress * 0.3) * 100.0
-	elif scene_load_status == ResourceLoader.THREAD_LOAD_LOADED:
-		# Esperar a que terminen también los recursos de partida (sin bloquear: se sigue dibujando)
-		if _assets and not _assets.is_done():
-			progress_bar.value = (0.7 + assets_progress * 0.3) * 100.0
-			return
-		set_process(false)
-		var new_scene = ResourceLoader.load_threaded_get(SceneLoader.next_scene_path)
-		if _assets:
-			_assets.collect()
-		GameData.preload_assets()
-		progress_bar.value = 100.0
-		
-		# Compile shaders before switching scene
-		await _compile_shaders()
-		
-		get_tree().change_scene_to_packed(new_scene)
-	elif scene_load_status == ResourceLoader.THREAD_LOAD_FAILED or scene_load_status == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
-		push_error("Error loading scene: " + SceneLoader.next_scene_path)
-		set_process(false)
 
 func _compile_shaders() -> void:
 	var svc = SubViewportContainer.new()

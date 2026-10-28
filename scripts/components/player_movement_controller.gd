@@ -14,6 +14,11 @@ var _jump_was_pressed: bool = false
 ## Dash de ataque: velocidad horizontal extra que se frena sola (DASH_DECEL m/s²).
 const DASH_DECEL := 70.0
 var dash_velocity: Vector3 = Vector3.ZERO
+## Hasta este instante (s) el modelo no gira hacia donde camina (p. ej. disparando el lanzallamas).
+var face_lock_until: float = 0.0
+## Hasta este instante (s) se mueve a `slow_mult` de su velocidad (p. ej. lanzando polvos).
+var slow_until: float = 0.0
+var slow_mult: float = 1.0
 var _air_jumps_used: int = 0
 
 func _ready() -> void:
@@ -122,8 +127,60 @@ func add_dash(v: Vector3) -> void:
 	dash_velocity = v
 	_spawn_footstep_puff(player.global_position + Vector3(0, 0.05, 0), true)
 
+const DODGE_COOLDOWN: float = 0.6
+const DODGE_DURATION: float = 0.32
+const DODGE_IFRAMES: float = 0.25
+var _dodge_timer: float = 0.0
+var _dodge_cooldown_timer: float = 0.0
+
+func is_dodging() -> bool:
+	return _dodge_timer > 0.0
+
+func perform_dodge() -> void:
+	if _dodge_cooldown_timer > 0.0 or not player:
+		return
+	var anim = player.get("animation_controller")
+	if anim and not anim.can_cancel_for_dodge():
+		return
+	_dodge_cooldown_timer = DODGE_COOLDOWN
+	_dodge_timer = DODGE_DURATION
+	
+	var inp: Vector2 = player.input_controller.get_movement_vector() if player.input_controller else Vector2.ZERO
+	var dodge_dir := Vector3.ZERO
+	if inp.length_squared() > 0.01 and player.spring_arm:
+		var cam_basis: Basis = player.spring_arm.global_transform.basis
+		dodge_dir = (-cam_basis.z * -inp.y + cam_basis.x * inp.x)
+	elif player.mesh:
+		dodge_dir = -player.mesh.global_transform.basis.z
+	dodge_dir.y = 0.0
+	if dodge_dir.length_squared() < 0.001:
+		dodge_dir = Vector3.FORWARD
+	dodge_dir = dodge_dir.normalized()
+
+	if player.mesh:
+		player.mesh.rotation.y = atan2(-dodge_dir.x, -dodge_dir.z)
+
+	var roll_spd: float = float(player.get("roll_speed")) if player.get("roll_speed") else 18.0
+	add_dash(dodge_dir * roll_spd)
+
+	if player.health_comp and player.health_comp.has_method("set_invincibility"):
+		player.health_comp.set_invincibility(DODGE_IFRAMES)
+
+	if player.combat_controller:
+		if player.combat_controller.spear_charge >= 0.0:
+			player.combat_controller.spear_charge = -1.0
+			player.combat_controller._stop_charge_shake()
+			if player.weapon_visuals:
+				player.weapon_visuals.set_spear_charge(0.0)
+	if anim:
+		anim.cancel_action()
+
+	AudioManager.play("dodge", -6.0, randf_range(0.95, 1.05))
+
 func handle_movement(delta: float) -> void:
 	if not player: return
+	_dodge_timer = maxf(_dodge_timer - delta, 0.0)
+	_dodge_cooldown_timer = maxf(_dodge_cooldown_timer - delta, 0.0)
 
 	var inp: Vector2 = player.input_controller.get_movement_vector()
 	var cam_basis: Basis = player.spring_arm.global_transform.basis
@@ -138,6 +195,8 @@ func handle_movement(delta: float) -> void:
 	# Ya no hay botón de correr: la animación de carrera la decide PlayerAnimationController
 	# cuando la velocidad supera cierto umbral (mejoras, objetos, berserk...).
 	var is_running: bool = current_speed > player.move_speed * RUN_SPEED_RATIO
+	if Time.get_ticks_msec() / 1000.0 < slow_until:
+		current_speed *= slow_mult
 	# Cargando el lanzamiento de la espalanza: se mueve más lento
 	if player.combat_controller and player.combat_controller.spear_charge >= 0.0:
 		current_speed *= 0.5
@@ -158,7 +217,8 @@ func handle_movement(delta: float) -> void:
 	if moving:
 		wish = wish.normalized()
 		# Rotate the character mesh to face the movement direction.
-		player.mesh.rotation.y = lerp_angle(player.mesh.rotation.y, atan2(-wish.x, -wish.z), 14.0 * delta)
+		if Time.get_ticks_msec() / 1000.0 >= face_lock_until:
+			player.mesh.rotation.y = lerp_angle(player.mesh.rotation.y, atan2(-wish.x, -wish.z), 14.0 * delta)
 	else:
 		wish = Vector3.ZERO
 		

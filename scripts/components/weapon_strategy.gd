@@ -14,6 +14,43 @@ func _init(controller: PlayerCombatController) -> void:
 func attack(cd_mult: float) -> void:
 	pass
 
+## ── Apuntado en la mazmorra ──
+## El punto lo da el crosshair (rayo desde el centro de la pantalla, o el objetivo fijado):
+## PlayerCameraAndAimController.get_dungeon_aim().
+func _dungeon_aim_point() -> Vector3:
+	return c.player.camera_aim_controller.get_dungeon_aim()["point"]
+
+## Dirección horizontal desde el jugador hacia el punto del crosshair.
+func _dungeon_aim() -> Vector3:
+	var d: Vector3 = _dungeon_aim_point() - c.player.global_position
+	d.y = 0.0
+	if d.length_squared() < 0.25:
+		d = -c.player.spring_arm.global_transform.basis.z
+		d.y = 0.0
+	return d.normalized() if d.length_squared() > 0.0001 else Vector3.FORWARD
+
+## Dirección 3D desde `from` (la boca del arma) hacia el punto del crosshair. Si el punto queda
+## demasiado cerca o detrás, recto al frente.
+func _dungeon_shot_dir(from: Vector3) -> Vector3:
+	var flat := _dungeon_aim()
+	var d: Vector3 = _dungeon_aim_point() - from
+	if d.length() < 1.5 or Vector3(d.x, 0.0, d.z).normalized().dot(flat) < 0.5:
+		return flat
+	return d.normalized()
+
+## Dónde queda la boca del arma tras girar al personaje (el esqueleto aún no se ha actualizado).
+func _muzzle_after_turn(old_yaw: float) -> Vector3:
+	var pp: Vector3 = c.player.global_position
+	var rel: Vector3 = c.player.muzzle.global_position - pp
+	return pp + rel.rotated(Vector3.UP, angle_difference(old_yaw, c.player.mesh.rotation.y))
+
+## Gira al personaje hacia `dir` y bloquea unos instantes el giro hacia donde camina.
+func _face(dir: Vector3, hold_s: float) -> void:
+	c.player.mesh.rotation.y = atan2(-dir.x, -dir.z)
+	var mc = c.player.movement_controller
+	if mc:
+		mc.face_lock_until = Time.get_ticks_msec() / 1000.0 + hold_s
+
 ## Tamaño de ataques cuerpo a cuerpo / proyectiles según objetos (PlayerStatBlock).
 func _melee_size() -> float:
 	return c.player.stat_block.melee_size() if c.player.stat_block else 1.0
@@ -99,8 +136,61 @@ class TriShotgunStrategy extends WeaponStrategy:
 	func attack(cd_mult: float) -> void:
 		var W := WeaponData.WeaponType.TRI_SHOTGUN
 		c.attack_cooldown = c.player.get_weapon_data(W).base_cooldown * cd_mult
+		_fire_shot(1.0, 1.0)
+
+	## ── Ráfaga de escopetazos (click derecho, mazmorra) ──
+	## Cuatro disparos seguidos muy rápidos (la animación de disparo va acelerada); cada uno algo
+	## más flojo que el normal y el retroceso va empujando a Riva hacia atrás.
+	const BURST_SHOTS := 4
+	const BURST_INTERVAL := 0.13
+	const BURST_DAMAGE := 0.75       ## × daño de un disparo normal, por disparo
+	const BURST_ANIM_SPEED := 3.2
+	const BURST_COOLDOWN := 3.0
+	const BURST_RECOIL := 4.5        ## empuje de Riva hacia atrás por disparo (m/s)
+	var _burst_ready_at: float = 0.0
+
+	func burst_cooldown_left() -> float:
+		return maxf(_burst_ready_at - Time.get_ticks_msec() / 1000.0, 0.0)
+
+	func shotgun_burst() -> bool:
+		var now := Time.get_ticks_msec() / 1000.0
+		if now < _burst_ready_at:
+			return false
+		_burst_ready_at = now + BURST_COOLDOWN
+		# Sin disparo normal mientras dura la ráfaga
+		c.attack_cooldown = maxf(c.attack_cooldown, BURST_INTERVAL * BURST_SHOTS + 0.15)
+		for i in BURST_SHOTS:
+			if i == 0:
+				_burst_shot(i)
+			else:
+				c.player.get_tree().create_timer(BURST_INTERVAL * i).timeout.connect(_burst_shot.bind(i))
+		return true
+
+	func _burst_shot(index: int) -> void:
+		if not is_instance_valid(c.player) or not c.player.is_inside_tree():
+			return
+		var dir := _fire_shot(BURST_DAMAGE, BURST_ANIM_SPEED)
+		var mc = c.player.movement_controller
+		if mc and mc.has_method("add_dash"):
+			mc.add_dash(-dir * BURST_RECOIL)
+		var last := index == BURST_SHOTS - 1
+		HitFeedback.shake(0.16 if not last else 0.32)
+		c.player.apply_camera_recoil(0.03, randf_range(-0.012, 0.012), 0.12 if not last else 0.22)
+
+	## Un escopetazo. Devuelve la dirección (horizontal) del disparo.
+	func _fire_shot(dmg_mult: float, anim_speed: float) -> Vector3:
+		var W := WeaponData.WeaponType.TRI_SHOTGUN
 		var aim_point = c.player.get_camera_aim_point()
 		var start_pos: Vector3 = c.player.muzzle.global_position
+		if GameData.game_mode == "dungeon":
+			# Riva se gira hacia el crosshair y dispara desde la boca de la escopeta
+			var old_yaw: float = c.player.mesh.rotation.y
+			_face(_dungeon_aim(), 0.4)
+			start_pos = _muzzle_after_turn(old_yaw)
+			aim_point = _dungeon_aim_point()
+			if c.player.animation_controller:
+				c.player.animation_controller.play_held_shot(anim_speed)
+			HitFeedback.shake(0.18)
 		var base_dir: Vector3 = (aim_point - start_pos).normalized()
 		if (aim_point - start_pos).length_squared() < 0.04:
 			base_dir = -c.player.spring_arm.global_transform.basis.z
@@ -114,7 +204,7 @@ class TriShotgunStrategy extends WeaponStrategy:
 		AudioManager.play("disparo-escopeta", -10.0)
 
 		var mods: Dictionary = c.player.get_weapon_modifiers(W)
-		var dmg: float = c.player._weapon_damage(W)
+		var dmg: float = c.player._weapon_damage(W) * dmg_mult
 		# Tamaño: alcanza más lejos y abre más el cono
 		var size: float = maxf(float(mods.get("size", 1.0)), 0.3) * _ranged_size()
 		var reach: float = BASE_RANGE * size
@@ -161,6 +251,7 @@ class TriShotgunStrategy extends WeaponStrategy:
 				best.take_damage(dmg, pellet_dir * push)
 
 		_create_blast(start_pos, base_dir, size, half_angle, reach)
+		return base_dir
 
 	## Disparo: fogonazo corto + nube de humo gris que se abre en cono y se disipa.
 	func _create_blast(pos: Vector3, dir: Vector3, size: float, half_angle: float, reach: float) -> void:
@@ -340,23 +431,23 @@ class SpearLanceStrategy extends WeaponStrategy:
 		var mods: Dictionary = c.player.get_weapon_modifiers(WeaponData.WeaponType.SPEAR_LANCE)
 		var base_dmg = c.player._weapon_damage(WeaponData.WeaponType.SPEAR_LANCE)
 		var dmg = base_dmg
-		var kb = 16.0
+		var kb = 6.0
 		var box_size = Vector3(1.0, 1.0, 1.8) * float(mods.get("size", 1.0))
 		var offset = Vector3(0, 0.8, -1.3)
 
 		if anim_name == "attack1":
 			dmg = base_dmg
-			kb = 16.0
+			kb = 6.0
 			box_size = Vector3(1.0, 1.0, 1.8) * float(mods.get("size", 1.0))
 			offset = Vector3(0, 0.8, -1.3)
 		elif anim_name == "attack2":
 			dmg = base_dmg * 0.95
-			kb = 14.0
+			kb = 5.0
 			box_size = Vector3(2.6, 1.0, 2.6) * float(mods.get("size", 1.0))
 			offset = Vector3(0, 0.8, 0.0)
 		elif anim_name == "attack3":
 			dmg = base_dmg * 1.5
-			kb = 26.0
+			kb = 10.0
 			box_size = Vector3(1.8, 1.4, 2.0) * float(mods.get("size", 1.0))
 			offset = Vector3(0, 0.8, -1.6)
 
@@ -497,7 +588,8 @@ class SpearLanceStrategy extends WeaponStrategy:
 		# Golpe principal con la espalanza en la mano: la estela sigue la hoja animada.
 		# Las hojas extra (mejoras, otros ángulos) mantienen el tajo de energía.
 		var trail: BladeTrail = c.player.weapon_visuals.spear_trail if c.player.weapon_visuals else null
-		if index == 0 and is_instance_valid(trail) and trail.is_visible_in_tree():
+		# En supervivencia no hay animación de ataque que mueva la hoja: se usa el tajo de energía de siempre
+		if index == 0 and GameData.game_mode == "dungeon" and is_instance_valid(trail) and trail.is_visible_in_tree():
 			trail.emit(0.5)
 		else:
 			create_spear_slash_visual(player_pos, blade_dir, slash_side, mods)
@@ -620,6 +712,8 @@ class FlameThrowerStrategy extends WeaponStrategy:
 	## Dirección del fuego: hacia el objetivo del combate automático (cualquier dirección,
 	## también a la espalda o a los lados) o, sin objetivo, hacia donde apunta la cámara.
 	func _flame_direction() -> Vector3:
+		if GameData.game_mode == "dungeon":
+			return _dungeon_aim()
 		var target = c.player.auto_combat_target
 		if target != null and is_instance_valid(target):
 			var d: Vector3 = target.global_position - c.player.global_position
@@ -632,8 +726,8 @@ class FlameThrowerStrategy extends WeaponStrategy:
 		c.attack_cooldown = c.player.get_weapon_data(WeaponData.WeaponType.FLAME_THROWER).base_cooldown * cd_mult
 		var now := Time.get_ticks_msec() / 1000.0
 
-		# Recalentado: no dispara hasta que termina el descanso (sigue intentándolo cada 0.1 s)
-		if now < _rest_until:
+		# Recalentado (o en plena explosión): no dispara hasta que termina (sigue intentándolo cada 0.1 s)
+		if now < _rest_until or now < _blast_ready_at - BLAST_COOLDOWN + BLAST_LOCK_S:
 			c.attack_cooldown = 0.1
 			return
 
@@ -653,6 +747,10 @@ class FlameThrowerStrategy extends WeaponStrategy:
 			return
 
 		var forward_dir: Vector3 = _flame_direction()
+		if GameData.game_mode == "dungeon":
+			_face(forward_dir, 0.35)
+			if c.player.animation_controller:
+				c.player.animation_controller.held_fire_until = now + 0.25
 		var player_pos = c.player.global_position
 		var dmg = c.player._weapon_damage(WeaponData.WeaponType.FLAME_THROWER)
 		var size_mult: float = float(mods["size"]) * _melee_size()
@@ -679,6 +777,72 @@ class FlameThrowerStrategy extends WeaponStrategy:
 		_stream.aim(dir)
 		_stream.apply_size(size_mult)
 		_stream.keep_alive()
+
+	## ── Explosión de fuego (click derecho, mazmorra) ──
+	## Estalla delante de la boquilla: daña y lanza a los enemigos y rompe props alrededor;
+	## el retroceso empuja a Vangry hacia atrás.
+	const BLAST_COOLDOWN := 3.5
+	const BLAST_DISTANCE := 1.8      ## m por delante del jugador
+	const BLAST_RADIUS := 4.2
+	const BLAST_DAMAGE := 18.0
+	const BLAST_KNOCK := 20.0        ## empuje máximo a los enemigos (m/s)
+	const BLAST_RECOIL := 17.0       ## empuje del jugador hacia atrás (m/s)
+	const BLAST_HOP := 3.5
+	const BLAST_LOCK_S := 0.6        ## sin chorro mientras dura la animación de la explosión
+	var _blast_ready_at: float = 0.0
+
+	func blast_cooldown_left() -> float:
+		return maxf(_blast_ready_at - Time.get_ticks_msec() / 1000.0, 0.0)
+
+	func flame_blast() -> bool:
+		var now := Time.get_ticks_msec() / 1000.0
+		if now < _blast_ready_at:
+			return false
+		_blast_ready_at = now + BLAST_COOLDOWN
+		var dir := _dungeon_aim()
+		_face(dir, 0.6)
+		if _stream != null and is_instance_valid(_stream):
+			_stream.extinguish()
+		if c.player.animation_controller:
+			c.player.animation_controller.play_held_blast()
+		# El estallido sale cuando la animación termina de agacharse y apuntar (fotograma 5 ≈ 0.13 s)
+		c.player.get_tree().create_timer(0.13).timeout.connect(_detonate.bind(dir))
+		return true
+
+	func _detonate(dir: Vector3) -> void:
+		if not is_instance_valid(c.player) or not c.player.is_inside_tree():
+			return
+		var mods: Dictionary = c.player.get_weapon_modifiers(WeaponData.WeaponType.FLAME_THROWER)
+		var radius: float = BLAST_RADIUS * float(mods.get("size", 1.0))
+		var center: Vector3 = c.player.global_position + dir * BLAST_DISTANCE
+		var dmg: float = BLAST_DAMAGE * float(mods.get("damage", 1.0))
+		for e in EnemyRegistry.query_radius(center, radius + 0.6):
+			if not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if e.has_method("is_dead") and e.is_dead():
+				continue
+			var away: Vector3 = e.global_position - center
+			away.y = 0.0
+			var dist := away.length()
+			if dist > radius + 0.6:
+				continue
+			away = away / dist if dist > 0.05 else dir
+			var falloff := clampf(1.0 - dist / (radius + 0.6), 0.35, 1.0)
+			e.take_damage(dmg * falloff, away * BLAST_KNOCK * falloff)
+		# Props rompibles dentro de la explosión
+		for prop in c.player.get_tree().get_nodes_in_group("destructibles"):
+			if is_instance_valid(prop) and prop is Node3D and prop.global_position.distance_to(center) <= radius and prop.has_method("take_damage"):
+				prop.take_damage(999.0, (prop.global_position - center).normalized())
+		# Retroceso de Vangry
+		var mc = c.player.movement_controller
+		if mc and mc.has_method("add_dash"):
+			mc.add_dash(-dir * BLAST_RECOIL)
+		c.player.velocity.y = maxf(c.player.velocity.y, BLAST_HOP)
+		FlameBlast.spawn(c.player.get_parent(), center + Vector3(0, 0.9, 0), radius)
+		AudioManager.play_at("explosion", center, -2.0, randf_range(0.9, 1.05))
+		AudioManager.play_at("impact_fire", center, -4.0, 0.8)
+		HitFeedback.shake(0.75)
+		c.player.apply_camera_recoil(0.06, 0.0, 0.25)
 
 	## Procedural melee swing: sweeps the held weapon across a horizontal arc,
 	## alternating sides each attack, then restores the idle pose.
@@ -719,6 +883,14 @@ class SporeBazookaStrategy extends WeaponStrategy:
 		var aim_dir: Vector3 = (aim_point - start_pos).normalized()
 		if (aim_point - start_pos).length_squared() < 0.04:
 			aim_dir = -c.player.spring_arm.global_transform.basis.z
+		if GameData.game_mode == "dungeon":
+			# Bronch se gira hacia el crosshair y el proyectil sale de la boca hacia ese punto
+			var old_yaw: float = c.player.mesh.rotation.y
+			_face(_dungeon_aim(), 0.45)
+			start_pos = _muzzle_after_turn(old_yaw)
+			aim_dir = _dungeon_shot_dir(start_pos)
+			if c.player.animation_controller:
+				c.player.animation_controller.play_held_shot()
 		aim_dir = aim_dir.rotated(Vector3.UP, deg_to_rad(SHOT_ANGLES[index]))
 
 		var b_stream = AudioManager.get_stream("tiro_bazuca")
@@ -742,12 +914,86 @@ class SporeBazookaStrategy extends WeaponStrategy:
 		c.player.apply_camera_recoil(0.05 if index == 0 else 0.02, randf_range(-0.008, 0.008), 0.14 if index == 0 else 0.06)
 		c.player.create_muzzle_flash(spore_color, 1.6)
 
+	## ── Perdigonazo (click derecho, mazmorra) ──
+	## Como una escopeta: un abanico de perdigones de esporas de corto alcance que hace mucho
+	## daño a bocajarro y empuja; el retroceso echa a Bronch un poco hacia atrás.
+	const SHOTGUN_COOLDOWN := 1.4
+	const SHOTGUN_PELLETS := 9
+	const SHOTGUN_SPREAD_DEG := 18.0     ## semiángulo horizontal del abanico
+	const SHOTGUN_RANGE := 9.0
+	const SHOTGUN_SPEED := 34.0
+	const SHOTGUN_PELLET_DAMAGE := 5.0
+	const SHOTGUN_KNOCK := 1.0           ## empuje que suma cada perdigón que acierta (m/s)
+	const SHOTGUN_RECOIL := 13.0          ## empuje de Bronch hacia atrás (m/s)
+	const SHOTGUN_DELAY := 0.12          ## sale cuando la animación termina de apuntar
+	const SHOTGUN_LOCK_S := 0.55         ## sin disparo normal mientras dura la animación
+	var _shotgun_ready_at: float = 0.0
+
+	func shotgun_cooldown_left() -> float:
+		return maxf(_shotgun_ready_at - Time.get_ticks_msec() / 1000.0, 0.0)
+
+	func spore_shotgun() -> bool:
+		var now := Time.get_ticks_msec() / 1000.0
+		if now < _shotgun_ready_at:
+			return false
+		_shotgun_ready_at = now + SHOTGUN_COOLDOWN
+		c.attack_cooldown = maxf(c.attack_cooldown, SHOTGUN_LOCK_S)
+		var dir := _dungeon_aim()
+		_face(dir, 0.6)
+		if c.player.animation_controller:
+			c.player.animation_controller.play_held_blast()
+		c.player.get_tree().create_timer(SHOTGUN_DELAY).timeout.connect(_fire_pellets.bind(dir))
+		return true
+
+	func _fire_pellets(dir: Vector3) -> void:
+		if not is_instance_valid(c.player) or not c.player.is_inside_tree():
+			return
+		var mods: Dictionary = c.player.get_weapon_modifiers(WeaponData.WeaponType.SPORE_BAZOOKA)
+		var dmg: float = SHOTGUN_PELLET_DAMAGE * float(mods.get("damage", 1.0)) * c.spore_damage_mult
+		var rng: float = SHOTGUN_RANGE * float(mods.get("size", 1.0)) * _ranged_size()
+		var from: Vector3 = c.player.muzzle.global_position
+		# Si la boca queda dentro de una pared, salir desde el pecho
+		var q := PhysicsRayQueryParameters3D.create(c.player.global_position + Vector3(0, 1.2, 0), from, 1)
+		q.exclude = [c.player.get_rid()]
+		if not c.player.get_world_3d().direct_space_state.intersect_ray(q).is_empty():
+			from = c.player.global_position + Vector3(0, 1.2, 0)
+		var parent: Node = c.player.get_parent()
+		# El centro del abanico va al punto del crosshair (con su inclinación)
+		var center := _dungeon_shot_dir(from)
+		for i in SHOTGUN_PELLETS:
+			# Reparto uniforme del abanico con un poco de azar, y algo de dispersión vertical
+			var t := (float(i) / float(SHOTGUN_PELLETS - 1)) * 2.0 - 1.0
+			var yaw := deg_to_rad(t * SHOTGUN_SPREAD_DEG + randf_range(-3.0, 3.0))
+			var d := center.rotated(Vector3.UP, yaw)
+			d.y += randf_range(-0.05, 0.06)
+			SporePellet.fire(parent, from, d, dmg, SHOTGUN_KNOCK, SHOTGUN_SPEED * randf_range(0.92, 1.08), rng * randf_range(0.85, 1.0), c.player)
+		var mc = c.player.movement_controller
+		if mc and mc.has_method("add_dash"):
+			mc.add_dash(-dir * SHOTGUN_RECOIL)
+		c.player.create_muzzle_flash(Color(0.7, 1.0, 0.25), 2.4)
+		var puff := SporeVFX.gas(Quality.count(10), 0.6, 0.15, 0.4, 0.9, 0.3)
+		puff.one_shot = true
+		puff.explosiveness = 0.95
+		puff.direction = dir
+		puff.spread = SHOTGUN_SPREAD_DEG
+		puff.initial_velocity_min = 4.0
+		puff.initial_velocity_max = 8.0
+		parent.add_child(puff)
+		puff.global_position = from
+		puff.emitting = true
+		puff.get_tree().create_timer(1.0).timeout.connect(puff.queue_free)
+		AudioManager.play("tiro_bazuca", -6.0, 1.45)
+		AudioManager.play_at("explosion_bits", from, -4.0, 1.3)
+		HitFeedback.shake(0.35)
+		c.player.apply_camera_recoil(0.05, randf_range(-0.01, 0.01), 0.2)
+
 	## Twin Daggers: rapid short-range cuts. Alternates red and blue slash visuals.
 
 
 class DustsStrategy extends WeaponStrategy:
 
 	const DustProjectileRef = preload("res://scripts/objects/dust_projectile.gd")
+	const FLOATING_DAMAGE = preload("res://scripts/objects/floating_damage.gd")
 	## Hasta 4 polvazos por lanzamiento (grados de giro respecto al apuntado).
 	const THROW_ANGLES: Array[float] = [0.0, 11.0, -11.0, 22.0]
 	const MAX_THROWS: int = 4
@@ -757,8 +1003,13 @@ class DustsStrategy extends WeaponStrategy:
 	static func dust_count(mods: Dictionary) -> int:
 		return clampi(1 + int(mods.get("quantity_bonus", 0)), 1, MAX_THROWS)
 
+	## Mazmorra: el lanzamiento lo marca la animación (Tatan se mueve despacio mientras lanza).
+	const THROW_SLOW := 0.3
+
 	func attack(cd_mult: float) -> void:
 		c.attack_cooldown = c.player.get_weapon_data(WeaponData.WeaponType.DUSTS).base_cooldown * cd_mult
+		if GameData.game_mode == "dungeon" and _dungeon_throw():
+			return
 		var aim_point = c.player.get_camera_aim_point()
 		c.player.orient_player_to_aim(aim_point)
 		
@@ -799,6 +1050,99 @@ class DustsStrategy extends WeaponStrategy:
 		proj.setup(start_pos, start_pos + offset, c.current_dust_mode, c.player, dmg, radius, float(mods.get("slow", 0.0)))
 		if index > 0:
 			AudioManager.play("ataque-espalanza", -8.0, 1.8 + 0.05 * float(index))
+
+	## Lanzamiento con animación (Tatan en la mazmorra). Devuelve false si no hay animaciones.
+	func _dungeon_throw() -> bool:
+		var ac = c.player.animation_controller
+		if ac == null or not ac.has_method("play_dust_throw"):
+			return false
+		# En la mazmorra el click izquierdo siempre lanza polvo arcano (el derecho es el polvo a la cara)
+		var mode := 0
+		var info: Dictionary = ac.play_dust_throw(mode)
+		if info.is_empty():
+			return false
+		var length: float = info["length"]
+		var release: float = info["release"]
+		# No se encadena otro lanzamiento hasta casi terminar la animación
+		c.attack_cooldown = maxf(c.attack_cooldown, length * 0.8)
+		_face(_dungeon_aim(), release + 0.1)
+		var mc = c.player.movement_controller
+		if mc:
+			mc.slow_until = Time.get_ticks_msec() / 1000.0 + length * 0.75
+			mc.slow_mult = THROW_SLOW
+		AudioManager.play("ataque-espalanza", -6.0, 1.5)
+		c.player.get_tree().create_timer(release).timeout.connect(_dungeon_release.bind(mode))
+		return true
+
+	## El polvo sale de la mano derecha hacia el punto del crosshair en el instante de soltarlo.
+	func _dungeon_release(mode: int) -> void:
+		if not is_instance_valid(c.player) or not c.player.is_inside_tree():
+			return
+		var hand: Vector3 = c.player.animation_controller.bone_global_position("mixamorig_RightHand")
+		var dust_color = Color(0.9, 0.84, 1.0) if mode == 0 else (Color(1.0, 0.93, 0.74) if mode == 1 else Color(0.85, 1.0, 0.93))
+		AudioManager.play("ataque-espalanza", -2.0, 1.8)
+		HitFeedback.shake(0.12)
+		if mode == 1:
+			c.dust_speed_boost_timer = 4.0
+			create_dust_puff_visual(hand, dust_color)
+			return
+		var mods: Dictionary = c.player.get_weapon_modifiers(WeaponData.WeaponType.DUSTS)
+		var aim_point: Vector3 = _dungeon_aim_point()
+		var throws := dust_count(mods) if mode == 0 else 1
+		for i in range(throws):
+			if i == 0:
+				_throw_dust(hand, aim_point, 0, mods)
+			else:
+				c.player.get_tree().create_timer(THROW_STAGGER_S * float(i)).timeout.connect(
+					_throw_dust.bind(hand, aim_point, i, mods))
+		create_dust_puff_visual(hand, dust_color)
+
+	## ── Polvo a la cara (click derecho, mazmorra) ──
+	## Tatan se estampa un puñado de polvo en la cara: corre más rápido un rato y se cura un poco.
+	const FACE_COOLDOWN := 6.0
+	const FACE_SPEED_S := 4.0        ## duración del extra de velocidad (el del polvo marrón: ×1.35)
+	const FACE_HEAL_FRACTION := 0.1  ## vida curada (fracción de la vida máxima)
+	var _face_ready_at: float = 0.0
+
+	func face_cooldown_left() -> float:
+		return maxf(_face_ready_at - Time.get_ticks_msec() / 1000.0, 0.0)
+
+	func dust_face() -> bool:
+		var now := Time.get_ticks_msec() / 1000.0
+		if now < _face_ready_at:
+			return false
+		var ac = c.player.animation_controller
+		var info: Dictionary = ac.play_dust_throw(3) if ac and ac.has_method("play_dust_throw") else {}
+		if info.is_empty():
+			return false
+		_face_ready_at = now + FACE_COOLDOWN
+		var length: float = info["length"]
+		c.attack_cooldown = maxf(c.attack_cooldown, length * 0.8)
+		var mc = c.player.movement_controller
+		if mc:
+			mc.slow_until = now + float(info["release"]) + 0.35
+			mc.slow_mult = THROW_SLOW
+		AudioManager.play("ataque-espalanza", -8.0, 1.3)
+		c.player.get_tree().create_timer(info["release"]).timeout.connect(_face_slap)
+		return true
+
+	func _face_slap() -> void:
+		if not is_instance_valid(c.player) or not c.player.is_inside_tree():
+			return
+		var face: Vector3 = c.player.animation_controller.bone_global_position("mixamorig_Head") + Vector3(0, 0.12, 0)
+		c.dust_speed_boost_timer = FACE_SPEED_S
+		var amount: float = maxf(c.player.max_hp * FACE_HEAL_FRACTION, 1.0)
+		var healed: float = minf(amount, c.player.max_hp - c.player.hp)
+		c.player.heal(amount)
+		if healed > 0.0:
+			FLOATING_DAMAGE.spawn(c.player.get_parent(), face + Vector3(0, 0.5, 0), healed, Color(0.4, 1.0, 0.45), false, "+%d" % ceili(healed))
+		create_dust_puff_visual(face, Color(1.0, 0.85, 0.45))
+		if c.player.has_method("_play_heal_fx"):
+			c.player._play_heal_fx()
+		AudioManager.play("ataque-espalanza", -2.0, 0.8)
+		AudioManager.play("dodge", -4.0, 1.4)
+		HitFeedback.shake(0.18)
+		c.player.apply_camera_recoil(-0.03, 0.0, 0.12)
 
 	## Right-click with dusts out: cycle the powder (0 AoE → 1 speed → 2 heal).
 
@@ -866,6 +1210,8 @@ class SerpentsStrategy extends WeaponStrategy:
 
 	## Dirección horizontal hacia el enemigo más cercano (o el frente del jugador).
 	func _target_dir() -> Vector3:
+		if GameData.game_mode == "dungeon":
+			return _dungeon_aim()
 		var best = null
 		var best_d := SEARCH_RANGE
 		for e in EnemyRegistry.all():
@@ -901,6 +1247,24 @@ class SerpentsStrategy extends WeaponStrategy:
 				best = e
 		return best
 
+	## Mazmorra: el Komodo es el "Stand" de Joel. Joel adopta una pose (Jotaro, Giorno o Dio, una por
+	## animación del Komodo), el espíritu brota de su pecho, ataca y vuelve a meterse en él.
+	const KOMODO_DELAY := 0.1
+	const GESTURE_SLOW := 0.2
+	func _dungeon_komodo(dir: Vector3, size: float, dmg: float, weapon: int) -> void:
+		var idx := SpiritKomodo.pick_variant()
+		var ac = c.player.animation_controller
+		var length: float = ac.play_gesture(idx) if ac and ac.has_method("play_gesture") else 0.0
+		var mc = c.player.movement_controller
+		if mc and length > 0.0:
+			mc.slow_until = Time.get_ticks_msec() / 1000.0 + length * 0.7
+			mc.slow_mult = GESTURE_SLOW
+		var at: Vector3 = c.player.global_position + dir * SUMMON_DISTANCE * size
+		c.player.get_tree().create_timer(KOMODO_DELAY).timeout.connect(func():
+			if is_instance_valid(c.player) and c.player.is_inside_tree():
+				var k := SpiritKomodo.summon(c.player.get_parent(), c.player, at, dir, dmg, size, weapon, idx)
+				StandAura.spawn(c.player, k.stand_time()))
+
 	## Animales: 0 Komodo (equilibrado), 1 Búho (rápido, golpea suave), 2 Hipopótamo (lento, golpea fuerte).
 	## base: multiplicadores de partida. Por cada nivel de mejora del animal: daño (+), tamaño (+) y
 	## recarga (×): el tiempo hasta la siguiente invocación se acorta.
@@ -927,7 +1291,10 @@ class SerpentsStrategy extends WeaponStrategy:
 			kind = 0
 		elif kind == 0 and owned.has(1) and enemy.global_position.distance_to(c.player.global_position) > MELEE_RANGE:
 			kind = 1
-		c.player.orient_player_to_aim(c.player.global_position + dir * 5.0)
+		if GameData.game_mode == "dungeon":
+			_face(dir, 0.5)
+		else:
+			c.player.orient_player_to_aim(c.player.global_position + dir * 5.0)
 
 		var lvl := int(mods.get(["komodo_lvl", "owl_lvl", "hippo_lvl"][kind], 0))
 		var base: Dictionary = SPIRIT_BASE[kind]
@@ -935,6 +1302,10 @@ class SerpentsStrategy extends WeaponStrategy:
 		c.attack_cooldown = c.player.get_weapon_data(W).base_cooldown * cd_mult * float(base["cd"]) * pow(float(per["cd"]), lvl)
 		var size: float = maxf(float(mods.get("size", 1.0)), 0.3) * (1.0 + float(per["size"]) * lvl)
 		var dmg: float = c.player._weapon_damage(W) * float(base["dmg"]) * (1.0 + float(per["dmg"]) * lvl)
+		if kind == 0 and GameData.game_mode == "dungeon":
+			_dungeon_komodo(dir, size, dmg, W)
+			c.player.create_muzzle_flash(Color(0.4, 1.0, 0.85), 1.0)
+			return
 		match kind:
 			1:
 				SpiritOwl.summon(c.player.get_parent(), c.player, enemy, dmg, size, W)

@@ -34,6 +34,12 @@ func _process(delta: float) -> void:
 	_handle_shield_regen(delta)
 	_handle_hp_regen(delta)
 
+func is_invincible() -> bool:
+	return invincibility_time > 0.0
+
+func set_invincibility(duration: float) -> void:
+	invincibility_time = maxf(invincibility_time, duration)
+
 func _handle_shield_regen(delta: float) -> void:
 	var can_regen: bool = true
 	var results: Array = []

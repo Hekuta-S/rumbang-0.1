@@ -51,6 +51,27 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if is_instance_valid(fps_label):
 		fps_label.text = "FPS: %d" % Engine.get_frames_per_second()
+	if GameData.game_mode == "dungeon":
+		_follow_player_with_stats(delta)
+
+## Mazmorra (cámara al hombro): el panel de vida/escudo sigue al personaje en horizontal,
+## manteniendo la misma separación que tenía con el personaje centrado.
+var _stats_base_x := NAN
+func _follow_player_with_stats(delta: float) -> void:
+	if not is_instance_valid(stats_panel):
+		return
+	if is_nan(_stats_base_x):
+		_stats_base_x = stats_panel.position.x
+	var player := get_tree().get_first_node_in_group("player") as Node3D
+	var cam := get_viewport().get_camera_3d()
+	if player == null or cam == null:
+		return
+	var head := player.global_position + Vector3(0.0, 1.0, 0.0)
+	if cam.is_position_behind(head):
+		return
+	var dx := cam.unproject_position(head).x - get_viewport().get_visible_rect().size.x * 0.5
+	var want := _stats_base_x + dx
+	stats_panel.position.x = lerpf(stats_panel.position.x, want, 1.0 - exp(-18.0 * delta))
 
 func _create_fps_label() -> void:
 	fps_label = Label.new()

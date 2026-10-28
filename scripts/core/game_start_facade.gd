@@ -48,12 +48,27 @@ func start_game() -> void:
 	_reset_player_position_and_stats()
 	ui_manager.refresh_weapon_ui()
 	_prewarm_effects()
-	# Modo mazmorra: por ahora solo exploración (los enemigos por sala llegan después)
+	# Modo mazmorra: sin oleadas; el combate lo ponen los encuentros por caverna
 	if GameData.game_mode != "dungeon":
 		wave_manager.start_run(_player)
 		loot_manager.spawn_weapon_pickup()
 		loot_manager.spawn_item_pickup()
+	else:
+		_setup_dungeon_encounter()
 	_reveal_world()
+
+## Primer encuentro de la mazmorra: un goblin en la caverna arena (DungeonEncounter).
+func _setup_dungeon_encounter() -> void:
+	var old := _scene_root.get_node_or_null("DungeonEncounter")
+	if old:
+		old.queue_free()
+	var map = _scene_root.get_node_or_null("ProceduralMap")
+	if not (map is DungeonMap):
+		return
+	var enc := DungeonEncounter.new()
+	enc.name = "DungeonEncounter"
+	_scene_root.add_child(enc)
+	enc.setup(map, _player)
 
 ## Tapa negra mientras se genera el mundo: evita ver la escena vacía y que la
 ## música/el jugador aparezcan antes que el entorno.

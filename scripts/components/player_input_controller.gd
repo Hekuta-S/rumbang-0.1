@@ -4,6 +4,7 @@ signal attack_pressed
 signal alt_attack_pressed
 signal alt_attack_released
 signal skill_pressed
+signal dodge_pressed
 signal weapon_cycle(delta: int)
 signal weapon_select(slot: int)
 signal reload_pressed
@@ -31,6 +32,13 @@ func _physics_process(_delta: float) -> void:
 	if Input.is_action_just_pressed("activate_skill") or joy_just_pressed(JOY_BUTTON_Y) or VirtualInput.just_pressed_skill:
 		emit_signal("skill_pressed")
 
+	var shift_pressed = Input.is_physical_key_pressed(KEY_SHIFT) or Input.is_key_pressed(KEY_SHIFT)
+	var was_shift = _last_joy_buttons.get("SHIFT", false)
+	_last_joy_buttons["SHIFT"] = shift_pressed
+	var dodge_action = (InputMap.has_action("dodge") and Input.is_action_just_pressed("dodge")) or (InputMap.has_action("dodge_roll") and Input.is_action_just_pressed("dodge_roll"))
+	if dodge_action or (shift_pressed and not was_shift) or joy_just_pressed(JOY_BUTTON_B):
+		emit_signal("dodge_pressed")
+
 	if Input.is_key_pressed(KEY_T):
 		emit_signal("spawn_debug_enemy")
 
@@ -43,8 +51,17 @@ func _physics_process(_delta: float) -> void:
 		emit_signal("alt_attack_released")
 	_last_joy_buttons["LT"] = (lt > 0.5)
 	
-	# Click izquierdo (acción "attack"): mantener pulsado repite el ataque; el cooldown del arma marca el ritmo
-	if (rt > 0.5 and not _last_joy_buttons.get("RT", false)) or VirtualInput.is_attacking or Input.is_action_pressed("attack"):
+	# Click izquierdo (acción "attack"):
+	#  - Mazmorra: cada pulsación es UN golpe (solo el flanco de bajada); el combo lo encadena el búfer.
+	#  - Supervivencia: mantener pulsado repite el ataque; el cooldown del arma marca el ritmo.
+	#  - Mazmorra con lanzallamas: mantener pulsado = chorro continuo.
+	if GameData.game_mode == "dungeon":
+		var attack_down: bool = rt > 0.5 or VirtualInput.is_attacking or Input.is_action_pressed("attack")
+		var hold_weapon: bool = get_parent().current_weapon() == WeaponData.WeaponType.FLAME_THROWER
+		if attack_down and (hold_weapon or not _last_joy_buttons.get("ATTACK", false)):
+			emit_signal("attack_pressed")
+		_last_joy_buttons["ATTACK"] = attack_down
+	elif (rt > 0.5 and not _last_joy_buttons.get("RT", false)) or VirtualInput.is_attacking or Input.is_action_pressed("attack"):
 		emit_signal("attack_pressed")
 	_last_joy_buttons["RT"] = (rt > 0.5)
 	
@@ -52,7 +69,8 @@ func _physics_process(_delta: float) -> void:
 		emit_signal("reload_pressed")
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton:
+	# En la mazmorra la rueda es el zoom de la cámara (CameraController)
+	if event is InputEventMouseButton and GameData.game_mode != "dungeon":
 		if event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			emit_signal("weapon_cycle", 1)
 			get_viewport().set_input_as_handled()

@@ -284,3 +284,134 @@ Solo después de validar D y E: goblin bruto (con armadura de *poise*), mago a d
 - El problema principal **no es la falta de efectos**: el daño no está gobernado por la animación (hitbox en t=0 y fija en el mundo), el ritmo lo marca el cooldown y no hay rivales con telegrafía.
 - La solución más limpia es **dirigir el combate desde la animación** (pistas de método más hitbox que acompaña al jugador) y crear un **enemigo-nodo de mazmorra** que comparta el contrato de `EnemyRegistry`, `take_damage` y `HitFeedback`. Así el sistema de hordas no se toca.
 - El orden propuesto (A→B→C→D→E→F) permite validar cada paso con pruebas automáticas y una regresión fija del modo supervivencia.
+
+---
+
+## 8. Estado de la Fase B (2026-10-26)
+
+La mayor parte de la Fase B ya estaba implementada en el código (hecha fuera de esta conversación) cuando se pidió ejecutarla:
+- `ATTACK_WINDOWS` y `LINK_WINDOWS` con pistas de método inyectadas (`_inject_hit_method_tracks`).
+- Señales `hit_window_opened` y `hit_window_closed`.
+- Hitbox hija de `player.mesh` con forma por ataque (`SpearLanceStrategy._on_dungeon_hit_opened`).
+- Dash en `hit_on`.
+- Búfer de entrada de 0,28 s y apuntado suave en la mazmorra (`player_combat_controller.gd`).
+
+Corrección aplicada en esta pasada:
+- **La carga y el lanzamiento abrían la ventana melee de attack1** (hitbox + dash + doble impacto al soltar). Se corrigió con `_suppress_hit_window` en `player_animation_controller.gd`, que se activa en `play_charge`/`play_throw` y se limpia en cada `_fire_action`.
+
+Medido en ejecución (Godot 4.7.1, mazmorra, goblin `EnemyData` estático delante):
+| Prueba | Resultado |
+|---|---|
+| Apertura de ventana tras el clic | unos 0,23–0,24 s (tabla 0,20 s más el fundido de entrada) [VERIFICADO] |
+| Impactos por ventana | exactamente 1 en 6 ventanas seguidas [VERIFICADO] |
+| Combo con clics cada 0,45 s | attack1 → 2 → 3 → 1 → 2 → 3 [VERIFICADO] |
+| Dash dentro de la ventana | 2,28 m en la estocada, con impacto [VERIFICADO] |
+| Carga de 0,8 s más lanzamiento | 0 ventanas melee, 0 m de dash [VERIFICADO tras la corrección] |
+| Regresión de supervivencia (40 s) | enemigos vivos, 12 ataques automáticos, `time_scale` mínimo 1,0, sin errores de script [VERIFICADO] |
+
+Sigue pendiente:
+- El cierre de las ventanas se retrasa por el hitstop (es coherente, porque el tiempo del clip también se escala). [VERIFICADO]
+- Las hojas extra de la mejora "quantity_bonus" no se generan en la mazmorra (`attack()` devuelve antes). [VERIFICADO; decisión de diseño pendiente]
+- `advance_combo()` encadena sin pasar por `PlayerCombatController.attack()`, así que esos golpes no reproducen `ataque-espalanza` ni fijan cooldown. [VERIFICADO en el código; efecto en el sonido PENDIENTE de valorar]
+
+---
+
+## 9. Estado de la Fase C — primer goblin de mazmorra (2026-10-27)
+
+Implementado:
+- `scripts/entities/dungeon_goblin.gd` (`DungeonGoblin`, `CharacterBody3D`): estados IDLE, APPROACH, WINDUP, ATTACK, RECOVER, HURT, STAGGER y DEAD. Se registra en `EnemyRegistry` y usa el mismo contrato que `EnemyData` (`take_damage`, `apply_knockback`, `hit_radius`/`hit_height`, `HitFeedback`).
+- **3 ataques** (`ATTACKS`), elegidos por distancia con sorteo ponderado:
+
+  | Ataque | Distancia | Aviso en el suelo | Anticipación | Daño | Forma de evitarlo |
+  |---|---|---|---|---|---|
+  | Zarpazo | ≤ 1,6 m | cono de 70°, 1,9 m | 0,4 s | 2 | alejarse |
+  | Porrazo | ≤ 2,2 m | cono de 55°, 2,6 m | 0,75 s | 3 | salir de la cuña |
+  | Embestida | 4–8 m, con línea de visión, cooldown de 5 s | franja de 7 × 1,6 m | 0,9 s | 4 | apartarse de lado; contra una pared se aturde 1,6 s |
+- 9 clips nuevos hechos en Blender (`assets/models/entities/enemigos/goblins/dungeon/`; fuente en `blender_sources/rumbang_anims.blend`, escena `Goblin_Anims`).
+- Telegrafía: `assets/shaders/enemy_telegraph.gdshader` (cuña o franja que se rellena y destella), destello rojo del modelo y gruñido.
+- Sonidos sintetizados: `goblin_warn`, `goblin_swing`, `goblin_hurt`, `goblin_die`.
+- `scripts/world/dungeon_encounter.gd`: la caverna vecina a la inicial es la arena (`DungeonMap.arena_index`, con el tema forzado a "almacén"). Al entrar, aparece un goblin al otro lado. La tecla **G** hace aparecer otro cuando el anterior muere.
+
+Medido en ejecución:
+| Prueba | Resultado |
+|---|---|
+| Ciclo de estados | APPROACH → WINDUP (0,75 s) → ATTACK → RECOVER → APPROACH [VERIFICADO] |
+| El porrazo daña dentro de su ventana | 3 de daño, 0,13 s después de empezar ATTACK [VERIFICADO] |
+| Una pared entre ambos | 0 de daño [VERIFICADO] |
+| Estocada / clavado | HURT (-13) / STAGGER (-19, interrumpe la anticipación) [VERIFICADO] |
+| Lanzamiento cargado | lo mata; sale de `EnemyRegistry`; se libera [VERIFICADO] |
+| Repertorio de cerca, 8 s | 4 zarpazos y 2 porrazos [VERIFICADO] |
+| Embestida al aparecer, jugador a 6 m | 4 de daño [VERIFICADO] |
+| Embestida esquivada de lado | 0 de daño [VERIFICADO] |
+| Embestida contra una pared | pasa a STAGGER [VERIFICADO] |
+| Regresión de supervivencia, 25 s | sin encuentro, 7 enemigos, 13 ataques automáticos, `time_scale` de 1,0 y sin Espalanza en la mano [VERIFICADO] |
+
+Pendiente para la Fase D:
+- Feedback de daño recibido en el jugador (viñeta, shake propio).
+- Ajuste de valores jugando.
+- Navegación con obstáculos (ahora el goblin va directo y se desliza contra las paredes).
+- Captura de la franja de la embestida.
+
+---
+
+## 10. Estado de la Fase D — game feel y navegación (2026-10-27)
+
+Implementado:
+- **Daño recibido** (`HitFeedback.on_player_hit`, llamado desde `Player.take_damage` solo si el golpe entra, no durante la invulnerabilidad; solo en mazmorra):
+  - viñeta roja a pantalla completa que se apaga en unos 0,45 s;
+  - destello rojo de Mikeura (overlay con borde);
+  - temblor fuerte de cámara y hitstop de unos 0,07 s;
+  - empuje de 7 m/s alejándolo del golpe;
+  - gruñido grave.
+- **Pausa durante el freeze:** `HitFeedback` restaura `Engine.time_scale = 1` si el árbol se pausa con el hitstop activo.
+- **Navegación del goblin:**
+  - `DungeonMap` tiene un campo de flujo con Dijkstra sobre la rejilla de suelo (`flow_path`).
+  - Las celdas que tapan los props fijos (vallas, tiendas, estalagmitas) cuestan 6 en vez de 1: el camino las evita, pero nunca queda cortado.
+  - El goblin apunta al punto más lejano del camino por el que cabe su cuerpo ("string pulling" con `segment_walkable` sobre la rejilla, más un rayo central para los props).
+  - Si ve al jugador **y** la línea recta es transitable, va directo con "bigotes" que esquivan props. El rayo de visión se colaba por las esquinas de pared.
+  - Atascos:
+    - contra un barril o una caja (`DestructibleProp`), lo rompe de un manotazo (resuelve el punto 6 de §6);
+    - contra otra cosa, da un paso lateral y penaliza esa celda (`penalize_cell`).
+- **Corrección de giro:** `_turn_towards` usaba `slerp`, que no gira entre vectores opuestos, así que el goblin podía quedarse de espaldas durante la anticipación. Ahora gira por ángulo (`lerp_angle`).
+- **Corrección de la telegrafía:** `SpawnDissolve` sustituía también el material del aviso del suelo durante la aparición, y la primera embestida se veía como un rectángulo blanco. Ahora se aplica solo al modelo (`DungeonGoblin.get_model()`).
+
+Medido en ejecución:
+| Prueba | Resultado |
+|---|---|
+| Golpe recibido (embestida, 4 de daño) | viñeta 1,0, temblor 0,8, `time_scale` 0,04, 82 mallas en rojo, empuje 7 m/s; todo se apaga en menos de 0,6 s [VERIFICADO + captura] |
+| Pausar durante el freeze | `time_scale` vuelve a 1,0 [VERIFICADO] |
+| Franja de la embestida | roja con flechas, orientada del goblin al jugador (alineación 1,0) [VERIFICADO + captura] |
+| Navegación: 8 mapas aleatorios × 2 recorridos (de la arena a la caverna inicial y a la final, entre 44 y 320 m) | 15 de 16 llegan y atacan; el restante avanzaba sin atascarse, pero el camino (unos 300 m) no cabe en el límite de 30 s [VERIFICADO] |
+| Regresión de supervivencia, 25 s | 8 enemigos, 14 ataques automáticos, `time_scale` mínimo 1,0, sin Espalanza en la mano [VERIFICADO] |
+
+Pendiente:
+- **Ajuste de valores jugando** (sesión del usuario): intensidad de la viñeta, empuje recibido, hitstop, ventanas y daño del goblin.
+- `take_damage(..., info)` con el arma explícita (sigue el `weapon_tag` estático).
+- Feedback de fallo (golpe al aire) y de muerte del jugador.
+- La Fase E ya tiene parte hecha fuera de esta conversación (`perform_dodge` con invulnerabilidad en `player_movement_controller.gd`, `tests/test_dodge.*`); falta revisarla contra la tabla de §5.
+
+---
+
+## 11. Estado de la Fase E — esquiva y conflictos de combate (2026-10-28)
+
+Revisión de `perform_dodge` contra la tabla de §5 y cierre de lo que faltaba:
+- **Ya estaba**: acción `dodge_roll` en `project.godot` + Shift + botón B del mando (`dodge_pressed`), dash con `roll_speed` (18 m/s) en la dirección de entrada, 0,32 s de esquiva, 0,25 s de invulnerabilidad (`HealthComponent.set_invincibility`), cooldown de 0,6 s, sonido `dodge` y cancelación de la carga de lanza.
+- **Añadido en esta pasada**:
+  - La esquiva corta la recuperación de attack1/attack2 y la pose de carga (`PlayerAnimationController.cancel_action`, fundido de salida del `OneShot`).
+  - No se puede esquivar durante el clavado (attack3) ni con una ventana de impacto abierta (`can_cancel_for_dodge`).
+  - El clic durante la esquiva se queda en el búfer y no se consume a mitad del rodamiento (`_try_consume_buffered_attack`).
+- **Corrección del test**: `tests/test_dodge.gd` llamaba dos veces seguidas a `perform_dodge` y la segunda chocaba con el cooldown; ahora cubre la matriz (cooldown, carga, búfer, ventana abierta, recuperación de attack1, clavado).
+
+Medido en ejecución:
+| Prueba | Resultado |
+|---|---|
+| `test_dodge` (7 comprobaciones) | pasa [VERIFICADO] |
+| `test_dungeon_combat_manual`, `test_hitbox_sync`, `test_combo_buffer` | pasan [VERIFICADO] |
+| Humo de 15 s en mazmorra y en supervivencia | sin `SCRIPT ERROR`, `time_scale` 1,0, 8 enemigos en supervivencia [VERIFICADO] |
+
+Pendiente:
+- Clip `roll` en Blender (ahora la esquiva no tiene animación propia). El servidor MCP de Blender no estaba conectado en esta sesión.
+- Invulnerabilidad desde t=0 en vez de la ventana central 0,05–0,25 s de §4.5 (decisión de ajuste jugando).
+- El búfer dura 0,28 s y la esquiva 0,32 s: un clic al principio del rodamiento caduca antes de salir. Ajustar si se nota.
+- Esquivar dentro de la ventana del goblin → 0 de daño: cubierto por la invulnerabilidad, pero sin prueba guionizada contra el goblin.
+- Fase F empezada fuera de este documento y sin documentar aquí: barreras por caverna (`dungeon_door.gd`), portal y elección de arma (`dungeon_portal.gd`, `weapon_choice_ui.gd`), niveles sucesivos (`DungeonEncounter.next_level`) y armas sujetas con IK de manos (`weapon_anim_sets.gd`, `held_weapon_rig.gd`, `hand_ik_modifier.gd`).

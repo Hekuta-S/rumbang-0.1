@@ -19,7 +19,7 @@ const DEFAULT := {"color": Color(1.0, 0.85, 0.35), "kind": "spark", "count": 10,
 ## kind: spark (chispas alargadas), shard (esquirlas), ember (brasas que suben),
 ##       puff (nubes que se expanden), orb (motas mágicas que flotan)
 const PROFILES := {
-	W.SPEAR_LANCE:    {"color": Color(0.25, 1.0, 0.45), "kind": "shard", "count": 16, "speed": 9.0,  "kb": 1.7, "shake": 0.35, "stop": 0.06, "sfx": "impact_pierce"},
+	W.SPEAR_LANCE:    {"color": Color(0.25, 1.0, 0.45), "kind": "shard", "count": 16, "speed": 9.0,  "kb": 0.6, "shake": 0.35, "stop": 0.06, "sfx": "impact_pierce"},
 	W.ENERGY_SWORD:   {"color": Color(0.3, 0.9, 1.0),   "kind": "spark", "count": 14, "speed": 10.0, "kb": 1.3, "shake": 0.28, "stop": 0.05, "sfx": "impact_slash"},
 	W.TRI_SHOTGUN:    {"color": Color(1.0, 0.6, 0.2),   "kind": "spark", "count": 8,  "speed": 12.0, "kb": 1.3, "shake": 0.22, "stop": 0.03, "sfx": "impact_blunt"},
 	W.RAILGUN:        {"color": Color(0.6, 0.8, 1.0),   "kind": "spark", "count": 18, "speed": 14.0, "kb": 1.6, "shake": 0.4,  "stop": 0.06, "sfx": "impact_zap"},
@@ -39,6 +39,9 @@ const STOP_SCALE := 0.04          ## velocidad del mundo durante el freeze
 const SFX_GAP_MS := 45            ## evita que 8 impactos a la vez suenen como uno saturado
 
 static var weapon_tag: int = -1
+## Último impacto a un enemigo (lo lee el crosshair para su marca de impacto).
+static var last_hit_ms: int = -1
+static var last_hit_killed := false
 static var _inst: HitFeedback
 
 var _particles: Dictionary = {}   # kind -> Array[CPUParticles3D]
@@ -57,14 +60,37 @@ static func enabled() -> bool:
 static func on_enemy_hit(enemy, amount: float, knockback_dir: Vector3, killed: bool) -> void:
 	if not enabled():
 		return
+	last_hit_ms = Time.get_ticks_msec()
+	last_hit_killed = killed
+	var inst := _instance()
+	if inst:
+		inst._hit(enemy, amount, knockback_dir, killed)
+
+## Temblor de cámara suelto (explosiones, etc.). 0..1, se suma al actual.
+static func shake(amount: float) -> void:
+	if not enabled():
+		return
+	var inst := _instance()
+	if inst:
+		inst._trauma = minf(inst._trauma + amount, 1.0)
+
+## Llamado por Player.take_damage() cuando el golpe entra (no durante la invulnerabilidad).
+static func on_player_hit(player: Node3D, amount: float, from_dir: Vector3) -> void:
+	if not enabled():
+		return
+	var inst := _instance()
+	if inst:
+		inst._player_hit(player, amount, from_dir)
+
+static func _instance() -> HitFeedback:
 	var root := EnemyManager.scene_root()
 	if root == null:
-		return
+		return null
 	if not is_instance_valid(_inst) or not _inst.is_inside_tree():
 		_inst = HitFeedback.new()
 		_inst.name = "HitFeedback"
 		root.add_child(_inst)
-	_inst._hit(enemy, amount, knockback_dir, killed)
+	return _inst
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -107,6 +133,96 @@ func _hit(enemy, amount: float, kb_dir: Vector3, killed: bool) -> void:
 	if stop > 0.0:
 		_freeze(stop)
 
+# ───────────────────────────── Daño recibido ─────────────────────────────
+
+const PLAYER_KNOCK := 7.0         ## empuje (m/s) al recibir un golpe
+const PLAYER_STOP := 0.07         ## hitstop al recibir un golpe
+const VIGNETTE_FADE := 2.2        ## velocidad a la que se apaga la viñeta (1/s)
+const VIGNETTE_SHADER_CODE := """
+shader_type canvas_item;
+uniform float strength = 0.0;
+void fragment() {
+	vec2 uv = UV * 2.0 - 1.0;
+	float d = length(uv * vec2(1.0, 0.8));
+	float v = smoothstep(0.3, 1.15, d) * 0.85 + 0.12;   // bordes fuertes + leve tinte general
+	COLOR = vec4(0.8, 0.02, 0.02, v * strength);
+}
+"""
+const PLAYER_FLASH_SHADER_CODE := """
+shader_type spatial;
+render_mode unshaded, blend_add, cull_back, depth_draw_never, shadows_disabled;
+uniform float amount = 0.0;
+void fragment() {
+	float rim = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 1.5);
+	ALBEDO = vec3(1.0, 0.08, 0.05) * amount * (0.9 + rim * 2.5);
+}
+"""
+
+var _vignette: ColorRect
+var _vignette_strength: float = 0.0
+var _player_flash_mat: ShaderMaterial
+
+func _player_hit(player: Node3D, amount: float, from_dir: Vector3) -> void:
+	var power := clampf(amount / 4.0, 0.4, 1.0)
+	# Viñeta roja + temblor fuerte + freeze corto
+	_ensure_vignette()
+	_vignette_strength = minf(_vignette_strength + 0.55 + 0.45 * power, 1.0)
+	_trauma = minf(_trauma + 0.45 + 0.35 * power, 1.0)
+	_freeze(PLAYER_STOP * (0.6 + 0.4 * power))
+	AudioManager.play("goblin_hurt", -3.0, 0.62)
+	# Mikeura destella en rojo
+	_flash_player(player)
+	# Empuje lejos del golpe
+	var dir := from_dir
+	dir.y = 0.0
+	if dir.length_squared() > 0.0001 and player.get("movement_controller"):
+		player.movement_controller.add_dash(dir.normalized() * PLAYER_KNOCK * (0.7 + 0.3 * power))
+
+func _ensure_vignette() -> void:
+	if is_instance_valid(_vignette):
+		return
+	var layer := CanvasLayer.new()
+	layer.layer = 50
+	add_child(layer)
+	_vignette = ColorRect.new()
+	_vignette.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sh := Shader.new()
+	sh.code = VIGNETTE_SHADER_CODE
+	var mat := ShaderMaterial.new()
+	mat.shader = sh
+	_vignette.material = mat
+	layer.add_child(_vignette)
+
+func _update_vignette(real_dt: float) -> void:
+	if not is_instance_valid(_vignette):
+		return
+	_vignette_strength = maxf(_vignette_strength - real_dt * VIGNETTE_FADE, 0.0)
+	_vignette.visible = _vignette_strength > 0.0
+	(_vignette.material as ShaderMaterial).set_shader_parameter("strength", _vignette_strength)
+
+func _flash_player(player: Node3D) -> void:
+	var mesh_root = player.get("mesh")
+	if not (mesh_root is Node3D):
+		return
+	if _player_flash_mat == null:
+		var sh := Shader.new()
+		sh.code = PLAYER_FLASH_SHADER_CODE
+		_player_flash_mat = ShaderMaterial.new()
+		_player_flash_mat.shader = sh
+	var meshes: Array[GeometryInstance3D] = []
+	for n in (mesh_root as Node3D).find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		if mi.visible and mi.material_overlay == null:
+			mi.material_overlay = _player_flash_mat
+			meshes.append(mi)
+	var tw := create_tween().set_ignore_time_scale(true)
+	tw.tween_method(func(a: float): _player_flash_mat.set_shader_parameter("amount", a), 1.0, 0.0, 0.22)
+	tw.tween_callback(func():
+		for mi in meshes:
+			if is_instance_valid(mi) and mi.material_overlay == _player_flash_mat:
+				mi.material_overlay = null)
+
 # ───────────────────────────── Shake + freeze ─────────────────────────────
 
 func _freeze(seconds: float) -> void:
@@ -123,9 +239,11 @@ func _process(_delta: float) -> void:
 	var now := Time.get_ticks_usec()
 	var real_dt := float(now - _last_us) / 1_000_000.0
 	_last_us = now
-	if _stop_until_us > 0 and now >= _stop_until_us:
+	# Pausar durante el freeze no debe dejar el mundo a cámara lenta
+	if (_stop_until_us > 0 and now >= _stop_until_us) or (get_tree().paused and Engine.time_scale != 1.0):
 		_stop_until_us = 0
 		Engine.time_scale = 1.0
+	_update_vignette(real_dt)
 	var cam := get_viewport().get_camera_3d()
 	if cam == null:
 		return

@@ -38,6 +38,48 @@ func _compute_camera_aim_point() -> Vector3:
 		return result.position
 	return ray_target
 
+## ── Apuntado de la mazmorra ──
+## Rayo desde el centro de la pantalla (el crosshair): primer enemigo (con un pequeño margen de
+## ayuda) o pared que corta. Con objetivo fijado, su pecho. Se calcula una vez por frame.
+const AIM_RANGE := 60.0
+const AIM_ASSIST := 0.35   ## m extra de grosor contra enemigos
+var _aim_frame := -1
+var _aim_cache := {}
+
+func get_dungeon_aim() -> Dictionary:
+	var f := Engine.get_physics_frames() * 100000 + Engine.get_process_frames()
+	if f == _aim_frame and not _aim_cache.is_empty():
+		return _aim_cache
+	_aim_frame = f
+	_aim_cache = _compute_dungeon_aim()
+	return _aim_cache
+
+func _compute_dungeon_aim() -> Dictionary:
+	var tl = player.get("target_lock")
+	if tl and tl.has_target():
+		return {"point": tl.target_point(), "enemy": tl.target, "locked": true}
+	if camera == null:
+		var fwd := -player.global_transform.basis.z
+		return {"point": player.global_position + fwd * 10.0 + Vector3(0, 1.0, 0), "enemy": null, "locked": false}
+	var center := player.get_viewport().get_visible_rect().size * 0.5
+	var origin := camera.project_ray_origin(center)
+	var normal := camera.project_ray_normal(center)
+	# Empieza a la altura del jugador: lo que haya entre la cámara y él no cuenta
+	var t0 := maxf((player.global_position - origin).dot(normal), 0.0)
+	var from := origin + normal * t0
+	var to := origin + normal * AIM_RANGE
+	var q := PhysicsRayQueryParameters3D.create(from, to, 1)
+	q.exclude = [player.get_rid()]
+	var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(q)
+	var wall_point: Vector3 = hit.position if not hit.is_empty() else to
+	var eh := EnemyQuery.segment_hit(from, wall_point, AIM_ASSIST)
+	if not eh.is_empty() and not (eh["enemy"].has_method("is_dead") and eh["enemy"].is_dead()):
+		var e: Node3D = eh["enemy"]
+		# Al pecho del enemigo, no al borde del cilindro de ayuda
+		var chest := Vector3(e.global_position.x, maxf(eh["pos"].y, e.global_position.y + 0.6), e.global_position.z)
+		return {"point": chest, "enemy": e, "locked": false}
+	return {"point": wall_point, "enemy": null, "locked": false}
+
 func get_attack_forward_dir() -> Vector3:
 	if not player:
 		return Vector3.FORWARD

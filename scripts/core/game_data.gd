@@ -22,7 +22,7 @@ const ANIM_FILES := {
 	"riva": { "idle": "riva-idle.fbx", "walk": "riva-caminar.fbx", "run": "riva-correr.fbx", "jump": "riva-salto.fbx", "fast": "riva-correr-rapido.fbx" },
 	"bronch": { "idle": "bronch-idle.fbx", "walk": "bronch-caminar.fbx", "run": "bronch-correr.fbx", "jump": "bronch-saltar.fbx" },
 	"mikeura": { "idle": "mikeura_idle.fbx", "walk": "mikeura_caminar.fbx", "run": "mikeura-correr.fbx", "jump": "mikeura-saltar.fbx",
-		"attack1": "mikeura_ataque1.fbx", "attack2": "mikeura_ataque2.fbx", "attack3": "mikeura_ataque3.fbx", "shout": "mikeura_grito.fbx" },
+		"shout": "mikeura_grito.fbx" },
 	"tatan": { "idle": "idle.fbx", "walk": "caminar.fbx", "run": "tatan-correr.fbx" },
 	"vangry": { "idle": "vangry-idle.fbx", "walk": "vangry-caminar.fbx", "run": "vangry-correr.fbx", "jump": "Jumping.fbx" },
 	"garri": { "idle": "garri-idle.fbx", "walk": "garri-caminar.fbx", "run": "garri-correr.fbx", "jump": "garri-saltar.fbx" },
@@ -39,6 +39,10 @@ func get_character_asset_paths(char_id: String) -> Array[String]:
 	for key in files:
 		out.append("res://assets/models/%s/%s" % [folder, files[key]])
 	out.append(get_texture_path(char_id))
+	# Animaciones de su arma inicial (por arma: WeaponAnimSets) y su modelo si es un arma sujeta
+	var initial: Array = get_selected().get("initial_weapons", [])
+	if not initial.is_empty():
+		out.append_array(WeaponAnimSets.asset_paths(int(initial[0])))
 	return out
 
 ## Modelos y texturas del Nigromante (aparece a los 7:10: se precargan para que no haya tirón).
