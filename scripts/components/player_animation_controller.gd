@@ -3,6 +3,10 @@ class_name PlayerAnimationController
 
 signal hit_window_opened(attack_id: int, anim_name: String)
 signal hit_window_closed(attack_id: int)
+## Red (NetWorld): cada acción de cuerpo entero y cada disparo del arma sujeta se avisa a los demás jugadores,
+## que los reproducen en la copia de este personaje (RemotePlayer, que lleva su propio controlador).
+signal net_action(anim_name: String, from_time: float, speed: float)
+signal net_held_shot(speed: float)
 
 const STATE_IDLE = "idle"
 const STATE_WALK = "walk"
@@ -10,9 +14,19 @@ const STATE_RUN  = "run"
 const STATE_JUMP = "jump"
 const STATE_FAST = "fast" ## Estado de súper carrera (Riva: pies humeantes)
 ## Acciones de un disparo (OneShot sobre la máquina de estados): combo de 3 ataques y grito.
-const ATTACKS := ["attack1", "attack2", "attack3"]
+const ATTACKS := ["attack1", "attack2", "attack3", "attack4"]
+## Combo ligero: estocada, tajos horizontales, slash giratorio y otra estocada. Tras los cuatro, el
+## especial (click derecho) lanza el clavado con salto (attack3), que ya no forma parte de la cadena.
+const LIGHT_COMBO := ["attack1", "attack2", "attack4", "attack1"]
+const SLAM := "attack3"
 const ACTION_SHOUT = "shout"
 const COMBO_RESET := 1.1   ## segundos sin atacar para volver al primer golpe
+## Velocidad de reproducción de los golpes de la espalanza (1 = la del clip). Las ventanas de golpe
+## y de enlace van en tiempo del clip, así que se estiran con ella y siguen sincronizadas.
+const SPEAR_ATTACK_SPEED := 0.8
+const ACTION_SCALE_PARAM := "parameters/action_scale/scale"
+const ACTION_PARRY := "parry"
+const ACTION_ROLL := "roll"
 const SHOT_PARAM := "parameters/shot/request"
 const SEEK_PARAM := "parameters/seek/seek_request"
 const ACTION_CHARGE = "charge"
@@ -43,28 +57,33 @@ var _weapon_anchor: Node3D
 var _hand_ik: HandIKModifier
 var _held_built := {}         ## armas cuyas animaciones ya se adaptaron a este esqueleto
 var held_fire_until := 0.0   ## la estrategia del arma lo renueva al disparar (s)
-## Lunge de cada ataque: [segundos hasta el impulso, velocidad m/s]
-const ATTACK_DASH := {"attack1": [0.14, 17.0], "attack2": [0.2, 7.0], "attack3": [0.2, 11.0]}
+## Lunge de cada ataque: [segundos hasta el impulso, velocidad m/s]. Cortos: los pies quedan plantados
+## (estilo God of War: el peso lo pone la animación, no el deslizamiento).
+const ATTACK_DASH := {"attack1": [0.14, 6.0], "attack2": [0.15, 2.5], "attack3": [0.2, 7.0], "attack4": [0.2, 3.0]}
 
-## Ventanas activas de golpe por animación [inicio_s, fin_s]
+## Ventanas activas de golpe por animación: [inicio_s, fin_s] o una lista de ellas.
+## attack1 = estocada, attack2 = dos tajos horizontales (una ventana por tajo), attack3 = salto y clavado.
 const ATTACK_WINDOWS := {
-	"attack1": [0.20, 0.36],
-	"attack2": [0.22, 0.55],
-	"attack3": [0.45, 0.60]
+	"attack1": [0.20, 0.33],
+	"attack2": [[0.17, 0.30], [0.47, 0.58]],
+	"attack3": [0.45, 0.60],
+	"attack4": [0.22, 0.55]
 }
 
 ## Ventanas de enlace [inicio_enlace_s, fin_enlace_s]
 ## Permiten encadenar el siguiente golpe durante la recuperación
 const LINK_WINDOWS := {
-	"attack1": [0.30, 0.75],
-	"attack2": [0.45, 0.85],
-	"attack3": [0.55, 0.95]
+	"attack1": [0.30, 0.68],
+	"attack2": [0.66, 1.0],
+	"attack3": [0.55, 0.95],
+	"attack4": [0.45, 0.85]
 }
 
 var current_attack_id: int = 0
 var active_attack_name: String = ""
 var _current_action_name: String = ""
-var _action_elapsed: float = 0.0
+var _action_elapsed: float = 0.0   ## en tiempo del clip (ya escalado por _action_speed)
+var _action_speed: float = 1.0
 
 var player: CharacterBody3D
 var model: Node3D
@@ -75,6 +94,7 @@ var sm: AnimationNodeStateMachine
 var _action_node: AnimationNodeAnimation
 var _skel_path: NodePath
 var _combo_index: int = 0
+var light_hits: int = 0      ## golpes ligeros encadenados (el cuarto habilita el clavado)
 var _combo_timer: float = 0.0
 var _skip_next_attack := false
 ## La carga y el lanzamiento reutilizan attack1: no deben abrir su ventana de golpe melee ni su dash.
@@ -86,7 +106,7 @@ func _ready() -> void:
 	setup_model()
 
 func setup_model() -> void:
-	var char_id: String = GameData.get_selected().get("id", "mikeura")
+	var char_id: String = _char_id()
 	
 	var anim_files: Dictionary = GameData.ANIM_FILES
 	
@@ -130,6 +150,10 @@ func setup_model() -> void:
 
 	if not anim_player.has_animation_library(""):
 		anim_player.add_animation_library("", AnimationLibrary.new())
+	# La biblioteca viene del recurso de la escena, que COMPARTEN todas las instancias del mismo modelo (el
+	# jugador local y la copia de un jugador remoto del mismo personaje): se copia para que cada controlador
+	# modifique la suya (clips de arma, ventanas de golpe) sin pisar a los demás.
+	_own_animation_library()
 	var lib: AnimationLibrary = anim_player.get_animation_library("")
 
 	_rename_first_animation_in_library(lib, STATE_IDLE)
@@ -250,6 +274,8 @@ func setup_model() -> void:
 	root.add_node("action", _action_node, Vector2(0, 200))
 	root.add_node("seek", AnimationNodeTimeSeek.new(), Vector2(120, 200))
 	root.connect_node("seek", 0, "action")
+	root.add_node("action_scale", AnimationNodeTimeScale.new(), Vector2(180, 200))
+	root.connect_node("action_scale", 0, "seek")
 	var shot := AnimationNodeOneShot.new()
 	shot.fadein_time = 0.08
 	shot.fadeout_time = 0.18
@@ -281,7 +307,7 @@ func setup_model() -> void:
 		root.connect_node("shot", 0, "upper")
 	else:
 		root.connect_node("shot", 0, "sm")
-	root.connect_node("shot", 1, "seek")
+	root.connect_node("shot", 1, "action_scale")
 	root.connect_node("output", 0, "shot")
 	anim_tree.tree_root = root
 	playback = anim_tree.get("parameters/sm/playback") as AnimationNodeStateMachinePlayback
@@ -293,6 +319,39 @@ func setup_model() -> void:
 	if player.has_signal("weapon_attacked"):
 		player.weapon_attacked.connect(_on_weapon_attacked)
 	_setup_foot_ik()
+	_ensure_common_actions()
+
+## Guardia del parry y voltereta de la esquiva (solo mazmorra), adaptadas a este esqueleto.
+func _ensure_common_actions() -> void:
+	if GameData.game_mode != "dungeon" or not anim_player:
+		return
+	var skel := _find_first_node_of_type(model, "Skeleton3D") as Skeleton3D
+	if skel == null:
+		return
+	var lib: AnimationLibrary = anim_player.get_animation_library("")
+	var actions := WeaponAnimSets.build_common_actions(skel, _skel_path)
+	for action_name in actions:
+		if lib.has_animation(action_name):
+			lib.remove_animation(action_name)
+		lib.add_animation(action_name, actions[action_name])
+
+## Acción de cuerpo entero de un arma (p. ej. los giros del hacha), sin ventanas de golpe melee.
+func play_action(action_name: String) -> void:
+	_fire_action(action_name)
+	_suppress_hit_window = true
+
+## Postura de guardia del parry (cuerpo entero, sin ventanas de golpe).
+func play_parry() -> void:
+	_fire_action(ACTION_PARRY)
+	_suppress_hit_window = true
+
+## Voltereta de la esquiva, ajustada para que dure `duration` segundos.
+func play_roll(duration: float) -> void:
+	var lib := anim_player.get_animation_library("") if anim_player else null
+	if lib == null or not lib.has_animation(ACTION_ROLL):
+		return
+	_fire_action(ACTION_ROLL, -1.0, lib.get_animation(ACTION_ROLL).length / maxf(duration, 0.05))
+	_suppress_hit_window = true
 
 ## IK de pies (FootIKModifier) colgado del esqueleto del modelo.
 func _setup_foot_ik() -> void:
@@ -335,11 +394,26 @@ func play_attack() -> void:
 		return
 	if _combo_timer <= 0.0:
 		_combo_index = 0
-	var anim_name: String = ATTACKS[_combo_index]
-	_combo_index = (_combo_index + 1) % ATTACKS.size()
-	_combo_timer = COMBO_RESET
+	var anim_name: String = LIGHT_COMBO[_combo_index]
+	_combo_index = (_combo_index + 1) % LIGHT_COMBO.size()
+	light_hits = mini(light_hits + 1, LIGHT_COMBO.size()) if _combo_timer > 0.0 else 1
+	_combo_timer = COMBO_RESET / SPEAR_ATTACK_SPEED
 	_fire_action(anim_name)
 	_schedule_dash(anim_name)
+
+## ¿Se completaron los cuatro golpes ligeros y el combo sigue vivo? Entonces el especial es el clavado.
+func can_slam() -> bool:
+	if not is_instance_valid(anim_player) or not anim_player.get_animation_library("").has_animation(SLAM):
+		return false
+	return light_hits >= LIGHT_COMBO.size() and _combo_timer > 0.0
+
+## Clavado con salto (mucho más fuerte que los golpes ligeros); reinicia el combo.
+func play_slam() -> void:
+	light_hits = 0
+	_combo_index = 0
+	_combo_timer = 0.0
+	_fire_action(SLAM)
+	_schedule_dash(SLAM)
 
 ## Impulso hacia delante sincronizado con el golpe de la animación.
 func _schedule_dash(anim_name: String) -> void:
@@ -357,12 +431,15 @@ func _schedule_dash(anim_name: String) -> void:
 func _inject_hit_method_tracks(anim: Animation, anim_name: String) -> void:
 	if not ATTACK_WINDOWS.has(anim_name) or anim_player == null:
 		return
-	var window: Array = ATTACK_WINDOWS[anim_name]
+	var windows: Array = ATTACK_WINDOWS[anim_name]
+	if not (windows[0] is Array):
+		windows = [windows]
 	var track_idx = anim.add_track(Animation.TYPE_METHOD)
 	var root_target = anim_player.get_node(anim_player.root_node)
 	anim.track_set_path(track_idx, root_target.get_path_to(self))
-	anim.track_insert_key(track_idx, float(window[0]), {"method": "_on_anim_hit_on", "args": [anim_name]})
-	anim.track_insert_key(track_idx, float(window[1]), {"method": "_on_anim_hit_off", "args": [anim_name]})
+	for window in windows:
+		anim.track_insert_key(track_idx, float(window[0]), {"method": "_on_anim_hit_on", "args": [anim_name]})
+		anim.track_insert_key(track_idx, float(window[1]), {"method": "_on_anim_hit_off", "args": [anim_name]})
 
 func _on_anim_hit_on(anim_name: String) -> void:
 	if _suppress_hit_window:
@@ -421,13 +498,16 @@ func cancel_action() -> void:
 	_on_anim_hit_off(_current_action_name)
 	_current_action_name = ""
 
-func _fire_action(anim_name: String, from_time: float = -1.0) -> void:
+func _fire_action(anim_name: String, from_time: float = -1.0, speed: float = -1.0) -> void:
 	if not is_instance_valid(anim_tree) or _action_node == null:
 		return
 	if not anim_player.get_animation_library("").has_animation(anim_name):
 		return
+	net_action.emit(anim_name, from_time, speed)
 	_current_action_name = anim_name
 	_action_elapsed = 0.0
+	_action_speed = speed if speed > 0.0 else (SPEAR_ATTACK_SPEED if anim_name in ATTACKS else 1.0)
+	anim_tree.set(ACTION_SCALE_PARAM, _action_speed)
 	_suppress_hit_window = false
 	_action_node.animation = anim_name
 	anim_tree.set(SHOT_PARAM, AnimationNodeOneShot.ONE_SHOT_REQUEST_ABORT)
@@ -596,6 +676,7 @@ func has_held_layer() -> bool:
 func play_held_shot(speed: float = 1.0) -> void:
 	if not has_held_layer() or not is_instance_valid(anim_tree):
 		return
+	net_held_shot.emit(speed)
 	anim_tree.set("parameters/w_fire_scale/scale", speed)
 	anim_tree.set("parameters/w_fire_seek/seek_request", 0.0)
 	var lib := anim_player.get_animation_library("")
@@ -618,14 +699,14 @@ func _update_held_layer(delta: float) -> void:
 func _process(delta: float) -> void:
 	if not player or not is_instance_valid(playback): return
 	_update_held_layer(delta)
-	_action_elapsed += delta
+	_action_elapsed += delta * _action_speed
 	_combo_timer = maxf(_combo_timer - delta, 0.0)
 	if active_attack_name != "" and is_instance_valid(anim_tree):
 		var shot_active = bool(anim_tree.get("parameters/shot/active"))
 		if not shot_active:
 			_on_anim_hit_off(active_attack_name)
 	
-	var is_on_floor = player.is_on_floor()
+	var is_on_floor: bool = bool(player.get("net_on_floor")) if player.get("net_on_floor") != null else player.is_on_floor()
 	var just_jumped = _was_on_floor and not is_on_floor
 	
 	var horiz_velocity := Vector2(player.velocity.x, player.velocity.z).length()
@@ -642,7 +723,7 @@ func _process(delta: float) -> void:
 			else:
 				playback.travel(STATE_JUMP)
 				
-			var char_id = GameData.get_selected().get("id", "mikeura")
+			var char_id = _char_id()
 			if char_id in ["mikeura", "vangry", "joel", "riva", "saimon"]:
 				# 12 frames at standard 30 FPS = 0.4 seconds
 				anim_tree.set("parameters/sm/jump/seek/seek_request", 12.0 / 30.0)
@@ -674,6 +755,21 @@ func _add_transition(sm: AnimationNodeStateMachine, from: String, to: String, xf
 	trans.advance_mode = AnimationNodeStateMachineTransition.ADVANCE_MODE_ENABLED
 	trans.xfade_time = xfade
 	sm.add_transition(from, to, trans)
+
+## Personaje de este controlador: el de la partida, o el de un jugador remoto (RemotePlayer.net_char_id).
+func _char_id() -> String:
+	var forced: Variant = player.get("net_char_id") if player else null
+	if forced != null and str(forced) != "":
+		return str(forced)
+	return GameData.get_selected().get("id", "mikeura")
+
+func _own_animation_library() -> void:
+	var shared := anim_player.get_animation_library("")
+	var own := AnimationLibrary.new()
+	for n in shared.get_animation_list():
+		own.add_animation(n, shared.get_animation(n).duplicate(true))
+	anim_player.remove_animation_library("")
+	anim_player.add_animation_library("", own)
 
 func _fit_model() -> void:
 	if not model: return

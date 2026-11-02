@@ -947,6 +947,51 @@ func attach_spear_to_hand(model: Node3D) -> bool:
 	weapon_models[WeaponData.WeaponType.SPEAR_LANCE] = spear
 	return true
 
+## Hacha de Garri en la mano derecha (mazmorra), colgada del hueso de la mano como la espalanza.
+const AXE_GRIP_ROTATION := Vector3(0.0, 0.0, -90.0)
+const AXE_GRIP_OFFSET := Vector3(0.0, 0.08, 0.02)    # centro de la palma (como la espalanza)
+const AXE_SCALE := 0.032              ## ~1,3 m de largo
+const AXE_GRIP_FROM_END := 0.2        ## el puño, a 20 cm de la punta del mástil
+var axe_blade_tip: Marker3D
+var axe_trail: AxeRibbon
+func attach_axe_to_hand(model: Node3D) -> bool:
+	if model == null:
+		return false
+	var skels := model.find_children("*", "Skeleton3D", true, false)
+	if skels.is_empty() or (skels[0] as Skeleton3D).find_bone(HAND_BONE) < 0:
+		return false
+	var skel: Skeleton3D = skels[0]
+	var attach := BoneAttachment3D.new()
+	attach.name = "RightHandAxe"
+	attach.bone_name = HAND_BONE
+	skel.add_child(attach)
+	var axe := Node3D.new()
+	var scene := load("res://assets/models/weapons/axe_guitar.glb") as PackedScene
+	if scene:
+		var inst := scene.instantiate() as Node3D
+		# En el espacio del glb el mástil va de z = −8 (junto a la hoja) a z = −31,9 (punta) y la hoja
+		# está en z ≈ +2. Se gira para que el mástil apunte a +Y (como el asta de la espalanza: la
+		# hoja hacia fuera) y se coloca la punta del mástil 20 cm por detrás del puño.
+		inst.transform = Transform3D(Basis(Vector3.RIGHT, -PI * 0.5).scaled(Vector3.ONE * AXE_SCALE),
+			Vector3(-0.5 * AXE_SCALE, 31.9 * AXE_SCALE - AXE_GRIP_FROM_END, 0.0))
+		axe.add_child(inst)
+	# Punta de la hoja (para la estela de los giros)
+	axe_blade_tip = Marker3D.new()
+	axe_blade_tip.position = Vector3(0.0, (31.9 + 6.0) * AXE_SCALE - AXE_GRIP_FROM_END, 0.0)
+	axe.add_child(axe_blade_tip)
+	var s := skel.global_transform.basis.get_scale().x
+	var rot := Basis.from_euler(AXE_GRIP_ROTATION * PI / 180.0)
+	axe.transform = Transform3D(rot.scaled(Vector3.ONE / s), AXE_GRIP_OFFSET / s)
+	attach.add_child(axe)
+	var old: Node3D = weapon_models.get(WeaponData.WeaponType.SPINNING_AXE)
+	if is_instance_valid(old):
+		old.queue_free()
+	axe.set_meta("in_hand", true)
+	axe.visible = false
+	weapon_models[WeaponData.WeaponType.SPINNING_AXE] = axe
+	axe_trail = AxeRibbon.make(axe, axe_blade_tip, AxeRibbon.TIP, false)
+	return true
+
 ## Arma sujeta con las dos manos (mazmorra): su modelo va en el ancla animada del personaje y
 ## sustituye al modelo procedural.
 func attach_held_weapon(p_player: Node3D, anchor: Node3D, weapon_type: int, weapon_scale: float = 1.0) -> bool:

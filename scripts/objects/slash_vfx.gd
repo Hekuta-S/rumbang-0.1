@@ -9,7 +9,7 @@ extends RefCounted
 static var _default_shader: Shader = preload("res://assets/shaders/slash_2_optimized.gdshader")
 static var _pools: Dictionary = {}   # Shader -> Array[MeshInstance3D] libres
 
-const DURATION := 0.18
+const DURATION := 0.35
 static var last_duration: float = DURATION   ## última duración usada (para tests/depuración)
 
 static func _acquire(parent: Node, size: float, shader: Shader) -> MeshInstance3D:
@@ -37,7 +37,7 @@ static func _acquire(parent: Node, size: float, shader: Shader) -> MeshInstance3
 ## `shader` null = tajo polar por defecto.
 static func spawn(tween_owner: Node, parent: Node, pos: Vector3, facing_dir: Vector3,
 		size: float, forward_offset: float, flip: bool, params: Dictionary,
-		duration: float = DURATION, shader: Shader = null) -> void:
+		duration: float = DURATION, shader: Shader = null, follow_node: Node3D = null) -> void:
 	last_duration = duration
 	var sh: Shader = shader if shader != null else _default_shader
 	var inst := _acquire(parent, size, sh)
@@ -56,10 +56,16 @@ static func spawn(tween_owner: Node, parent: Node, pos: Vector3, facing_dir: Vec
 	inst.rotate_object_local(Vector3.RIGHT, deg_to_rad(-90))
 	inst.rotate_object_local(Vector3.FORWARD, deg_to_rad(180))
 
+	# El tajo viaja con el jugador para no quedarse atrás al caminar
+	var base_pos: Vector3 = inst.global_position
+	var start_follow_pos: Vector3 = follow_node.global_position if is_instance_valid(follow_node) else Vector3.ZERO
+
 	var tween := tween_owner.create_tween()
 	tween.tween_method(func(val: float) -> void:
 		if is_instance_valid(mat):
 			mat.set_shader_parameter("progress", val)
+		if is_instance_valid(follow_node) and is_instance_valid(inst):
+			inst.global_position = base_pos + (follow_node.global_position - start_follow_pos)
 	, 0.0, 1.0, duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	tween.tween_callback(func() -> void:
 		if is_instance_valid(inst):

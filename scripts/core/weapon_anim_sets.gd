@@ -48,10 +48,11 @@ const CLIPS := ["hold", "fire", "blast"]
 ## adaptadas a cualquier esqueleto con el mismo retargeting (sin ancla ni IK: la mano libre o la
 ## lanza enganchada a la mano derecha). Los nombres son los que usan las estrategias de las armas.
 const ACTION_SETS := {
-	WeaponData.WeaponType.SPEAR_LANCE: {      # Mikeura: combo de tres golpes
+	WeaponData.WeaponType.SPEAR_LANCE: {      # Mikeura: combo ligero de cuatro golpes + clavado con salto
 		"attack1": "res://assets/models/mikeura/mikeura_ataque1.fbx",
 		"attack2": "res://assets/models/mikeura/mikeura_ataque2.fbx",
 		"attack3": "res://assets/models/mikeura/mikeura_ataque3.fbx",
+		"attack4": "res://assets/models/mikeura/mikeura_ataque4.fbx",   # slash giratorio
 	},
 	WeaponData.WeaponType.DUSTS: {            # Tatan: lanzamientos y polvo a la cara
 		"dust1": "res://assets/models/tatan/tatan_lanzar1.fbx",
@@ -61,6 +62,11 @@ const ACTION_SETS := {
 		"dust_speed": "res://assets/models/tatan/tatan_velocidad.fbx",
 		"dust_face": "res://assets/models/tatan/tatan_cara.fbx",
 	},
+	WeaponData.WeaponType.SPINNING_AXE: {     # Garri: lanzar el hacha y giros de 360°
+		"axe_throw": "res://assets/models/garri/garri_axe_throw.fbx",
+		"axe_spin": "res://assets/models/garri/garri_axe_spin.fbx",
+		"axe_spin_power": "res://assets/models/garri/garri_axe_spin_power.fbx",
+	},
 	WeaponData.WeaponType.SERPENTS: {         # Joel: poses de invocación del Stand
 		"gesture1": "res://assets/models/joel/joel_gesto1.fbx",
 		"gesture2": "res://assets/models/joel/joel_gesto2.fbx",
@@ -68,14 +74,28 @@ const ACTION_SETS := {
 	},
 }
 
+## Acciones comunes a todos los personajes, sea cual sea el arma: guardia del parry y voltereta de
+## la esquiva. Animadas sobre Mikeura y adaptadas igual que las de las armas.
+const COMMON_ACTIONS := {
+	"parry": "res://assets/models/mikeura/mikeura_parry.fbx",
+	"roll": "res://assets/models/mikeura/mikeura_roll.fbx",
+}
+
 static func has_actions(weapon_type: int) -> bool:
 	return ACTION_SETS.has(weapon_type)
 
 ## Acciones del arma adaptadas al esqueleto `dst`: {nombre: Animation}.
 static func build_actions(weapon_type: int, dst: Skeleton3D, skel_path: NodePath) -> Dictionary:
+	return _build_actions_from(ACTION_SETS.get(weapon_type, {}), dst, skel_path)
+
+## Acciones comunes (COMMON_ACTIONS) adaptadas al esqueleto `dst`.
+static func build_common_actions(dst: Skeleton3D, skel_path: NodePath) -> Dictionary:
+	return _build_actions_from(COMMON_ACTIONS, dst, skel_path)
+
+static func _build_actions_from(paths: Dictionary, dst: Skeleton3D, skel_path: NodePath) -> Dictionary:
 	var out := {}
-	for action_name in ACTION_SETS.get(weapon_type, {}):
-		var scene := load(ACTION_SETS[weapon_type][action_name]) as PackedScene
+	for action_name in paths:
+		var scene := load(paths[action_name]) as PackedScene
 		if scene == null:
 			continue
 		var inst := scene.instantiate()

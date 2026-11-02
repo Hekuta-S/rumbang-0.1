@@ -7,16 +7,40 @@ class_name EnemyTypeFlyweightFactory extends RefCounted
 
 static var _pool: Dictionary = {}
 
+## La mazmorra conserva su propio equilibrio (los DungeonGoblin leen sus estadísticas de aquí), así
+## que tiene una tabla aparte de la de supervivencia.
+const DUNGEON_KEY_OFFSET := 1000
+
 static func get_flyweight(type: int) -> EnemyTypeFlyweight:
-	if not _pool.has(type):
-		_pool[type] = _create(type)
-	return _pool[type]
+	var dungeon: bool = GameData.game_mode == "dungeon"
+	var key: int = type + (DUNGEON_KEY_OFFSET if dungeon else 0)
+	if not _pool.has(key):
+		_pool[key] = _create_dungeon(type) if dungeon else _create(type)
+	return _pool[key]
 
 ## Nº de flyweights distintos creados (evidencia para la sustentación).
 static func pool_size() -> int:
 	return _pool.size()
 
 static func _create(type: int) -> EnemyTypeFlyweight:
+	match type:
+		EnemyData.EnemyType.GOBLIN_RANGED:
+			return EnemyTypeFlyweight.new(28.0, 2.2, 14.0, 3.0, 6)
+		EnemyData.EnemyType.NORMAL_GOBLIN:
+			return EnemyTypeFlyweight.new(35.0, 3.0, 1.1, 2.5, 8)
+		EnemyData.EnemyType.HEAVY_BRUTE:
+			return EnemyTypeFlyweight.new(95.0, 1.6, 1.5, 5.0, 16, Vector3(1.5, 1.5, 1.5))
+		EnemyData.EnemyType.SNIPER_GOBLIN:
+			return EnemyTypeFlyweight.new(40.0, 2.0, 16.0, 6.0, 20, Vector3(1.1, 1.25, 1.1))
+		EnemyData.EnemyType.ZOMBIE_GOBLIN:
+			return EnemyTypeFlyweight.new(22.0, 1.4, 1.2, 2.0, 4, Vector3(0.9, 0.9, 0.9))
+		EnemyData.EnemyType.MORTAR_GOBLIN:
+			return EnemyTypeFlyweight.new(35.0, 1.8, 30.0, 5.0, 14, Vector3(1.05, 1.1, 1.05))
+	push_error("Tipo de enemigo sin flyweight: %d" % type)
+	return EnemyTypeFlyweight.new(30.0, 2.0, 12.0, 2.0, 6)
+
+## Estadísticas de la mazmorra (equilibradas antes del reajuste de supervivencia).
+static func _create_dungeon(type: int) -> EnemyTypeFlyweight:
 	match type:
 		EnemyData.EnemyType.GOBLIN_RANGED:
 			return EnemyTypeFlyweight.new(30.0, 2.0, 14.0, 2.0, 6)
@@ -30,5 +54,4 @@ static func _create(type: int) -> EnemyTypeFlyweight:
 			return EnemyTypeFlyweight.new(25.0, 1.5, 1.2, 1.0, 3, Vector3(0.9, 0.9, 0.9))
 		EnemyData.EnemyType.MORTAR_GOBLIN:
 			return EnemyTypeFlyweight.new(35.0, 1.8, 30.0, 5.0, 14, Vector3(1.05, 1.1, 1.05))
-	push_error("Tipo de enemigo sin flyweight: %d" % type)
-	return EnemyTypeFlyweight.new(30.0, 2.0, 12.0, 2.0, 6)
+	return _create(type)

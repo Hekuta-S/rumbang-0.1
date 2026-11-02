@@ -21,14 +21,20 @@ var camera_pivot: Node3D
 
 ## Mazmorra: brazo con esfera de colisión (no atraviesa paredes), regreso suave tras chocar,
 ## zoom con la rueda y seguimiento del objetivo fijado (TargetLockController).
-const DUNGEON_SPRING_LENGTH := 4.6
-const DUNGEON_MIN_LENGTH := 2.6
-const DUNGEON_MAX_LENGTH := 7.0
+## Estilo Deadlock: cámara pegada a la espalda y algo elevada, al hombro derecho, con campo de visión
+## amplio y el punto de mira libre en el centro de la pantalla.
+const DUNGEON_SPRING_LENGTH := 3.3
+const DUNGEON_MIN_LENGTH := 2.2
+const DUNGEON_MAX_LENGTH := 5.2
+const DUNGEON_START_PITCH := -0.1    ## empieza mirando un poco hacia abajo (el horizonte queda sobre el crosshair)
+const FOV_BASE := 80.0
+const FOV_DODGE := 88.0              ## el campo de visión se abre un instante al rodar
+const FOV_SPEED := 9.0
 const ARM_RETURN_SPEED := 5.0        ## lo rápido que se aleja de nuevo tras acercarse por una pared
 const LOCK_YAW_SPEED := 7.0
-const LOCK_PITCH := -0.5            ## inclinación a la que tiende la cámara con objetivo fijado
+const LOCK_PITCH := -0.28           ## inclinación a la que tiende la cámara con objetivo fijado
 ## Cámara al hombro: el personaje queda a la izquierda y el crosshair libre en el centro.
-const SHOULDER := Vector3(0.62, 0.32, 0.0)
+const SHOULDER := Vector3(0.78, 0.5, 0.0)
 const SHOULDER_MARGIN := 0.25       ## distancia mínima de la cámara a una pared lateral
 var _dungeon := false
 var _cam_len := -1.0
@@ -55,6 +61,9 @@ func _ready() -> void:
 		target_spring_length = DUNGEON_SPRING_LENGTH
 		spring_arm.spring_length = target_spring_length
 		camera_offset = SHOULDER
+		camera.fov = FOV_BASE
+		target_pitch = DUNGEON_START_PITCH
+		spring_arm.rotation.x = target_pitch
 
 func handle_input(event: InputEvent) -> void:
 	if _dungeon and event is InputEventMouseButton and event.pressed:
@@ -65,8 +74,8 @@ func handle_input(event: InputEvent) -> void:
 		if _locked():
 			player.target_lock.feed_flick(event.relative.x)
 		else:
-			target_yaw -= event.relative.x * player.mouse_sensitivity
-		target_pitch = clampf(target_pitch - event.relative.y * player.mouse_sensitivity, -1.2, 0.9)
+			target_yaw -= event.relative.x * player.mouse_sensitivity * SettingsManager.look_sensitivity
+		target_pitch = clampf(target_pitch - event.relative.y * player.mouse_sensitivity * SettingsManager.look_sensitivity, -1.2, 0.9)
 
 func _physics_process(delta: float) -> void:
 	var smooth := 1.0 - exp(-camera_smoothness * delta)
@@ -78,13 +87,17 @@ func _physics_process(delta: float) -> void:
 		if _locked():
 			player.target_lock.feed_flick(joy_look_x * 900.0 * delta)
 		else:
-			target_yaw -= joy_look_x * 3.0 * delta
+			target_yaw -= joy_look_x * 3.0 * delta * SettingsManager.look_sensitivity
 	if abs(joy_look_y) > 0.1:
-		target_pitch = clampf(target_pitch - joy_look_y * 3.0 * delta, -1.2, 0.9)
+		target_pitch = clampf(target_pitch - joy_look_y * 3.0 * delta * SettingsManager.look_sensitivity, -1.2, 0.9)
 		
 	if VirtualInput.look_vector.length_squared() > 0.0:
-		target_yaw -= VirtualInput.look_vector.x * player.mouse_sensitivity
-		target_pitch = clampf(target_pitch - VirtualInput.look_vector.y * player.mouse_sensitivity, -1.2, 0.9)
+		var touch_k: float = player.mouse_sensitivity * SettingsManager.touch_look_sensitivity
+		if _locked():
+			player.target_lock.feed_flick(VirtualInput.look_vector.x)
+		else:
+			target_yaw -= VirtualInput.look_vector.x * touch_k
+		target_pitch = clampf(target_pitch - VirtualInput.look_vector.y * touch_k, -1.2, 0.9)
 	
 	if _locked():
 		var to_t: Vector3 = player.target_lock.target_point() - spring_arm.global_position
@@ -106,6 +119,8 @@ func _physics_process(delta: float) -> void:
 			_cam_len = lerpf(_cam_len, hit, 1.0 - exp(-ARM_RETURN_SPEED * delta))
 		arm_pull = _cam_len - hit
 		_update_shoulder(delta)
+		var rolling: bool = player.movement_controller != null and player.movement_controller.is_dodging()
+		camera.fov = lerpf(camera.fov, FOV_DODGE if rolling else FOV_BASE, 1.0 - exp(-FOV_SPEED * delta))
 
 	if abs(camera_kick_z) > 0.001:
 		camera_kick_z = lerp(camera_kick_z, 0.0, delta * 14.0)

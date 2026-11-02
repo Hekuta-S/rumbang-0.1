@@ -106,7 +106,9 @@ func _process(delta: float) -> void:
 	_flick = lerpf(_flick, 0.0, minf(FLICK_DECAY * delta, 1.0))
 
 	var joy := Input.is_joy_button_pressed(0, JOY_BUTTON_RIGHT_STICK)
-	if joy and not _joy_was_pressed:
+	var touch_pressed: bool = VirtualInput.just_pressed_target
+	VirtualInput.just_pressed_target = false     # se consume: solo cuenta una vez por pulsación
+	if (joy and not _joy_was_pressed) or touch_pressed:
 		toggle()
 	_joy_was_pressed = joy
 
@@ -191,14 +193,24 @@ func _camera_forward() -> Vector3:
 	f.y = 0.0
 	return f.normalized() if f.length_squared() > 0.0001 else Vector3.FORWARD
 
+## ¿Hay un enemigo visible desde el jugador? (lo consulta también la ayuda de apuntado.)
+func line_of_sight(e: Node3D) -> bool:
+	return _line_of_sight(e)
+
 func _line_of_sight(e: Node3D) -> bool:
 	var from := player.global_position + Vector3(0.0, 1.2, 0.0)
-	var to := e.global_position + Vector3(0.0, 0.8, 0.0)
+	# Apunta al pecho: en enemigos altos (brutos, jefes) 0.8 m queda por los pies.
+	var chest := maxf(0.8, EnemyQuery.height_of(e) * 0.5)
+	var to := e.global_position + Vector3(0.0, chest, 0.0)
+	# Solo muros/props (capa 1): los enemigos de la mazmorra viven en la capa 4, así que un rayo
+	# contra su capa NUNCA los tocaría y cualquier pared detrás los "tapaba".
 	var q := PhysicsRayQueryParameters3D.create(from, to, 1)
 	q.exclude = [player.get_rid()]
 	var hit := player.get_world_3d().direct_space_state.intersect_ray(q)
-	# Los props rompibles no tapan (se ven por encima y se rompen de un golpe)
-	return hit.is_empty() or hit.collider == e or hit.collider is DestructibleProp
+	if hit.is_empty() or hit.collider == e or hit.collider is DestructibleProp:
+		return true
+	# Lo golpeado está detrás del enemigo: hay línea de visión hasta él.
+	return from.distance_to(hit.position) >= from.distance_to(to) - 0.6
 
 func _flat_dist(e: Node3D) -> float:
 	return Vector2(e.global_position.x - player.global_position.x, e.global_position.z - player.global_position.z).length()

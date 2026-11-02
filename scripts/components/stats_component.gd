@@ -1,17 +1,14 @@
 class_name StatsComponent
 extends Node
 
-signal stats_changed(hp, max_hp, shield, max_shield)
+signal stats_changed(hp, max_hp)
 signal entity_died
 signal experience_gained(amount, current_xp, required_xp)
 signal leveled_up(new_level)
 
 @export var max_hp: float = 100.0
-@export var max_shield: float = 50.0
-@export var shield_regen_delay: float = 4.0
 
 var hp: float
-var shield: float
 
 var level: int = 1
 var experience: float = 0.0
@@ -23,7 +20,6 @@ var _parent: Node
 
 func _ready() -> void:
 	hp = max_hp
-	shield = max_shield
 	_parent = get_parent()
 
 func _process(delta: float) -> void:
@@ -31,22 +27,6 @@ func _process(delta: float) -> void:
 		invincibility_time -= delta
 		
 	time_since_damage += delta
-	_handle_shield_regen(delta)
-
-func _handle_shield_regen(delta: float) -> void:
-	# If parent has a passive that blocks regen, check it
-	var can_regen: bool = true
-	if _parent and "passive" in _parent and _parent.passive != null:
-		if _parent.passive.has_method("allow_shield_regen"):
-			can_regen = _parent.passive.allow_shield_regen(_parent)
-			
-	if can_regen and time_since_damage >= shield_regen_delay and shield < max_shield:
-		var was_empty := shield <= 0.0
-		shield = min(max_shield, shield + delta * 2.5)
-		if was_empty and shield >= max_shield and _parent and "passive" in _parent and _parent.passive != null:
-			if _parent.passive.has_method("on_shield_recharged"):
-				_parent.passive.on_shield_recharged()
-		_emit_stats()
 
 func take_damage(amount: float) -> void:
 	if invincibility_time > 0:
@@ -71,22 +51,14 @@ func take_damage(amount: float) -> void:
 		emit_signal("entity_died")
 
 func _default_damage(amount: float) -> void:
-	if shield > 0:
-		if shield >= amount:
-			shield -= amount
-		else:
-			var rem = amount - shield
-			shield = 0
-			hp = max(0, hp - rem)
-	else:
-		hp = max(0, hp - amount)
+	hp = max(0, hp - amount)
 
 func heal(amount: float) -> void:
 	hp = min(max_hp, hp + amount)
 	_emit_stats()
 
 func _emit_stats() -> void:
-	emit_signal("stats_changed", hp, max_hp, shield, max_shield)
+	emit_signal("stats_changed", hp, max_hp)
 
 func gain_experience(amount: float) -> void:
 	experience += amount

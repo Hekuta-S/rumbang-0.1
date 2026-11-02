@@ -27,7 +27,9 @@ var weapons = [
 ]
 
 var _bg_container: SubViewportContainer
-var center_container: CenterContainer
+var center_container: Control         ## columna izquierda (título y botones)
+var _play_menu: PanelContainer         ## mini menú de JUGAR: mazmorra, supervivencia, multijugador
+var _play_tween: Tween
 var upgrades_panel: ColorRect
 var lbl_gold: Label
 var upgrades_container: VBoxContainer
@@ -46,18 +48,38 @@ func _build_ui() -> void:
 	accent_bar.color = C_ACCENT
 	add_child(accent_bar)
 
-	center_container = CenterContainer.new()
-	center_container.set_anchors_preset(PRESET_FULL_RECT)
+	# Degradado oscuro a la izquierda para que la columna del menú se lea sobre el paisaje
+	var shade_grad := Gradient.new()
+	shade_grad.set_color(0, Color(0.02, 0.01, 0.05, 0.85))
+	shade_grad.set_color(1, Color(0.02, 0.01, 0.05, 0.0))
+	var shade_tex := GradientTexture2D.new()
+	shade_tex.gradient = shade_grad
+	shade_tex.fill_from = Vector2(0.0, 0.5)
+	shade_tex.fill_to = Vector2(1.0, 0.5)
+	var shade := TextureRect.new()
+	shade.texture = shade_tex
+	shade.set_anchors_preset(PRESET_LEFT_WIDE)
+	shade.offset_right = 720
+	shade.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(shade)
+
+	# Columna del menú a la izquierda, centrada en vertical
+	center_container = MarginContainer.new()
+	center_container.set_anchors_preset(PRESET_LEFT_WIDE)
+	center_container.offset_left = 80
+	center_container.offset_right = 80 + MENU_W
 	add_child(center_container)
 
 	var vbox := VBoxContainer.new()
-	vbox.custom_minimum_size = Vector2(380, 0)
+	vbox.custom_minimum_size = Vector2(MENU_W, 0)
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	vbox.add_theme_constant_override("separation", 14)
 	center_container.add_child(vbox)
 
 	var lbl_title := Label.new()
 	lbl_title.text = GAME_TITLE
-	lbl_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	lbl_title.add_theme_font_override("font", TITLE_FONT)
 	lbl_title.add_theme_font_size_override("font_size", 56)
 	lbl_title.add_theme_color_override("font_color", C_TITLE)
@@ -70,12 +92,13 @@ func _build_ui() -> void:
 	vbox.add_child(lbl_title)
 	# Latido suave: el resplandor arcano del título respira
 	var pulse := create_tween().set_loops()
-	pulse.tween_property(lbl_title, "theme_override_colors/font_shadow_color", Color(C_TITLE_GLOW, 0.25), 1.6).set_trans(Tween.TRANS_SINE)
+	pulse.tween_property(lbl_title, "theme_override_colors/font_shadow_color", Color(Style.NEON_MAGENTA, 0.35), 1.6).set_trans(Tween.TRANS_SINE)
 	pulse.tween_property(lbl_title, "theme_override_colors/font_shadow_color", Color(C_TITLE_GLOW, 0.85), 1.6).set_trans(Tween.TRANS_SINE)
+	pulse.tween_property(lbl_title, "theme_override_colors/font_shadow_color", Color(Style.NEON_CYAN, 0.45), 1.6).set_trans(Tween.TRANS_SINE)
 
 	var lbl_sub := Label.new()
 	lbl_sub.text = "Dark Fantasy Roguelike"
-	lbl_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	lbl_sub.add_theme_font_size_override("font_size", 15)
 	lbl_sub.add_theme_color_override("font_color", C_TEXT_DIM)
 	vbox.add_child(lbl_sub)
@@ -92,12 +115,8 @@ func _build_ui() -> void:
 	vbox.add_child(spacer)
 
 	var btn_play := _make_button("  JUGAR", C_ACCENT)
-	btn_play.pressed.connect(_on_play)
+	btn_play.pressed.connect(_toggle_play_menu)
 	vbox.add_child(btn_play)
-
-	var btn_dungeon := _make_button("  MAZMORRA", C_ACCENT)
-	btn_dungeon.pressed.connect(_on_play_dungeon)
-	vbox.add_child(btn_dungeon)
 
 	var btn_upgrades := _make_button("  MEJORAS", C_BTN_BORDER)
 	btn_upgrades.pressed.connect(_on_upgrades_menu)
@@ -123,6 +142,82 @@ func _build_ui() -> void:
 	add_child(lbl_ver)
 	
 	_build_upgrades_panel()
+	_build_play_menu()
+	btn_play.grab_focus.call_deferred()
+
+const MENU_W := 360.0
+
+## Mini menú que se abre a la derecha de JUGAR con los tres modos de juego.
+func _build_play_menu() -> void:
+	_play_menu = PanelContainer.new()
+	_play_menu.set_anchors_preset(PRESET_CENTER_LEFT)
+	_play_menu.offset_left = 80 + MENU_W + 40
+	_play_menu.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_play_menu.custom_minimum_size = Vector2(380, 0)
+	add_child(_play_menu)
+	NeonFrame.attach(_play_menu)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 12)
+	_play_menu.add_child(box)
+	var title := Label.new()
+	title.text = "MODO DE JUEGO"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	Style.style_title(title, 20)
+	box.add_child(title)
+	var hint := Label.new()
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.custom_minimum_size = Vector2(330, 34)
+	hint.add_theme_font_size_override("font_size", 11)
+	hint.add_theme_color_override("font_color", C_TEXT_DIM)
+	var modes := []
+	# Un botón de mazmorra por mundo (WorldDefs)
+	for id in WorldDefs.ORDER:
+		var w: Dictionary = WorldDefs.get_def(id)
+		modes.append(["  MAZMORRA: %s" % str(w["name"]).to_upper(), "%s Combate a mano, nivel a nivel." % w["subtitle"],
+			_on_play_dungeon.bind(id)])
+	modes += [
+		["  SUPERVIVENCIA", "Hordas sin fin en campo abierto: aguanta todo lo que puedas.", _on_play],
+		["  MULTIJUGADOR", "Mazmorra cooperativa en tu wifi u online, hasta 4 jugadores.", func(): get_tree().change_scene_to_file("res://scenes/ui/lobby_menu.tscn")],
+	]
+	for m in modes:
+		var b := _make_button(m[0], C_ACCENT)
+		b.custom_minimum_size = Vector2(330, 50)
+		b.pressed.connect(m[2])
+		var desc: String = m[1]
+		b.mouse_entered.connect(func(): hint.text = desc)
+		b.focus_entered.connect(func(): hint.text = desc)
+		box.add_child(b)
+	box.add_child(hint)
+	var back := _make_button("  VOLVER", C_BTN_BORDER)
+	back.custom_minimum_size = Vector2(330, 42)
+	back.pressed.connect(_toggle_play_menu)
+	box.add_child(back)
+	hint.text = modes[0][1]
+	_play_menu.visible = false
+
+func _toggle_play_menu() -> void:
+	if _play_tween:
+		_play_tween.kill()
+	var opening := not _play_menu.visible
+	_play_menu.visible = true
+	_play_tween = create_tween().set_parallel(true)
+	if opening:
+		_play_menu.modulate.a = 0.0
+		_play_menu.position.x = 80 + MENU_W + 10
+		_play_tween.tween_property(_play_menu, "modulate:a", 1.0, 0.2)
+		_play_tween.tween_property(_play_menu, "position:x", 80 + MENU_W + 40, 0.25).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		var first := _play_menu.find_children("*", "Button", true, false)
+		if not first.is_empty():
+			(first[0] as Button).grab_focus()
+	else:
+		_play_tween.tween_property(_play_menu, "modulate:a", 0.0, 0.15)
+		_play_tween.chain().tween_callback(func(): _play_menu.visible = false)
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel") and _play_menu and _play_menu.visible:
+		_toggle_play_menu()
+		get_viewport().set_input_as_handled()
 
 ## Panorama 3D del mapa (SubViewport) + viñeta oscura para que el menú se lea.
 func _build_background() -> void:
@@ -131,7 +226,7 @@ func _build_background() -> void:
 	fallback.color = C_BG
 	add_child(fallback)
 
-	var is_mobile := OS.get_name() in ["Android", "iOS"]
+	var is_mobile := Quality.is_mobile()
 	_bg_container = SubViewportContainer.new()
 	_bg_container.set_anchors_preset(PRESET_FULL_RECT)
 	_bg_container.stretch = true
@@ -294,12 +389,14 @@ func _on_play() -> void:
 	GameData.game_mode = "survival"
 	SceneLoader.load_scene("res://scenes/ui/character_select.tscn")
 
-func _on_play_dungeon() -> void:
+func _on_play_dungeon(world: String = WorldDefs.DEFAULT) -> void:
 	GameData.game_mode = "dungeon"
+	GameData.world = world
 	SceneLoader.load_scene("res://scenes/ui/character_select.tscn")
 
 func _on_upgrades_menu() -> void:
 	center_container.hide()
+	_play_menu.hide()
 	upgrades_panel.show()
 	_refresh_upgrades()
 

@@ -7,6 +7,10 @@ extends CanvasLayer
 
 const Style := preload("res://scripts/ui/rumbang_style.gd")
 
+signal restart_requested
+
+var retry_btn: Button
+
 func _ready():
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
@@ -18,10 +22,18 @@ func _ready():
 
 func _input(event):
 	if event.is_action_pressed("ui_cancel"):
-		if visible:
-			close_menu()
-		else:
-			open_menu()
+		toggle()
+
+## En Android, el botón "atrás" pausa y reanuda en vez de cerrar el juego.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		toggle()
+
+func toggle() -> void:
+	if visible:
+		close_menu()
+	else:
+		open_menu()
 
 var _stats_label: Label
 
@@ -32,11 +44,40 @@ func _apply_style() -> void:
 	vb.offset_left = -170.0
 	vb.offset_right = 170.0
 	var title: Label = vb.get_node("Label")
-	title.add_theme_color_override("font_color", Style.TITLE)
-	title.add_theme_color_override("font_outline_color", Color(0.05, 0.02, 0.10))
-	title.add_theme_font_size_override("font_size", 30)
-	for btn in [resume_btn, menu_btn, options_btn, quit_btn]:
-		btn.custom_minimum_size = Vector2(0, 48)
+	Style.style_title(title, 32)
+	var mobile := Quality.is_mobile()
+	# Reintentar (no en red: allí no hay fin de partida ni reinicio)
+	retry_btn = Button.new()
+	retry_btn.text = "REINTENTAR"
+	retry_btn.visible = not Net.is_online()
+	retry_btn.pressed.connect(_on_retry_pressed)
+	vb.add_child(retry_btn)
+	vb.move_child(retry_btn, resume_btn.get_index() + 1)
+	# En el móvil los botones son más grandes (dedos) y el panel cabe en pantallas pequeñas
+	for btn in [resume_btn, retry_btn, menu_btn, options_btn, quit_btn]:
+		btn.custom_minimum_size = Vector2(0, 68 if mobile else 48)
+		if mobile:
+			btn.add_theme_font_size_override("font_size", 22)
+	# Panel con marco detrás de los botones
+	# Fila centrada: botones a la izquierda y estadísticas a la derecha
+	var row := HBoxContainer.new()
+	row.name = "Row"
+	row.set_anchors_preset(Control.PRESET_CENTER)
+	row.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	row.grow_vertical = Control.GROW_DIRECTION_BOTH
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 24)
+	$Control.add_child(row)
+	var panel := PanelContainer.new()
+	panel.name = "ButtonsPanel"
+	panel.custom_minimum_size = Vector2(minf(380.0, get_viewport().get_visible_rect().size.x - 40.0), 0)
+	panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(panel)
+	vb.get_parent().remove_child(vb)
+	panel.add_child(vb)
+	vb.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	vb.add_theme_constant_override("separation", 12)
+	NeonFrame.attach(panel)
 
 func _refresh_stats_panel() -> void:
 	if _stats_label == null:
@@ -44,7 +85,12 @@ func _refresh_stats_panel() -> void:
 		_stats_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_stats_label.add_theme_font_size_override("font_size", 11)
 		_stats_label.add_theme_color_override("font_color", Style.TEXT_DIM)
-		$Control/VBox.add_child(_stats_label)
+		var sp := PanelContainer.new()
+		sp.name = "StatsPanel"
+		sp.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		sp.add_child(_stats_label)
+		$Control/Row.add_child(sp)
+		NeonFrame.attach(sp, Style.NEON_MAGENTA)
 	var player := get_tree().get_first_node_in_group("player")
 	var sb = player.get("stat_block") if player else null
 	if sb == null:
@@ -71,9 +117,11 @@ func _refresh_stats_panel() -> void:
 ".join(lines)
 
 func open_menu():
-	_refresh_stats_panel()
+	if not Quality.is_mobile():
+		_refresh_stats_panel()
 	visible = true
-	get_tree().paused = true
+	# En red el mundo no se detiene (los demás siguen jugando)
+	get_tree().paused = not Net.is_online()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 func close_menu():
@@ -84,8 +132,14 @@ func close_menu():
 func _on_resume_pressed():
 	close_menu()
 
+func _on_retry_pressed():
+	visible = false
+	get_tree().paused = false
+	restart_requested.emit()
+
 func _on_menu_pressed():
 	get_tree().paused = false
+	Net.leave()
 	SceneLoader.load_scene("res://scenes/ui/main_menu.tscn")
 
 func _on_options_pressed():

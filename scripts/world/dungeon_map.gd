@@ -23,10 +23,40 @@ const TUNNEL_R := 1.6                 ## radio de los túneles (celdas)
 const DIRS := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 const DIRS8 := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1),
 	Vector2i(1, 1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(-1, -1)]
-const THEMES := ["camp", "camp", "storage", "shrine"]
 
 const FLOOR := 1
 const CORRIDOR := 2
+
+## Formas de caverna (las normales eligen una al azar):
+##  blobs   elipse principal con 2-4 lóbulos (la clásica)
+##  cross   dos elipses alargadas cruzadas: cuatro brazos
+##  hall    sala larga con dos filas de columnas de roca
+##  twin    dos cámaras unidas por un cuello estrecho
+##  pillars la clásica con 3-5 columnas de roca para cubrirse
+const SHAPES := ["blobs", "cross", "hall", "twin", "pillars"]
+const PILLAR_R := 1.3                 ## radio de las columnas (celdas)
+const CENTER_CLEAR := 4.0             ## celdas libres alrededor del centro (encuentros, portal)
+## Probabilidad de que una caverna normal sea de TESORO (sin enemigos, con botín).
+const TREASURE_CHANCE := 0.6
+## Estructuras que se pueden destruir a golpes (nodos DestructibleProp en vez de instancias fijas).
+const STRUCTURES := ["hut", "tent", "palisade", "skull_pole", "totem"]
+const TOTEM_SOULS := 3                ## almas verdes que suelta un tótem al romperse
+const SHRINE_TOTEM_SOULS := 5         ## el tótem grande del santuario suelta más
+
+## Amplitud del ruido que deforma el borde de las cavernas (en radios de la elipse).
+var edge_noise_amp := 0.28
+## Mundo (ver WorldDefs): paletas de nivel y decoración. Vacío = el elegido en GameData.world.
+var world_id := ""
+## Índice del tema del nivel actual (lo pone DungeonEncounter antes de generar: nivel 1 → 0, 2 → 1…).
+var level_theme := 0
+
+func world() -> Dictionary:
+	return WorldDefs.get_def(world_id if world_id != "" else GameData.world)
+
+## Paleta del nivel actual: suelo, roca, color del fuego y extras (ver WorldDefs.WORLDS).
+func palette() -> Dictionary:
+	var themes: Array = world()["level_themes"]
+	return themes[posmod(level_theme, themes.size())]
 
 @export var min_rooms: int = 6
 @export var max_rooms: int = 8
@@ -47,6 +77,7 @@ var _outer: Dictionary = {}           # Vector2i -> true (segundo anillo, solo v
 var _wall_boxes: Array = []           # [{pos: Vector2, half: Vector2}]
 var _grass: Array[Transform3D] = []
 var _breakables: Array = []           # [[kind, Transform3D]]
+var _crystals: Array = []             # [Transform3D] (temas con cristales)
 var _edge_noise := FastNoiseLite.new()
 
 func generate(p_seed: int = 0) -> void:
@@ -64,11 +95,18 @@ func generate(p_seed: int = 0) -> void:
 	_wall_boxes.clear()
 	_grass.clear()
 	_breakables.clear()
+	_crystals.clear()
 	# Navegación del mapa anterior
-	_flow.clear()
+	_flow_cache.clear()
+	_flow_order.clear()
+	_flow = {}
 	_flow_target = Vector2i(-99999, -99999)
 	_blocked.clear()
 	_blocked_ready = false
+	_prop_cells.clear()
+	# En red todos usan la semilla del anfitrión (Net.level_seed) para generar el mismo mapa
+	if p_seed == 0 and Net.is_online() and Net.level_seed != 0:
+		p_seed = Net.level_seed
 	used_seed = p_seed if p_seed != 0 else int(Time.get_unix_time_from_system()) ^ randi()
 	_rng.seed = used_seed
 	_edge_noise.seed = used_seed
@@ -83,7 +121,9 @@ func generate(p_seed: int = 0) -> void:
 		_decorate_room(i)
 	_build_prop_nodes()
 	_build_grass()
+	_build_crystals()
 	_build_breakables()
+	_build_extra()
 	generated.emit(used_seed)
 	print("[DungeonMap] semilla=", used_seed, " cavernas=", rooms.size(), " celdas=", _cells.size(),
 		" props=", _count_instances(), " rompibles=", destructibles.size())
@@ -93,6 +133,21 @@ func get_height_at(_x: float, _z: float) -> float:
 
 func get_colliders() -> Array:
 	var out := super.get_colliders()
+	for d in destructibles:
+		if is_instance_valid(d) and not d.is_broken() and d.kind in STRUCTURES:
+			var def: Dictionary = _prop_def(d.kind)
+			var size: Vector3 = def["size"]
+			var sc := d.transform.basis.get_scale().x
+			var o := {"pos": Vector2(d.position.x, d.position.z), "yaw": d.transform.basis.get_euler().y}
+			if def["shape"] == "cyl":
+				o["shape"] = "cyl"
+				o["r"] = size.x * sc
+				o["half"] = Vector2.ZERO
+			else:
+				o["shape"] = "box"
+				o["half"] = Vector2(size.x * 0.5, size.z * 0.5) * sc
+				o["r"] = (o["half"] as Vector2).length()
+			out.append(o)
 	for b in _wall_boxes:
 		var half: Vector2 = b["half"]
 		out.append({"pos": b["pos"], "yaw": 0.0, "shape": "box", "half": half, "r": half.length()})
@@ -138,23 +193,36 @@ func _layout_rooms() -> void:
 		var r0 := Vector2(_rng.randi_range(room_radius.x, room_radius.y), _rng.randi_range(room_radius.x, room_radius.y))
 		if type != "normal":
 			r0 = Vector2(room_radius.x + 1, room_radius.x + 1)
-		blobs.append([Vector2(c), r0])
-		for k in _rng.randi_range(2, 4):
-			var ang := _rng.randf() * TAU
-			var dist := _rng.randf_range(0.45, 0.8) * r0.length() * 0.7
-			var rr := r0 * _rng.randf_range(0.4, 0.65)
-			blobs.append([Vector2(c) + Vector2(cos(ang), sin(ang)) * dist, rr])
+		var shape := _base_shape() if type != "normal" else _pick_shape()
+		var pillars: Array = []
+		_shape_blobs(shape, Vector2(c), r0, blobs, pillars)
 		rooms.append({
+			"shape": shape,
+			"pillars": pillars,
 			"slot": s,
 			"cell": c,
 			"blobs": blobs,
 			"center": Vector3(c.x * CELL, 0.0, c.y * CELL),
 			"type": type,
-			"theme": "start" if type == "start" else ("end" if type == "end" else THEMES[_rng.randi() % THEMES.size()]),
+			"theme": "start" if type == "start" else ("end" if type == "end" else _room_theme()),
 			"cells": [],
 		})
 	set_meta("links", links)
 	_pick_arena(links)
+	_pick_treasure()
+
+## Forma de la caverna inicial y la final.
+func _base_shape() -> String:
+	return "blobs"
+
+## Forma al azar de una caverna normal (ver SHAPES).
+func _pick_shape() -> String:
+	return String(SHAPES[_rng.randi() % SHAPES.size()])
+
+## Decoración al azar de una caverna normal, según el mundo.
+func _room_theme() -> String:
+	var themes: Array = world()["room_themes"]
+	return String(themes[_rng.randi() % themes.size()])
 
 ## La primera caverna conectada a la inicial (que no sea la final) es la arena del primer encuentro.
 ## Se fuerza el tema "almacén" para probar barriles, cajas y empalizadas durante el combate.
@@ -223,6 +291,24 @@ var _flow_target := Vector2i(-99999, -99999)
 var _blocked: Dictionary = {}         # Vector2i -> true (celdas tapadas por props fijos: vallas, tiendas...)
 var _blocked_ready := false
 const BLOCKED_COST := 6
+## Caché de campos de flujo por celda objetivo. Con varios jugadores los enemigos persiguen a objetivos
+## distintos: sin caché, el campo se recalculaba entero cada vez que cambiaba de jugador.
+const FLOW_CACHE_MAX := 8
+var _flow_cache: Dictionary = {}      # Vector2i -> campo
+var _flow_order: Array[Vector2i] = []
+
+func _use_flow(target: Vector2i) -> void:
+	if _flow_cache.has(target):
+		_flow = _flow_cache[target]
+		_flow_target = target
+		_flow_order.erase(target)
+		_flow_order.append(target)
+		return
+	_build_flow(target)
+	_flow_cache[target] = _flow
+	_flow_order.append(target)
+	while _flow_order.size() > FLOW_CACHE_MAX:
+		_flow_cache.erase(_flow_order.pop_front())
 
 ## Celdas de suelo que ocupa algún colisionador de PropColliders (huella AABB, más medio
 ## cuerpo de margen).
@@ -267,7 +353,7 @@ func flow_path(from: Vector3, to: Vector3, count: int = 6) -> Array[Vector3]:
 	if not _cells.has(tc):
 		return out
 	if tc != _flow_target:
-		_build_flow(tc)
+		_use_flow(tc)
 	var cur := world_to_cell(from)
 	if not _flow.has(cur):
 		# Pegado a un prop (celda bloqueada): salir por la vecina más cercana al objetivo
@@ -322,6 +408,8 @@ func penalize_cell(p: Vector3) -> void:
 	if _cells.has(c) and not _blocked.has(c):
 		_blocked[c] = true
 		_flow_target = Vector2i(-99999, -99999)
+		_flow_cache.clear()
+		_flow_order.clear()
 
 ## Dijkstra con cola de cubetas (los costes son enteros pequeños): las celdas tapadas por un
 ## prop cuestan BLOCKED_COST en vez de 1, así el camino las evita sin quedar nunca cortado.
@@ -329,7 +417,7 @@ func _build_flow(target: Vector2i) -> void:
 	if not _blocked_ready:
 		_collect_blocked()
 	_flow_target = target
-	_flow.clear()
+	_flow = {}
 	_flow[target] = 0
 	var buckets: Array = [[target]]
 	var dist := 0
@@ -388,39 +476,58 @@ func _carve() -> void:
 	for i in rooms.size():
 		var r: Dictionary = rooms[i]
 		var c: Vector2i = r["cell"]
-		var reach := room_radius.y * 2
-		for x in range(c.x - reach, c.x + reach + 1):
-			for z in range(c.y - reach, c.y + reach + 1):
+		# Caja que envuelve todas las elipses (+ margen del ruido del borde)
+		var lo := Vector2(INF, INF)
+		var hi := Vector2(-INF, -INF)
+		for b in r["blobs"]:
+			var bc: Vector2 = b[0]
+			var br: Vector2 = (b[1] as Vector2) * 1.3
+			lo = Vector2(minf(lo.x, bc.x - br.x), minf(lo.y, bc.y - br.y))
+			hi = Vector2(maxf(hi.x, bc.x + br.x), maxf(hi.y, bc.y + br.y))
+		for x in range(floori(lo.x), ceili(hi.x) + 1):
+			for z in range(floori(lo.y), ceili(hi.y) + 1):
 				var p := Vector2(x, z)
 				var best := INF
 				for b in r["blobs"]:
-					var d: Vector2 = (p - (b[0] as Vector2)) / (b[1] as Vector2)
-					best = minf(best, d.length())
-				# Borde deformado por ruido: pared de roca irregular
-				if best + _edge_noise.get_noise_2d(x, z) * 0.28 < 1.0:
+					best = minf(best, _blob_dist(p, b))
+				# Borde deformado por ruido (|ruido| ≤ 1 → ±edge_noise_amp): solo se consulta cerca del borde
+				if best > 1.3:
+					continue
+				if best < 0.7 or best + _edge_noise.get_noise_2d(x, z) * edge_noise_amp < 1.0:
 					var cell := Vector2i(x, z)
 					if not _cells.has(cell):
 						_cells[cell] = FLOOR
 						_owner[cell] = i
 						(r["cells"] as Array).append(cell)
-	# Túneles serpenteantes entre centros
 	for l in get_meta("links"):
-		var a: Vector2 = Vector2(rooms[_room_index(l[0])]["cell"])
-		var b: Vector2 = Vector2(rooms[_room_index(l[1])]["cell"])
-		var length := a.distance_to(b)
-		var side := (b - a).normalized().orthogonal()
-		var amp := _rng.randf_range(1.5, 3.5)
-		var phase := _rng.randf() * TAU
-		var steps := int(length * 2.0)
-		for k in steps + 1:
-			var t := float(k) / steps
-			var p := a.lerp(b, t) + side * sin(t * PI * 2.0 + phase) * amp * sin(t * PI)
-			var rad := TUNNEL_R + _edge_noise.get_noise_2d(p.x * 3.0, p.y * 3.0) * 0.5
-			for dx in range(-3, 4):
-				for dz in range(-3, 4):
-					var q := Vector2i(roundi(p.x) + dx, roundi(p.y) + dz)
-					if Vector2(q).distance_to(p) <= rad and not _cells.has(q):
-						_cells[q] = CORRIDOR
+		_carve_tunnel(Vector2(rooms[_room_index(l[0])]["cell"]), Vector2(rooms[_room_index(l[1])]["cell"]))
+	_raise_pillars()
+
+## Distancia normalizada de la celda `p` a una elipse [centro, radios] (1 = borde). Con un tercer
+## valor (exponente > 2) la forma es una superelipse: un rectángulo de esquinas redondeadas.
+func _blob_dist(p: Vector2, b: Array) -> float:
+	var d: Vector2 = ((p - (b[0] as Vector2)) / (b[1] as Vector2)).abs()
+	var power: float = b[2] if b.size() > 2 else 2.0
+	if power == 2.0:
+		return d.length()
+	return pow(pow(d.x, power) + pow(d.y, power), 1.0 / power)
+
+## Túnel serpenteante entre los centros (en celdas) de dos cavernas.
+func _carve_tunnel(a: Vector2, b: Vector2) -> void:
+	var length := a.distance_to(b)
+	var side := (b - a).normalized().orthogonal()
+	var amp := _rng.randf_range(1.5, 3.5)
+	var phase := _rng.randf() * TAU
+	var steps := int(length * 2.0)
+	for k in steps + 1:
+		var t := float(k) / steps
+		var p := a.lerp(b, t) + side * sin(t * PI * 2.0 + phase) * amp * sin(t * PI)
+		var rad := TUNNEL_R + _edge_noise.get_noise_2d(p.x * 3.0, p.y * 3.0) * 0.5
+		for dx in range(-3, 4):
+			for dz in range(-3, 4):
+				var q := Vector2i(roundi(p.x) + dx, roundi(p.y) + dz)
+				if Vector2(q).distance_to(p) <= rad and not _cells.has(q):
+					_cells[q] = CORRIDOR
 
 func _find_walls() -> void:
 	for c in _cells:
@@ -461,10 +568,7 @@ func _cell_pos(c: Vector2i) -> Vector3:
 func _build_floor() -> void:
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(CELL, CELL)
-	var mat := StandardMaterial3D.new()
-	mat.vertex_color_use_as_albedo = true
-	mat.roughness = 1.0
-	plane.material = mat
+	plane.material = _floor_material()
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.use_colors = true
@@ -473,18 +577,10 @@ func _build_floor() -> void:
 	var i := 0
 	var lo := Vector2(INF, INF)
 	var hi := Vector2(-INF, -INF)
-	var dirt := Color(0.3, 0.22, 0.15)
-	var moss := Color(0.2, 0.24, 0.13)
 	for c in _cells:
 		var p := _cell_pos(c)
 		mm.set_instance_transform(i, Transform3D(Basis(), p))
-		# Tierra con manchas de musgo cerca de las paredes
-		var n := (_edge_noise.get_noise_2d(c.x * 4.0, c.y * 4.0) + 1.0) * 0.5
-		var near_wall := 1.0 - clampf(float(_wall_dist.get(c, 4)) / 4.0, 0.0, 1.0)
-		var col := dirt.lerp(moss, n * 0.5 + near_wall * 0.4) * _rng.randf_range(0.85, 1.05)
-		if _cells[c] == CORRIDOR:
-			col *= 0.85
-		mm.set_instance_color(i, col)
+		mm.set_instance_color(i, _floor_color(c))
 		lo = Vector2(minf(lo.x, p.x), minf(lo.y, p.z))
 		hi = Vector2(maxf(hi.x, p.x), maxf(hi.y, p.z))
 		i += 1
@@ -506,8 +602,27 @@ func _build_floor() -> void:
 	body.add_child(cs)
 	add_child(body)
 
+func _floor_material() -> Material:
+	var mat := StandardMaterial3D.new()
+	mat.vertex_color_use_as_albedo = true
+	mat.roughness = 1.0
+	return mat
+
+## Color de la celda de suelo `c`: tierra con manchas de musgo cerca de las paredes.
+func _floor_color(c: Vector2i) -> Color:
+	var n := (_edge_noise.get_noise_2d(c.x * 4.0, c.y * 4.0) + 1.0) * 0.5
+	var near_wall := 1.0 - clampf(float(_wall_dist.get(c, 4)) / 4.0, 0.0, 1.0)
+	var col: Color = (palette()["dirt"] as Color).lerp(palette()["moss"], n * 0.5 + near_wall * 0.4) * _rng.randf_range(0.85, 1.05)
+	if _cells[c] == CORRIDOR:
+		col *= 0.85
+	return col
+
 func _build_walls() -> void:
-	# Bloques de roca girados y escalados al azar: pared de cueva sin rejilla visible
+	_build_wall_visuals()
+	_build_wall_colliders()
+
+## Bloques de roca girados y escalados al azar: pared de cueva sin rejilla visible.
+func _build_wall_visuals() -> void:
 	var rock := BoxMesh.new()
 	rock.size = Vector3(CELL, 1.0, CELL)
 	var mat := StandardMaterial3D.new()
@@ -532,47 +647,73 @@ func _build_walls() -> void:
 		basis = basis.scaled_local(Vector3(s, h, s))
 		mm.set_instance_transform(i, Transform3D(basis, _cell_pos(c) + Vector3(0.0, h * 0.5 - 0.2, 0.0)))
 		var v := _rng.randf_range(0.7, 1.0)
-		mm.set_instance_color(i, Color(0.21, 0.18, 0.17) * v)
+		mm.set_instance_color(i, (palette()["rock"] as Color) * v)
 	var mmi := MultiMeshInstance3D.new()
 	mmi.name = "Walls"
 	mmi.multimesh = mm
 	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if _mobile else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	add_child(mmi)
 
-	# Colisión: fusiona celdas consecutivas de cada fila en una sola caja
+## Colisión: fusiona celdas consecutivas de cada fila en una sola caja.
+func _build_wall_colliders() -> void:
 	var body := StaticBody3D.new()
 	body.name = "WallColliders"
 	body.collision_mask = 0
 	add_child(body)
+	# Tramos de cada fila; luego los tramos iguales de filas seguidas se funden en un rectángulo
 	var rows: Dictionary = {}
 	for c in _walls:
 		if not rows.has(c.y):
 			rows[c.y] = []
 		(rows[c.y] as Array).append(c.x)
+	var spans: Dictionary = {}                 # z -> [[x0, x1], ...]
 	for z in rows:
 		var xs: Array = rows[z]
 		xs.sort()
+		var list: Array = []
 		var start: int = xs[0]
 		var prev: int = xs[0]
 		for k in range(1, xs.size() + 1):
 			if k < xs.size() and xs[k] == prev + 1:
 				prev = xs[k]
 				continue
-			_add_wall_box(start, prev, z, body)
+			list.append([start, prev])
 			if k < xs.size():
 				start = xs[k]
 				prev = xs[k]
+		spans[z] = list
+	var zs: Array = spans.keys()
+	zs.sort()
+	var open: Dictionary = {}                  # "x0:x1" -> z inicial del rectángulo abierto
+	for zi in zs.size():
+		var z: int = zs[zi]
+		var here: Dictionary = {}
+		for sp in spans[z]:
+			here["%d:%d" % [sp[0], sp[1]]] = sp
+		# Cerrar los rectángulos que no siguen en esta fila (o si hay un hueco de filas)
+		for key in open.keys():
+			if not here.has(key) or (zi > 0 and zs[zi - 1] != z - 1):
+				var p: PackedStringArray = key.split(":")
+				_add_wall_box(int(p[0]), int(p[1]), int(open[key]), z - 1 if here.has(key) else int(zs[zi - 1]), body)
+				open.erase(key)
+		for key in here:
+			if not open.has(key):
+				open[key] = z
+	for key in open:
+		var p2: PackedStringArray = key.split(":")
+		_add_wall_box(int(p2[0]), int(p2[1]), int(open[key]), int(zs[zs.size() - 1]), body)
 
-func _add_wall_box(x0: int, x1: int, z: int, body: StaticBody3D) -> void:
-	var len_m := float(x1 - x0 + 1) * CELL
-	var center := Vector2((x0 + x1) * 0.5 * CELL, z * CELL)
+func _add_wall_box(x0: int, x1: int, z0: int, z1: int, body: StaticBody3D) -> void:
+	var len_x := float(x1 - x0 + 1) * CELL
+	var len_z := float(z1 - z0 + 1) * CELL
+	var center := Vector2((x0 + x1) * 0.5 * CELL, (z0 + z1) * 0.5 * CELL)
 	var cs := CollisionShape3D.new()
 	var bx := BoxShape3D.new()
-	bx.size = Vector3(len_m, WALL_H, CELL)
+	bx.size = Vector3(len_x, WALL_H, len_z)
 	cs.shape = bx
 	cs.position = Vector3(center.x, WALL_H * 0.5, center.y)
 	body.add_child(cs)
-	_wall_boxes.append({"pos": center, "half": Vector2(len_m * 0.5, CELL * 0.5)})
+	_wall_boxes.append({"pos": center, "half": Vector2(len_x * 0.5, len_z * 0.5)})
 
 # ───────────────────────────── Decoración ─────────────────────────────
 
@@ -602,6 +743,20 @@ func _decorate_room(i: int) -> void:
 	_reserve(center, 4.5)                                 # centro libre para combatir
 
 	match r["theme"]:
+		"treasure":
+			# Cámara del tesoro: pedestal con luz dorada, braseros y mercancía apilada
+			_place("totem", center + Vector2(0.0, -2.5), 1.0, 0.0, 0.9)
+			_add_light(Vector3(center.x, 1.8, center.y), Color(1.0, 0.82, 0.35), 2.8, 13.0)
+			for k in 4:
+				var a4 := TAU * (k + 0.5) / 4.0
+				_add_brazier(center + Vector2(cos(a4), sin(a4)) * 6.5)
+			for k in _rng.randi_range(3, 5):
+				var pt := _spot(r, 1.5, 2, 4)
+				if pt != Vector2.INF:
+					if _rng.randf() < 0.5:
+						_crate_stack(pt)
+					else:
+						_barrel_cluster(pt)
 		"start":
 			_add_campfire(center + Vector2(4.5, 3.0))
 			for k in 2:
@@ -660,14 +815,18 @@ func _decorate_room(i: int) -> void:
 	for k in _rng.randi_range(6, 10):
 		_try_place(r, "stalagmite", 1.0, 1, 2)
 	# Detalle suelto: huesos, hongos, rocas pequeñas
+	var detail: Array = ["mushroom", "mushroom", "rock_a"]
+	for b in int(palette()["bones"]):
+		detail.append("bones")
 	for k in _rng.randi_range(8, 14):
 		var p := _spot(r, 0.8, 1, 99)
 		if p == Vector2.INF:
 			continue
-		var kind: String = ["bones", "mushroom", "mushroom", "rock_a"][_rng.randi() % 4]
+		var kind: String = detail[_rng.randi() % detail.size()]
 		var s := 0.45 if kind == "rock_a" else -1.0
 		_place(kind, p, 0.8, -1.0, s, kind == "rock_a")
 	_scatter_grass(r)
+	_place_crystals(r)
 
 func _try_place(r: Dictionary, kind: String, radius: float, min_wall: int, max_wall: int, face: Vector2 = Vector2.INF) -> void:
 	var p := _spot(r, radius, min_wall, max_wall)
@@ -677,13 +836,13 @@ func _try_place(r: Dictionary, kind: String, radius: float, min_wall: int, max_w
 
 func _add_campfire(pos: Vector2) -> void:
 	_place("campfire", pos, 1.5, -1.0, 1.0)
-	_add_light(Vector3(pos.x, 1.4, pos.y), Color(1.0, 0.5, 0.18), 3.2, 14.0)
+	_add_light(Vector3(pos.x, 1.4, pos.y), palette()["fire"], 3.2, 14.0)
 	if embers_enabled:
 		_add_embers(Vector3(pos.x, 0.8, pos.y))
 
 # Barriles y cajas: se guardan aparte y se crean como DestructibleProp
 func _breakable(kind: String, pos: Vector2, y: float = 0.0, s: float = -1.0, tilt: float = 0.0) -> void:
-	var sc: Vector2 = PROPS[kind]["scale"]
+	var sc: Vector2 = _prop_def(kind)["scale"]
 	var scale_v := s if s > 0.0 else _rng.randf_range(sc.x, sc.y)
 	var basis := Basis.from_euler(Vector3(_rng.randf_range(-tilt, tilt), _rng.randf() * TAU, _rng.randf_range(-tilt, tilt))).scaled(Vector3.ONE * scale_v)
 	_breakables.append([kind, Transform3D(basis, Vector3(pos.x, y, pos.y))])
@@ -707,6 +866,44 @@ func _crate_stack(at: Vector2) -> void:
 		_reserve(side, 0.6)
 		_breakable("crate", side)
 
+## Las estructuras destruibles se guardan aparte (como barriles y cajas) en vez de ir al MultiMesh.
+func _add(kind: String, pos: Vector2, yaw: float = -1.0, s: float = -1.0, y_offset: float = -0.04, collide: bool = true, tilt: float = 0.0) -> void:
+	if not kind in STRUCTURES:
+		super._add(kind, pos, yaw, s, y_offset, collide, tilt)
+		return
+	var sc: Vector2 = _prop_def(kind)["scale"]
+	var scale_v := s if s > 0.0 else _rng.randf_range(sc.x, sc.y)
+	var yaw_v := yaw if yaw >= 0.0 else _rng.randf() * TAU
+	var euler := Vector3(_rng.randf_range(-tilt, tilt), yaw_v, _rng.randf_range(-tilt, tilt))
+	var basis := Basis.from_euler(euler).scaled(Vector3.ONE * scale_v)
+	_breakables.append([kind, Transform3D(basis, Vector3(pos.x, get_height_at(pos.x, pos.y) + y_offset, pos.y))])
+
+var _prop_cells: Dictionary = {}      # DestructibleProp -> Array[Vector2i] (celdas que tapaba en el flujo)
+
+func _block_prop(d: DestructibleProp) -> void:
+	var def: Dictionary = _prop_def(d.kind)
+	var size: Vector3 = def["size"]
+	var sc := d.transform.basis.get_scale().x
+	var r := size.x * sc if def["shape"] == "cyl" else Vector2(size.x * 0.5, size.z * 0.5).length() * sc
+	var cells: Array = []
+	var c0 := world_to_cell(d.position)
+	var n := ceili((r + 0.5) / CELL)
+	for dx in range(-n, n + 1):
+		for dz in range(-n, n + 1):
+			var c := c0 + Vector2i(dx, dz)
+			if _cells.has(c) and not _blocked.has(c) and Vector2(c.x * CELL - d.position.x, c.y * CELL - d.position.z).length() <= r + 0.5:
+				_blocked[c] = true
+				cells.append(c)
+	_prop_cells[d] = cells
+
+func _on_breakable_destroyed(d: DestructibleProp) -> void:
+	for c in _prop_cells.get(d, []):
+		_blocked.erase(c)
+	_prop_cells.erase(d)
+	if d.kind == "totem":
+		var big := d.transform.basis.get_scale().x > 1.15
+		HealSoul.burst(self, d.global_position + Vector3(0, 1.4, 0), SHRINE_TOTEM_SOULS if big else TOTEM_SOULS)
+
 func _build_breakables() -> void:
 	var holder := Node3D.new()
 	holder.name = "Breakables"
@@ -718,9 +915,14 @@ func _build_breakables() -> void:
 			continue
 		var d := DestructibleProp.new()
 		d.name = "%s_%d" % [kind, destructibles.size()]
-		d.setup(kind, mesh, _mesh_xf[kind], PROPS[kind], b[1], 25.0 if kind == "crate" else 18.0)
+		d.setup(kind, mesh, _mesh_xf[kind], _prop_def(kind), b[1], DestructibleProp.hp_for(kind))
 		holder.add_child(d)
 		destructibles.append(d)
+		d.destroyed.connect(_on_breakable_destroyed)
+		if kind in STRUCTURES:
+			if not _blocked_ready:
+				_collect_blocked()
+			_block_prop(d)
 
 ## Mechones de pasto sobre las celdas de la caverna, más densos cerca de las paredes.
 func _scatter_grass(r: Dictionary) -> void:
@@ -746,6 +948,132 @@ func _build_grass() -> void:
 		mm.set_instance_transform(i, _grass[i])
 	var mmi := MultiMeshInstance3D.new()
 	mmi.name = "Grass"
+	mmi.multimesh = mm
+	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mmi)
+
+## Geometría y efectos propios de cada mundo, tras colocar los props (ver SewerMap).
+func _build_extra() -> void:
+	pass
+
+# ───────────────────────────── Formas, columnas y tesoro ─────────────────────────────
+
+## Elipses (y columnas) de una caverna según su forma.
+func _shape_blobs(shape: String, c: Vector2, r0: Vector2, blobs: Array, pillars: Array) -> void:
+	var axis := Vector2.RIGHT if _rng.randf() < 0.5 else Vector2.DOWN
+	var side := axis.orthogonal()
+	match shape:
+		"cross":
+			blobs.append([c, r0 * 0.8])
+			blobs.append([c, Vector2(r0.x * 1.35, r0.y * 0.42)])
+			blobs.append([c, Vector2(r0.x * 0.42, r0.y * 1.35)])
+		"hall":
+			var long := Vector2(r0.x * 1.55, r0.y * 0.58) if axis == Vector2.RIGHT else Vector2(r0.x * 0.58, r0.y * 1.55)
+			blobs.append([c, long])
+			blobs.append([c + axis * r0.x * 1.05, r0 * 0.45])
+			blobs.append([c - axis * r0.x * 1.05, r0 * 0.45])
+			# Dos filas de columnas a lo largo, dejando libre el centro
+			for k in [-2, -1, 1, 2]:
+				for s in [-1.0, 1.0]:
+					pillars.append(c + axis * float(k) * 3.6 + side * s * r0.y * 0.3)
+		"twin":
+			blobs.append([c + axis * r0.x * 0.55, r0 * 0.66])
+			blobs.append([c - axis * r0.x * 0.55, r0 * 0.66])
+			blobs.append([c, Vector2(r0.x * 0.5, r0.y * 0.32) if axis == Vector2.RIGHT else Vector2(r0.x * 0.32, r0.y * 0.5)])
+		_:
+			blobs.append([c, r0])
+			for k in _rng.randi_range(2, 4):
+				var ang := _rng.randf() * TAU
+				var dist := _rng.randf_range(0.45, 0.8) * r0.length() * 0.7
+				var rr := r0 * _rng.randf_range(0.4, 0.65)
+				blobs.append([c + Vector2(cos(ang), sin(ang)) * dist, rr])
+			if shape == "pillars":
+				var n := _rng.randi_range(3, 5)
+				var a0 := _rng.randf() * TAU
+				for k in n:
+					var a := a0 + TAU * k / n + _rng.randf_range(-0.25, 0.25)
+					pillars.append(c + Vector2(cos(a), sin(a)) * minf(r0.x, r0.y) * _rng.randf_range(0.5, 0.65))
+	# Ninguna columna invade el centro (encuentros, portal, altar)
+	for i in range(pillars.size() - 1, -1, -1):
+		if (pillars[i] as Vector2).distance_to(c) < CENTER_CLEAR + PILLAR_R:
+			pillars.remove_at(i)
+
+## Las columnas se quitan del suelo: pasan a ser roca (pared con colisión y navegación alrededor).
+func _raise_pillars() -> void:
+	for i in rooms.size():
+		var r: Dictionary = rooms[i]
+		for pc in r.get("pillars", []):
+			var p: Vector2 = pc
+			for dx in range(-2, 3):
+				for dz in range(-2, 3):
+					var q := Vector2i(roundi(p.x) + dx, roundi(p.y) + dz)
+					if Vector2(q).distance_to(p) <= PILLAR_R and _cells.get(q, 0) == FLOOR and _owner.get(q, -1) == i:
+						_cells.erase(q)
+						_owner.erase(q)
+						(r["cells"] as Array).erase(q)
+
+## Una caverna normal (no la arena ni la final) puede ser la cámara del tesoro.
+func _pick_treasure() -> void:
+	var options: Array = []
+	for i in rooms.size():
+		if rooms[i]["type"] == "normal" and i != arena_index:
+			options.append(i)
+	if options.is_empty() or _rng.randf() >= TREASURE_CHANCE:
+		return
+	var t: int = options[_rng.randi() % options.size()]
+	rooms[t]["type"] = "treasure"
+	rooms[t]["theme"] = "treasure"
+
+## Braseros con la luz del tema del nivel.
+func _add_brazier(pos: Vector2) -> void:
+	_place("brazier", pos, 0.8)
+	_add_light(Vector3(pos.x, 1.7, pos.y), palette()["fire"], 2.6, 11.0)
+	if embers_enabled:
+		_add_embers(Vector3(pos.x, 1.4, pos.y))
+
+## Cristales luminosos pegados a la pared (gruta de cristal, fragua): solo se guardan aquí.
+func _place_crystals(r: Dictionary) -> void:
+	var n := int(palette()["crystals"])
+	if n <= 0:
+		return
+	if _mobile:
+		n = n / 2
+	for k in n:
+		var p := _spot(r, 0.7, 1, 2)
+		if p == Vector2.INF:
+			continue
+		_reserve(p, 0.7)
+		for j in _rng.randi_range(1, 3):
+			var off := Vector2(_rng.randf_range(-0.5, 0.5), _rng.randf_range(-0.5, 0.5))
+			var h := _rng.randf_range(0.6, 1.8)
+			var basis := Basis.from_euler(Vector3(_rng.randf_range(-0.35, 0.35), _rng.randf() * TAU, _rng.randf_range(-0.35, 0.35)))
+			basis = basis.scaled_local(Vector3(_rng.randf_range(0.25, 0.45), h, _rng.randf_range(0.25, 0.45)))
+			_crystals.append(Transform3D(basis, Vector3(p.x + off.x, h * 0.45, p.y + off.y)))
+		# Algún cristal ilumina su rincón (respeta el tope de luces)
+		if k % 4 == 0:
+			_add_light(Vector3(p.x, 1.2, p.y), palette()["crystal"], 1.6, 7.0)
+
+func _build_crystals() -> void:
+	if _crystals.is_empty():
+		return
+	var prism := PrismMesh.new()
+	prism.size = Vector3(1.0, 1.0, 1.0)
+	var mat := StandardMaterial3D.new()
+	var col: Color = palette()["crystal"]
+	mat.albedo_color = col.darkened(0.3)
+	mat.emission_enabled = true
+	mat.emission = col
+	mat.emission_energy_multiplier = 2.2
+	mat.roughness = 0.2
+	prism.material = mat
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = prism
+	mm.instance_count = _crystals.size()
+	for i in _crystals.size():
+		mm.set_instance_transform(i, _crystals[i])
+	var mmi := MultiMeshInstance3D.new()
+	mmi.name = "Crystals"
 	mmi.multimesh = mm
 	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mmi)

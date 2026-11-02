@@ -59,15 +59,13 @@ func _ready() -> void:
 		anim.active_attack_name = ""
 		mc.perform_dodge()
 		assert(mc.is_dodging(), "La esquiva debe cortar la recuperacion de attack1")
-		assert(anim._current_action_name == "", "La accion de attack1 debe quedar cancelada")
+		assert(anim._current_action_name == "roll", "La accion de attack1 queda cortada por la voltereta (%s)" % anim._current_action_name)
 		print("CHECK 6 PASSED: La esquiva cancela la recuperacion de attack1")
 
 		# Clavado (attack3): no se puede cancelar
 		mc._dodge_timer = 0.0
 		mc._dodge_cooldown_timer = 0.0
-		anim._combo_index = 2
-		anim._combo_timer = 1.0
-		anim.play_attack()
+		anim.play_slam()
 		await get_tree().process_frame
 		await get_tree().process_frame
 		anim.active_attack_name = ""

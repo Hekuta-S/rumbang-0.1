@@ -118,7 +118,7 @@ func _burst(hit_body, hit_pos: Vector3) -> void:
 	cloud.global_position = hit_pos
 
 	_spawn_burst_visual(hit_pos)
-	AudioManager.play_at("explosion_bits", hit_pos)
+	AudioManager.play_at("spore_burst", hit_pos, 0.0, randf_range(0.92, 1.05))
 	queue_free()
 
 ## Radio de la explosión respecto al de la nube de esporas.

@@ -1,6 +1,6 @@
 extends CharacterBody3D
 
-signal stats_changed(hp, max_hp, shield, max_shield)
+signal stats_changed(hp, max_hp)
 signal experience_gained(amount, current_xp, required_xp)
 signal leveled_up(new_level)
 signal weapon_changed(weapon_index, weapon_name)
@@ -17,17 +17,11 @@ var experience_comp: Node
 	get: return health_comp.max_hp if health_comp else 10.0
 	set(v): if health_comp: health_comp.max_hp = v
 
-@export var max_shield: float:
-	get: return health_comp.max_shield if health_comp else 5.0
-	set(v): if health_comp: health_comp.max_shield = v
 
 var hp: float:
 	get: return health_comp.hp if health_comp else 10.0
 	set(v): if health_comp: health_comp.hp = v
 
-var shield: float:
-	get: return health_comp.shield if health_comp else 5.0
-	set(v): if health_comp: health_comp.shield = v
 
 @export var move_speed: float = 8.5
 @export var roll_speed: float = 18.0
@@ -50,9 +44,6 @@ var time_since_damage: float:
 	get: return health_comp.time_since_damage if health_comp else 0.0
 	set(v): if health_comp: health_comp.time_since_damage = v
 
-var shield_regen_delay: float:
-	get: return health_comp.shield_regen_delay if health_comp else 4.0
-	set(v): if health_comp: health_comp.shield_regen_delay = v
 
 
 ## Mikeura's signature weapon: a spear-lance with a melee thrust AND a ranged throw.
@@ -72,10 +63,12 @@ const PlayerMovementController = preload("res://scripts/components/player_moveme
 const PlayerAnimationController = preload("res://scripts/components/player_animation_controller.gd")
 
 var movement_controller: PlayerMovementController
+var parry_controller: PlayerParryController
 var animation_controller: PlayerAnimationController
 var weapon_inventory: PlayerWeaponInventory
 var camera_aim_controller: PlayerCameraAndAimController
 var target_lock: TargetLockController ## Fijar objetivo (solo mazmorra)
+var resources: PlayerResources          ## Energía, maná y balas
 
 
 
@@ -240,7 +233,7 @@ func _ready() -> void:
 	weapon_inventory.weapon_changed.connect(func(idx, name_value): emit_signal("weapon_changed", idx, name_value))
 	weapon_inventory.reload_state_changed.connect(func(weapon_type, ammo, max_ammo, is_reloading, progress): emit_signal("reload_state_changed", weapon_type, ammo, max_ammo, is_reloading, progress))
 
-	health_comp.health_changed.connect(func(h, mh, s, ms): emit_signal("stats_changed", h, mh, s, ms))
+	health_comp.health_changed.connect(func(h, mh): emit_signal("stats_changed", h, mh))
 	health_comp.entity_died.connect(_on_entity_died)
 	experience_comp.experience_gained.connect(func(amount, current_xp, required_xp): emit_signal("experience_gained", amount, current_xp, required_xp))
 	experience_comp.leveled_up.connect(func(new_level): emit_signal("leveled_up", new_level))
@@ -252,15 +245,7 @@ func _ready() -> void:
 		if stat_block:
 			data["amount"] = data["amount"] * (1.0 - stat_block.armor())
 	)
-	health_comp.check_shield_regen.connect(func(results):
-		if passive and passive.has_method("allow_shield_regen"):
-			results.append(passive.allow_shield_regen(self))
-	)
-	health_comp.shield_recharged.connect(func():
-		if passive and passive.has_method("on_shield_recharged"):
-			passive.on_shield_recharged()
-	)
-	
+
 	if combat_controller.is_auto_combat_enabled and GameData.game_mode != "dungeon":
 		var auto_combat_script = load("res://scripts/components/auto_combat_controller.gd")
 		var auto_combat_node = auto_combat_script.new()
@@ -278,6 +263,10 @@ func _ready() -> void:
 		if movement_controller:
 			movement_controller.perform_dodge()
 	)
+	input_controller.parry_pressed.connect(func():
+		if parry_controller:
+			parry_controller.try_parry()
+	)
 	input_controller.attack_pressed.connect(attack)
 	input_controller.alt_attack_pressed.connect(_on_alt_attack_pressed)
 	input_controller.alt_attack_released.connect(_on_alt_attack_released)
@@ -286,10 +275,9 @@ func _ready() -> void:
 	input_controller.spawn_debug_enemy.connect(_on_spawn_debug_enemy)
 
 	hp = max_hp
-	shield = max_shield
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	
-	# Apply passive overrides BEFORE emitting stats (passive may change shield/hp).
+	# Apply passive overrides BEFORE emitting stats (passive may change hp).
 	if passive:
 		passive.apply_to_player(self)
 	
@@ -302,6 +290,11 @@ func _ready() -> void:
 		target_lock.player = self
 		add_child(target_lock)
 	
+	# Energía, maná y balas (solo gastan en la mazmorra)
+	resources = PlayerResources.new()
+	resources.name = "PlayerResources"
+	add_child(resources)
+
 	setup_weapon_models()
 	
 	movement_controller = PlayerMovementController.new()
@@ -311,10 +304,15 @@ func _ready() -> void:
 	animation_controller = PlayerAnimationController.new()
 	animation_controller.name = "PlayerAnimationController"
 	add_child(animation_controller)
+
+	parry_controller = PlayerParryController.new()
+	parry_controller.name = "PlayerParryController"
+	add_child(parry_controller)
 	# Espalanza visible en la mano (con estela, aura y animaciones): solo en la mazmorra.
 	# En supervivencia se queda el modelo procedural oculto de siempre.
 	if weapon_visuals and GameData.game_mode == "dungeon":
 		weapon_visuals.attach_spear_to_hand(animation_controller.model)
+		weapon_visuals.attach_axe_to_hand(animation_controller.model)
 	
 	weapon_inventory.weapon_slots.clear()
 	# Each character starts with their signature weapon.
@@ -338,7 +336,7 @@ func _ready() -> void:
 	# Spawn elemental orbs if the player starts with Ciclo Elemental
 	_try_spawn_elemental_orbs()
 	
-	emit_signal("stats_changed", hp, max_hp, shield, max_shield)
+	emit_signal("stats_changed", hp, max_hp)
 	
 	# El modelo se revela con play_spawn_scan() cuando el mundo está listo (GameStartFacade.start_game)
 	hide_for_spawn()
@@ -515,6 +513,8 @@ func show_weapon_temporarily(_duration: float = 0.5) -> void:
 			m.visible = _is_hand_weapon_shown(wt, m)
 
 func _is_hand_weapon_shown(wt: int, m: Node3D) -> bool:
+	if wt == WeaponData.WeaponType.SPINNING_AXE and combat_controller and combat_controller.is_axe_thrown:
+		return false
 	return m.has_meta("in_hand") and wt == current_weapon() and not (combat_controller and combat_controller.is_spear_thrown)
 
 func current_weapon() -> int:
@@ -620,6 +620,18 @@ func create_muzzle_flash(flash_color: Color, scale_multiplier: float = 1.0) -> v
 
 
 
+
+## Parry: un golpe cuerpo a cuerpo de `attacker` va a entrar; true si la guardia lo para.
+func try_parry_melee(attacker: Node3D) -> bool:
+	return parry_controller != null and parry_controller.try_block_melee(attacker)
+
+## Parry: daño de un proyectil que llega desde `from_pos` (reducido si la guardia lo cubre).
+func parry_projectile_damage(amount: float, from_pos: Vector3) -> float:
+	return parry_controller.projectile_damage(amount, from_pos) if parry_controller else amount
+
+## Parry: multiplicador del siguiente golpe (se consume al usarlo).
+func parry_bonus_mult() -> float:
+	return parry_controller.consume_bonus() if parry_controller else 1.0
 
 func take_damage(amount: float, direction: Vector3 = Vector3.ZERO) -> void:
 	if health_comp and health_comp.has_method("take_damage"):
@@ -822,19 +834,25 @@ func throw_spear() -> void:
 	combat_controller.throw_spear()
 
 func _on_alt_attack_pressed() -> void:
+	# El especial de cada arma cuesta su recurso. La espalanza cobra el suyo dentro (clavado / carga).
+	if resources and current_weapon() != WeaponData.WeaponType.SPEAR_LANCE and not resources.spend(current_weapon(), true):
+		return
 	if current_weapon() == WeaponData.WeaponType.DUSTS and GameData.game_mode == "dungeon":
 		combat_controller.dust_face()
 	elif current_weapon() == WeaponData.WeaponType.DUSTS:
 		combat_controller.cycle_dust_mode()
 	elif current_weapon() == WeaponData.WeaponType.SPEAR_LANCE and GameData.game_mode == "dungeon":
-		# Lanzamiento cargado (con pose y aura): solo en la mazmorra
-		combat_controller.start_spear_charge()
+		# Tras cuatro golpes ligeros: clavado con salto. Si no, lanzamiento cargado (con pose y aura)
+		if not combat_controller.try_spear_slam():
+			combat_controller.start_spear_charge()
 	elif current_weapon() == WeaponData.WeaponType.FLAME_THROWER and GameData.game_mode == "dungeon":
 		combat_controller.flame_blast()
 	elif current_weapon() == WeaponData.WeaponType.SPORE_BAZOOKA and GameData.game_mode == "dungeon":
 		combat_controller.spore_shotgun()
 	elif current_weapon() == WeaponData.WeaponType.TRI_SHOTGUN and GameData.game_mode == "dungeon":
 		combat_controller.shotgun_burst()
+	elif current_weapon() == WeaponData.WeaponType.SPINNING_AXE and GameData.game_mode == "dungeon":
+		combat_controller.axe_spin()
 	else:
 		throw_spear()
 
@@ -875,6 +893,13 @@ func play_spawn_scan() -> void:
 
 func _on_entity_died() -> void:
 	if is_playing_death_scan:
+		return
+	if Net.is_online():
+		# Multijugador: no hay fin de partida; pasa a espectador hasta que se despeje la caverna
+		is_playing_death_scan = true
+		var nw := get_parent().get_node_or_null("NetWorld")
+		if nw:
+			nw.on_local_death()
 		return
 	is_playing_death_scan = true
 	play_death_scan()

@@ -73,6 +73,8 @@ func _physics_process(delta: float) -> void:
 	if not hit.is_empty():
 		if hit.collider is DestructibleProp:
 			hit.collider.take_damage(999.0, direction)
+		else:
+			AudioManager.play_at("proj_hit_wall", hit.position, -8.0, randf_range(0.9, 1.15))
 		_finish(hit.position)
 		return
 	global_position = to

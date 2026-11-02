@@ -37,6 +37,8 @@ func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	theme = Style.get_theme()
 	_selected_index = clampi(GameData.selected_index, 0, GameData.CHARACTERS.size() - 1)
+	if not GameData.is_index_unlocked(_selected_index):
+		_selected_index = GameData.first_unlocked_index()
 	_build_ui()
 	CharacterPreview.preload_all(String(GameData.CHARACTERS[_selected_index].get("id", "")))
 	_refresh_detail()
@@ -84,8 +86,7 @@ func _build_ui() -> void:
 	var title := Label.new()
 	title.text = "ELIGE TU PERSONAJE"
 	title.add_theme_font_override("font", PIXEL_FONT)
-	title.add_theme_font_size_override("font_size", 22)
-	title.add_theme_color_override("font_color", C_ACCENT)
+	Style.style_title(title, 22)
 	header.add_child(title)
 	var fill := Control.new()
 	fill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -123,16 +124,19 @@ func _build_grid() -> Control:
 func _make_cell(index: int) -> Button:
 	var c: Dictionary = GameData.CHARACTERS[index]
 	var col: Color = c.get("color", C_ACCENT)
+	var locked := not GameData.is_index_unlocked(index)
 
 	var btn := Button.new()
 	btn.custom_minimum_size = CELL_SIZE
-	btn.focus_mode = Control.FOCUS_ALL
-	btn.tooltip_text = "%s — %s" % [c.get("name", ""), c.get("subtitle", "")]
+	btn.focus_mode = Control.FOCUS_NONE if locked else Control.FOCUS_ALL
+	btn.disabled = locked
+	btn.tooltip_text = "Se desbloqueará más adelante" if locked else "%s — %s" % [c.get("name", ""), c.get("subtitle", "")]
 	btn.set_meta("color", col)
 	btn.add_theme_stylebox_override("normal", _cell_style(Color(col, 0.10), Color(col, 0.45), 2))
 	btn.add_theme_stylebox_override("hover", _cell_style(Color(col, 0.22), col, 2))
 	btn.add_theme_stylebox_override("pressed", _cell_style(Color(col, 0.32), col, 3))
 	btn.add_theme_stylebox_override("focus", _cell_style(Color(col, 0.18), C_TEXT, 3))
+	btn.add_theme_stylebox_override("disabled", _cell_style(Color(col, 0.04), Color(col, 0.18), 2))
 
 	var vb := VBoxContainer.new()
 	vb.set_anchors_preset(PRESET_FULL_RECT)
@@ -146,7 +150,7 @@ func _make_cell(index: int) -> Button:
 	initial.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	initial.add_theme_font_override("font", PIXEL_FONT)
 	initial.add_theme_font_size_override("font_size", 34)
-	initial.add_theme_color_override("font_color", col)
+	initial.add_theme_color_override("font_color", Color(col, 0.35) if locked else col)
 	initial.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vb.add_child(initial)
 
@@ -154,17 +158,27 @@ func _make_cell(index: int) -> Button:
 	nm.text = c.get("name", "")
 	nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	nm.add_theme_font_size_override("font_size", 13)
-	nm.add_theme_color_override("font_color", C_TEXT)
+	nm.add_theme_color_override("font_color", C_TEXT_DIM if locked else C_TEXT)
 	nm.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vb.add_child(nm)
 
-	btn.pressed.connect(_select.bind(index))
-	btn.focus_entered.connect(_select.bind(index))
-	btn.gui_input.connect(func(ev: InputEvent) -> void:
-		if ev is InputEventMouseButton and ev.double_click and ev.button_index == MOUSE_BUTTON_LEFT:
-			_select(index)
-			_on_start()
-	)
+	if locked:
+		var lock_lbl := Label.new()
+		lock_lbl.text = "BLOQUEADO"
+		lock_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lock_lbl.add_theme_font_size_override("font_size", 10)
+		lock_lbl.add_theme_color_override("font_color", C_TEXT_DIM)
+		lock_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		vb.add_child(lock_lbl)
+
+	if not locked:
+		btn.pressed.connect(_select.bind(index))
+		btn.focus_entered.connect(_select.bind(index))
+		btn.gui_input.connect(func(ev: InputEvent) -> void:
+			if ev is InputEventMouseButton and ev.double_click and ev.button_index == MOUSE_BUTTON_LEFT:
+				_select(index)
+				_on_start()
+		)
 	return btn
 
 func _build_detail_panel() -> Control:
@@ -177,7 +191,11 @@ func _build_detail_panel() -> Control:
 	ps.border_color = C_BTN_BORDER
 	ps.set_corner_radius_all(6)
 	ps.set_content_margin_all(20)
+	ps.border_color = Color(Style.ACCENT, 0.55)
+	ps.shadow_color = Color(Style.GLOW, 0.25)
+	ps.shadow_size = 14
 	panel.add_theme_stylebox_override("panel", ps)
+	NeonFrame.attach(panel)
 
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 10)
@@ -251,6 +269,8 @@ func _section_header(text: String) -> Label:
 # ───────────────────────────── Estado ─────────────────────────────
 
 func _select(index: int) -> void:
+	if not GameData.is_index_unlocked(index):
+		return
 	if index == _selected_index and _lbl_name and _lbl_name.text != "":
 		return
 	_selected_index = index
@@ -295,8 +315,8 @@ func _refresh_detail() -> void:
 	var kind: String = WeaponData.get_weapon_data(w).category
 	_lbl_weapon_kind.text = {"melee": "Cuerpo a cuerpo", "ranged": "A distancia", "special": "Especial"}.get(kind, kind)
 
-	_lbl_stats.text = "Vida %s    Escudo %s    Velocidad %s" % [
-		_fmt(float(stats.get("max_hp", 0.0)) + GameData.BASE_HP_BONUS), _fmt(stats.get("max_shield")),
+	_lbl_stats.text = "Vida %s    Velocidad %s" % [
+		_fmt(float(stats.get("max_hp", 0.0)) + GameData.BASE_HP_BONUS),
 		_fmt(stats.get("move_speed"))]
 
 func _fmt(v) -> String:
@@ -305,8 +325,10 @@ func _fmt(v) -> String:
 # ───────────────────────────── Acciones ─────────────────────────────
 
 func _on_start() -> void:
+	if not GameData.is_index_unlocked(_selected_index):
+		return
 	GameData.selected_index = _selected_index
-	var scene := "res://scenes/core/main_dungeon.tscn" if GameData.game_mode == "dungeon" else "res://scenes/core/main_procedural.tscn"
+	var scene := Net.game_scene() if GameData.game_mode == "dungeon" else "res://scenes/core/main_procedural.tscn"
 	SceneLoader.load_scene(scene)
 
 func _on_back() -> void:

@@ -16,6 +16,7 @@ func _ready() -> void:
 static var _shared_mesh: SphereMesh = null
 static var _shared_mat: StandardMaterial3D = null
 static var _shared_ramp: Gradient = null
+static var _shared_tex: GradientTexture2D = null
 
 static func _ensure_shared() -> void:
 	if _shared_mesh != null:
@@ -37,7 +38,36 @@ static func _ensure_shared() -> void:
 	_shared_ramp.add_point(0.6, Color(1, 1, 1, 0.8))
 	_shared_ramp.add_point(1.0, Color(1, 1, 1, 0))
 
+## Gráficos bajos: sprite billboard 2D ligero (sin malla CSG ni partículas 3D).
+func _setup_sprite_2d() -> void:
+	var csg := get_node_or_null("CSGSphere3D")
+	if csg:
+		csg.queue_free()
+	if _shared_tex == null:
+		var g := Gradient.new()
+		g.set_color(0, Color(0.85, 1.0, 1.0, 1.0))
+		g.add_point(0.45, Color(0.2, 0.9, 1.0, 0.9))
+		g.set_color(g.get_point_count() - 1, Color(0.1, 0.7, 1.0, 0.0))
+		_shared_tex = GradientTexture2D.new()
+		_shared_tex.gradient = g
+		_shared_tex.fill = GradientTexture2D.FILL_RADIAL
+		_shared_tex.fill_from = Vector2(0.5, 0.5)
+		_shared_tex.fill_to = Vector2(1.0, 0.5)
+		_shared_tex.width = 32
+		_shared_tex.height = 32
+	var sprite := Sprite3D.new()
+	sprite.texture = _shared_tex
+	sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	sprite.shaded = false
+	sprite.transparent = true
+	sprite.pixel_size = 0.015
+	sprite.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(sprite)
+
 func _setup_particles() -> void:
+	if Quality.level() == Quality.Level.LOW:
+		_setup_sprite_2d()
+		return
 	_ensure_shared()
 	var particles = CPUParticles3D.new()
 	particles.amount = int(maxi(4, round(8.0 * Quality.particle_factor())))

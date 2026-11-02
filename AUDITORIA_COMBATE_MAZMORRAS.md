@@ -415,3 +415,235 @@ Pendiente:
 - El búfer dura 0,28 s y la esquiva 0,32 s: un clic al principio del rodamiento caduca antes de salir. Ajustar si se nota.
 - Esquivar dentro de la ventana del goblin → 0 de daño: cubierto por la invulnerabilidad, pero sin prueba guionizada contra el goblin.
 - Fase F empezada fuera de este documento y sin documentar aquí: barreras por caverna (`dungeon_door.gd`), portal y elección de arma (`dungeon_portal.gd`, `weapon_choice_ui.gd`), niveles sucesivos (`DungeonEncounter.next_level`) y armas sujetas con IK de manos (`weapon_anim_sets.gd`, `held_weapon_rig.gd`, `hand_ik_modifier.gd`).
+
+---
+
+## 12. Fase F — goblin bruto de mazmorra (2026-10-28)
+
+Implementado:
+- `DungeonGoblin` pasa a ser una base configurable: repertorio (`attacks`), clips, modelo, textura, tamaño, tipo de flyweight, vida, velocidad, aturdimiento, armadura, empuje recibido y tono de los sonidos son variables que cada subclase fija en `_init`. El goblin normal no cambia (mismos valores).
+- Nuevas piezas generales:
+  - forma de aviso **círculo** (`shape: "circle"`, `radius` y `center`) en `enemy_telegraph.gdshader` (shape 2) y en el impacto;
+  - `wall_stun` por ataque (antes estaba fijado a "leap");
+  - `_on_impact()`: temblor de cámara y polvo al tocar el suelo (`shake`);
+  - los ataques de línea piden línea de visión al elegirse;
+  - armadura (`armor`, `armor_break`, que se olvida a 6 por segundo).
+- El flyweight `HEAVY_BRUTE` escalaba el `CharacterBody3D` ×1,5; la base lo devuelve a 1, porque el tamaño lo dan `model_height` y la cápsula.
+- `scripts/entities/dungeon_brute.gd` (`DungeonBrute`): 135 de vida, 3,2 m/s, cápsula de 0,75 × 2,0 m, 1,95 m de alto, gruñidos más graves.
+
+  | Ataque | Distancia | Aviso | Anticipación | Daño | Forma de evitarlo |
+  |---|---|---|---|---|---|
+  | Barrido | ≤ 2,4 m | cuña de 160°, 2,7 m | 0,65 s | 3 | alejarse o esquivar |
+  | Mazazo | 1,2–3,4 m | círculo de 1,5 m a 2,3 m delante | 1,0 s | 5 | apartarse; recuperación de 1,4 s para castigarle |
+  | Pisotón | ≤ 1,5 m, cooldown 4 s | círculo de 3 m a su alrededor | 0,85 s | 3 | salir del anillo |
+  | Carga | 4,5–10 m, con línea de visión, cooldown 7 s | franja de 9 × 2 m | 1,1 s | 5 | apartarse de lado; contra una pared queda aturdido 2,6 s |
+
+  Armadura: fuera de la anticipación, los golpes de menos de 15 no le interrumpen; se aturde con un golpe de 30 o más o al acumular 32 seguidos. En la anticipación aguanta 28. Recibe el 35 % del empuje.
+- 11 clips propios hechos en Blender (`blender_sources/rumbang_anims.blend`, escena `Brute_Anims`, biblioteca `brute_lib` y poses en el texto `brute_poses`), exportados a `assets/models/entities/enemigos/goblins/dungeon/bruto/` con el optimizador desactivado. Si falta alguno, usa el del goblin normal (mismo esqueleto Mixamo).
+- Encuentros: un bruto en la caverna final desde el nivel 1; desde el nivel 2, un 35 % de probabilidad de bruto en cada caverna (nunca en la arena). La tecla **B** hace aparecer uno en la arena para pruebas.
+
+Medido en ejecución (`tests/test_dungeon_brute.tscn`):
+| Prueba | Resultado |
+|---|---|
+| Contrato, vida, velocidad, escala del cuerpo | 135, 3,2 m/s, escala 1 [VERIFICADO] |
+| Poses en Godot | mazazo: manos a 1,57 m sobre la cabeza (1,32 m); impacto a la altura de la cadera; muerte tumbado (cabeza a 0,18 m) [VERIFICADO] |
+| Armadura | 10 no interrumpe; 34 seguidos o 31 de golpe aturden [VERIFICADO] |
+| Repertorio de cerca, 14 s | 4 mazazos, 2 barridos, 1 pisotón (y 1 carga tras un empujón), con su aviso correcto y daño [VERIFICADO] |
+| Carga de lejos | sale con línea de visión [VERIFICADO] |
+| Goblin normal | mismo repertorio y 80 de vida [VERIFICADO] |
+| Regresión | las otras 4 pruebas pasan; humo de mazmorra y supervivencia sin `SCRIPT ERROR`, `time_scale` 1,0 [VERIFICADO] |
+
+Pendiente:
+- Verlo jugando: lectura de las poses en movimiento (sobre todo la carrera de la carga) y ajuste de valores.
+- Caminar: usa `caminar_goblin_bruto.fbx` de las hordas.
+- Siguientes goblins: magoblin, francotirador, zombi y mortero (con la misma base).
+
+---
+
+## 13. Fase F — magoblin de mazmorra (2026-10-28)
+
+Implementado:
+- **Base (`DungeonGoblin`) preparada para ataques a distancia:**
+  - `_approach_dir()` sustituible (cómo se mueve cuando no ataca);
+  - ataques `ranged` (sin golpe cuerpo a cuerpo), `needs_sight`, `at_target` (círculo fijado en el suelo donde está el jugador; le sigue hasta `track`) y forma `none`;
+  - `_attack_center()`, color del aviso por tipo (`telegraph_color`), sonidos por tipo (`warn_sfx`, `swing_sfx`), pausa entre ataques (`attack_rest`) y distancia a la que mira al jugador (`face_player_dist`).
+  - El goblin normal y el bruto no cambian.
+- `scripts/objects/mage_orb.gd` (`MageOrb`): proyectil recto y esquivable; se deshace contra paredes y props y daña una vez. La invulnerabilidad de la esquiva lo evita.
+- `scripts/entities/dungeon_mage.gd` (`DungeonMage`):
+  - 60 de vida y 3,4 m/s; aviso morado.
+  - Movimiento: se mantiene a 5,5–10 m rodeando al jugador; si se acerca, retrocede; si lo pierde de vista, se acerca por el campo de flujo.
+  - Se le interrumpe con 8 de daño durante la anticipación.
+
+  | Hechizo | Distancia | Aviso | Anticipación | Daño | Forma de evitarlo |
+  |---|---|---|---|---|---|
+  | Orbe | 3–14 m, con línea de visión | franja de 12 m | 0,6 s | 2 | apartarse de lado |
+  | Abanico | 3–10 m, cooldown 3 s | cuña de 40° | 0,8 s | 2 por orbe (3 orbes) | meterse entre orbes o salir de la cuña |
+  | Runa | 5–16 m, cooldown 6 s | círculo de 1,8 m que sigue al jugador y se fija a 0,7 s | 1,1 s | 4 | salir del círculo |
+  | Nova | ≤ 2,6 m, cooldown 3,5 s | círculo de 2,6 m a su alrededor | 0,5 s | 1,5 y empuja | alejarse o esquivar |
+  | Destello | ≤ 3,2 m, cooldown 7 s | ninguno | 0,37 s | — | reaparece a 6,5–9 m, en suelo libre y viendo al jugador |
+- 13 clips propios hechos en Blender (escena `Mage_Anims`, biblioteca `mage_lib` y poses en `mage_poses`), exportados a `assets/models/entities/enemigos/goblins/dungeon/mago/` con el optimizador desactivado. Para caminar usa `caminar_magoblin.fbx`.
+- Encuentros: en las cavernas normales, un 30 % de probabilidad de mago en el nivel 1 y un 45 % desde el nivel 2. En la final hay un mago si el grupo es de 3 o más. La arena sigue solo con goblins. La tecla **J** hace aparecer uno en la arena para pruebas.
+
+Medido en ejecución (`tests/test_dungeon_mage.tscn`):
+| Prueba | Resultado |
+|---|---|
+| Poses en Godot | runa: manos a 1,16 m sobre la cabeza (0,79 m); orbe: mano 0,46 m por delante [VERIFICADO] |
+| Distancia | con el jugador a 2 m, se aleja a 5,6 m en 1 s [VERIFICADO] |
+| Repertorio a distancia, 16 s | 6 orbes, 3 abanicos, 2 runas, sin nova; el aviso de la runa sigue al jugador; 12,5 de daño [VERIFICADO] |
+| Orbe | daña 2 y desaparece; con invulnerabilidad, 0 [VERIFICADO] |
+| Interrupción | 10 de daño cortan la runa y su aviso [VERIFICADO] |
+| Destello | se aleja 6,2 m [VERIFICADO] |
+| Regresión | goblin normal, bruto y las otras 5 pruebas pasan; humo de ambos modos sin `SCRIPT ERROR`, `time_scale` 1,0 [VERIFICADO] |
+
+Pendiente:
+- Verlo jugando: lectura de las poses, velocidad de los orbes y frecuencia de los hechizos.
+- Los orbes no se pueden destruir ni devolver con el arma.
+- Siguientes goblins: francotirador y mortero (misma piel de mago), y el zombi.
+
+---
+
+## 14. Ajustes de jugabilidad (2026-10-28)
+
+- **Opción "Marcas de ataques enemigos"** en Configuración (`SettingsManager.show_attack_marks`, se guarda en `user://settings.json` como `attack_marks`). Al desactivarla se ocultan los avisos del suelo de todos los goblins de mazmorra. Siguen el destello, la pose y el sonido de la anticipación. Se aplica desde el siguiente ataque.
+- **Velocidad de los personajes en la mazmorra × 0,8** (`GameData.DUNGEON_MOVE_SPEED_MULT`, aplicada en `apply_to_player`): Mikeura pasa de 8,5 a 6,8 m/s. La supervivencia no cambia. La esquiva (`roll_speed`) tampoco.
+- **Golpes de la espalanza al 80 %** (`PlayerAnimationController.SPEAR_ATTACK_SPEED`): nodo `TimeScale` (`action_scale`) en la rama del `OneShot`, solo para attack1–3 (y el lanzamiento, que usa attack1). Las ventanas de golpe (pistas de método) y de enlace (`_action_elapsed` en tiempo del clip) se estiran con la animación y siguen sincronizadas. `COMBO_RESET` se escala igual. Solo afecta a la mazmorra (en supervivencia no hay animación de ataque).
+
+Medido (`tests/test_settings_speed.tscn`): las marcas se ocultan y vuelven con la opción, con el destello intacto; velocidad 6,8 en mazmorra y 8,5 en supervivencia; la ventana de attack1 abre a 0,38 s de juego, con el reloj del clip al 80 %. Las otras 6 pruebas y el humo de ambos modos pasan sin errores. [VERIFICADO]
+
+---
+
+## 15. Zombi, jefe necromántico de mazmorra y panel de vitales (2026-10-28)
+
+**Zombi** (`scripts/entities/dungeon_zombie.gd`, `DungeonZombie`):
+- 50 de vida, 2,7 m/s, aviso verde.
+- Ataques:
+  - zarpazo doble: ≤ 1,8 m, cuña de 120°, anticipación de 0,55 s, 2 de daño;
+  - abalanzarse: 2,5–5 m, con línea de visión, franja de 4,5 m, anticipación de 0,8 s, 3 de daño; contra una pared queda aturdido.
+- **Reanimación:** la primera muerte lo deja en el suelo y sigue siendo un blanco (la caverna sigue cerrada). Si no se le golpea en 3 s, se levanta con la mitad de la vida; un brillo verde que late cada vez más deprisa lo avisa. Un golpe en el suelo lo remata.
+- 9 clips (8 nuevos en Blender, escena `Zombie_Anims`; caminar es el de las hordas).
+- Aparece en el 40 % de las cavernas (la mitad del grupo). La tecla **Z** lo hace aparecer en la arena.
+
+**Jefe necromántico** (`scripts/entities/dungeon_necromancer.gd`, `DungeonNecromancer`; el de supervivencia no cambia):
+- 600 de vida, 3 m de alto, aviso verde, barra de jefe arriba con un rastro blanco del daño reciente y marcas de fase.
+- Armadura total: no se inmuta con golpes normales; se aturde 2 s al acumular 140 de daño seguido.
+
+  | Ataque | Distancia | Aviso | Daño | Forma de evitarlo |
+  |---|---|---|---|---|
+  | Tajo | ≤ 3,4 m | cuña de 140°, 3,8 m | 4 | alejarse o esquivar |
+  | Andanada de almas | 4–16 m | cuña de 36° | 2 por orbe (5) | meterse entre orbes |
+  | Erupciones | 3–20 m, cooldown 6 s | 3 / 5 / 7 círculos (`GroundBlast`) alrededor del jugador, escalonados | 3 | salir de los círculos |
+  | Invocación | cualquiera, cooldown 14 s | ninguno | — | 2 / 3 / 4 zombis (máximo 5 vivos) que no se reaniman y caen con él |
+  | Rugido | al cambiar de fase | círculo de 5 m | 2 y empuja | alejarse; es inmune mientras ruge |
+- Fases al 66 % y al 33 %: anticipaciones al 85 % y al 70 %, menos pausa entre ataques, más erupciones y más zombis.
+- Clips: caminar, invocar zombis y erupciones son los de supervivencia; 8 nuevos en Blender (escena `Necro_Anims`, esqueleto Mixamo de 33 huesos).
+- Aparece solo en la caverna final cada 3 niveles (3, 6, 9...). La tecla **N** lo hace aparecer en la arena.
+- `GroundBlast` (`scripts/objects/ground_blast.gd`): círculo de aviso independiente que estalla una vez; respeta la opción de marcas.
+- La base gana `windup_scale`.
+
+**Panel de vitales** (`scripts/ui/vitals_panel.gd`, `VitalsPanel`): sustituye a las dos barras verticales de `StatsPanel` (ocultas) en ambos modos.
+- Abajo a la izquierda (arriba a la izquierda en móvil, por el joystick).
+- Vida gruesa con "actual / máx.", rastro blanco del daño reciente (pausa de 0,45 s), destello verde al curarse y latido rojo del marco por debajo del 30 %.
+- Escudo por segmentos de 5 puntos, con brillo al regenerarse y estallido y sacudida al romperse.
+
+Medido (`tests/test_dungeon_undead.tscn`, más capturas de los dos modos):
+| Prueba | Resultado |
+|---|---|
+| Zombi | 50 de vida; se levanta a los 3 s con 25; la segunda muerte es definitiva; un golpe en el suelo lo remata [VERIFICADO] |
+| Jefe | 600 de vida, 11 clips y barra; un golpe de 25 no lo interrumpe [VERIFICADO] |
+| Fase 2 | ruge, es inmune (50 de daño → 0) y las anticipaciones pasan a × 0,85 [VERIFICADO] |
+| Erupciones (fase 2) | 5 círculos a la vez [VERIFICADO] |
+| Invocación | 3 zombis sin reanimación; mueren con el jefe [VERIFICADO] |
+| Panel | rastro que baja tras la pausa, aviso de vida baja y escudo roto; barras antiguas ocultas [VERIFICADO + capturas] |
+| Regresión | las otras 7 pruebas pasan; humo de ambos modos sin `SCRIPT ERROR` [VERIFICADO] |
+
+Pendiente: verlo jugando (sobre todo la lectura de las poses del jefe y el equilibrio del combate), el robo de vida del jefe de supervivencia (no se ha llevado a la mazmorra) y la música o la presentación del jefe.
+
+**Corrección (2026-10-28): erupciones invisibles.** Con la opción de marcas desactivada (era la configuración del usuario), `GroundBlast` solo mostraba unas chispas mínimas y el estallido apenas se notaba. Cambios:
+- Ahora el ataque se ve siempre: el suelo burbujea (vapores y una luz que late cada vez más deprisa) y estalla en una columna de llamas con onda expansiva y fogonazo. El círculo del suelo sigue siendo la marca opcional.
+- Las llamas usan un punto difuminado con transparencia; antes eran cuadrados.
+- La barra del jefe baja para no tapar el cronómetro.
+
+Verificado con capturas (carga y estallido, con las marcas desactivadas) y con `test_dungeon_undead`.
+
+---
+
+## 16. Parry y voltereta de la esquiva (2026-10-28)
+
+**Parry** (`scripts/components/player_parry_controller.gd`, `PlayerParryController`; solo mazmorra), al estilo Deadlock:
+- **Entrada:** tecla **F** o clic del stick izquierdo.
+- **Guardia:** 0,6 s con postura propia (manos cruzadas delante de la cara) y un aura azul alrededor del personaje. Mientras dura se avanza al 40 % y no se ataca (el clic queda en el búfer).
+- **Protege de frente (180°) los primeros 0,4 s:**
+
+  | Lo que llega | Resultado |
+  |---|---|
+  | Golpe cuerpo a cuerpo de un goblin (también las embestidas) | 0 de daño; el atacante queda aturdido 0,5 s; destello dorado, onda azul, hitstop de 0,09 s; el siguiente golpe de espalanza en 2 s hace +50 % (una vez) |
+  | Golpe cuerpo a cuerpo del jefe | 0 de daño; no se aturde, pero suma 60 a su armadura (con 140 se aturde) |
+  | Orbes (mago, jefe) | daño a la mitad |
+  | Áreas (erupciones, nova, pisotón, rugido) | daño completo: hay que esquivarlas |
+  | Por la espalda | no protege |
+- **Enfriamiento:** 0,5 s tras parar algo; 2,5 s si la guardia termina sin parar nada.
+- La esquiva corta la guardia.
+- **Integración:** `DungeonGoblin._try_hit_player` pregunta a `Player.try_parry_melee()` y reacciona con `_on_parried()` (el jefe lo sobrescribe); `MageOrb` usa `Player.parry_projectile_damage()`; la espalanza aplica `Player.parry_bonus_mult()` al abrir la ventana de golpe; `HitFeedback.freeze()` es nuevo.
+
+**Voltereta**: la esquiva reproduce una voltereta hacia delante (la orientación ya va hacia donde se esquiva), estirada para durar lo mismo que la esquiva (0,37 s de clip → 0,32 s).
+
+**Animaciones:** `mikeura_parry` y `mikeura_roll` se hicieron sobre Mikeura en Blender. Son `WeaponAnimSets.COMMON_ACTIONS` y se adaptan al esqueleto de cada personaje al cargarlo (`_ensure_common_actions`); verificado con Vangry.
+
+**Trampa encontrada:** al exportar desde Blender, Godot toma como reposo del esqueleto la pose del fotograma en el que está la escena. La primera voltereta se exportó desde un fotograma agachado y el adaptador multiplicó la cadera unas 20 veces (el personaje subía 21 m). Hay que exportar siempre desde el primer fotograma de la acción.
+
+Medido (`tests/test_parry.tscn`, más capturas de la guardia, el parry y la voltereta):
+| Prueba | Resultado |
+|---|---|
+| Clips | parry y voltereta en Mikeura y adaptados a Vangry [VERIFICADO] |
+| Golpe parado de frente | 0 de daño, goblin aturdido 0,5 s, +50 % una sola vez, enfriamiento de 0,5 s [VERIFICADO] |
+| Por la espalda | recibe el daño [VERIFICADO] |
+| Orbe / erupción | 2 → 1 / daño completo [VERIFICADO] |
+| Guardia sin parar nada | 2,5 s sin poder repetir [VERIFICADO] |
+| Jefe | +60 de armadura, sin aturdirse [VERIFICADO] |
+| Voltereta | la esquiva la reproduce ajustada a 0,32 s y corta la guardia; en las capturas rueda pegada al suelo [VERIFICADO + capturas] |
+| Regresión | las otras 8 pruebas pasan (`test_dodge` actualizada: tras esquivar queda la voltereta); humo de ambos modos sin errores [VERIFICADO] |
+
+Pendiente: indicador del enfriamiento del parry en el HUD; verlo jugando con los otros personajes (la guardia se diseñó sobre Mikeura con la lanza).
+
+---
+
+## 17. Parry a 1,5 s y hacha de Garri en la mazmorra (2026-10-28)
+
+- **Parry:** el aturdimiento de los enemigos normales pasa de 0,5 s a **1,5 s** (`PlayerParryController.STUN`).
+
+**Hacha giratoria de Garri** (supervivencia sin cambios; `SpinningAxeStrategy`, rama de mazmorra):
+- **Click izquierdo: lanzar.** Clip `axe_throw`; el hacha sale a los 0,27 s con apuntado suave (enemigo más alineado dentro de 30° y del alcance, o el objetivo fijado, porque la cámara al hombro desviaba el tiro unos 12°).
+- **El hacha lanzada** (`scripts/objects/dungeon_axe.gd`, `DungeonAxe`):
+  - vuela recta (20 m/s, alcance 10 m);
+  - al dar con un enemigo (le hace el daño del arma), con una pared o al llegar a su alcance, se queda **girando en el sitio** y hace daño en área (radio 1,8 m, la mitad del daño cada 0,2 s) durante 2 s;
+  - después sigue girando despacio, flotando y con una luz que late, **hasta que Garri se acerca a recogerla** (1,6 m).
+  - Mientras está lanzada, Garri no tiene hacha: ni lanza otra ni gira, y la mano queda vacía. Si el hacha desaparece (cambio de nivel), vuelve a la mano.
+- **Click derecho: giro de 360°** (`axe_spin`): golpea a todos en 2,4 m con el daño del arma y empuja 7 (enfriamiento de 0,8 s). Solo con el hacha en la mano.
+- **Al recogerla: giro potenciado** automático (`axe_spin_power`, salto y golpe al suelo): 3,4 m, el doble de daño y el doble de empuje (14), temblor y hitstop.
+- Los dos giros aprovechan el +50 % del parry.
+- **Hacha en la mano:** `PlayerWeaponVisuals.attach_axe_to_hand` (modelo `axe_guitar.glb` a 0,032, mástil en el puño y la hoja hacia fuera, unos 1,3 m).
+- **Animaciones:** 3 clips nuevos sobre Garri en Blender (escena `Garri_Anims`, biblioteca `garri_lib`; en los giros la cadera gira al final para que los brazos sigan en cruz). Van en `WeaponAnimSets.ACTION_SETS[SPINNING_AXE]`, así que sirven para cualquier personaje que lleve el hacha.
+
+Medido (`tests/test_garri_axe.tscn`, más capturas: hacha en la mano, lanzamiento, hacha esperando, giro y giro potenciado):
+| Prueba | Resultado |
+|---|---|
+| Garri empieza con el hacha en la mano y sus 3 clips | [VERIFICADO] |
+| Lanzar | el hacha sale, la mano queda vacía, da al goblin a 5 m y se queda girando [VERIFICADO] |
+| Hacha girando | sigue dañando en área; sin hacha no se lanza otra ni se gira; a los 2 s pasa a esperar [VERIFICADO] |
+| Recoger | vuelve a la mano y hace el giro potenciado: 15,3 de daño (el doble de 7,65) y empuje de 11,4 [VERIFICADO] |
+| Giro normal | 7,6 delante y 7,6 detrás; enfriamiento [VERIFICADO] |
+| Regresión | las otras 9 pruebas pasan (`test_dungeon_mage` ahora quita el escudo, que a veces absorbía parte del orbe); humo de ambos modos con Garri sin errores [VERIFICADO] |
+
+Pendiente: verlo jugando (ritmo, alcance de recogida, si el giro normal debe tener más enfriamiento) y un indicador de dónde quedó el hacha si está fuera de la vista.
+
+**Corrección (2026-10-28): hacha suelta de la mano y estela.**
+- **El hacha no estaba en la mano.** Dentro del `axe_guitar.glb` el modelo va girado: el mástil va a lo largo de −Z (de z = −8 junto a la hoja a −31,9 en la punta) y no de +Y, como se había supuesto. Al "darle la vuelta" y desplazarla en Y, en realidad se movía de lado, a unos 0,8 m del puño.
+  - Ahora se gira para que el mástil apunte a +Y del agarre (como el asta de la espalanza), con la punta del mástil 20 cm por detrás del puño y el agarre en la palma.
+  - Medido: el mástil pasa a 5 mm del hueso de la mano en reposo y a mitad del giro.
+  - En vuelo (`DungeonAxe`) el modelo se centra sobre su mitad, con la misma corrección.
+- **Estela de supervivencia:** `scripts/objects/axe_ribbon.gd` (`AxeRibbon`) reproduce las dos cintas fucsia del hacha de supervivencia (`RibbonTrail3D` + `ribbon_mesh.gdshader`: trayectoria y punta de la hoja), con los mismos anchos, duraciones y colores.
+  - El hacha lanzada lleva las dos siempre, más el zumbido del giro de supervivencia.
+  - En la mano, la estela de la punta sale durante los giros (0,5 s; 0,7 s el potenciado).
+  - El anillo del giro y la luz del hacha pasan a fucsia.
+
+Verificado con capturas (en la mano, giro y vuelo) y con las 10 pruebas.

@@ -1,12 +1,12 @@
 extends Control
 
 # Crosshair / Reticle settings
-@export var base_gap: float = 7.0
-@export var line_length: float = 10.0
-@export var line_width: float = 2.0
-@export var dot_radius: float = 2.0
+@export var base_gap: float = 5.0
+@export var line_length: float = 6.0
+@export var line_width: float = 1.6
+@export var dot_radius: float = 1.3
 
-@export var reticle_color: Color = Color(0.2, 0.92, 1.0, 0.95) # Cyan neon color
+@export var reticle_color: Color = Color(1.0, 1.0, 1.0, 0.92) # Blanco limpio (estilo Deadlock)
 @export var outline_color: Color = Color(0.0, 0.0, 0.0, 0.75) # High contrast dark outline
 @export var flash_color: Color = Color(1.0, 0.95, 0.4, 1.0) # Bright gold/white flash on kickback
 
@@ -20,6 +20,10 @@ var _on_enemy := 0.0
 var _hit_marker := 0.0
 var _hit_kill := false
 var _last_hit_seen := -1
+
+## Mazmorra: la mira se abre al moverse (hasta MOVE_SPREAD px) y se cierra al quedarse quieto.
+const MOVE_SPREAD := 6.0
+var _move_spread := 0.0
 
 var current_kickback: float = 0.0
 var flash_intensity: float = 0.0
@@ -65,6 +69,14 @@ func _dungeon_update(delta: float) -> bool:
 		target = 1.0 if aim_ctrl.get_dungeon_aim().get("enemy") != null else 0.0
 	var before := _on_enemy
 	_on_enemy = move_toward(_on_enemy, target, delta * 8.0)
+	var speed_ratio := 0.0
+	if _player is CharacterBody3D:
+		var v: Vector3 = (_player as CharacterBody3D).velocity
+		speed_ratio = clampf(Vector2(v.x, v.z).length() / maxf(float(_player.get("move_speed")), 0.1), 0.0, 1.6)
+	var prev_spread := _move_spread
+	_move_spread = lerpf(_move_spread, speed_ratio * MOVE_SPREAD, 1.0 - exp(-10.0 * delta))
+	if absf(_move_spread - prev_spread) > 0.01:
+		before = -1.0
 	if HitFeedback.last_hit_ms != _last_hit_seen:
 		if _last_hit_seen != -1 or HitFeedback.last_hit_ms > 0:
 			_hit_marker = 1.0
@@ -98,7 +110,7 @@ func trigger_kickback(weapon_type: int = -1, strength_mult: float = 1.0) -> void
 	queue_redraw()
 
 func _draw() -> void:
-	var gap = base_gap + current_kickback - 2.5 * _on_enemy
+	var gap = base_gap + _move_spread + current_kickback - 1.5 * _on_enemy
 	var active_color = reticle_color.lerp(enemy_color, _on_enemy).lerp(flash_color, flash_intensity)
 	
 	# Outline line width (slightly thicker than inner line for high contrast visibility)

@@ -142,18 +142,13 @@ func _on_spawn_tick() -> void:
 func _random_spawn_pos() -> Vector3:
 	var player_pos = player.global_position if player else Vector3.ZERO
 	var main_node = get_tree().current_scene
-	var spawn_pos: Vector3 = player_pos
-	for attempt in range(15):
-		# Cerca del jugador para que no aparezcan donde el terreno aún no tiene colisiones
-		var dist = randf_range(8.0, 16.0)
-		var angle = randf_range(0, TAU)
-		var px = clamp(player_pos.x + cos(angle) * dist, PLAYABLE_MIN_X, PLAYABLE_MAX_X)
-		var pz = clamp(player_pos.z + sin(angle) * dist, PLAYABLE_MIN_Z, PLAYABLE_MAX_Z)
-		var py = (main_node.get_floor_y(px, pz) if main_node.has_method("get_floor_y") else 0.0)
-		spawn_pos = Vector3(px, py, pz)
-		if spawn_pos.distance_to(player_pos) > 15.0:
-			break
-	return spawn_pos
+	# Anillo perimetral de 16 a 24 m en 360° alrededor del jugador
+	var theta := randf_range(0.0, TAU)
+	var dist := randf_range(16.0, 24.0)
+	var px: float = clamp(player_pos.x + cos(theta) * dist, PLAYABLE_MIN_X, PLAYABLE_MAX_X)
+	var pz: float = clamp(player_pos.z + sin(theta) * dist, PLAYABLE_MIN_Z, PLAYABLE_MAX_Z)
+	var py: float = (main_node.get_floor_y(px, pz) if main_node.has_method("get_floor_y") else 0.0)
+	return Vector3(px, py, pz)
 
 ## Tabla de enemigos vigente: el último tramo cuyo "from" (segundos) ya pasó.
 func _current_pool() -> Array:

@@ -69,6 +69,14 @@ func _setup_dungeon_encounter() -> void:
 	enc.name = "DungeonEncounter"
 	_scene_root.add_child(enc)
 	enc.setup(map, _player)
+	if Net.is_online():
+		var old_nw := _scene_root.get_node_or_null("NetWorld")
+		if old_nw:
+			old_nw.queue_free()
+		var nw := NetWorld.new()
+		_scene_root.add_child(nw)
+		nw.setup(_player, enc)
+		_player.global_position += enc._slot_offset()
 
 ## Tapa negra mientras se genera el mundo: evita ver la escena vacía y que la
 ## música/el jugador aparezcan antes que el entorno.
@@ -229,5 +237,4 @@ func _reset_player_position_and_stats() -> void:
 	if _player is CharacterBody3D:
 		_player.velocity = Vector3.ZERO
 	_player.hp     = _player.max_hp
-	_player.shield = _player.max_shield
-	_player.emit_signal("stats_changed", _player.hp, _player.max_hp, _player.shield, _player.max_shield)
+	_player.emit_signal("stats_changed", _player.hp, _player.max_hp)

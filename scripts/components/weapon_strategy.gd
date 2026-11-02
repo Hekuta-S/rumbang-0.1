@@ -115,7 +115,7 @@ class EnergySwordStrategy extends WeaponStrategy:
 			"core_color": Color(0.9, 0.98, 1.0, 1.0),
 			"zoom": 0.75,
 			"emission_strength": 4.0,
-		})
+		}, SLASH_VFX.DURATION, null, c.player)
 
 
 class TriShotgunStrategy extends WeaponStrategy:
@@ -201,7 +201,7 @@ class TriShotgunStrategy extends WeaponStrategy:
 		base_dir = base_dir.normalized()
 
 		c.player.orient_player_to_aim(aim_point)
-		AudioManager.play("disparo-escopeta", -10.0)
+		AudioManager.play("shot_shotgun", -5.0, randf_range(0.96, 1.04))
 
 		var mods: Dictionary = c.player.get_weapon_modifiers(W)
 		var dmg: float = c.player._weapon_damage(W) * dmg_mult
@@ -364,6 +364,9 @@ class RailgunStrategy extends WeaponStrategy:
 			spawn_railgun_hit_sparks(end_pos, ray_res.normal)
 	
 		var railgun_color = Color(0.95, 0.2, 1.0)
+		AudioManager.play("shot_rail", -4.0, randf_range(0.97, 1.03))
+		if not ray_res.is_empty():
+			AudioManager.play_at("proj_hit_wall", end_pos, -4.0, randf_range(0.8, 0.9))
 		create_railgun_visual(start_pos, end_pos)
 		c.player.apply_camera_recoil(0.065, randf_range(-0.015, 0.015), 0.18)
 		c.player.create_muzzle_flash(railgun_color, 1.8)
@@ -407,6 +410,8 @@ class SpearLanceStrategy extends WeaponStrategy:
 	## frente, atrás, derecha, izquierda y luego las 4 diagonales.
 	const BLADE_ANGLES: Array[float] = [0.0, 180.0, 90.0, -90.0, 45.0, -45.0, 135.0, -135.0]
 	const MAX_BLADES: int = 8
+	## El clavado del salto (tercer golpe del combo) pega mucho más fuerte que los ligeros.
+	const ATTACK3_DAMAGE_MULT := 2.4
 
 	var _active_hitbox: Node3D = null
 	var _anim_connected: bool = false
@@ -428,6 +433,11 @@ class SpearLanceStrategy extends WeaponStrategy:
 			_active_hitbox.queue_free()
 			_active_hitbox = null
 
+		# Con objetivo fijado el golpe sale hacia él, aunque el movimiento haya girado al personaje.
+		# Sin él, una pequeña ayuda corrige la puntería hacia el enemigo más alineado (y cercano).
+		if not c.face_locked_target():
+			c.assist_spear_facing()
+
 		var mods: Dictionary = c.player.get_weapon_modifiers(WeaponData.WeaponType.SPEAR_LANCE)
 		var base_dmg = c.player._weapon_damage(WeaponData.WeaponType.SPEAR_LANCE)
 		var dmg = base_dmg
@@ -435,21 +445,37 @@ class SpearLanceStrategy extends WeaponStrategy:
 		var box_size = Vector3(1.0, 1.0, 1.8) * float(mods.get("size", 1.0))
 		var offset = Vector3(0, 0.8, -1.3)
 
+		# Combo: estocada (1) → dos tajos horizontales (2) → salto y clavado en el suelo (3, el más fuerte)
+		var shake := 0.14
+		var stop := 0.0
 		if anim_name == "attack1":
 			dmg = base_dmg
-			kb = 6.0
-			box_size = Vector3(1.0, 1.0, 1.8) * float(mods.get("size", 1.0))
-			offset = Vector3(0, 0.8, -1.3)
+			kb = 7.0
+			box_size = Vector3(0.9, 1.0, 2.4) * float(mods.get("size", 1.0))
+			offset = Vector3(0, 0.8, -1.7)
 		elif anim_name == "attack2":
-			dmg = base_dmg * 0.95
+			dmg = base_dmg * 0.85           # dos tajos: cada uno un poco menos
+			kb = 6.0
+			box_size = Vector3(3.6, 1.0, 1.8) * float(mods.get("size", 1.0))
+			offset = Vector3(0, 0.8, -1.1)
+			shake = 0.2
+		elif anim_name == "attack4":
+			dmg = base_dmg * 0.95           # slash giratorio: alrededor de Mikeura
 			kb = 5.0
 			box_size = Vector3(2.6, 1.0, 2.6) * float(mods.get("size", 1.0))
 			offset = Vector3(0, 0.8, 0.0)
+			shake = 0.2
 		elif anim_name == "attack3":
-			dmg = base_dmg * 1.5
-			kb = 10.0
-			box_size = Vector3(1.8, 1.4, 2.0) * float(mods.get("size", 1.0))
-			offset = Vector3(0, 0.8, -1.6)
+			dmg = base_dmg * ATTACK3_DAMAGE_MULT
+			kb = 14.0
+			box_size = Vector3(2.8, 1.6, 3.0) * float(mods.get("size", 1.0))
+			offset = Vector3(0, 0.8, -1.4)
+			shake = 0.65
+			stop = 0.07
+
+		# Tras un parry, el siguiente golpe hace más daño (se consume aquí)
+		if c.player.has_method("parry_bonus_mult"):
+			dmg *= c.player.parry_bonus_mult()
 
 		var spear_scene = preload("res://scenes/objects/spear_lance_hitbox.tscn").instantiate()
 		c.player.mesh.add_child(spear_scene)
@@ -461,10 +487,52 @@ class SpearLanceStrategy extends WeaponStrategy:
 		spear_scene.source_player = c.player
 		spear_scene.setup(dmg, 0.35, kb, -c.player.mesh.global_transform.basis.z.normalized())
 		_active_hitbox = spear_scene
+		# Peso del golpe: sacudida de cámara y, en el clavado, una breve congelación del impacto
+		HitFeedback.shake(shake)
+		if stop > 0.0:
+			HitFeedback.freeze(stop)
+		_play_swing_sound(anim_name)
+		if anim_name == "attack3":
+			_slam_effects(spear_scene.global_position, box_size.x)
 
 		var trail: BladeTrail = c.player.weapon_visuals.spear_trail if c.player.weapon_visuals else null
 		if is_instance_valid(trail) and trail.is_visible_in_tree():
 			trail.emit(0.4)
+
+	## Sonido del golpe sincronizado con el instante en que la hoja corta (no al pulsar): silbido propio de
+	## cada golpe del combo (ver tools/generate_swing_sfx.gd) con un poco de variación de tono.
+	func _play_swing_sound(anim_name: String) -> void:
+		var pitch := randf_range(0.93, 1.07)
+		match anim_name:
+			"attack1":
+				AudioManager.play("swing_light", -3.0, pitch)
+				AudioManager.play("ataque-espalanza", -15.0, 1.15 * pitch)
+			"attack2":
+				AudioManager.play("swing_sweep", -2.0, pitch)
+			"attack4":
+				AudioManager.play("swing_spin", -2.0, pitch)
+			"attack3":
+				AudioManager.play("slam_boom", 1.0, pitch)
+				AudioManager.play("impact_blunt", -6.0, 0.6)
+			_:
+				AudioManager.play("swing_sweep", -4.0, pitch)
+
+	## Clavado del salto: onda expansiva verde en el suelo y polvo levantado.
+	func _slam_effects(at: Vector3, radius: float) -> void:
+		var root := c.player.get_tree().current_scene
+		if root == null:
+			return
+		var ground := Vector3(at.x, c.player.global_position.y + 0.05, at.z)
+		NecroVFX.shockwave(root, ground, radius * 1.4, Color(0.3, 1.0, 0.55))
+		var dust := DustVFX.haze(Quality.count(22), 0.9, radius * 0.6, 0.6, 1.4, Color(0.75, 0.68, 0.55), 0.3)
+		dust.one_shot = true
+		dust.explosiveness = 0.95
+		dust.initial_velocity_min = 1.5
+		dust.initial_velocity_max = 3.5
+		root.add_child(dust)
+		dust.global_position = ground + Vector3(0, 0.15, 0)
+		dust.emitting = true
+		root.get_tree().create_timer(1.4).timeout.connect(dust.queue_free)
 
 	func _on_dungeon_hit_closed(_attack_id: int) -> void:
 		if is_instance_valid(_active_hitbox):
@@ -490,8 +558,9 @@ class SpearLanceStrategy extends WeaponStrategy:
 		var slash_side = c._melee_swing_side
 		c._melee_swing_side = -c._melee_swing_side
 		
-		# Slower, deeper sound for a larger sweep
-		AudioManager.play("ataque-espalanza", -10.0, 0.85)
+		# En la mazmorra el sonido sale con el golpe de la animación (_play_swing_sound); aquí solo en supervivencia
+		if GameData.game_mode != "dungeon":
+			AudioManager.play("ataque-espalanza", -10.0, 0.85)
 	
 		var weapon_model: Node3D = c.player.weapon_models.get(WeaponData.WeaponType.SPEAR_LANCE)
 		if is_instance_valid(weapon_model) and not weapon_model.has_meta("in_hand"):
@@ -579,6 +648,10 @@ class SpearLanceStrategy extends WeaponStrategy:
 			return
 		var mods: Dictionary = c.player.get_weapon_modifiers(WeaponData.WeaponType.SPEAR_LANCE)
 		var dmg = c.player._weapon_damage(WeaponData.WeaponType.SPEAR_LANCE)
+		if index == 0:
+			# Pequeña ayuda de apuntado (supervivencia): en mazmorra ya la aplica el golpe animado.
+			if not c.face_locked_target():
+				c.assist_spear_facing()
 		var forward_dir: Vector3 = -c.player.mesh.global_transform.basis.z.normalized()
 		var player_pos: Vector3 = c.player.global_position
 		var blade_dir: Vector3 = forward_dir.rotated(Vector3.UP, deg_to_rad(BLADE_ANGLES[index]))
@@ -622,7 +695,7 @@ class SpearLanceStrategy extends WeaponStrategy:
 			"thickness": 0.34,
 			"trail_length": 1.15,
 			"curve": 0.32,
-		}, SLASH_VFX.DURATION * speed_factor, SPEAR_SLASH_SHADER)
+		}, SLASH_VFX.DURATION * speed_factor, SPEAR_SLASH_SHADER, c.player)
 
 	## Flamethrower fire effect: a hot white-yellow inner core plus an outer
 	## cone of orange flames streaming out of the nozzle, lit by a flickering
@@ -659,10 +732,18 @@ class SpearLanceStrategy extends WeaponStrategy:
 	func throw_spear_charged(power: float) -> void:
 		if c.player.current_weapon() != WeaponData.WeaponType.SPEAR_LANCE: return
 		c.attack_cooldown = c.SPEAR_THROW_CD * 0.6
+		c.face_locked_target()
+		var target = c.player.get("auto_combat_target")
+		# Mazmorra: el objetivo fijado manda sobre el combate automático
+		var lock = c.player.get("target_lock")
+		if lock != null and lock.has_target():
+			target = lock.target
+		# Sin objetivo fijado, pequeña ayuda: engancha al enemigo más alineado del cono corto.
+		if not is_instance_valid(target):
+			target = c.face_aim_assist_enemy()
 		var forward: Vector3 = -c.player.mesh.global_transform.basis.z
 		forward.y = 0.0
 		var aim_dir := forward.normalized()
-		var target = c.player.get("auto_combat_target")
 		var start_pos: Vector3 = c.player.global_position + Vector3(0, 1.3, 0) + aim_dir * 0.6
 		if is_instance_valid(target):
 			aim_dir = ((target.global_position + Vector3(0, 0.9, 0)) - start_pos).normalized()
@@ -893,9 +974,7 @@ class SporeBazookaStrategy extends WeaponStrategy:
 				c.player.animation_controller.play_held_shot()
 		aim_dir = aim_dir.rotated(Vector3.UP, deg_to_rad(SHOT_ANGLES[index]))
 
-		var b_stream = AudioManager.get_stream("tiro_bazuca")
-		var b_start_time = b_stream.get_length() * 0.10 if b_stream else 0.0
-		AudioManager.play("tiro_bazuca", -10.0 if index == 0 else -14.0, 1.0 + 0.05 * float(index), b_start_time)
+		AudioManager.play("shot_launcher", -4.0 if index == 0 else -9.0, randf_range(0.96, 1.04) + 0.05 * float(index))
 
 		var data: WeaponData = c.player.get_weapon_data(WeaponData.WeaponType.SPORE_BAZOOKA)
 		var dmg = c.player._weapon_damage(WeaponData.WeaponType.SPORE_BAZOOKA) * c.spore_damage_mult
@@ -982,8 +1061,8 @@ class SporeBazookaStrategy extends WeaponStrategy:
 		puff.global_position = from
 		puff.emitting = true
 		puff.get_tree().create_timer(1.0).timeout.connect(puff.queue_free)
-		AudioManager.play("tiro_bazuca", -6.0, 1.45)
-		AudioManager.play_at("explosion_bits", from, -4.0, 1.3)
+		AudioManager.play("shot_launcher", -4.0, 1.3)
+		AudioManager.play_at("spore_burst", from, -3.0, 1.15)
 		HitFeedback.shake(0.35)
 		c.player.apply_camera_recoil(0.05, randf_range(-0.01, 0.01), 0.2)
 
@@ -1328,7 +1407,158 @@ class SpinningAxeStrategy extends WeaponStrategy:
 	static func axe_count(mods: Dictionary) -> int:
 		return clampi(1 + int(mods.get("quantity_bonus", 0)), 1, MAX_AXES)
 
+	## ── Mazmorra ──
+	## Click izquierdo: lanza UNA hacha (DungeonAxe) que se queda girando donde cae; hasta recogerla
+	## no se puede atacar. Click derecho: giro de 360° con el hacha en la mano. Al recogerla: giro
+	## potenciado automático (más radio, el doble de daño y más empuje).
+	const THROW_RELEASE := 0.27           ## segundo del clip en que el hacha sale de la mano
+	const SPIN_COOLDOWN := 0.8
+	const SPIN := {"radius": 2.4, "mult": 1.0, "kb": 7.0, "hit_at": 0.2, "clip": "axe_spin"}
+	const SPIN_POWER := {"radius": 3.4, "mult": 2.0, "kb": 14.0, "hit_at": 0.55, "clip": "axe_spin_power"}
+	const AXE_COLOR := Color(1.0, 0.25, 0.6)      ## fucsia, como la estela de supervivencia
+	var _thrown: DungeonAxe
+	var _spin_ready_at := 0.0
+
+	func _dungeon_throw() -> void:
+		if c.is_axe_thrown:
+			return
+		var W := WeaponData.WeaponType.SPINNING_AXE
+		var data = c.player.get_weapon_data(W)
+		c.attack_cooldown = 0.5
+		var aim_point = c.player.get_camera_aim_point()
+		c.player.orient_player_to_aim(aim_point)
+		var anim = c.player.animation_controller
+		if anim:
+			anim.play_action("axe_throw")
+		c.is_axe_thrown = true
+		c.player.get_tree().create_timer(THROW_RELEASE).timeout.connect(func():
+			if not is_instance_valid(c.player) or not c.player.is_inside_tree():
+				return
+			var fwd: Vector3 = -c.player.mesh.global_transform.basis.z
+			var from: Vector3 = c.player.global_position + Vector3(0, DungeonAxe.HEIGHT, 0) + fwd * 0.6
+			var aim: Vector3 = c.player.get_camera_aim_point() - from
+			aim.y = 0.0
+			var dir: Vector3 = aim.normalized() if aim.length_squared() > 0.25 else fwd
+			var mods: Dictionary = c.player.get_weapon_modifiers(W)
+			dir = _soft_aim(from, dir, data.weapon_range * float(mods.get("size", 1.0)))
+			_thrown = DungeonAxe.throw(c.player.get_parent(), from, dir, data.projectile_speed, data.weapon_range * float(mods.get("size", 1.0)), c.player._weapon_damage(W))
+			_thrown.picked_up.connect(_on_picked_up)
+			_thrown.tree_exiting.connect(func():
+				# Si desaparece sin recogerla (cambio de nivel), vuelve a la mano
+				if c.is_axe_thrown and is_instance_valid(c.player):
+					c.is_axe_thrown = false
+					c.player.update_weapon_visuals())
+			c.player.update_weapon_visuals()
+			AudioManager.play("melee_swing", -4.0, 0.8))
+
+	const SOFT_AIM_DEG := 30.0
+
+	## Apuntado suave del lanzamiento: hacia el objetivo fijado, o hacia el enemigo más alineado con
+	## `dir` (dentro de SOFT_AIM_DEG y del alcance). La cámara va al hombro y sin esto el hacha sale
+	## desviada unos grados respecto al centro de la pantalla.
+	func _soft_aim(from: Vector3, dir: Vector3, reach: float) -> Vector3:
+		var lock = c.player.get("target_lock")
+		if lock and lock.has_target():
+			var to_t: Vector3 = lock.target.global_position - from
+			to_t.y = 0.0
+			if to_t.length_squared() > 0.01:
+				return to_t.normalized()
+		var best := dir
+		var best_dot := cos(deg_to_rad(SOFT_AIM_DEG))
+		for e in EnemyRegistry.all():
+			if not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			var to_e: Vector3 = e.global_position - from
+			to_e.y = 0.0
+			var d := to_e.length()
+			if d < 0.3 or d > reach:
+				continue
+			var dot := dir.dot(to_e / d)
+			if dot > best_dot:
+				best_dot = dot
+				best = to_e / d
+		return best
+
+	func _on_picked_up() -> void:
+		c.is_axe_thrown = false
+		_thrown = null
+		c.player.update_weapon_visuals()
+		# Recogerla con el hacha equipada suelta el giro potenciado
+		if c.player.current_weapon() == WeaponData.WeaponType.SPINNING_AXE:
+			_do_spin(SPIN_POWER)
+
+	## Giro de 360° (click derecho). Devuelve true si se hizo.
+	func spin(_power: bool) -> bool:
+		var now := Time.get_ticks_msec() / 1000.0
+		if c.is_axe_thrown or now < _spin_ready_at or c.spear_charge >= 0.0:
+			return false
+		var mc = c.player.movement_controller
+		if mc and mc.is_dodging():
+			return false
+		_spin_ready_at = now + SPIN_COOLDOWN
+		_do_spin(SPIN)
+		return true
+
+	func _do_spin(cfg: Dictionary) -> void:
+		var anim = c.player.animation_controller
+		if anim:
+			anim.play_action(cfg["clip"])
+		# Estela fucsia de la hoja durante el giro (la misma que la del hacha de supervivencia)
+		var wv = c.player.weapon_visuals
+		if wv and is_instance_valid(wv.axe_trail):
+			wv.axe_trail.emit(0.7 if cfg == SPIN_POWER else 0.5)
+		AudioManager.play("melee_swing", -2.0, 0.7 if cfg == SPIN_POWER else 0.95)
+		c.player.get_tree().create_timer(float(cfg["hit_at"])).timeout.connect(_spin_hit.bind(cfg))
+
+	func _spin_hit(cfg: Dictionary) -> void:
+		if not is_instance_valid(c.player) or not c.player.is_inside_tree():
+			return
+		var W := WeaponData.WeaponType.SPINNING_AXE
+		var center: Vector3 = c.player.global_position
+		var dmg: float = c.player._weapon_damage(W) * float(cfg["mult"])
+		if c.player.has_method("parry_bonus_mult"):
+			dmg *= c.player.parry_bonus_mult()
+		var radius: float = cfg["radius"]
+		var hits := 0
+		for e in EnemyRegistry.all():
+			if not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			var off: Vector3 = e.global_position - center
+			var hr = e.get("hit_radius")
+			if absf(off.y) > 2.0 or Vector2(off.x, off.z).length() > radius + (float(hr) if hr != null else 0.5):
+				continue
+			var out := Vector3(off.x, 0.0, off.z)
+			out = out.normalized() if out.length_squared() > 0.0001 else -c.player.mesh.global_transform.basis.z
+			HitFeedback.weapon_tag = W
+			e.take_damage(dmg, out * float(cfg["kb"]))
+			hits += 1
+		var power: bool = cfg == SPIN_POWER
+		var root := c.player.get_tree().current_scene
+		if root:
+			NecroVFX.shockwave(root, center + Vector3(0, 0.1, 0), radius, AXE_COLOR)
+			var s := DustVFX.sparkles(30 if power else 18, 0.45, radius * 0.7, 0.08, 0.2, AXE_COLOR)
+			s.one_shot = true
+			s.explosiveness = 1.0
+			s.initial_velocity_min = 2.0
+			s.initial_velocity_max = 5.0 if power else 3.0
+			root.add_child(s)
+			s.global_position = center + Vector3(0, 0.8, 0)
+			s.emitting = true
+			root.get_tree().create_timer(0.9).timeout.connect(s.queue_free)
+		if power:
+			HitFeedback.shake(0.45)
+			HitFeedback.freeze(0.06)
+			AudioManager.play("impact_blunt", -1.0, 0.7)
+		elif hits > 0:
+			AudioManager.play("impact_slash", -3.0, 1.0)
+
+	func thrown_axe() -> DungeonAxe:
+		return _thrown if is_instance_valid(_thrown) else null
+
 	func attack(cd_mult: float) -> void:
+		if GameData.game_mode == "dungeon":
+			_dungeon_throw()
+			return
 		var W := WeaponData.WeaponType.SPINNING_AXE
 		var data = c.player.get_weapon_data(W)
 		c.attack_cooldown = data.base_cooldown * cd_mult

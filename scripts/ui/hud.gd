@@ -5,8 +5,6 @@ signal restart_pressed
 @onready var hp_bar: ProgressBar = $Control/StatsPanel/Margin/VBox/BarsWithPortrait/DomeClipping/BarsHBox/HPBar
 @onready var hp_label: Label = $Control/StatsPanel/Margin/VBox/BarsWithPortrait/LabelsHBox/HPLabel
 
-@onready var shield_bar: ProgressBar = $Control/StatsPanel/Margin/VBox/BarsWithPortrait/DomeClipping/BarsHBox/ShieldBar
-@onready var shield_label: Label = $Control/StatsPanel/Margin/VBox/BarsWithPortrait/LabelsHBox/ShieldLabel
 
 @onready var floor_label: Label = $Control/TopRight/FloorPanel/Margin/FloorLabel
 @onready var gold_label: Label = $Control/TopRight/GoldPanel/Margin/GoldLabel
@@ -40,21 +38,43 @@ var weapon_textures: Dictionary = {
 }
 @onready var stats_panel: Control = $Control/StatsPanel
 var _last_stats: Array = []
+## Panel de vida (abajo a la izquierda); sustituye a las barras verticales de StatsPanel
+var vitals: VitalsPanel
 
 func _ready() -> void:
 	# Ya no hay pisos: se oculta el panel de nivel (el cronómetro es la referencia)
 	if floor_label:
 		floor_label.get_parent().get_parent().visible = false
 	_create_fps_label()
+	vitals = VitalsPanel.new()
+	vitals.name = "VitalsPanel"
+	$Control.add_child(vitals)
+	var bars := ResourceBars.new()
+	bars.name = "ResourceBars"
+	$Control.add_child(bars)
+	if Quality.is_mobile():
+		_create_pause_button()
+	var minimap := Minimap.new()
+	minimap.name = "Minimap"
+	$Control.add_child(minimap)
+	if Net.is_online():
+		var team := TeamPanel.new()
+		team.name = "TeamPanel"
+		$Control.add_child(team)
+	if stats_panel:
+		stats_panel.visible = false
 	call_deferred("_connect_to_player")
+	_style_end_screens()
+	if time_label:
+		RumbangStyle.style_title(time_label, 20)
 
 func _process(delta: float) -> void:
 	if is_instance_valid(fps_label):
 		fps_label.text = "FPS: %d" % Engine.get_frames_per_second()
-	if GameData.game_mode == "dungeon":
+	if GameData.game_mode == "dungeon" and stats_panel and stats_panel.visible:
 		_follow_player_with_stats(delta)
 
-## Mazmorra (cámara al hombro): el panel de vida/escudo sigue al personaje en horizontal,
+## Mazmorra (cámara al hombro): el panel de vida sigue al personaje en horizontal,
 ## manteniendo la misma separación que tenía con el personaje centrado.
 var _stats_base_x := NAN
 func _follow_player_with_stats(delta: float) -> void:
@@ -73,11 +93,31 @@ func _follow_player_with_stats(delta: float) -> void:
 	var want := _stats_base_x + dx
 	stats_panel.position.x = lerpf(stats_panel.position.x, want, 1.0 - exp(-18.0 * delta))
 
+## Botón de pausa táctil (arriba a la derecha): abre el menú de pausa, que en el móvil no tiene tecla Esc.
+func _create_pause_button() -> void:
+	var b := Button.new()
+	b.name = "PauseButton"
+	b.text = "II"
+	b.focus_mode = Control.FOCUS_NONE
+	b.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	b.offset_left = -92.0
+	b.offset_right = -20.0
+	b.offset_top = 58.0
+	b.offset_bottom = 130.0
+	b.add_theme_font_size_override("font_size", 28)
+	b.theme = RumbangStyle.get_theme()
+	b.modulate.a = 0.85
+	b.pressed.connect(func():
+		var pm := get_tree().root.find_child("PauseMenu", true, false)
+		if pm and pm.has_method("open_menu") and not pm.visible:
+			pm.open_menu())
+	$Control.add_child(b)
+
 func _create_fps_label() -> void:
 	fps_label = Label.new()
 	fps_label.text = "FPS: 0"
-	fps_label.add_theme_font_size_override("font_size", 20)
-	fps_label.add_theme_color_override("font_color", Color(0, 1, 0)) # Verde
+	fps_label.add_theme_font_size_override("font_size", 12)
+	fps_label.add_theme_color_override("font_color", Color(RumbangStyle.NEON_CYAN, 0.8))
 	fps_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
 	fps_label.add_theme_constant_override("outline_size", 4)
 	
@@ -86,6 +126,7 @@ func _create_fps_label() -> void:
 	fps_label.anchor_right = 1.0
 	fps_label.anchor_top = 0.0
 	fps_label.anchor_bottom = 0.0
+	
 	
 	fps_label.offset_left = -150
 	fps_label.offset_right = -20
@@ -111,11 +152,13 @@ func trigger_crosshair_kickback(weapon_type: int = -1, strength: float = 1.0) ->
 
 
 
-func update_stats(hp: float, max_hp: float, shield: float, max_shield: float) -> void:
-	var stats := [hp, max_hp, shield, max_shield]
+func update_stats(hp: float, max_hp: float) -> void:
+	var stats := [hp, max_hp]
 	if stats == _last_stats:
 		return
 	_last_stats = stats
+	if vitals:
+		vitals.set_values(hp, max_hp)
 
 	if hp_bar:
 		hp_bar.max_value = max_hp
@@ -123,11 +166,6 @@ func update_stats(hp: float, max_hp: float, shield: float, max_shield: float) ->
 	if hp_label:
 		hp_label.text = str(int(ceil(hp)))
 
-	if shield_bar:
-		shield_bar.max_value = max_shield
-		shield_bar.value = shield
-	if shield_label:
-		shield_label.text = str(int(ceil(shield)))
 
 func update_xp(_level: int, current_xp: float, required_xp: float) -> void:
 	if xp_bar:
@@ -223,12 +261,73 @@ func update_gold(gold: int) -> void:
 func show_game_over() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	if game_over_screen:
-		game_over_screen.visible = true
+		_reveal_end_screen(game_over_screen)
 
 func show_victory() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	if victory_screen:
-		victory_screen.visible = true
+		_reveal_end_screen(victory_screen)
+
+## Pantallas de fin (caída y victoria) con el estilo común: panel con marco, título con brillo y una línea con
+## el tiempo y el oro de la partida. Se construye una vez, al empezar.
+func _style_end_screens() -> void:
+	for pair in [[game_over_screen, RumbangStyle.DANGER, RumbangStyle.NEON_MAGENTA, "Tu cuerpo se desvanece en la oscuridad…"],
+			[victory_screen, Color(0.45, 1.0, 0.6), RumbangStyle.NEON_CYAN, "La mazmorra guarda silencio."]]:
+		var screen: Control = pair[0]
+		if screen == null:
+			continue
+		screen.theme = RumbangStyle.get_theme()
+		var bg := screen.get_node_or_null("ColorRect") as ColorRect
+		if bg:
+			bg.color = Color(0.02, 0.01, 0.05, 0.82)
+		var vb := screen.get_node_or_null("VBox") as VBoxContainer
+		if vb == null:
+			continue
+		var panel := PanelContainer.new()
+		panel.name = "EndPanel"
+		panel.set_anchors_preset(Control.PRESET_CENTER)
+		panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+		panel.custom_minimum_size = Vector2(460, 0)
+		screen.add_child(panel)
+		screen.remove_child(vb)
+		panel.add_child(vb)
+		vb.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		vb.add_theme_constant_override("separation", 14)
+		var title := vb.get_node_or_null("Title") as Label
+		if title:
+			RumbangStyle.style_title(title, 30, pair[1], pair[2])
+		var sub := Label.new()
+		sub.name = "Sub"
+		sub.text = pair[3]
+		sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		sub.add_theme_color_override("font_color", RumbangStyle.TEXT_DIM)
+		sub.add_theme_font_size_override("font_size", 11)
+		vb.add_child(sub)
+		vb.move_child(sub, 1)
+		var stats := Label.new()
+		stats.name = "Stats"
+		stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		stats.add_theme_color_override("font_color", RumbangStyle.ACCENT)
+		stats.add_theme_font_size_override("font_size", 13)
+		vb.add_child(stats)
+		vb.move_child(stats, 2)
+		NeonFrame.attach(panel, pair[2])
+
+func _reveal_end_screen(screen: Control) -> void:
+	var stats := screen.find_child("Stats", true, false) as Label
+	if stats:
+		var gs := GameState.get_instance()
+		stats.text = "TIEMPO %s     ORO %d" % [time_label.text if time_label else "--:--", gs.gold]
+	screen.visible = true
+	screen.modulate.a = 0.0
+	var panel := screen.get_node_or_null("EndPanel") as Control
+	var tw := screen.create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	tw.tween_property(screen, "modulate:a", 1.0, 0.45)
+	if panel:
+		panel.pivot_offset = panel.size * 0.5
+		panel.scale = Vector2(0.92, 0.92)
+		tw.parallel().tween_property(panel, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 func _on_restart_button_pressed() -> void:
 	emit_signal("restart_pressed")

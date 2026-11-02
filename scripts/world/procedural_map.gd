@@ -145,7 +145,7 @@ func get_height_at(x: float, z: float) -> float:
 func get_colliders() -> Array:
 	var out: Array = []
 	for kind in _collide:
-		var def: Dictionary = PROPS[kind]
+		var def: Dictionary = _prop_def(kind)
 		var size: Vector3 = def["size"]
 		for t in (_collide[kind] as Array):
 			var xf: Transform3D = t
@@ -170,8 +170,8 @@ func get_basin_center() -> Vector3:
 func _clear() -> void:
 	for c in get_children():
 		c.queue_free()
-	_mesh_cache.clear()
-	_mesh_xf.clear()
+	# Las mallas de los props no cambian entre niveles: se conservan (cargar y fusionar cada .glb costaba
+	# ~30 ms en cada regeneración)
 	_instances.clear()
 	_collide.clear()
 	_hash.clear()
@@ -357,8 +357,12 @@ func _is_surface(p: Vector2, max_slope: float) -> bool:
 func _rand_pos(extent: float) -> Vector2:
 	return Vector2(_rng.randf_range(-extent, extent), _rng.randf_range(-extent, extent))
 
+## Forma, tamaño y escala de un tipo de prop (las subclases añaden los suyos).
+func _prop_def(kind: String) -> Dictionary:
+	return PROPS[kind]
+
 func _add(kind: String, pos: Vector2, yaw: float = -1.0, s: float = -1.0, y_offset: float = -0.04, collide: bool = true, tilt: float = 0.0) -> void:
-	var def: Dictionary = PROPS[kind]
+	var def: Dictionary = _prop_def(kind)
 	var sc: Vector2 = def["scale"]
 	var scale_v := s if s > 0.0 else _rng.randf_range(sc.x, sc.y)
 	var yaw_v := yaw if yaw >= 0.0 else _rng.randf() * TAU
@@ -656,7 +660,7 @@ func _place_edge_rocks() -> void:
 func _load_kind(kind: String) -> Mesh:
 	if _mesh_cache.has(kind):
 		return _mesh_cache[kind]
-	var path: String = PROP_DIR + String(PROPS[kind]["file"]) + ".glb"
+	var path: String = PROP_DIR + String(_prop_def(kind)["file"]) + ".glb"
 	var ps := load(path) as PackedScene
 	if ps == null:
 		push_warning("[ProceduralMap] No se pudo cargar " + path + " (¿importado?)")
@@ -777,7 +781,7 @@ func _build_prop_nodes() -> void:
 			container.add_child(mmi)
 
 	for kind in _collide:
-		var def: Dictionary = PROPS[kind]
+		var def: Dictionary = _prop_def(kind)
 		var size: Vector3 = def["size"]
 		var shape: Shape3D
 		var offset: float

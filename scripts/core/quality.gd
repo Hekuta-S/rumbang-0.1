@@ -10,8 +10,9 @@ enum Level { LOW, MEDIUM, HIGH }
 static var _level: int = -1
 
 ## Para probar el modo móvil en PC: lanzar con la variable de entorno RUMBANG_FORCE_MOBILE=1.
+## Móvil: Android/iOS nativos y también el navegador de un móvil (versión web en iPhone o Android).
 static func is_mobile() -> bool:
-	return OS.get_name() in ["Android", "iOS"] or OS.get_environment("RUMBANG_FORCE_MOBILE") == "1"
+	return OS.get_name() in ["Android", "iOS"] or OS.has_feature("web_ios") or OS.has_feature("web_android") 		or OS.get_environment("RUMBANG_FORCE_MOBILE") == "1"
 
 ## SettingsManager es un autoload: se busca en el árbol (no por identificador) para que este script
 ## compile también cuando se carga fuera del juego (importación, pruebas).

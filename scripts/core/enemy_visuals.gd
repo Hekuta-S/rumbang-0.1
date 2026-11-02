@@ -168,6 +168,9 @@ func _make_impostor_slots(key: String) -> void:
 	mat.set_shader_parameter("quad_w", float(info["quad_w"]))
 	mat.set_shader_parameter("quad_h", float(info["quad_h"]))
 	mat.set_shader_parameter("center_y", float(info["center_y"]))
+	if info.has("crop"):
+		var c: Array = info["crop"]
+		mat.set_shader_parameter("crop", Vector4(c[0], c[1], c[2], c[3]))
 	var quad := QuadMesh.new()
 	quad.size = Vector2.ONE
 	_new_instance(quad, mat, "MM_%s_imp" % key, false, 0.0)

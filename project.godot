@@ -26,6 +26,7 @@ SaveManager="*res://scripts/core/save_manager.gd"
 AudioManager="*res://scripts/core/audio_manager.gd"
 ItemDB="*res://scripts/core/item_db.gd"
 SceneLoader="*res://scripts/core/scene_loader.gd"
+Net="*res://scripts/net/net_manager.gd"
 SettingsManager="*res://scripts/core/settings_manager.gd"
 VirtualInput="*res://scripts/core/virtual_input.gd"
 PoolManager="*res://scripts/core/pool_manager.gd"
@@ -111,4 +112,12 @@ environment/defaults/default_clear_color=Color(0.054902, 0.0705882, 0.109804, 1)
 vfx_quality={
 "type": "int",
 "value": 2
+}
+enemy_ticks={
+"type": "float",
+"value": 0.0
+}
+enemy_tick_dt={
+"type": "float",
+"value": 0.033
 }

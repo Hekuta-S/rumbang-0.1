@@ -24,11 +24,16 @@ const ICONS := {
 }
 
 var _options: Array = []
+var _title := ""
+var _subtitle := "ELIGE UN ARMA"
 
 ## Abre la elección con estas armas (normalmente 2).
-static func present(parent: Node, options: Array, level: int) -> WeaponChoiceUI:
+static func present(parent: Node, options: Array, level: int, title: String = "", subtitle: String = "") -> WeaponChoiceUI:
 	var ui := WeaponChoiceUI.new()
 	ui._options = options
+	ui._title = title if title != "" else "NIVEL %d SUPERADO" % level
+	if subtitle != "":
+		ui._subtitle = subtitle
 	parent.add_child(ui)
 	ui._build(level)
 	return ui
@@ -52,11 +57,15 @@ func _build(level: int) -> void:
 	vbox.add_theme_constant_override("separation", 22)
 	root.add_child(vbox)
 	var title := Label.new()
-	title.text = "NIVEL %d SUPERADO — ELIGE UN ARMA" % level
+	title.text = _title
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_color_override("font_color", Style.TITLE)
-	title.add_theme_font_size_override("font_size", 26)
+	Style.style_title(title, 28)
 	vbox.add_child(title)
+	var sub := Label.new()
+	sub.text = _subtitle
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	Style.style_title(sub, 16, Style.NEON_CYAN, Style.NEON_CYAN)
+	vbox.add_child(sub)
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 28)
@@ -65,10 +74,16 @@ func _build(level: int) -> void:
 	for i in _options.size():
 		var b := _card(int(_options[i]), i + 1)
 		row.add_child(b)
+		NeonFrame.attach(b, Style.NEON_CYAN if i == 0 else Style.NEON_MAGENTA)
+		# Entrada: las cartas suben y aparecen una tras otra
+		b.modulate.a = 0.0
+		var tw := b.create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+		tw.tween_interval(0.08 + 0.12 * i)
+		tw.tween_property(b, "modulate:a", 1.0, 0.25)
 		if first == null:
 			first = b
 	var hint := Label.new()
-	hint.text = "Clic o teclas 1 / 2"
+	hint.text = ("Clic o teclas 1 - %d" % _options.size()) if _options.size() > 2 else "Clic o teclas 1 / 2"
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.add_theme_font_size_override("font_size", 12)
 	hint.modulate = Color(1, 1, 1, 0.6)
@@ -82,6 +97,13 @@ func _card(weapon_type: int, number: int) -> Button:
 	var b := Button.new()
 	b.custom_minimum_size = Vector2(300, 330)
 	b.focus_mode = Control.FOCUS_ALL
+	# Carta sin inclinación (el texto va dentro) con el mismo juego de colores de los botones
+	for st in ["normal", "hover", "pressed", "focus"]:
+		var sb: StyleBoxFlat = (Style.get_theme().get_stylebox(st, "Button") as StyleBoxFlat).duplicate()
+		sb.skew = Vector2.ZERO
+		if st == "normal":
+			sb.bg_color = Style.PANEL
+		b.add_theme_stylebox_override(st, sb)
 	var col := VBoxContainer.new()
 	col.set_anchors_preset(Control.PRESET_FULL_RECT)
 	col.offset_left = 16

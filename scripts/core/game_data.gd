@@ -5,9 +5,17 @@ extends Node
 var selected_index: int = 0
 ## Modo de juego: "survival" (oleadas en mapa abierto) o "dungeon" (mazmorra estilo Soul Knight).
 var game_mode: String = "survival"
+## Mundo de la mazmorra (ver WorldDefs): "caves" o "sewers". Se elige en el menú; en red lo fija el anfitrión.
+var world: String = WorldDefs.DEFAULT
 
 ## Vida extra de base, igual para todos los personajes (afinar aquí).
 const BASE_HP_BONUS := 15.0
+## Velocidad de movimiento de todos los personajes en la mazmorra (× la de su ficha). La supervivencia
+## usa la de la ficha sin cambios.
+const DUNGEON_MOVE_SPEED_MULT := 0.8
+## Ritmo más pausado en supervivencia (~38% más lento) para jugador y enemigos.
+const SURVIVAL_PLAYER_SPEED_MULT := 0.62
+const SURVIVAL_ENEMY_SPEED_MULT := 0.62
 
 var cache_enemy_models: Dictionary = {}
 var cache_enemy_textures: Dictionary = {}
@@ -60,18 +68,17 @@ const CHARACTERS: Array = [
 	{
 		"id": "mikeura",
 		"name": "Mikeura",
-		"subtitle": "Guerrero del Escudo",
-		"lore": "Portador de una armadura ancestral imbuida con magia de barrera. Su escudo no es solo protección — es su arma más poderosa.",
+		"subtitle": "Guerrero de la Espalanza",
+		"lore": "Portador de una armadura ancestral y de una lanza de tres puntas. Firme en el suelo, nunca da un paso atrás.",
 		"color": Color(0.2, 0.55, 1.0),
 		"portrait_label": "M",
 		"stats": {
-			"max_hp": 10.0,
-			"max_shield": 8.0,
-			"move_speed": 8.5,
+			"max_hp": 20.0,
+			"move_speed": 7.8,
 		},
-		"passive_name": "Escudo Irrompible",
-		"passive_color": Color(0.35, 0.75, 1.0),
-		"passive_desc": "El escudo mitiga el 55% del daño recibido. No se recarga mientras conserve carga. Al vaciarse por completo, genera un estallido que empuja a todos los enemigos cercanos.",
+		"passive_name": "Sin pasiva",
+		"passive_color": Color(0.6, 0.6, 0.65),
+		"passive_desc": "Mikeura aún no tiene pasiva asignada. Su fuerza está en el combo de la espalanza.",
 	},
 	{
 		"id": "heckler",
@@ -81,9 +88,8 @@ const CHARACTERS: Array = [
 		"color": Color(0.4, 0.7, 0.3),
 		"portrait_label": "H",
 		"stats": {
-			"max_hp": 15.0,
-			"max_shield": 0.0,
-			"move_speed": 7.0,
+			"max_hp": 16.0,
+			"move_speed": 8.2,
 		},
 		"passive_name": "Paso del Vacío",
 		"passive_color": Color(0.5, 0.8, 0.4),
@@ -98,9 +104,8 @@ const CHARACTERS: Array = [
 		"color": Color(0.5, 0.9, 0.25),
 		"portrait_label": "V",
 		"stats": {
-			"max_hp": 12.0,
-			"max_shield": 3.0,
-			"move_speed": 7.8,
+			"max_hp": 18.0,
+			"move_speed": 7.5,
 		},
 		"passive_name": "Zona de Radiación",
 		"passive_color": Color(0.45, 1.0, 0.3),
@@ -115,9 +120,8 @@ const CHARACTERS: Array = [
 		"color": Color(0.78, 0.92, 0.25),
 		"portrait_label": "B",
 		"stats": {
-			"max_hp": 13.0,
-			"max_shield": 3.0,
-			"move_speed": 7.2,
+			"max_hp": 15.0,
+			"move_speed": 7.6,
 		},
 		"passive_name": "Esporas Superpotenciadas",
 		"passive_color": Color(0.8, 0.95, 0.3),
@@ -132,8 +136,7 @@ const CHARACTERS: Array = [
 		"color": Color(0.4, 0.85, 0.5),
 		"portrait_label": "T",
 		"stats": {
-			"max_hp": 10.0,
-			"max_shield": 4.0,
+			"max_hp": 12.0,
 			"move_speed": 8.8,
 		},
 		"passive_name": "Sin pasiva",
@@ -149,8 +152,7 @@ const CHARACTERS: Array = [
 		"color": Color(0.3, 0.85, 0.4),
 		"portrait_label": "J",
 		"stats": {
-			"max_hp": 11.0,
-			"max_shield": 4.0,
+			"max_hp": 16.0,
 			"move_speed": 8.0,
 		},
 		"passive_name": "Sin pasiva",
@@ -166,9 +168,8 @@ const CHARACTERS: Array = [
 		"color": Color(1.0, 0.45, 0.1),
 		"portrait_label": "R",
 		"stats": {
-			"max_hp": 10.0,
-			"max_shield": 3.0,
-			"move_speed": 7.5,
+			"max_hp": 13.0,
+			"move_speed": 9.0,
 		},
 		"passive_name": "Pies Humeantes",
 		"passive_color": Color(1.0, 0.6, 0.15),
@@ -183,9 +184,8 @@ const CHARACTERS: Array = [
 		"color": Color(0.1, 0.8, 0.4),
 		"portrait_label": "G",
 		"stats": {
-			"max_hp": 15.0,
-			"max_shield": 2.0,
-			"move_speed": 7.0,
+			"max_hp": 24.0,
+			"move_speed": 7.2,
 		},
 		"passive_name": "Actitud Punk",
 		"passive_color": Color(0.2, 0.9, 0.3),
@@ -200,9 +200,8 @@ const CHARACTERS: Array = [
 		"color": Color(0.8, 0.4, 0.9),
 		"portrait_label": "S",
 		"stats": {
-			"max_hp": 9.0,
-			"max_shield": 5.0,
-			"move_speed": 7.5,
+			"max_hp": 11.0,
+			"move_speed": 8.0,
 		},
 		"passive_name": "Sin pasiva",
 		"passive_color": Color(0.6, 0.6, 0.65),
@@ -210,6 +209,24 @@ const CHARACTERS: Array = [
 		"initial_weapons": [WeaponData.WeaponType.ELEMENTS_CYCLE],
 	},
 ]
+
+## Personajes jugables por ahora. El resto aparece en la selección como BLOQUEADO hasta que
+## implementemos el sistema de desbloqueos (logros/progreso). Añadir aquí los ids al desbloquearlos.
+const UNLOCKED_CHARACTERS: Array[String] = ["mikeura"]
+
+func is_character_unlocked(char_id: String) -> bool:
+	return UNLOCKED_CHARACTERS.has(char_id)
+
+func is_index_unlocked(index: int) -> bool:
+	if index < 0 or index >= CHARACTERS.size():
+		return false
+	return is_character_unlocked(String(CHARACTERS[index].get("id", "")))
+
+func first_unlocked_index() -> int:
+	for i in CHARACTERS.size():
+		if is_index_unlocked(i):
+			return i
+	return 0
 
 ## Modelo idle (.fbx) de cada personaje.
 ## Misma tabla que usa PlayerAnimationController.setup_model(); se usa en la vista previa del menú.
@@ -247,14 +264,14 @@ func apply_to_player(player: CharacterBody3D) -> void:
 	var stats: Dictionary = char_data.get("stats", {})
 	# Vida extra para TODOS los personajes (se suma a la vida propia de cada uno)
 	if stats.has("max_hp"):     player.max_hp     = float(stats["max_hp"]) + BASE_HP_BONUS
-	if stats.has("max_shield"): player.max_shield = stats["max_shield"]
 	if stats.has("move_speed"): player.move_speed  = stats["move_speed"]
+	if game_mode == "dungeon":
+		player.move_speed *= DUNGEON_MOVE_SPEED_MULT
+	elif game_mode == "survival":
+		player.move_speed *= SURVIVAL_PLAYER_SPEED_MULT
 
 	# Assign passive based on character id
 	match char_data.get("id", ""):
-		"mikeura":
-			player.passive = PassiveShieldWarrior.new()
-			player.passive.apply_to_player(player)
 		"vangry":
 			player.passive = PassiveVangry.new()
 			player.passive.apply_to_player(player)
@@ -277,7 +294,8 @@ func preload_assets() -> void:
 func preload_paths() -> Array:
 	var all := _preload_list()
 	# Con enemigos dibujados por MultiMesh (animación horneada) los FBX de enemigos ya no hacen falta
-	if EnemyVisuals.is_available():
+	# (en la mazmorra los goblins son nodos con su propio FBX, así que sí se cargan)
+	if EnemyVisuals.is_available() and game_mode != "dungeon":
 		return all.filter(func(p): return not String(p).ends_with(".fbx"))
 	return all
 

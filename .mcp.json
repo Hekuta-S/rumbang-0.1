@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "blender": {
-      "command": "uvx",
-      "args": ["blender-mcp"]
+      "command": "C:/Users/cabeu/AppData/Roaming/uv/tools/blender-mcp/Scripts/blender-mcp.exe",
+      "args": []
     }
   }
 }

@@ -12,6 +12,8 @@ var attack_cooldown: float = 0.0
 var weapon_slots: Array = []
 var current_slot: int = 0
 var is_spear_thrown: bool = false
+## Hacha de Garri lanzada en la mazmorra: hasta recogerla no se puede atacar con ella
+var is_axe_thrown: bool = false
 var _melee_swing_side: float = 1.0
 
 var _punch_combo_step: int = 0
@@ -157,6 +159,9 @@ func auto_attack(target) -> void:
 func start_spear_charge() -> void:
 	if player.current_weapon() != WeaponData.WeaponType.SPEAR_LANCE or attack_cooldown > 0.0:
 		return
+	var res = player.get("resources")
+	if res and not res.spend_energy(PlayerResources.CHARGE_COST):
+		return
 	spear_charge = 0.0
 	_charge_full_played = false
 	AudioManager.play("impact_magic", -14.0, 0.6)
@@ -230,6 +235,11 @@ func dust_face() -> bool:
 	return strategy != null and strategy.dust_face()
 
 ## Ráfaga de escopetazos de Riva (click derecho en la mazmorra).
+## Giro de 360° con el hacha (click derecho en la mazmorra).
+func axe_spin() -> bool:
+	var strategy = _strategies.get(WeaponData.WeaponType.SPINNING_AXE)
+	return strategy != null and strategy.spin(false)
+
 func shotgun_burst() -> bool:
 	var strategy = _strategies.get(WeaponData.WeaponType.TRI_SHOTGUN)
 	return strategy != null and strategy.shotgun_burst()
@@ -238,6 +248,26 @@ func shotgun_burst() -> bool:
 func spore_shotgun() -> bool:
 	var strategy = _strategies.get(WeaponData.WeaponType.SPORE_BAZOOKA)
 	return strategy != null and strategy.spore_shotgun()
+
+## Mazmorra: tras cuatro golpes ligeros, el especial lanza el clavado con salto. Devuelve true si salió.
+func try_spear_slam() -> bool:
+	if GameData.game_mode != "dungeon" or player.current_weapon() != WeaponData.WeaponType.SPEAR_LANCE:
+		return false
+	var ac = player.animation_controller
+	if ac == null or not ac.can_slam():
+		return false
+	if player.movement_controller and player.movement_controller.is_dodging():
+		return false
+	var res = player.get("resources")
+	if res and not res.spend_energy(PlayerResources.SLAM_COST):
+		return false
+	_attack_buffer_timer = 0.0
+	_face_soft_aim()
+	face_locked_target()
+	attack_cooldown = 0.9
+	AudioManager.play("ataque-espalanza", -4.0, 0.7)
+	ac.play_slam()
+	return true
 
 func throw_spear() -> void:
 	var strategy = _strategies.get(WeaponData.WeaponType.SPEAR_LANCE)
@@ -275,6 +305,91 @@ func get_soft_aim_direction(max_angle_deg: float = 60.0, max_dist: float = 8.0) 
 			best_dir = dir
 	return best_dir
 
+## ── Pequeña ayuda de apuntado de la Espalanza ──
+## Sin objetivo fijado, engancha al enemigo más alineado con la mirada actual dentro de un cono y un
+## alcance cortos. Es deliberadamente sutil: no gira a la espalda ni busca enemigos lejanos, solo
+## corrige la puntería cuando el golpe ya iba casi encaminado.
+const SPEAR_AIM_ANGLE_DEG := 35.0
+const SPEAR_AIM_RANGE := 5.5
+const SPEAR_AIM_MAX_HEIGHT := 2.2     ## desnivel máximo (m) para no enganchar a otra planta
+const SPEAR_AIM_HOLD_S := 0.3         ## s que el movimiento no vuelve a girar al personaje
+
+func _flat_facing() -> Vector3:
+	if player == null or player.mesh == null:
+		return Vector3.FORWARD
+	var f: Vector3 = -player.mesh.global_transform.basis.z
+	f.y = 0.0
+	return f.normalized() if f.length_squared() > 0.0001 else Vector3.FORWARD
+
+## Enemigo más alineado con la mirada dentro del cono, o null. Respeta el objetivo fijado (si lo hay,
+## manda el jugador) y comprueba línea de visión en la mazmorra.
+func aim_assist_enemy(max_angle_deg: float = SPEAR_AIM_ANGLE_DEG, max_dist: float = SPEAR_AIM_RANGE) -> Object:
+	if player == null or player.mesh == null:
+		return null
+	var lock = player.get("target_lock")
+	if lock != null and lock.has_target():
+		return null
+	var forward := _flat_facing()
+	var best: Object = null
+	var best_dot: float = cos(deg_to_rad(max_angle_deg))
+	for e in EnemyRegistry.all():
+		if not is_instance_valid(e) or not e.has_method("take_damage"):
+			continue
+		if e.has_method("is_dead") and e.is_dead():
+			continue
+		var to: Vector3 = e.global_position - player.global_position
+		if absf(to.y) > SPEAR_AIM_MAX_HEIGHT:
+			continue
+		to.y = 0.0
+		var d := to.length()
+		if d < 0.15 or d > max_dist:
+			continue
+		var dot := forward.dot(to / d)
+		if dot < best_dot:
+			continue
+		if GameData.game_mode == "dungeon" and lock != null and not lock.line_of_sight(e):
+			continue
+		best_dot = dot
+		best = e
+	return best
+
+## Gira al personaje hacia el enemigo enganchado (si lo hay) y lo devuelve.
+func face_aim_assist_enemy(max_angle_deg: float = SPEAR_AIM_ANGLE_DEG, max_dist: float = SPEAR_AIM_RANGE) -> Object:
+	var e = aim_assist_enemy(max_angle_deg, max_dist)
+	if e == null:
+		return null
+	var to: Vector3 = e.global_position - player.global_position
+	to.y = 0.0
+	if to.length_squared() < 0.01:
+		return null
+	player.mesh.rotation.y = atan2(-to.x, -to.z)
+	var mc = player.movement_controller
+	if mc:
+		mc.face_lock_until = maxf(mc.face_lock_until, Time.get_ticks_msec() / 1000.0 + SPEAR_AIM_HOLD_S)
+	return e
+
+## Atajo: true si la pequeña ayuda encontró y encaró a alguien.
+func assist_spear_facing() -> bool:
+	return face_aim_assist_enemy() != null
+
+## Mazmorra: con un objetivo fijado, gira a Mikeura hacia él y evita que el movimiento lo vuelva a
+## girar un momento. Devuelve true si había objetivo. Se usa justo al soltar el golpe o el disparo.
+func face_locked_target() -> bool:
+	if GameData.game_mode != "dungeon" or player == null or player.mesh == null:
+		return false
+	var lock = player.target_lock
+	if lock == null or not lock.has_target():
+		return false
+	var to_t: Vector3 = lock.target.global_position - player.global_position
+	to_t.y = 0.0
+	if to_t.length_squared() < 0.01:
+		return false
+	player.mesh.rotation.y = atan2(-to_t.x, -to_t.z)
+	var mc = player.movement_controller
+	if mc:
+		mc.face_lock_until = maxf(mc.face_lock_until, Time.get_ticks_msec() / 1000.0 + 0.45)
+	return true
+
 ## Mazmorra: orienta a Mikeura hacia el objetivo fijado o el enemigo más alineado.
 func _face_soft_aim() -> void:
 	if GameData.game_mode == "dungeon" and player and player.mesh:
@@ -294,8 +409,13 @@ func _try_consume_buffered_attack() -> void:
 	if _attack_buffer_timer <= 0.0: return
 	# Durante la esquiva el clic se guarda y sale al terminar el rodamiento
 	if player.movement_controller and player.movement_controller.is_dodging(): return
+	# En guardia (parry) tampoco: el clic sale al terminar la postura
+	if player.get("parry_controller") and player.parry_controller.is_active(): return
 	if player.animation_controller and player.animation_controller.is_in_link_window():
 		_attack_buffer_timer = 0.0
+		var res = player.get("resources")
+		if res and not res.spend(player.current_weapon()):
+			return
 		_face_soft_aim()
 		player.animation_controller.advance_combo()
 	elif attack_cooldown <= 0.0 and not (player.animation_controller and player.animation_controller.is_attacking()):
@@ -322,6 +442,11 @@ func attack() -> void:
 	var mag: int = weapon_mag_size.get(player.current_weapon(), 0)
 	if mag > 0 and get_weapon_ammo(player.current_weapon()) <= 0:
 		start_reload()
+		return
+
+	# Energía / maná / balas según el arma (solo mazmorra). Sin recurso no hay ataque.
+	var res = player.get("resources")
+	if res and not res.spend(player.current_weapon()):
 		return
 
 	player.emit_signal("weapon_attacked", player.current_weapon())

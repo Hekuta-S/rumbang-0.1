@@ -9,6 +9,8 @@ var level_up_sfx: AudioStreamPlayer
 
 signal restart_pressed
 
+const DUNGEON_THEME := "res://assets/audio/dungeon_theme.wav"
+
 func start_music() -> void:
 	if bg_music and not bg_music.playing:
 		bg_music.play()
@@ -18,8 +20,14 @@ func initialize(p_hud: Node, p_player: Node3D) -> void:
 	player = p_player
 	
 	bg_music = AudioStreamPlayer.new()
-	bg_music.stream = load("res://assets/audio/main-soundtrack.mp3")
-	bg_music.volume_db = -6.0
+	if GameData.game_mode == "dungeon" and ResourceLoader.exists(DUNGEON_THEME):
+		# Mazmorra: tema darksynth sintetizado (tools/generate_soundtrack.gd), en bucle desde la importación
+		bg_music.stream = load(DUNGEON_THEME)
+		bg_music.volume_db = -8.0
+	else:
+		bg_music.stream = load("res://assets/audio/main-soundtrack.mp3")
+		bg_music.volume_db = -6.0
+	bg_music.bus = "Music"   # lo regula el volumen de música de los ajustes
 	add_child(bg_music)   # se reproduce con start_music() cuando el mundo está listo
 
 	level_up_sfx = AudioStreamPlayer.new()
@@ -45,7 +53,9 @@ func initialize(p_hud: Node, p_player: Node3D) -> void:
 	hud.restart_pressed.connect(func(): restart_pressed.emit())
 	
 	var pause_menu = preload("res://scenes/ui/pause_menu.tscn").instantiate()
+	pause_menu.name = "PauseMenu"
 	add_child(pause_menu)
+	pause_menu.restart_requested.connect(func(): restart_pressed.emit())
 	refresh_weapon_ui()
 
 func update_elapsed_time(elapsed_seconds: float) -> void:
@@ -76,8 +86,8 @@ func show_item_choice() -> void:
 func _on_item_selected(item_id: String) -> void:
 	player.inventory.add_item(item_id)
 
-func _on_player_stats_changed(hp, max_hp, shield, max_shield) -> void:
-	hud.update_stats(hp, max_hp, shield, max_shield)
+func _on_player_stats_changed(hp, max_hp) -> void:
+	hud.update_stats(hp, max_hp)
 
 func _on_player_experience_gained(amount, current_xp, required_xp) -> void:
 	var exp_comp = player.get_node_or_null("ExperienceComponent")

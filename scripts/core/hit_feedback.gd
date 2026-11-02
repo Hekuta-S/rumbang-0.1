@@ -21,7 +21,7 @@ const DEFAULT := {"color": Color(1.0, 0.85, 0.35), "kind": "spark", "count": 10,
 const PROFILES := {
 	W.SPEAR_LANCE:    {"color": Color(0.25, 1.0, 0.45), "kind": "shard", "count": 16, "speed": 9.0,  "kb": 0.6, "shake": 0.35, "stop": 0.06, "sfx": "impact_pierce"},
 	W.ENERGY_SWORD:   {"color": Color(0.3, 0.9, 1.0),   "kind": "spark", "count": 14, "speed": 10.0, "kb": 1.3, "shake": 0.28, "stop": 0.05, "sfx": "impact_slash"},
-	W.TRI_SHOTGUN:    {"color": Color(1.0, 0.6, 0.2),   "kind": "spark", "count": 8,  "speed": 12.0, "kb": 1.3, "shake": 0.22, "stop": 0.03, "sfx": "impact_blunt"},
+	W.TRI_SHOTGUN:    {"color": Color(1.0, 0.6, 0.2),   "kind": "spark", "count": 8,  "speed": 12.0, "kb": 1.3, "shake": 0.22, "stop": 0.03, "sfx": "impact_pierce"},
 	W.RAILGUN:        {"color": Color(0.6, 0.8, 1.0),   "kind": "spark", "count": 18, "speed": 14.0, "kb": 1.6, "shake": 0.4,  "stop": 0.06, "sfx": "impact_zap"},
 	W.FLAME_THROWER:  {"color": Color(1.0, 0.45, 0.1),  "kind": "ember", "count": 6,  "speed": 3.0,  "kb": 0.5, "shake": 0.05, "stop": 0.0,  "sfx": "impact_fire"},
 	W.SPORE_BAZOOKA:  {"color": Color(0.6, 1.0, 0.25),  "kind": "puff",  "count": 10, "speed": 4.0,  "kb": 1.3, "shake": 0.35, "stop": 0.04, "sfx": "impact_blunt"},
@@ -53,8 +53,9 @@ var _stop_until_us: int = 0
 var _last_sfx_ms: int = 0
 var _last_us: int = 0
 
+## En el servidor dedicado no: no se ve ni se oye, y un hitstop congelaría la partida de todos.
 static func enabled() -> bool:
-	return GameData.game_mode == "dungeon"
+	return GameData.game_mode == "dungeon" and not Net.is_dedicated()
 
 ## Llamado por EnemyData.take_damage() en cada golpe directo (no en daño continuo).
 static func on_enemy_hit(enemy, amount: float, knockback_dir: Vector3, killed: bool) -> void:
@@ -73,6 +74,14 @@ static func shake(amount: float) -> void:
 	var inst := _instance()
 	if inst:
 		inst._trauma = minf(inst._trauma + amount, 1.0)
+
+## Congela el juego un instante (hitstop), p. ej. al hacer un parry. Solo en mazmorra.
+static func freeze(seconds: float) -> void:
+	if not enabled():
+		return
+	var inst := _instance()
+	if inst:
+		inst._freeze(seconds)
 
 ## Llamado por Player.take_damage() cuando el golpe entra (no durante la invulnerabilidad).
 static func on_player_hit(player: Node3D, amount: float, from_dir: Vector3) -> void:

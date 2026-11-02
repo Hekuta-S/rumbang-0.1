@@ -21,6 +21,28 @@ var _last_play_ms: Dictionary = {}
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
+## Variantes: si existen nombre_2, nombre_3... junto a "nombre", cada reproducción elige una al azar
+## (una ráfaga de golpes no suena a la misma muestra repetida).
+var _variant_count: Dictionary = {}
+
+func _pick_variant(sfx_name: String) -> String:
+	if not _variant_count.has(sfx_name):
+		var count := 1
+		while _exists(sfx_name + "_" + str(count + 1)):
+			count += 1
+		_variant_count[sfx_name] = count
+	var n: int = _variant_count[sfx_name]
+	if n <= 1:
+		return sfx_name
+	var k := randi_range(1, n)
+	return sfx_name if k == 1 else sfx_name + "_" + str(k)
+
+func _exists(sfx_name: String) -> bool:
+	for ext in [".wav", ".mp3", ".ogg"]:
+		if ResourceLoader.exists(SFX_DIR + sfx_name + ext):
+			return true
+	return false
+
 ## Returns the cached AudioStream for a sfx name, or null if missing.
 func get_stream(sfx_name: String) -> AudioStream:
 	if _stream_cache.has(sfx_name):
@@ -43,7 +65,7 @@ func get_stream(sfx_name: String) -> AudioStream:
 
 ## Plays a sound in 2D (UI / global feedback).
 func play(sfx_name: String, volume_db: float = 0.0, pitch_scale: float = 1.0, from_position: float = 0.0) -> void:
-	var stream := get_stream(sfx_name)
+	var stream := get_stream(_pick_variant(sfx_name))
 	if stream == null:
 		return
 	var now := Time.get_ticks_msec()
@@ -64,7 +86,7 @@ func play(sfx_name: String, volume_db: float = 0.0, pitch_scale: float = 1.0, fr
 
 ## Plays a positional sound in 3D using a small recycled pool.
 func play_at(sfx_name: String, world_pos: Vector3, volume_db: float = 0.0, pitch_scale: float = 1.0) -> void:
-	var stream := get_stream(sfx_name)
+	var stream := get_stream(_pick_variant(sfx_name))
 	if stream == null:
 		return
 	if _pool_3d.is_empty():

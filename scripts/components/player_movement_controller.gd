@@ -16,6 +16,8 @@ const DASH_DECEL := 70.0
 var dash_velocity: Vector3 = Vector3.ZERO
 ## Hasta este instante (s) el modelo no gira hacia donde camina (p. ej. disparando el lanzallamas).
 var face_lock_until: float = 0.0
+## Velocidad de paso (× normal) mientras suena una animación de ataque
+const ATTACK_MOVE_MULT := 0.12
 ## Hasta este instante (s) se mueve a `slow_mult` de su velocidad (p. ej. lanzando polvos).
 var slow_until: float = 0.0
 var slow_mult: float = 1.0
@@ -142,6 +144,9 @@ func perform_dodge() -> void:
 	var anim = player.get("animation_controller")
 	if anim and not anim.can_cancel_for_dodge():
 		return
+	var res = player.get("resources")
+	if res and not res.spend_energy(PlayerResources.DODGE_COST):
+		return
 	_dodge_cooldown_timer = DODGE_COOLDOWN
 	_dodge_timer = DODGE_DURATION
 	
@@ -166,6 +171,9 @@ func perform_dodge() -> void:
 	if player.health_comp and player.health_comp.has_method("set_invincibility"):
 		player.health_comp.set_invincibility(DODGE_IFRAMES)
 
+	var parry = player.get("parry_controller")
+	if parry:
+		parry.cancel()
 	if player.combat_controller:
 		if player.combat_controller.spear_charge >= 0.0:
 			player.combat_controller.spear_charge = -1.0
@@ -174,8 +182,14 @@ func perform_dodge() -> void:
 				player.weapon_visuals.set_spear_charge(0.0)
 	if anim:
 		anim.cancel_action()
+		anim.play_roll(DODGE_DURATION)
 
 	AudioManager.play("dodge", -6.0, randf_range(0.95, 1.05))
+
+## Saltar cuesta energía (solo mazmorra); sin ella no se despega del suelo.
+func _can_pay_jump() -> bool:
+	var res = player.get("resources")
+	return res == null or res.spend_energy(PlayerResources.JUMP_COST)
 
 func handle_movement(delta: float) -> void:
 	if not player: return
@@ -191,6 +205,9 @@ func handle_movement(delta: float) -> void:
 	
 	var stat_move: float = player.stat_block.move_mult() if player.stat_block else 1.0
 	var current_speed: float = player.move_speed * stat_move * (1.3 if player.is_berserk else 1.0) * (1.35 if player.dust_speed_boost_timer > 0 else 1.0)
+	var parry = player.get("parry_controller")
+	if parry and parry.is_active():
+		current_speed *= PlayerParryController.MOVE_MULT     # en guardia se avanza despacio
 	
 	# Ya no hay botón de correr: la animación de carrera la decide PlayerAnimationController
 	# cuando la velocidad supera cierto umbral (mejoras, objetos, berserk...).
@@ -200,6 +217,11 @@ func handle_movement(delta: float) -> void:
 	# Cargando el lanzamiento de la espalanza: se mueve más lento
 	if player.combat_controller and player.combat_controller.spear_charge >= 0.0:
 		current_speed *= 0.5
+	# Durante un golpe el cuerpo está plantado: el clip mueve las piernas en su sitio, así que caminar
+	# a velocidad normal lo haría patinar (flotar sobre el suelo). Solo avanza el impulso del propio golpe.
+	var attacking: bool = GameData.game_mode == "dungeon" and player.animation_controller != null 		and player.animation_controller.is_attacking()
+	if attacking:
+		current_speed *= ATTACK_MOVE_MULT
 
 	var moving = wish.length_squared() > 0.0001
 	if moving and player.is_on_floor():
@@ -217,7 +239,7 @@ func handle_movement(delta: float) -> void:
 	if moving:
 		wish = wish.normalized()
 		# Rotate the character mesh to face the movement direction.
-		if Time.get_ticks_msec() / 1000.0 >= face_lock_until:
+		if not attacking and Time.get_ticks_msec() / 1000.0 >= face_lock_until:
 			player.mesh.rotation.y = lerp_angle(player.mesh.rotation.y, atan2(-wish.x, -wish.z), 14.0 * delta)
 	else:
 		wish = Vector3.ZERO
@@ -236,11 +258,11 @@ func handle_movement(delta: float) -> void:
 
 	if player.is_on_floor():
 		_air_jumps_used = 0
-		if jump_pressed:
+		if jump_pressed and _can_pay_jump():
 			player.velocity.y = jump_velocity
 			_spawn_jump_burst(player.global_position + Vector3(0, 0.05, 0))
 			# The animation controller will detect the jump automatically
-	elif jump_just_pressed and player.stat_block and _air_jumps_used < player.stat_block.extra_jumps():
+	elif jump_just_pressed and player.stat_block and _air_jumps_used < player.stat_block.extra_jumps() and _can_pay_jump():
 		# Salto en el aire (objetos con saltos extra)
 		_air_jumps_used += 1
 		player.velocity.y = jump_velocity * 0.92

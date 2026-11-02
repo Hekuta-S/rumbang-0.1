@@ -27,7 +27,7 @@ static func preload_all(selected_id: String) -> void:
 	var ids: Array[String] = [selected_id]
 	for c in GameData.CHARACTERS:
 		var cid := String(c.get("id", ""))
-		if cid != "" and not ids.has(cid):
+		if cid != "" and GameData.is_character_unlocked(cid) and not ids.has(cid):
 			ids.append(cid)
 	for cid in ids:
 		for path in [GameData.get_idle_model_path(cid), GameData.get_texture_path(cid)]:

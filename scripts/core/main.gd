@@ -18,7 +18,7 @@ func _ready() -> void:
 	facade.initialize(self, hud, player)
 
 	# Main solo escucha las señales que le interesan a través de la fachada
-	facade.restart_pressed.connect(facade.start_game)
+	facade.restart_pressed.connect(restart)
 	facade.enemy_died.connect(_on_enemy_died)
 	facade.boss_died.connect(_on_boss_died)
 
@@ -28,6 +28,16 @@ func _ready() -> void:
 	var bench := EnemyBenchmark.from_env()
 	if bench != null:
 		add_child(bench)
+
+## Reintentar: recarga la escena entera. Reiniciar a mano el jugador dejaba restos de la partida anterior
+## (estado de muerte, jefe y enemigos vivos, armas, nivel de mazmorra, efectos, proyectiles...), así que
+## se parte siempre de una escena limpia; lo único que sobrevive es lo guardado (oro, personaje elegido).
+func restart() -> void:
+	get_tree().paused = false
+	Engine.time_scale = 1.0
+	EnemyRegistry.clear()
+	GameState.get_instance().reset_session()
+	get_tree().reload_current_scene.call_deferred()
 
 func _process(delta: float) -> void:
 	if not get_tree().paused:

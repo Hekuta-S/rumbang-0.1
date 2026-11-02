@@ -236,6 +236,8 @@ func update(delta: float) -> void:
 		yaw = atan2(-to_player.x, -to_player.z)
 
 	var effective_speed := speed * slow_multiplier
+	if GameData.game_mode == "survival":
+		effective_speed *= GameData.SURVIVAL_ENEMY_SPEED_MULT
 	var next_vel := Vector3.ZERO
 	if behavior:
 		next_vel = behavior.process_ai(delta, to_player, dist, effective_speed)

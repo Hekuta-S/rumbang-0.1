@@ -24,3 +24,6 @@ assets/
 Formato_Control_Cambios.md
 run_log.txt
 addons/ziva_agent/
+
+# Exportación web
+build/

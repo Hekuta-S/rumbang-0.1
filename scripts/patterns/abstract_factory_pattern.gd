@@ -27,7 +27,7 @@ func create_map(parent_node: Node3D) -> void:
 
 # --- Método estático para obtener la fábrica correcta ---
 static func get_factory() -> PlatformFactory:
-	if OS.get_name() in ["Android", "iOS"]:
+	if Quality.is_mobile():
 		return MobilePlatformFactory.new()
 	else:
 		return DesktopPlatformFactory.new()
@@ -46,6 +46,8 @@ class MobilePlatformFactory extends PlatformFactory:
 	func configure_viewport(viewport: Viewport) -> void:
 		# Resolución 3D según la calidad (la gobernadora de rendimiento la ajusta en vivo)
 		viewport.scaling_3d_scale = Quality.scale_3d()
+		viewport.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA   # bordes suaves y barato en móvil
+		viewport.use_debanding = true
 		
 	func configure_light(light: DirectionalLight3D) -> void:
 		light.shadow_enabled = false # Sombras 3D causan picos en móvil
@@ -69,6 +71,10 @@ class DesktopPlatformFactory extends PlatformFactory:
 		
 	func configure_viewport(viewport: Viewport) -> void:
 		viewport.scaling_3d_scale = Quality.scale_3d()
+		# Bordes limpios: MSAA (alto) o FXAA (resto) y degradados sin bandas
+		viewport.msaa_3d = Viewport.MSAA_2X if Quality.level() == Quality.Level.HIGH else Viewport.MSAA_DISABLED
+		viewport.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if Quality.level() != Quality.Level.HIGH else Viewport.SCREEN_SPACE_AA_DISABLED
+		viewport.use_debanding = true
 		
 	func configure_light(light: DirectionalLight3D) -> void:
 		light.shadow_enabled = Quality.shadows_enabled()
