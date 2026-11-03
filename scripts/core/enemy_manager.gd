@@ -8,6 +8,9 @@ static var instance: EnemyManager = null
 static var _free: Dictionary = {}    # tipo (int) -> Array[EnemyData]
 ## Nº de tick de física del bucle de enemigos: es el reloj con el que el shader de impostores interpola.
 static var tick: int = 0
+## A partir de cuántos enemigos vivos se reparte la IA entre ticks (EnemyData.crowd_scale), y hasta cuánto.
+const CROWD_REF := 120.0
+const CROWD_MAX := 5.0
 
 var _active: Array = []              # EnemyData vivos
 var _player: Node3D = null
@@ -26,6 +29,8 @@ func _exit_tree() -> void:
 ## Un solo bucle para todos los enemigos de datos.
 func _physics_process(delta: float) -> void:
 	tick += 1
+	var t0 := PerfProbe.begin()
+	EnemyData.crowd_scale = clampf(float(_active.size()) / CROWD_REF, 1.0, CROWD_MAX)
 	var vis := EnemyVisuals.instance
 	var tick_f := float(tick)
 	var i := 0
@@ -42,6 +47,7 @@ func _physics_process(delta: float) -> void:
 		# Si e (u otro anterior) se recicló durante su update, la lista se desplazó: no se avanza
 		if i < _active.size() and _active[i] == e:
 			i += 1
+	PerfProbe.end("enemigos.bucle", t0)
 
 # ───────────────────────────── Acceso estático ─────────────────────────────
 

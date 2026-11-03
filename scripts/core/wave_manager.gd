@@ -152,7 +152,7 @@ func _current_batch() -> int:
 	return maxi(batch, 1)
 
 func _alive_cap() -> int:
-	return int(round(lerpf(ALIVE_CAP_START, Quality.alive_cap_end(), _progress())))
+	return int(round(lerpf(ALIVE_CAP_START, Quality.alive_cap_end(), _progress()) * Quality.crowd_factor))
 
 # ── Bucle de aparición ───────────────────────────────────────────────────
 

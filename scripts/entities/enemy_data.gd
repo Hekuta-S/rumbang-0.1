@@ -50,6 +50,14 @@ var active_idx: int = -1            ## posición en EnemyManager._active (-1 = n
 ## delta acumulado; EnemyVisuals interpola la posición sobre ese intervalo.
 const SPAN_MID_DIST := 14.0
 const SPAN_FAR_DIST := 40.0
+const SPAN_NEAR_MIN := 3.0            ## por mucha multitud, a menos de esto se actualiza en cada tick (ataques)
+const SPAN_IDLE_DIST := 60.0          ## sin alertar y más lejos que esto: cada 8 ticks
+## Con mucha multitud las distancias de arriba se dividen por esto (lo fija EnemyManager cada tick):
+## solo los más cercanos se actualizan en cada tick; el resto, cada 2 o 4 (el dibujo interpola).
+static var crowd_scale: float = 1.0
+## Velocidad de supervivencia (GameData.SURVIVAL_ENEMY_SPEED_MULT), fijada al reactivarse: evita
+## comparar el modo de juego en cada actualización.
+var _mode_speed_mult: float = 1.0
 const SEP_RADIUS := 1.0
 const SEP_STRENGTH := 2.2
 const FloatingDamage = preload("res://scripts/objects/floating_damage.gd")
@@ -162,6 +170,7 @@ func reactivate(pos: Vector3) -> void:
 	vat_flash = 0.0
 	_cached_ground_y = pos.y
 	ground_y = EnemyMotion.height_at(pos.x, pos.z) if EnemyMotion.available() else pos.y
+	_mode_speed_mult = GameData.SURVIVAL_ENEMY_SPEED_MULT if GameData.game_mode == "survival" else 1.0
 	EnemyRegistry.register(self)
 	if EnemyVisuals.instance != null:
 		EnemyVisuals.instance.attach(self)
@@ -208,16 +217,18 @@ func update(delta: float) -> void:
 	_last_dist = dist
 
 	# Próxima frecuencia de actualización (lejos o sin alertar: menos veces)
-	if not is_alerted or dist > SPAN_FAR_DIST:
+	if not is_alerted and dist > SPAN_IDLE_DIST:
+		tick_span = 8
+	elif not is_alerted or dist > SPAN_FAR_DIST / crowd_scale:
 		tick_span = 4
-	elif dist > SPAN_MID_DIST:
+	elif dist > maxf(SPAN_MID_DIST / crowd_scale, SPAN_NEAR_MIN):
 		tick_span = 2
 	else:
 		tick_span = 1
 
 	_logic_timer -= delta
 	if _logic_timer <= 0.0:
-		_logic_timer = 0.2 + randf() * 0.1
+		_logic_timer = (0.2 + randf() * 0.1) * crowd_scale
 		if not is_alerted:
 			if to_player.length_squared() <= detection_range * detection_range or hp < max_hp:
 				is_alerted = true
@@ -235,9 +246,7 @@ func update(delta: float) -> void:
 	if to_player.length_squared() > 0.01:
 		yaw = atan2(-to_player.x, -to_player.z)
 
-	var effective_speed := speed * slow_multiplier
-	if GameData.game_mode == "survival":
-		effective_speed *= GameData.SURVIVAL_ENEMY_SPEED_MULT
+	var effective_speed := speed * slow_multiplier * _mode_speed_mult
 	var next_vel := Vector3.ZERO
 	if behavior:
 		next_vel = behavior.process_ai(delta, to_player, dist, effective_speed)

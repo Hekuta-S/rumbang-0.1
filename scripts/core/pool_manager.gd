@@ -2,6 +2,10 @@ extends Node
 
 const BULLET_POOL_SIZE = 50
 const FLOATING_DAMAGE_POOL_SIZE = 50
+## Números de daño a la vez: en móvil menos (cada Label3D con contorno son 2 dibujos transparentes
+## sin prueba de profundidad; con cientos de enemigos llegan a dominar el frame). Pasado el tope se
+## recicla el más antiguo.
+var _fd_limit: int = FLOATING_DAMAGE_POOL_SIZE
 
 var bullet_scene = preload("res://scenes/objects/bullet.tscn")
 var floating_damage_script = preload("res://scripts/objects/floating_damage.gd")
@@ -29,7 +33,8 @@ func _ready() -> void:
 		_bullet_pool.append(b)
 		
 	# Pre-instantiate floating damage numbers
-	for i in range(FLOATING_DAMAGE_POOL_SIZE):
+	_fd_limit = Quality.floating_numbers_max()
+	for i in range(_fd_limit):
 		var label = Label3D.new()
 		label.script = floating_damage_script
 		label.visible = false
@@ -75,13 +80,13 @@ func get_floating_damage() -> Label3D:
 		return null
 		
 	var label = _floating_damage_pool[_floating_damage_index]
-	for i in range(FLOATING_DAMAGE_POOL_SIZE):
-		var candidate = _floating_damage_pool[(_floating_damage_index + i) % FLOATING_DAMAGE_POOL_SIZE]
+	for i in range(_fd_limit):
+		var candidate = _floating_damage_pool[(_floating_damage_index + i) % _fd_limit]
 		if not candidate.visible:
 			label = candidate
-			_floating_damage_index = (_floating_damage_index + i) % FLOATING_DAMAGE_POOL_SIZE
+			_floating_damage_index = (_floating_damage_index + i) % _fd_limit
 			break
-	_floating_damage_index = (_floating_damage_index + 1) % FLOATING_DAMAGE_POOL_SIZE
+	_floating_damage_index = (_floating_damage_index + 1) % _fd_limit
 	
 	label.visible = true
 	label.set_process(true)
