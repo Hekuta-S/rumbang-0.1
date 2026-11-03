@@ -22,6 +22,8 @@ var card_rerolls: int = CARD_REROLLS
 var card_banishes: int = CARD_BANISHES
 var banished_cards: Array = []
 var locked_card: Dictionary = {}
+## Runas de la mazmorra: {id: nivel} (ver DungeonRunes).
+var runes: Dictionary = {}
 
 func reset_session() -> void:
 	sub_level = 1
@@ -31,6 +33,7 @@ func reset_session() -> void:
 	card_banishes = CARD_BANISHES
 	banished_cards.clear()
 	locked_card = {}
+	runes.clear()
 	RunStats.reset()
 
 func add_time(delta: float) -> void:

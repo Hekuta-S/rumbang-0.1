@@ -138,7 +138,7 @@ func _strike() -> void:
 	AudioManager.play_at("kill_burst", at, 0.0, 0.75)
 	AudioManager.play_at("impact_blunt", at, 0.0, 0.5)
 	if player.has_method("heal") and player.get("health_comp"):
-		player.heal(player.health_comp.max_hp * HEAL_FRACTION)
+		player.heal(player.health_comp.max_hp * (HEAL_FRACTION + DungeonRunes.finisher_heal_bonus()))
 	var root := player.get_tree().current_scene
 	if root == null:
 		return

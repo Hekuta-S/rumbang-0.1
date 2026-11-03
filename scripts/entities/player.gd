@@ -111,6 +111,7 @@ func get_weapon_modifiers(w_id: int) -> Dictionary:
 	if weapon_inventory:
 		var m: Dictionary = weapon_inventory.get_weapon_modifiers(w_id)
 		WeaponSynergies.apply(weapon_inventory, w_id, m)   # sinergias de etiqueta y evolución
+		DungeonRunes.apply(m)                              # runas de la mazmorra
 		return m
 	var lvl = get_weapon_level(w_id)
 	var data = get_weapon_data(w_id)

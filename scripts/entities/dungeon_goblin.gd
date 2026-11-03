@@ -879,7 +879,7 @@ func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 		_last_hurt_sfx = now
 		AudioManager.play_at(hurt_sfx, global_position, -4.0, randf_range(0.9, 1.15) * sfx_pitch)
 	var heavy := amount >= stagger_damage or knockback_dir.length() >= stagger_knock
-	var stun_gain := amount * (STUN_HEAVY_MULT if heavy else STUN_HIT_MULT)
+	var stun_gain := amount * (STUN_HEAVY_MULT if heavy else STUN_HIT_MULT) * DungeonRunes.stun_mult()
 	if state == State.RECOVER:
 		stun_gain *= STUN_PUNISH_MULT
 	if _add_stun(stun_gain):

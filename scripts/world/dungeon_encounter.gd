@@ -7,6 +7,10 @@ extends Node
 ##  - Al limpiar la caverna final aparece un portal (DungeonPortal). Cruzarlo abre la elección entre
 ##    dos armas al azar (WeaponChoiceUI) y se baja al siguiente nivel: mapa nuevo y algo más difícil.
 ##  - La arena (vecina de la inicial) tiene el "arena_kind" del mundo (un goblin en las cavernas); la tecla G hace aparecer otro allí (pruebas).
+##  - Estructura de partida (solo sin red): los enemigos sueltan oro; una caverna por nivel es de
+##    DESAFÍO (despejarla a tiempo da una runa y oro extra); desde el nivel 2 hay una forja
+##    (DungeonShop) en la caverna inicial; tras elegir arma en el portal se elige el CAMINO del
+##    siguiente nivel (PATHS): tesoro de runas, desafío doble, descanso o una runa ya.
 
 signal encounter_started
 signal encounter_cleared
@@ -49,11 +53,34 @@ var _doors_waiting: Dictionary = {}   ## índice de caverna -> [bocas por cerrar
 var _triggered := false               ## la arena ya se activó (habilita la G)
 var _changing_level := false
 
+# ── Estructura de partida (desafíos, forja, caminos; ver DungeonRunes / DungeonShop) ──
+const PATHS := {
+	"tesoro": {"icon": "💎", "title": "Tesoro", "desc": "Empiezas el nivel junto a un cofre de runas", "color": Color(1.0, 0.84, 0.3)},
+	"desafio": {"icon": "⚔", "title": "Desafío", "desc": "Dos cavernas de desafío y el doble de oro", "color": Color(1.0, 0.35, 0.3)},
+	"descanso": {"icon": "🔥", "title": "Descanso", "desc": "Recuperas toda la vida y los recursos", "color": Color(0.45, 1.0, 0.55)},
+	"runa": {"icon": "🌀", "title": "Runa", "desc": "Eliges una runa ahora mismo", "color": DungeonRunes.COLOR},
+}
+const CHALLENGE_BASE_TIME := 14.0     ## s para despejar una caverna de desafío...
+const CHALLENGE_TIME_PER_ENEMY := 2.5 ## ...más esto por enemigo
+const CHALLENGE_GOLD := 40
+const SHOP_FROM_LEVEL := 2
+const SHOP_OFFSET := 4.0
+var path := ""                        ## camino elegido para el nivel actual
+var _challenge_rooms: Dictionary = {} ## caverna -> marca Label3D (antes de entrar)
+var _challenge: Dictionary = {}       ## desafío en curso: {room, until}
+var _challenge_label: Label
+var shop: DungeonShop
+
+## La estructura de partida solo existe sin red (en red el flujo de nivel lo sincroniza NetWorld).
+func structure_enabled() -> bool:
+	return not Net.is_online()
+
 func setup(p_map: DungeonMap, p_player: Node3D) -> void:
 	map = p_map
 	player = p_player
 	_plan_rooms()
 	_spawn_chests()
+	_setup_level_extras()
 
 ## Enemigos por caverna: grupos grandes y mezclados que crecen con el nivel. La caverna final trae
 ## una escolta numerosa y el jefe aparece al final, cuando ya no queda nadie de la escolta.
@@ -92,9 +119,12 @@ func _process(_delta: float) -> void:
 			_pending.erase(i)
 			_spawn_group(i, n, trigger)
 			_close_room(i)
+			if _challenge_rooms.has(i):
+				_start_challenge(i)
 			_net_call("room_started", [i])
 			encounter_started.emit()
 	_check_treasure()
+	_update_challenge()
 	# Barreras pendientes: se cierran en cuanto el jugador no está encima
 	for room in _doors_waiting.keys():
 		var left: Array = []
@@ -187,7 +217,7 @@ func _spawn_at(room: int, pos: Vector3, kind: String = "goblin") -> DungeonGobli
 ## Cuenta un enemigo vivo de la caverna; los que nacen de él (DungeonSlug al dividirse) también.
 func _track(room: int, g: DungeonGoblin) -> void:
 	_alive[room] = _alive.get(room, 0) + 1
-	g.died.connect(func(dead): _on_goblin_died(room); _drop_resources(dead))
+	g.died.connect(func(dead): _on_goblin_died(room); _drop_resources(dead); _award_gold(dead))
 	if g.has_signal("spawned"):
 		g.spawned.connect(func(child): _track(room, child))
 
@@ -247,6 +277,8 @@ func _close_room(room: int) -> void:
 		_doors_waiting[room] = waiting
 
 func _room_cleared(room: int) -> void:
+	if not _challenge.is_empty() and int(_challenge["room"]) == room:
+		_finish_challenge(true)
 	_doors_waiting.erase(room)
 	for d in _doors.get(room, []):
 		if is_instance_valid(d):
@@ -316,7 +348,7 @@ func _on_weapon_chosen(weapon_type: int) -> void:
 		_net_call("player_ready_for_next", [])
 		_show_waiting_label()
 	else:
-		next_level()
+		_choose_path()
 
 ## Da el arma y la equipa; con los huecos llenos sustituye a la que se lleva en la mano.
 func give_weapon(weapon_type: int) -> void:
@@ -393,6 +425,7 @@ func _rebuild_level() -> void:
 	_plan_rooms()
 	_treasure_opened.clear()
 	_spawn_chests()
+	_setup_level_extras()
 	var start := Vector3.ZERO
 	for i in map.rooms.size():
 		if map.rooms[i]["type"] == "start":
@@ -597,3 +630,160 @@ func _show_banner(text: String) -> void:
 	tw.tween_interval(1.8)
 	tw.tween_property(l, "modulate:a", 0.0, 0.6)
 	tw.tween_callback(layer.queue_free)
+
+# ───────────────────────────── Estructura de partida ─────────────────────────────
+
+## Desafíos, forja y el camino elegido en el portal para este nivel.
+func _setup_level_extras() -> void:
+	for room in _challenge_rooms:
+		if is_instance_valid(_challenge_rooms[room]):
+			_challenge_rooms[room].queue_free()
+	_challenge_rooms.clear()
+	_finish_challenge(false, true)
+	if is_instance_valid(shop):
+		shop.queue_free()
+	shop = null
+	if not structure_enabled():
+		return
+	# Cavernas de desafío: las normales (ni la arena ni la final)
+	var normal: Array = []
+	for i in _pending:
+		if i != map.arena_index and map.rooms[i]["type"] != "end":
+			normal.append(i)
+	normal.shuffle()
+	for i in normal.slice(0, 2 if path == "desafio" else 1):
+		var mark := Label3D.new()
+		mark.text = "⚔ DESAFIO"
+		mark.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		mark.font_size = 64
+		mark.outline_size = 14
+		mark.modulate = PATHS["desafio"]["color"]
+		get_parent().add_child(mark)
+		var c := map.room_center(i)
+		mark.global_position = Vector3(c.x, 3.2, c.z)
+		_challenge_rooms[i] = mark
+	var start := _start_room()
+	if level >= SHOP_FROM_LEVEL:
+		shop = DungeonShop.spawn(get_parent(), _free_spot(map.room_center(start), SHOP_OFFSET, 0.0), player, level)
+	if path == "tesoro":
+		var chest := TreasureChest.spawn(get_parent(), _free_spot(map.room_center(start), SHOP_OFFSET, 180.0), player)
+		chest.opened.connect(func(_c): _offer_rune("COFRE DE RUNAS", "ELIGE UNA RUNA"))
+		_chests.append(chest)
+
+func _start_room() -> int:
+	for i in map.rooms.size():
+		if map.rooms[i]["type"] == "start":
+			return i
+	return 0
+
+## Punto libre a `dist` m del centro, probando a girar desde `angle_deg`.
+func _free_spot(c: Vector3, dist: float, angle_deg: float) -> Vector3:
+	var dir := Vector3.FORWARD.rotated(Vector3.UP, deg_to_rad(angle_deg))
+	var pos := c + dir * dist
+	for k in 8:
+		var cell := map.world_to_cell(pos)
+		if map._cells.has(cell) and not map._walls.has(cell) and not map._blocked.has(cell):
+			break
+		dir = dir.rotated(Vector3.UP, deg_to_rad(45.0))
+		pos = c + dir * dist
+	return Vector3(pos.x, 0.0, pos.z)
+
+## Oro de cada enemigo (el doble en el camino de desafío). Se gasta en la forja.
+func _award_gold(dead) -> void:
+	if not structure_enabled() or not is_instance_valid(dead):
+		return
+	var g := int(dead.get("gold_reward") if dead.get("gold_reward") != null else 5)
+	if path == "desafio":
+		g *= 2
+	_add_gold(g)
+
+func _add_gold(amount: int) -> void:
+	var gs := GameState.get_instance()
+	gs.add_gold(amount)
+	SaveManager.add_gold(amount)
+	var scene := get_parent()
+	if scene and scene.get("facade"):
+		scene.facade.update_gold(gs.gold)
+
+func _start_challenge(room: int) -> void:
+	if is_instance_valid(_challenge_rooms[room]):
+		_challenge_rooms[room].queue_free()
+	_challenge_rooms.erase(room)
+	var limit := CHALLENGE_BASE_TIME + CHALLENGE_TIME_PER_ENEMY * float(_alive.get(room, 0))
+	_challenge = {"room": room, "until": Time.get_ticks_msec() / 1000.0 + limit}
+	var layer := CanvasLayer.new()
+	layer.name = "ChallengeTimer"
+	layer.layer = 70
+	_challenge_label = Label.new()
+	_challenge_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_challenge_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_challenge_label.offset_top = 70
+	_challenge_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_challenge_label.theme = RumbangStyle.get_theme()
+	RumbangStyle.style_title(_challenge_label, 22, PATHS["desafio"]["color"], RumbangStyle.NEON_MAGENTA)
+	layer.add_child(_challenge_label)
+	get_parent().add_child(layer)
+	_show_banner("¡DESAFIO! ¡A TIEMPO!")
+
+func _update_challenge() -> void:
+	if _challenge.is_empty():
+		return
+	var left := float(_challenge["until"]) - Time.get_ticks_msec() / 1000.0
+	if is_instance_valid(_challenge_label):
+		_challenge_label.text = "DESAFIO  %.1f s" % maxf(left, 0.0)
+	if left <= 0.0:
+		_finish_challenge(false)
+
+## Termina el desafío en curso: a tiempo da una runa y oro; si no, solo un aviso.
+func _finish_challenge(won: bool, silent: bool = false) -> void:
+	if _challenge.is_empty():
+		return
+	_challenge = {}
+	if is_instance_valid(_challenge_label):
+		_challenge_label.get_parent().queue_free()
+	_challenge_label = null
+	if silent:
+		return
+	if won:
+		_add_gold(CHALLENGE_GOLD + 10 * level)
+		AudioManager.play("level-up", -4.0, 1.2)
+		_offer_rune("¡DESAFIO SUPERADO!", "ELIGE UNA RUNA")
+	else:
+		_show_banner("DESAFIO FALLIDO")
+
+## Abre la elección de una runa (si queda alguna por subir); `then` se llama al elegir.
+func _offer_rune(title: String, subtitle: String, then: Callable = Callable()) -> void:
+	var runes := DungeonRunes.roll(3)
+	if runes.is_empty():
+		if then.is_valid():
+			then.call()
+		return
+	var ui := DungeonChoiceUI.present(get_parent(), title, subtitle, runes.map(func(r): return DungeonRunes.option(r)))
+	ui.chosen.connect(func(id):
+		DungeonRunes.add(id)
+		if then.is_valid():
+			then.call())
+
+## Tras el portal: elegir el camino del siguiente nivel (3 de PATHS al azar).
+func _choose_path() -> void:
+	var ids: Array = PATHS.keys()
+	ids.shuffle()
+	var options: Array = []
+	for id in ids.slice(0, 3):
+		var o: Dictionary = PATHS[id].duplicate()
+		o["id"] = id
+		options.append(o)
+	var ui := DungeonChoiceUI.present(get_parent(), "ELIGE TU CAMINO", "NIVEL %d" % (level + 1), options)
+	ui.chosen.connect(_on_path_chosen)
+
+func _on_path_chosen(id: String) -> void:
+	path = id
+	match id:
+		"descanso":
+			if player.has_method("heal") and player.get("health_comp"):
+				player.heal(player.health_comp.max_hp)
+			next_level()
+		"runa":
+			_offer_rune("RUNA", "ELIGE UNA RUNA", next_level)
+		_:
+			next_level()
