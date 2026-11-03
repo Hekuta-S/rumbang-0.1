@@ -122,6 +122,10 @@ func _build_ui() -> void:
 	btn_upgrades.pressed.connect(_on_upgrades_menu)
 	vbox.add_child(btn_upgrades)
 	
+	var btn_codex := _make_button("  LOGROS", C_BTN_BORDER)
+	btn_codex.pressed.connect(_on_codex_menu)
+	vbox.add_child(btn_codex)
+
 	var btn_opts := _make_button("  OPCIONES", C_BTN_BORDER)
 	btn_opts.pressed.connect(_on_options_menu)
 	vbox.add_child(btn_opts)
@@ -142,6 +146,7 @@ func _build_ui() -> void:
 	add_child(lbl_ver)
 	
 	_build_upgrades_panel()
+	_build_codex_panel()
 	_build_play_menu()
 	btn_play.grab_focus.call_deferred()
 
@@ -402,6 +407,93 @@ func _on_upgrades_menu() -> void:
 
 func _on_quit() -> void:
 	get_tree().quit()
+
+# ───────────────────────────── Logros y códice (MetaProgress) ─────────────────────────────
+
+var codex_panel: ColorRect
+var codex_list: VBoxContainer
+
+func _on_codex_menu() -> void:
+	center_container.hide()
+	_play_menu.hide()
+	codex_panel.show()
+	_refresh_codex()
+
+## Pantalla completa como la de mejoras: logros (progreso y recompensa) y las evoluciones de arma
+## descubiertas (las demás salen como "???" con el arma, para que se sepa que existen).
+func _build_codex_panel() -> void:
+	codex_panel = ColorRect.new()
+	codex_panel.set_anchors_preset(PRESET_FULL_RECT)
+	codex_panel.color = Color(C_BG, 0.95)
+	codex_panel.hide()
+	add_child(codex_panel)
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(PRESET_FULL_RECT)
+	for side in ["left", "right"]:
+		margin.add_theme_constant_override("margin_" + side, 60)
+	for side in ["top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 40)
+	codex_panel.add_child(margin)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 20)
+	margin.add_child(vbox)
+	var header := HBoxContainer.new()
+	vbox.add_child(header)
+	var title := Label.new()
+	title.text = "LOGROS Y EVOLUCIONES"
+	title.add_theme_font_size_override("font_size", 32)
+	title.add_theme_color_override("font_color", C_TITLE)
+	header.add_child(title)
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(spacer)
+	var btn_back := _make_button("VOLVER", C_BTN_BORDER)
+	btn_back.custom_minimum_size = Vector2(150, 40)
+	btn_back.pressed.connect(func():
+		codex_panel.hide()
+		center_container.show()
+	)
+	header.add_child(btn_back)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(scroll)
+	codex_list = VBoxContainer.new()
+	codex_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	codex_list.add_theme_constant_override("separation", 8)
+	scroll.add_child(codex_list)
+
+func _refresh_codex() -> void:
+	for child in codex_list.get_children():
+		child.queue_free()
+	_codex_line("LOGROS", 20, C_TITLE)
+	for id in MetaProgress.ACHIEVEMENTS:
+		var a: Dictionary = MetaProgress.ACHIEVEMENTS[id]
+		var done := MetaProgress.unlocked(id)
+		var prog := mini(MetaProgress.stat(a["stat"]), int(a["goal"]))
+		_codex_line("%s %s  —  %s  (%d/%d)" % ["★" if done else "☆", a["name"], a["desc"], prog, int(a["goal"])],
+			15, MetaProgress.COLOR if done else C_TEXT)
+		_codex_line("      Recompensa: %s" % a["reward"], 12, C_ACCENT if done else C_TEXT_DIM)
+	_codex_line("", 8, C_TEXT)
+	var found := 0
+	for w in WeaponSynergies.EVOLUTIONS:
+		found += int(MetaProgress.evolution_known(w))
+	_codex_line("EVOLUCIONES (%d/%d)" % [found, WeaponSynergies.EVOLUTIONS.size()], 20, C_TITLE)
+	for w in WeaponSynergies.EVOLUTIONS:
+		var e: Dictionary = WeaponSynergies.EVOLUTIONS[w]
+		var weapon := str(WeaponData.weapon_names.get(w, "Arma"))
+		if MetaProgress.evolution_known(w):
+			_codex_line("%s  =  %s + %s" % [e["name"], weapon, WeaponSynergies.catalyst_name(w)], 15, MetaProgress.COLOR)
+			_codex_line("      %s" % e["desc"], 12, C_TEXT_DIM)
+		else:
+			_codex_line("???  =  %s + ???" % weapon, 15, C_TEXT_DIM)
+
+func _codex_line(text: String, size: int, color: Color) -> void:
+	var l := Label.new()
+	l.text = text
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", color)
+	codex_list.add_child(l)
 
 func _on_options_menu() -> void:
 	var SettingsMenu = load("res://scripts/ui/settings_menu.gd")

@@ -29,8 +29,8 @@ func reset_session() -> void:
 	sub_level = 1
 	gold = 0
 	elapsed_time = 0.0
-	card_rerolls = CARD_REROLLS
-	card_banishes = CARD_BANISHES
+	card_rerolls = CARD_REROLLS + MetaProgress.bonus_rerolls()
+	card_banishes = CARD_BANISHES + MetaProgress.bonus_banishes()
 	banished_cards.clear()
 	locked_card = {}
 	runes.clear()

@@ -663,7 +663,13 @@ func _setup_level_extras() -> void:
 		mark.global_position = Vector3(c.x, 3.2, c.z)
 		_challenge_rooms[i] = mark
 	var start := _start_room()
-	if level >= SHOP_FROM_LEVEL:
+	# Logro "Verdugo": la partida empieza con una runa
+	if level == 1 and MetaProgress.starting_rune() and GameState.get_instance().runes.is_empty():
+		var first := DungeonRunes.roll(1)
+		if not first.is_empty():
+			DungeonRunes.add(first[0])
+			_show_banner("Runa inicial: %s" % DungeonRunes.RUNES[first[0]]["name"])
+	if level >= (1 if MetaProgress.early_forge() else SHOP_FROM_LEVEL):
 		shop = DungeonShop.spawn(get_parent(), _free_spot(map.room_center(start), SHOP_OFFSET, 0.0), player, level)
 	if path == "tesoro":
 		var chest := TreasureChest.spawn(get_parent(), _free_spot(map.room_center(start), SHOP_OFFSET, 180.0), player)
@@ -745,6 +751,7 @@ func _finish_challenge(won: bool, silent: bool = false) -> void:
 	if silent:
 		return
 	if won:
+		MetaProgress.record("challenges_won")
 		_add_gold(CHALLENGE_GOLD + 10 * level)
 		AudioManager.play("level-up", -4.0, 1.2)
 		_offer_rune("¡DESAFIO SUPERADO!", "ELIGE UNA RUNA")

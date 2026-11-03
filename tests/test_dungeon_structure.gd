@@ -7,6 +7,8 @@ func _ready() -> void:
 	print("--- TEST: ESTRUCTURA DE LA MAZMORRA ---")
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	GameData.game_mode = "dungeon"
+	SaveManager.save_path = "user://test_save.json"   # no tocar la partida guardada real
+	SaveManager.meta = {}
 	var scene: Node = load("res://scenes/core/main_dungeon.tscn").instantiate()
 	get_tree().root.add_child.call_deferred(scene)
 	await get_tree().process_frame

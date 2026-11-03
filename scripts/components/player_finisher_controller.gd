@@ -133,6 +133,7 @@ func _strike() -> void:
 	var at := _target.global_position + Vector3(0, _target.model_height * 0.55, 0)
 	HitFeedback.weapon_tag = player.current_weapon() if player.has_method("current_weapon") else -1
 	_target.receive_finisher(dir * 18.0)
+	MetaProgress.record("finishers")
 	HitFeedback.freeze(0.12)
 	HitFeedback.shake(0.85)
 	AudioManager.play_at("kill_burst", at, 0.0, 0.75)

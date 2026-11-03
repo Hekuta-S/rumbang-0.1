@@ -131,6 +131,7 @@ func _on_upgrade_choice_made(choice_type: String, choice_id: String) -> void:
 		player.upgrade_weapon(w_id)
 	elif choice_type == "evolution":
 		WeaponSynergies.evolve(player.weapon_inventory, w_id)
+		MetaProgress.discover_evolution(w_id)
 		AudioManager.play("kill_burst", -2.0, 0.7)
 		if hud and hud.has_method("play_level_up_confetti"):
 			hud.play_level_up_confetti()

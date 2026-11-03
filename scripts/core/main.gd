@@ -141,6 +141,8 @@ func _on_boss_died(pos: Vector3, gold_val: int) -> void:
 	_save_best_time()
 	if RunStats.endless_from >= 0.0:
 		return                        # en el modo infinito un jefe más no termina la partida
+	if GameData.game_mode != "dungeon":
+		MetaProgress.record("survival_boss_kills")
 	# Derrotar al Nigromante (7:10) termina la partida con victoria
 	AudioManager.play("victory")
 	facade.show_victory()
@@ -155,3 +157,5 @@ func _char_id() -> String:
 
 func _on_player_died() -> void:
 	_save_best_time()
+	if RunStats.endless_from >= 0.0:
+		MetaProgress.record_max("best_endless_s", int(GameState.get_instance().elapsed_time - RunStats.endless_from))

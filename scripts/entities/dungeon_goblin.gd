@@ -379,6 +379,10 @@ func _shape_telegraph(a: Dictionary) -> void:
 	_telegraph.position = Vector3(0.0, 0.05, -reach * 0.5)
 	mat.set_shader_parameter("progress", 0.0)
 
+## Fase de combate (los jefes la cambian; ver "min_phase" en sus ataques).
+func _phase_level() -> int:
+	return 0
+
 ## Ataque disponible para esta distancia (sorteo ponderado), o "" si ninguno.
 func _choose_attack(dist: float, sees: bool = true) -> String:
 	var options: Array = []
@@ -387,6 +391,8 @@ func _choose_attack(dist: float, sees: bool = true) -> String:
 		var a: Dictionary = attacks[n]
 		if dist < float(a["range"][0]) or dist > float(a["range"][1]):
 			continue
+		if int(a.get("min_phase", 0)) > _phase_level():
+			continue                       # ataque de una fase posterior (jefes)
 		if (a["shape"] == "line" or a.get("needs_sight", false)) and not sees:
 			continue
 		if _clock < float(_atk_ready.get(n, 0.0)):

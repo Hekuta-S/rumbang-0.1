@@ -9,6 +9,8 @@ func _ready() -> void:
 	print("--- TEST: EVENTOS DE LA PARTIDA ---")
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	GameData.game_mode = "survival"
+	SaveManager.save_path = "user://test_save.json"   # no tocar la partida guardada real
+	SaveManager.meta = {}
 	_main = load("res://scenes/core/main_procedural.tscn").instantiate()
 	get_tree().root.add_child.call_deferred(_main)
 	await get_tree().process_frame

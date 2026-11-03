@@ -8,6 +8,8 @@ const W := WeaponData.WeaponType
 func _ready() -> void:
 	print("--- TEST: SINERGIAS Y EVOLUCIONES ---")
 	GameData.game_mode = "survival"
+	SaveManager.save_path = "user://test_save.json"   # no tocar la partida guardada real
+	SaveManager.meta = {}
 	var scene: Node = load("res://scenes/core/main_procedural.tscn").instantiate()
 	get_tree().root.add_child.call_deferred(scene)
 	await get_tree().process_frame
@@ -90,8 +92,9 @@ func _ready() -> void:
 	ui.present_choices(p)
 	await get_tree().process_frame
 	var gs := GameState.get_instance()
+	var rerolls := gs.card_rerolls
 	ui._on_reroll()
-	assert(gs.card_rerolls == GameState.CARD_REROLLS - 1, "Volver a tirar gasta un uso")
+	assert(gs.card_rerolls == rerolls - 1, "Volver a tirar gasta un uso (%d → %d)" % [rerolls, gs.card_rerolls])
 	var keep: Array = ui._choices.slice(1).map(func(c): return ui_script.choice_key(c))
 	var gone: String = ui_script.choice_key(ui._choices[0])
 	ui._on_banish(ui._choices[0])
@@ -99,11 +102,11 @@ func _ready() -> void:
 	assert(not now.has(gone) and gs.banished_cards.has(gone), "La descartada desaparece")
 	for k in keep:
 		assert(now.has(k), "Las otras cartas se quedan")
-	assert(gs.card_banishes == GameState.CARD_BANISHES - 1, "Descartar gasta un uso")
+	assert(gs.card_banishes == GameState.CARD_BANISHES + MetaProgress.bonus_banishes() - 1, "Descartar gasta un uso")
 	ui._on_card_pressed(ui._choices[0])
 	assert(not get_tree().paused, "Elegir carta reanuda la partida")
 	GameState.get_instance().reset_session()
-	assert(gs.card_rerolls == GameState.CARD_REROLLS and gs.banished_cards.is_empty(), "Nueva partida: usos y descartes reiniciados")
+	assert(gs.card_rerolls == GameState.CARD_REROLLS + MetaProgress.bonus_rerolls() and gs.banished_cards.is_empty(), "Nueva partida: usos y descartes reiniciados")
 	print("CHECK 5 PASSED: volver a tirar, descartar y reinicio por partida")
 
 	print("ALL SYNERGY CHECKS PASSED")
