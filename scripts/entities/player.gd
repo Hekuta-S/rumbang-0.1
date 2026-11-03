@@ -109,7 +109,9 @@ func upgrade_weapon(w_id: int) -> void:
 
 func get_weapon_modifiers(w_id: int) -> Dictionary:
 	if weapon_inventory:
-		return weapon_inventory.get_weapon_modifiers(w_id)
+		var m: Dictionary = weapon_inventory.get_weapon_modifiers(w_id)
+		WeaponSynergies.apply(weapon_inventory, w_id, m)   # sinergias de etiqueta y evolución
+		return m
 	var lvl = get_weapon_level(w_id)
 	var data = get_weapon_data(w_id)
 	var cat = data.category

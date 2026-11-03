@@ -112,7 +112,9 @@ func _refresh_stats_panel() -> void:
 				var lvl: int = winv.get_upgrade_level(w, d["id"])
 				if lvl > 0:
 					parts.append("%s %s" % [d["name"], WeaponUpgrades.level_label(d, lvl)])
-			lines.append("%s: %s" % [WeaponData.weapon_names.get(w, "Arma"), ", ".join(parts) if not parts.is_empty() else "sin mejoras"])
+			lines.append("%s: %s" % [WeaponSynergies.weapon_name(winv, w), ", ".join(parts) if not parts.is_empty() else "sin mejoras"])
+		for syn in WeaponSynergies.active(winv.weapon_slots):
+			lines.append("Sinergia " + WeaponSynergies.describe(syn))
 	_stats_label.text = "
 ".join(lines)
 
