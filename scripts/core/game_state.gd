@@ -31,6 +31,7 @@ func reset_session() -> void:
 	card_banishes = CARD_BANISHES
 	banished_cards.clear()
 	locked_card = {}
+	RunStats.reset()
 
 func add_time(delta: float) -> void:
 	elapsed_time += delta

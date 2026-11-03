@@ -5,7 +5,9 @@ class_name WaveManager
 ## presión sube con el tiempo de partida (GameState.elapsed_time): intervalo menor, lotes más
 ## grandes, más enemigos vivos a la vez, tipos nuevos y más vida/daño. A los BOSS_TIME_S
 ## aparece el Nigromante (una sola vez) y la aparición normal baja mientras siga vivo.
-## Al morir el jefe se emite boss_died y se detiene la aparición.
+## Al morir el jefe se emite boss_died y se detiene la aparición (salvo en el modo infinito:
+## continue_endless() la reanuda y la dificultad sigue subiendo sin tope).
+## RunEvents (hijo) añade los eventos de la partida: mareas, élites, minijefe, cofre maldito y santuarios.
 
 signal enemy_died(pos: Vector3, gold_val: int)
 signal boss_died(pos: Vector3, gold_val: int)
@@ -24,6 +26,11 @@ const ALIVE_CAP_START: int = 40
 ## Escalado por minuto de partida.
 const HP_PER_MINUTE: float = 0.15
 const DAMAGE_PER_MINUTE: float = 0.06
+## Modo infinito: vida y daño extra por minuto pasado el jefe.
+const ENDLESS_HP_PER_MINUTE: float = 0.45
+const ENDLESS_DAMAGE_PER_MINUTE: float = 0.12
+## Cofre maldito: más enemigos por lote mientras dura.
+const CURSE_BATCH_MULT: float = 1.6
 
 const PLAYABLE_MIN_X: float = -95.0
 const PLAYABLE_MAX_X: float = 95.0
@@ -40,6 +47,9 @@ const MAX_SPAWNS_PER_FRAME := 2
 var _pending_spawns: int = 0
 var _boss: Node = null
 var _boss_spawned: bool = false
+var endless: bool = false
+var events: RunEvents
+var _curse_until: float = 0.0
 
 func _ready() -> void:
 	spawn_timer = Timer.new()
@@ -52,6 +62,10 @@ func _ready() -> void:
 	var visuals := EnemyVisuals.new()    # los dibuja con MultiMesh
 	visuals.name = "EnemyVisuals"
 	add_child(visuals)
+	events = RunEvents.new()
+	events.name = "RunEvents"
+	events.waves = self
+	add_child(events)
 	_load_wave_config()
 
 func _load_wave_config() -> void:
@@ -73,9 +87,25 @@ func start_run(p_player: Node3D) -> void:
 			enemy.queue_free()
 	_boss = null
 	_boss_spawned = false
+	endless = false
+	_curse_until = 0.0
 	_running = true
 	_pending_spawns = 5
 	spawn_timer.start(_current_interval())
+	events.start(p_player)
+
+## Tras vencer al jefe: la partida sigue sin final y cada minuto más dura.
+func continue_endless() -> void:
+	endless = true
+	_running = true
+	spawn_timer.start(_current_interval())
+
+## Cofre maldito: CURSE_BATCH_MULT veces más enemigos durante `seconds`.
+func curse(seconds: float) -> void:
+	_curse_until = _elapsed() + seconds
+
+func is_cursed() -> bool:
+	return _elapsed() < _curse_until
 
 func _process(_delta: float) -> void:
 	var budget := MAX_SPAWNS_PER_FRAME
@@ -117,6 +147,8 @@ func _current_batch() -> int:
 	var batch := int(round(lerpf(BATCH_START, BATCH_END, _progress())))
 	if _tryhard():
 		batch = int(round(batch * PlayerStatBlock.TRYHARD_SPAWN_RATE))
+	if is_cursed():
+		batch = int(round(batch * CURSE_BATCH_MULT))
 	return maxi(batch, 1)
 
 func _alive_cap() -> int:
@@ -131,7 +163,7 @@ func _on_spawn_tick() -> void:
 		_spawn_boss()
 
 	var alive := EnemyRegistry.count() + _pending_spawns
-	var cap := _alive_cap()
+	var cap := _alive_cap() + (RunEvents.CURSE_CAP_BONUS if is_cursed() else 0)
 	for i in range(_current_batch()):
 		if alive >= cap:
 			break
@@ -160,15 +192,18 @@ func _current_pool() -> Array:
 			pool = stage.get("pool", pool)
 	return pool
 
-## Crea un enemigo (o un grupo de zombis) y devuelve cuántos añadió.
-func _spawn_single_enemy() -> int:
-	var spawn_pos: Vector3 = _random_spawn_pos()
+## Crea un enemigo (o un grupo de zombis) y devuelve los que añadió. `at` fija el sitio (las
+## mareas de RunEvents) y `type_override` el tipo (sin grupo de zombis).
+func _spawn_single_enemy(at: Vector3 = Vector3.INF, type_override: int = -1) -> Array:
+	var spawn_pos: Vector3 = _random_spawn_pos() if at == Vector3.INF else at
 	var main_node = get_tree().current_scene
 	var type_val = 1
 	var is_zombie = false
 
 	var pool: Array = _current_pool()
-	if pool.size() > 0:
+	if type_override >= 0:
+		type_val = type_override
+	elif pool.size() > 0:
 		var total_weight = 0.0
 		for entry in pool:
 			total_weight += float(entry.get("weight", 0))
@@ -184,6 +219,11 @@ func _spawn_single_enemy() -> int:
 	var minutes := _elapsed() / 60.0
 	var hp_mult := 1.0 + HP_PER_MINUTE * minutes
 	var dmg_mult := 1.0 + DAMAGE_PER_MINUTE * minutes
+	if endless:
+		var extra := maxf(_elapsed() - BOSS_TIME_S, 0.0) / 60.0
+		hp_mult += ENDLESS_HP_PER_MINUTE * extra
+		dmg_mult += ENDLESS_DAMAGE_PER_MINUTE * extra
+	var spawned: Array = []
 	var spawn_count = randi_range(3, 5) if is_zombie else 1
 	for i in range(spawn_count):
 		var pos: Vector3 = spawn_pos
@@ -199,7 +239,8 @@ func _spawn_single_enemy() -> int:
 		en.max_hp *= hp_mult
 		en.hp = en.max_hp
 		en.damage *= dmg_mult
-	return spawn_count
+		spawned.append(en)
+	return spawned
 
 # ── Jefe ─────────────────────────────────────────────────────────────────
 
@@ -224,9 +265,11 @@ func _exit_tree() -> void:
 	EnemyMotion.reset()
 
 func _on_enemy_died_internal(_enemy_ref, pos: Vector3, gold_val: int) -> void:
+	RunStats.kills += 1
 	enemy_died.emit(pos, gold_val)
 
 func _on_boss_died_internal(pos: Vector3, gold_val: int) -> void:
+	RunStats.boss_killed = true
 	stop_run()
 	boss_died.emit(pos, gold_val)
 

@@ -234,6 +234,138 @@
       "addons_godot_mcp_toolkit_security_file_guard_within_boundary"
     ],
     "3": [
+      "godot_control",
+      "scripts_ui_crosshair",
+      "scripts_ui_crosshair_draw",
+      "scripts_ui_crosshair_dungeon_update",
+      "scripts_ui_crosshair_process",
+      "scripts_ui_crosshair_ready",
+      "scripts_ui_crosshair_trigger_kickback",
+      "scripts_ui_loading_screen",
+      "scripts_ui_loading_screen_compile_shaders",
+      "scripts_ui_loading_screen_load",
+      "scripts_ui_loading_screen_load_scene",
+      "scripts_ui_loading_screen_only_data",
+      "scripts_ui_loading_screen_process",
+      "scripts_ui_loading_screen_ready",
+      "scripts_ui_loading_screen_step",
+      "scripts_ui_loading_screen_warm_dungeon",
+      "scripts_ui_lobby_menu",
+      "scripts_ui_lobby_menu_build_browse",
+      "scripts_ui_lobby_menu_build_room",
+      "scripts_ui_lobby_menu_center_panel",
+      "scripts_ui_lobby_menu_connect",
+      "scripts_ui_lobby_menu_create",
+      "scripts_ui_lobby_menu_exit_tree",
+      "scripts_ui_lobby_menu_initial_server_address",
+      "scripts_ui_lobby_menu_join_ip",
+      "scripts_ui_lobby_menu_join_selected",
+      "scripts_ui_lobby_menu_join_server",
+      "scripts_ui_lobby_menu_on_disconnected",
+      "scripts_ui_lobby_menu_ready",
+      "scripts_ui_lobby_menu_refresh_games",
+      "scripts_ui_lobby_menu_refresh_room",
+      "scripts_ui_lobby_menu_set_status",
+      "scripts_ui_lobby_menu_show_browse",
+      "scripts_ui_lobby_menu_show_room",
+      "scripts_ui_lobby_menu_title",
+      "scripts_ui_neon_frame",
+      "scripts_ui_neon_frame_attach",
+      "scripts_ui_neon_frame_draw",
+      "scripts_ui_neon_frame_glow_line",
+      "scripts_ui_neon_frame_neonframe",
+      "scripts_ui_neon_frame_process",
+      "scripts_ui_neon_frame_ready",
+      "scripts_ui_resource_bars",
+      "scripts_ui_resource_bars_bar",
+      "scripts_ui_resource_bars_draw",
+      "scripts_ui_resource_bars_layout",
+      "scripts_ui_resource_bars_on_denied",
+      "scripts_ui_resource_bars_process",
+      "scripts_ui_resource_bars_ready",
+      "scripts_ui_resource_bars_resourcebars",
+      "scripts_ui_team_panel",
+      "scripts_ui_team_panel_draw",
+      "scripts_ui_team_panel_mates",
+      "scripts_ui_team_panel_process",
+      "scripts_ui_team_panel_ready",
+      "scripts_ui_team_panel_teampanel",
+      "scripts_ui_vitals_panel",
+      "scripts_ui_vitals_panel_draw",
+      "scripts_ui_vitals_panel_hp_ratio",
+      "scripts_ui_vitals_panel_is_low",
+      "scripts_ui_vitals_panel_process",
+      "scripts_ui_vitals_panel_ready",
+      "scripts_ui_vitals_panel_set_values",
+      "scripts_ui_vitals_panel_trail_ratio",
+      "scripts_ui_vitals_panel_vitalspanel"
+    ],
+    "4": [
+      "addons_godot_mcp_toolkit_paths_lsp_publisher",
+      "addons_godot_mcp_toolkit_paths_lsp_publisher_connect_settings_watch",
+      "addons_godot_mcp_toolkit_paths_lsp_publisher_disconnect_settings_watch",
+      "addons_godot_mcp_toolkit_paths_lsp_publisher_get_reported_lsp_status",
+      "addons_godot_mcp_toolkit_paths_lsp_publisher_on_editor_settings_changed",
+      "addons_godot_mcp_toolkit_paths_lsp_publisher_resolve_lsp_endpoint",
+      "addons_godot_mcp_toolkit_paths_lsp_publisher_set_bound_port_provider",
+      "addons_godot_mcp_toolkit_paths_lsp_publisher_set_reported_lsp_status",
+      "addons_godot_mcp_toolkit_paths_lsp_publisher_set_status_changed_handler",
+      "addons_godot_mcp_toolkit_paths_project_key",
+      "addons_godot_mcp_toolkit_paths_project_key_canonical",
+      "addons_godot_mcp_toolkit_paths_project_key_current",
+      "addons_godot_mcp_toolkit_paths_project_key_current_hash",
+      "addons_godot_mcp_toolkit_paths_project_key_hash_of",
+      "addons_godot_mcp_toolkit_registry_registry_client",
+      "addons_godot_mcp_toolkit_registry_registry_client_acquire_lock",
+      "addons_godot_mcp_toolkit_registry_registry_client_build_entry",
+      "addons_godot_mcp_toolkit_registry_registry_client_clear_runtime",
+      "addons_godot_mcp_toolkit_registry_registry_client_delete_entry",
+      "addons_godot_mcp_toolkit_registry_registry_client_deregister",
+      "addons_godot_mcp_toolkit_registry_registry_client_ensure_registered",
+      "addons_godot_mcp_toolkit_registry_registry_client_entry_file_path",
+      "addons_godot_mcp_toolkit_registry_registry_client_get_lsp_endpoint",
+      "addons_godot_mcp_toolkit_registry_registry_client_get_runtime_port",
+      "addons_godot_mcp_toolkit_registry_registry_client_project_key",
+      "addons_godot_mcp_toolkit_registry_registry_client_read_entry",
+      "addons_godot_mcp_toolkit_registry_registry_client_rebuild_projects_json",
+      "addons_godot_mcp_toolkit_registry_registry_client_register",
+      "addons_godot_mcp_toolkit_registry_registry_client_registry_dir",
+      "addons_godot_mcp_toolkit_registry_registry_client_release_lock",
+      "addons_godot_mcp_toolkit_registry_registry_client_runtime_entry_file_path",
+      "addons_godot_mcp_toolkit_registry_registry_client_set_runtime",
+      "addons_godot_mcp_toolkit_registry_registry_client_write_entry",
+      "addons_godot_mcp_toolkit_registry_store_file_lock",
+      "addons_godot_mcp_toolkit_registry_store_file_lock_acquire",
+      "addons_godot_mcp_toolkit_registry_store_file_lock_release",
+      "addons_godot_mcp_toolkit_registry_store_registry_entry_file",
+      "addons_godot_mcp_toolkit_registry_store_registry_entry_file_build_entry",
+      "addons_godot_mcp_toolkit_registry_store_registry_entry_file_delete",
+      "addons_godot_mcp_toolkit_registry_store_registry_entry_file_read",
+      "addons_godot_mcp_toolkit_registry_store_registry_entry_file_write",
+      "addons_godot_mcp_toolkit_registry_store_registry_paths",
+      "addons_godot_mcp_toolkit_registry_store_registry_paths_entry_dir",
+      "addons_godot_mcp_toolkit_registry_store_registry_paths_entry_file_path",
+      "addons_godot_mcp_toolkit_registry_store_registry_paths_lock_path",
+      "addons_godot_mcp_toolkit_registry_store_registry_paths_registry_dir",
+      "addons_godot_mcp_toolkit_registry_store_registry_paths_registry_path",
+      "addons_godot_mcp_toolkit_registry_store_registry_paths_runtime_entry_file_path",
+      "addons_godot_mcp_toolkit_registry_store_registry_projection",
+      "addons_godot_mcp_toolkit_registry_store_registry_projection_merge_by_path",
+      "addons_godot_mcp_toolkit_registry_store_registry_projection_rebuild",
+      "addons_godot_mcp_toolkit_registry_store_registry_projection_write_atomic",
+      "addons_godot_mcp_toolkit_versioning_mcp_version_utils",
+      "addons_godot_mcp_toolkit_versioning_mcp_version_utils_compare",
+      "addons_godot_mcp_toolkit_versioning_mcp_version_utils_get_engine_version_ints",
+      "addons_godot_mcp_toolkit_versioning_mcp_version_utils_get_engine_version_pair",
+      "addons_godot_mcp_toolkit_versioning_mcp_version_utils_is_at_least",
+      "addons_godot_mcp_toolkit_versioning_mcp_version_utils_is_at_most",
+      "addons_godot_mcp_toolkit_versioning_mcp_version_utils_is_engine_version_pair",
+      "addons_godot_mcp_toolkit_versioning_mcp_version_utils_is_headless",
+      "addons_godot_mcp_toolkit_versioning_mcp_version_utils_is_version_in_range",
+      "addons_godot_mcp_toolkit_versioning_mcp_version_utils_parse",
+      "addons_godot_mcp_toolkit_versioning_mcp_version_utils_read_plugin_version"
+    ],
+    "5": [
       "godot_proceduralmap",
       "scripts_world_dungeon_map",
       "scripts_world_dungeon_map_add",
@@ -298,7 +430,7 @@
       "scripts_world_dungeon_map_world_to_cell",
       "scripts_world_dungeon_map_yaw_to"
     ],
-    "4": [
+    "6": [
       "scripts_patterns_abstract_factory_pattern",
       "scripts_patterns_abstract_factory_pattern_configure_environment",
       "scripts_patterns_abstract_factory_pattern_configure_light",
@@ -361,64 +493,7 @@
       "tests_test_touch_layout",
       "tests_test_touch_layout_ready"
     ],
-    "5": [
-      "addons_godot_mcp_toolkit_ui_dock_dock",
-      "addons_godot_mcp_toolkit_ui_dock_dock_bind",
-      "addons_godot_mcp_toolkit_ui_dock_dock_build_ui",
-      "addons_godot_mcp_toolkit_ui_dock_dock_on_client_connected",
-      "addons_godot_mcp_toolkit_ui_dock_dock_on_client_disconnected",
-      "addons_godot_mcp_toolkit_ui_dock_dock_on_command_received",
-      "addons_godot_mcp_toolkit_ui_dock_dock_on_extensions_pressed",
-      "addons_godot_mcp_toolkit_ui_dock_dock_on_info_pressed",
-      "addons_godot_mcp_toolkit_ui_dock_dock_on_lsp_status_changed",
-      "addons_godot_mcp_toolkit_ui_dock_dock_on_port_status_changed",
-      "addons_godot_mcp_toolkit_ui_dock_dock_on_regen_token",
-      "addons_godot_mcp_toolkit_ui_dock_dock_on_runtime_timer_timeout",
-      "addons_godot_mcp_toolkit_ui_dock_dock_open_companion_skills",
-      "addons_godot_mcp_toolkit_ui_dock_dock_ready",
-      "addons_godot_mcp_toolkit_ui_dock_dock_refresh_status",
-      "addons_godot_mcp_toolkit_ui_dock_dock_show_audit_dialog",
-      "addons_godot_mcp_toolkit_ui_dock_dock_toast",
-      "addons_godot_mcp_toolkit_ui_dock_limits_dock_limits_section",
-      "addons_godot_mcp_toolkit_ui_dock_limits_dock_limits_section_init",
-      "addons_godot_mcp_toolkit_ui_dock_limits_dock_limits_section_on_regen_pressed",
-      "addons_godot_mcp_toolkit_ui_dock_limits_dock_limits_section_on_save_cap_changed",
-      "addons_godot_mcp_toolkit_ui_dock_limits_dock_limits_section_on_script_cap_changed",
-      "addons_godot_mcp_toolkit_ui_dock_limits_dock_limits_section_on_ws_buffer_changed",
-      "addons_godot_mcp_toolkit_ui_dock_limits_dock_limits_section_regenerate_token_requested",
-      "addons_godot_mcp_toolkit_ui_dock_limits_dock_unfocused_control",
-      "addons_godot_mcp_toolkit_ui_dock_limits_dock_unfocused_control_enter_tree",
-      "addons_godot_mcp_toolkit_ui_dock_limits_dock_unfocused_control_exit_tree",
-      "addons_godot_mcp_toolkit_ui_dock_limits_dock_unfocused_control_init",
-      "addons_godot_mcp_toolkit_ui_dock_limits_dock_unfocused_control_on_toggled",
-      "addons_godot_mcp_toolkit_ui_dock_limits_dock_unfocused_control_refresh",
-      "addons_godot_mcp_toolkit_ui_dock_mcp_dock_mcp_json_panel",
-      "addons_godot_mcp_toolkit_ui_dock_mcp_dock_mcp_json_panel_init",
-      "addons_godot_mcp_toolkit_ui_dock_mcp_dock_mcp_json_panel_on_button_pressed",
-      "addons_godot_mcp_toolkit_ui_dock_mcp_dock_mcp_json_panel_on_mcp_json_write_result",
-      "addons_godot_mcp_toolkit_ui_dock_mcp_dock_mcp_json_panel_refresh",
-      "addons_godot_mcp_toolkit_ui_dock_mcp_dock_mcp_json_panel_sync_read_only_state",
-      "addons_godot_mcp_toolkit_ui_dock_security_dock_audit_section",
-      "addons_godot_mcp_toolkit_ui_dock_security_dock_audit_section_exit_tree",
-      "addons_godot_mcp_toolkit_ui_dock_security_dock_audit_section_init",
-      "addons_godot_mcp_toolkit_ui_dock_security_dock_audit_section_on_audit_enabled_toggled",
-      "addons_godot_mcp_toolkit_ui_dock_security_dock_audit_section_on_audit_max_size_changed",
-      "addons_godot_mcp_toolkit_ui_dock_security_dock_audit_section_on_clear_audit_log",
-      "addons_godot_mcp_toolkit_ui_dock_security_dock_audit_section_show_dialog",
-      "addons_godot_mcp_toolkit_ui_dock_status_dock_status_panel",
-      "addons_godot_mcp_toolkit_ui_dock_status_dock_status_panel_init",
-      "addons_godot_mcp_toolkit_ui_dock_status_dock_status_panel_insert_warning_panel",
-      "addons_godot_mcp_toolkit_ui_dock_status_dock_status_panel_refresh",
-      "addons_godot_mcp_toolkit_ui_dock_status_dock_status_panel_refresh_lsp",
-      "addons_godot_mcp_toolkit_ui_dock_status_dock_status_panel_refresh_runtime",
-      "addons_godot_mcp_toolkit_ui_dock_status_dock_status_panel_set_activity",
-      "addons_godot_mcp_toolkit_ui_dock_status_dock_status_panel_set_peer_count",
-      "addons_godot_mcp_toolkit_ui_dock_status_dock_status_panel_update_port_warning",
-      "godot_hboxcontainer",
-      "godot_panelcontainer",
-      "godot_vboxcontainer"
-    ],
-    "6": [
+    "7": [
       "scripts_entities_dungeon_goblin",
       "scripts_entities_dungeon_goblin_add_stun",
       "scripts_entities_dungeon_goblin_all_kinds",
@@ -474,62 +549,6 @@
       "scripts_entities_dungeon_goblin_update_flash",
       "scripts_entities_dungeon_goblin_update_stun_bar",
       "scripts_entities_dungeon_goblin_warm_models"
-    ],
-    "7": [
-      "addons_godot_mcp_toolkit_paths_project_key",
-      "addons_godot_mcp_toolkit_paths_project_key_canonical",
-      "addons_godot_mcp_toolkit_paths_project_key_current",
-      "addons_godot_mcp_toolkit_paths_project_key_current_hash",
-      "addons_godot_mcp_toolkit_paths_project_key_hash_of",
-      "addons_godot_mcp_toolkit_registry_registry_client",
-      "addons_godot_mcp_toolkit_registry_registry_client_acquire_lock",
-      "addons_godot_mcp_toolkit_registry_registry_client_build_entry",
-      "addons_godot_mcp_toolkit_registry_registry_client_clear_runtime",
-      "addons_godot_mcp_toolkit_registry_registry_client_delete_entry",
-      "addons_godot_mcp_toolkit_registry_registry_client_deregister",
-      "addons_godot_mcp_toolkit_registry_registry_client_ensure_registered",
-      "addons_godot_mcp_toolkit_registry_registry_client_entry_file_path",
-      "addons_godot_mcp_toolkit_registry_registry_client_get_lsp_endpoint",
-      "addons_godot_mcp_toolkit_registry_registry_client_get_runtime_port",
-      "addons_godot_mcp_toolkit_registry_registry_client_project_key",
-      "addons_godot_mcp_toolkit_registry_registry_client_read_entry",
-      "addons_godot_mcp_toolkit_registry_registry_client_rebuild_projects_json",
-      "addons_godot_mcp_toolkit_registry_registry_client_register",
-      "addons_godot_mcp_toolkit_registry_registry_client_registry_dir",
-      "addons_godot_mcp_toolkit_registry_registry_client_release_lock",
-      "addons_godot_mcp_toolkit_registry_registry_client_runtime_entry_file_path",
-      "addons_godot_mcp_toolkit_registry_registry_client_set_runtime",
-      "addons_godot_mcp_toolkit_registry_registry_client_write_entry",
-      "addons_godot_mcp_toolkit_registry_store_file_lock",
-      "addons_godot_mcp_toolkit_registry_store_file_lock_acquire",
-      "addons_godot_mcp_toolkit_registry_store_file_lock_release",
-      "addons_godot_mcp_toolkit_registry_store_registry_entry_file",
-      "addons_godot_mcp_toolkit_registry_store_registry_entry_file_build_entry",
-      "addons_godot_mcp_toolkit_registry_store_registry_entry_file_delete",
-      "addons_godot_mcp_toolkit_registry_store_registry_entry_file_read",
-      "addons_godot_mcp_toolkit_registry_store_registry_entry_file_write",
-      "addons_godot_mcp_toolkit_registry_store_registry_paths",
-      "addons_godot_mcp_toolkit_registry_store_registry_paths_entry_dir",
-      "addons_godot_mcp_toolkit_registry_store_registry_paths_entry_file_path",
-      "addons_godot_mcp_toolkit_registry_store_registry_paths_lock_path",
-      "addons_godot_mcp_toolkit_registry_store_registry_paths_registry_dir",
-      "addons_godot_mcp_toolkit_registry_store_registry_paths_registry_path",
-      "addons_godot_mcp_toolkit_registry_store_registry_paths_runtime_entry_file_path",
-      "addons_godot_mcp_toolkit_registry_store_registry_projection",
-      "addons_godot_mcp_toolkit_registry_store_registry_projection_merge_by_path",
-      "addons_godot_mcp_toolkit_registry_store_registry_projection_rebuild",
-      "addons_godot_mcp_toolkit_registry_store_registry_projection_write_atomic",
-      "addons_godot_mcp_toolkit_versioning_mcp_version_utils",
-      "addons_godot_mcp_toolkit_versioning_mcp_version_utils_compare",
-      "addons_godot_mcp_toolkit_versioning_mcp_version_utils_get_engine_version_ints",
-      "addons_godot_mcp_toolkit_versioning_mcp_version_utils_get_engine_version_pair",
-      "addons_godot_mcp_toolkit_versioning_mcp_version_utils_is_at_least",
-      "addons_godot_mcp_toolkit_versioning_mcp_version_utils_is_at_most",
-      "addons_godot_mcp_toolkit_versioning_mcp_version_utils_is_engine_version_pair",
-      "addons_godot_mcp_toolkit_versioning_mcp_version_utils_is_headless",
-      "addons_godot_mcp_toolkit_versioning_mcp_version_utils_is_version_in_range",
-      "addons_godot_mcp_toolkit_versioning_mcp_version_utils_parse",
-      "addons_godot_mcp_toolkit_versioning_mcp_version_utils_read_plugin_version"
     ],
     "8": [
       "scripts_components_player_animation_controller",
@@ -947,6 +966,94 @@
       "tools_generate_swing_sfx_write"
     ],
     "16": [
+      "godot_node",
+      "scripts_core_performance_governor",
+      "scripts_core_performance_governor_performancegovernor",
+      "scripts_core_performance_governor_process",
+      "scripts_core_performance_governor_setup",
+      "scripts_core_scene_loader",
+      "scripts_core_scene_loader_load_scene",
+      "scripts_core_virtual_input",
+      "scripts_core_virtual_input_clear_just_pressed",
+      "scripts_core_virtual_input_physics_process",
+      "tests_shot_dungeon",
+      "tests_shot_dungeon_args_room",
+      "tests_shot_dungeon_ready",
+      "tests_shot_dungeon_run",
+      "tests_test_combo_buffer",
+      "tests_test_combo_buffer_ready",
+      "tests_test_dodge",
+      "tests_test_dodge_ready",
+      "tests_test_dungeon_combat_manual",
+      "tests_test_dungeon_combat_manual_ready",
+      "tests_test_dungeon_undead",
+      "tests_test_dungeon_undead_ready",
+      "tests_test_hitbox_sync",
+      "tests_test_hitbox_sync_ready",
+      "tests_test_load_stalls",
+      "tests_test_load_stalls_process",
+      "tests_test_load_stalls_ready",
+      "tests_test_minimap",
+      "tests_test_minimap_ready",
+      "tests_test_restart",
+      "tests_test_restart_ready",
+      "tests_test_restart_run",
+      "tests_test_run_events",
+      "tests_test_run_events_ready",
+      "tests_test_settings_speed",
+      "tests_test_settings_speed_ready",
+      "tests_test_sewer_generation",
+      "tests_test_sewer_generation_reachable",
+      "tests_test_sewer_generation_ready",
+      "tests_test_structures",
+      "tests_test_structures_ready",
+      "tests_test_stun_finisher",
+      "tests_test_stun_finisher_ready"
+    ],
+    "17": [
+      "addons_godot_mcp_toolkit_core_tool_menu",
+      "addons_godot_mcp_toolkit_core_tool_menu_init",
+      "addons_godot_mcp_toolkit_core_tool_menu_install",
+      "addons_godot_mcp_toolkit_core_tool_menu_on_extension_catalog",
+      "addons_godot_mcp_toolkit_core_tool_menu_on_open_settings",
+      "addons_godot_mcp_toolkit_core_tool_menu_on_regen_token",
+      "addons_godot_mcp_toolkit_core_tool_menu_on_show_audit",
+      "addons_godot_mcp_toolkit_core_tool_menu_on_submenu_id_pressed",
+      "addons_godot_mcp_toolkit_core_tool_menu_on_write_mcp_json",
+      "addons_godot_mcp_toolkit_core_tool_menu_on_write_mcp_json_result",
+      "addons_godot_mcp_toolkit_core_tool_menu_uninstall",
+      "addons_godot_mcp_toolkit_ui_onboarding_wizard",
+      "addons_godot_mcp_toolkit_ui_onboarding_wizard_check_and_show",
+      "addons_godot_mcp_toolkit_ui_onboarding_wizard_free_if_open",
+      "addons_godot_mcp_toolkit_ui_onboarding_wizard_init",
+      "addons_godot_mcp_toolkit_ui_onboarding_wizard_is_last_relevant_step",
+      "addons_godot_mcp_toolkit_ui_onboarding_wizard_is_onboarding_complete",
+      "addons_godot_mcp_toolkit_ui_onboarding_wizard_migrate_flag_after_rename",
+      "addons_godot_mcp_toolkit_ui_onboarding_wizard_on_confirmed",
+      "addons_godot_mcp_toolkit_ui_onboarding_wizard_on_custom_action",
+      "addons_godot_mcp_toolkit_ui_onboarding_wizard_save_progress",
+      "addons_godot_mcp_toolkit_ui_onboarding_wizard_show_step",
+      "addons_godot_mcp_toolkit_ui_onboarding_wizard_spec_dock_overview",
+      "addons_godot_mcp_toolkit_ui_onboarding_wizard_spec_for_step",
+      "addons_godot_mcp_toolkit_ui_onboarding_wizard_spec_mcp_json",
+      "addons_godot_mcp_toolkit_ui_onboarding_wizard_spec_welcome",
+      "addons_godot_mcp_toolkit_ui_onboarding_wizard_teardown",
+      "addons_godot_mcp_toolkit_ui_onboarding_wizard_write_flag",
+      "addons_godot_mcp_toolkit_ui_settings_navigator",
+      "addons_godot_mcp_toolkit_ui_settings_navigator_collect_nodes_by_class",
+      "addons_godot_mcp_toolkit_ui_settings_navigator_disable_advanced_settings",
+      "addons_godot_mcp_toolkit_ui_settings_navigator_enable_advanced_settings",
+      "addons_godot_mcp_toolkit_ui_settings_navigator_find_node_by_class",
+      "addons_godot_mcp_toolkit_ui_settings_navigator_find_tree_item",
+      "addons_godot_mcp_toolkit_ui_settings_navigator_find_tree_item_contains",
+      "addons_godot_mcp_toolkit_ui_settings_navigator_open_mcp_settings",
+      "addons_godot_mcp_toolkit_ui_settings_navigator_select_mcp_section",
+      "addons_godot_mcp_toolkit_ui_toolkit_dialog_presenter",
+      "addons_godot_mcp_toolkit_ui_toolkit_dialog_presenter_dispose",
+      "addons_godot_mcp_toolkit_ui_toolkit_dialog_presenter_show_extension_catalog",
+      "addons_godot_mcp_toolkit_ui_toolkit_dialog_presenter_show_info"
+    ],
+    "18": [
       "scripts_world_procedural_map",
       "scripts_world_procedural_map_add",
       "scripts_world_procedural_map_add_brazier",
@@ -989,45 +1096,7 @@
       "scripts_world_procedural_map_slope",
       "scripts_world_procedural_map_terrain"
     ],
-    "17": [
-      "godot_node",
-      "scripts_core_scene_loader",
-      "scripts_core_scene_loader_load_scene",
-      "scripts_core_virtual_input",
-      "scripts_core_virtual_input_clear_just_pressed",
-      "scripts_core_virtual_input_physics_process",
-      "tests_test_combo_buffer",
-      "tests_test_combo_buffer_ready",
-      "tests_test_dodge",
-      "tests_test_dodge_ready",
-      "tests_test_dungeon_brute",
-      "tests_test_dungeon_brute_keep_player_alive",
-      "tests_test_dungeon_brute_ready",
-      "tests_test_dungeon_combat_manual",
-      "tests_test_dungeon_combat_manual_ready",
-      "tests_test_dungeon_undead",
-      "tests_test_dungeon_undead_ready",
-      "tests_test_garri_axe",
-      "tests_test_garri_axe_ready",
-      "tests_test_garri_axe_wait",
-      "tests_test_hitbox_sync",
-      "tests_test_hitbox_sync_ready",
-      "tests_test_load_stalls",
-      "tests_test_load_stalls_process",
-      "tests_test_load_stalls_ready",
-      "tests_test_minimap",
-      "tests_test_minimap_ready",
-      "tests_test_restart",
-      "tests_test_restart_ready",
-      "tests_test_restart_run",
-      "tests_test_settings_speed",
-      "tests_test_settings_speed_ready",
-      "tests_test_structures",
-      "tests_test_structures_ready",
-      "tests_test_stun_finisher",
-      "tests_test_stun_finisher_ready"
-    ],
-    "18": [
+    "19": [
       "addons_godot_mcp_toolkit_commands_navigation_commands",
       "addons_godot_mcp_toolkit_commands_navigation_commands_action_add_outline",
       "addons_godot_mcp_toolkit_commands_navigation_commands_action_bake",
@@ -1038,16 +1107,19 @@
       "addons_godot_mcp_toolkit_commands_navigation_commands_make_result",
       "addons_godot_mcp_toolkit_commands_navigation_commands_register",
       "addons_godot_mcp_toolkit_commands_navigation_commands_wrap_undo_redo",
-      "addons_godot_mcp_toolkit_commands_path_commands",
-      "addons_godot_mcp_toolkit_commands_path_commands_action_add",
-      "addons_godot_mcp_toolkit_commands_path_commands_action_clear",
-      "addons_godot_mcp_toolkit_commands_path_commands_action_remove",
-      "addons_godot_mcp_toolkit_commands_path_commands_action_set",
-      "addons_godot_mcp_toolkit_commands_path_commands_cmd_edit_curve2d",
-      "addons_godot_mcp_toolkit_commands_path_commands_ok",
-      "addons_godot_mcp_toolkit_commands_path_commands_register",
-      "addons_godot_mcp_toolkit_commands_path_commands_to_vec2",
-      "addons_godot_mcp_toolkit_commands_path_commands_wrap_undo_redo",
+      "addons_godot_mcp_toolkit_commands_particle_commands",
+      "addons_godot_mcp_toolkit_commands_particle_commands_adjust_for_3d",
+      "addons_godot_mcp_toolkit_commands_particle_commands_apply_props",
+      "addons_godot_mcp_toolkit_commands_particle_commands_apply_sub_resource",
+      "addons_godot_mcp_toolkit_commands_particle_commands_build_curve_texture",
+      "addons_godot_mcp_toolkit_commands_particle_commands_build_gradient_texture",
+      "addons_godot_mcp_toolkit_commands_particle_commands_class_has_prop",
+      "addons_godot_mcp_toolkit_commands_particle_commands_cmd_particles_create",
+      "addons_godot_mcp_toolkit_commands_particle_commands_color",
+      "addons_godot_mcp_toolkit_commands_particle_commands_expand_range",
+      "addons_godot_mcp_toolkit_commands_particle_commands_merge_overrides",
+      "addons_godot_mcp_toolkit_commands_particle_commands_register",
+      "addons_godot_mcp_toolkit_commands_particle_commands_vec3",
       "addons_godot_mcp_toolkit_commands_spatial_commands",
       "addons_godot_mcp_toolkit_commands_spatial_commands_cmd_spatial_map",
       "addons_godot_mcp_toolkit_commands_spatial_commands_compute_relations",
@@ -1063,7 +1135,43 @@
       "addons_godot_mcp_toolkit_commands_spatial_commands_xform_aabb",
       "addons_godot_mcp_toolkit_commands_spatial_commands_xform_rect2"
     ],
-    "19": [
+    "20": [
+      "addons_godot_mcp_toolkit_contract_mcp_toolkit_success",
+      "addons_godot_mcp_toolkit_contract_mcp_toolkit_success_mcptoolkitsuccess",
+      "addons_godot_mcp_toolkit_contract_mcp_toolkit_success_ok",
+      "addons_godot_mcp_toolkit_extensions_mcp_toolkit_extension",
+      "addons_godot_mcp_toolkit_extensions_mcp_toolkit_extension_mcptoolkitextension",
+      "addons_godot_mcp_toolkit_extensions_mcp_toolkit_extension_register",
+      "addons_godot_mcp_toolkit_ui_dock_dock_confirm",
+      "addons_godot_mcp_toolkit_ui_dock_dock_confirm_confirm",
+      "addons_godot_mcp_toolkit_ui_mcp_json_enable_prompt",
+      "addons_godot_mcp_toolkit_ui_mcp_json_enable_prompt_show_if_needed",
+      "addons_godot_mcp_toolkit_ui_mcp_json_write_flow",
+      "addons_godot_mcp_toolkit_ui_mcp_json_write_flow_write",
+      "godot_refcounted",
+      "scripts_core_prewarm",
+      "scripts_core_prewarm_prewarm",
+      "scripts_core_prewarm_run",
+      "scripts_core_prewarm_shaders",
+      "scripts_core_run_stats",
+      "scripts_core_run_stats_add_damage",
+      "scripts_core_run_stats_reset",
+      "scripts_core_run_stats_runstats",
+      "scripts_core_run_stats_summary_lines",
+      "scripts_core_spawn_dissolve",
+      "scripts_core_spawn_dissolve_collect_meshes",
+      "scripts_core_spawn_dissolve_get_noise",
+      "scripts_core_spawn_dissolve_play",
+      "scripts_core_spawn_dissolve_spawndissolve",
+      "scripts_world_grass_mesh",
+      "scripts_world_grass_mesh_build",
+      "scripts_world_grass_mesh_grassmesh",
+      "scripts_world_world_defs",
+      "scripts_world_world_defs_get_def",
+      "scripts_world_world_defs_has",
+      "scripts_world_world_defs_worlddefs"
+    ],
+    "21": [
       "scripts_entities_player",
       "scripts_entities_player_activate_skill",
       "scripts_entities_player_apply_camera_recoil",
@@ -1099,7 +1207,7 @@
       "scripts_entities_player_weapon_attacked",
       "scripts_entities_player_weapon_changed"
     ],
-    "20": [
+    "22": [
       "addons_godot_mcp_toolkit_extensions_extension_loader",
       "addons_godot_mcp_toolkit_extensions_extension_loader_load_all",
       "addons_godot_mcp_toolkit_extensions_extension_loader_start_watcher",
@@ -1134,7 +1242,7 @@
       "addons_godot_mcp_toolkit_extensions_services_extension_watcher_setup",
       "addons_godot_mcp_toolkit_extensions_services_extension_watcher_snapshot_current_extensions"
     ],
-    "21": [
+    "23": [
       "scripts_components_player_combat_controller",
       "scripts_components_player_combat_controller_aim_assist_enemy",
       "scripts_components_player_combat_controller_assist_spear_facing",
@@ -1169,7 +1277,7 @@
       "scripts_components_player_combat_controller_try_spear_slam",
       "scripts_components_player_combat_controller_update_spear_charge"
     ],
-    "22": [
+    "24": [
       "godot_dungeonmap",
       "scripts_world_sewer_map",
       "scripts_world_sewer_map_add_shaft",
@@ -1202,38 +1310,7 @@
       "scripts_world_sewer_map_toxic_cluster",
       "scripts_world_sewer_map_wall_pipe"
     ],
-    "23": [
-      "addons_godot_mcp_toolkit_contract_mcp_toolkit_success",
-      "addons_godot_mcp_toolkit_contract_mcp_toolkit_success_mcptoolkitsuccess",
-      "addons_godot_mcp_toolkit_contract_mcp_toolkit_success_ok",
-      "addons_godot_mcp_toolkit_contract_mcp_toolkit_tool_context",
-      "addons_godot_mcp_toolkit_contract_mcp_toolkit_tool_context_cancel",
-      "addons_godot_mcp_toolkit_contract_mcp_toolkit_tool_context_cancelled",
-      "addons_godot_mcp_toolkit_contract_mcp_toolkit_tool_context_is_cancelled",
-      "addons_godot_mcp_toolkit_contract_mcp_toolkit_tool_context_mcptoolkittoolcontext",
-      "addons_godot_mcp_toolkit_extensions_mcp_toolkit_extension",
-      "addons_godot_mcp_toolkit_extensions_mcp_toolkit_extension_mcptoolkitextension",
-      "addons_godot_mcp_toolkit_extensions_mcp_toolkit_extension_register",
-      "addons_godot_mcp_toolkit_ui_dock_dock_confirm",
-      "addons_godot_mcp_toolkit_ui_dock_dock_confirm_confirm",
-      "addons_godot_mcp_toolkit_ui_mcp_json_enable_prompt",
-      "addons_godot_mcp_toolkit_ui_mcp_json_enable_prompt_show_if_needed",
-      "addons_godot_mcp_toolkit_ui_mcp_json_write_flow",
-      "addons_godot_mcp_toolkit_ui_mcp_json_write_flow_write",
-      "godot_refcounted",
-      "scripts_core_prewarm",
-      "scripts_core_prewarm_prewarm",
-      "scripts_core_prewarm_run",
-      "scripts_core_prewarm_shaders",
-      "scripts_world_grass_mesh",
-      "scripts_world_grass_mesh_build",
-      "scripts_world_grass_mesh_grassmesh",
-      "scripts_world_world_defs",
-      "scripts_world_world_defs_get_def",
-      "scripts_world_world_defs_has",
-      "scripts_world_world_defs_worlddefs"
-    ],
-    "24": [
+    "25": [
       "addons_godot_mcp_toolkit_runtime_mcp_runtime_server",
       "addons_godot_mcp_toolkit_runtime_mcp_runtime_server_build_input_event",
       "addons_godot_mcp_toolkit_runtime_mcp_runtime_server_build_not_found_hint",
@@ -1264,7 +1341,7 @@
       "addons_godot_mcp_toolkit_runtime_mcp_runtime_server_send_result",
       "addons_godot_mcp_toolkit_runtime_mcp_runtime_server_stop_server"
     ],
-    "25": [
+    "26": [
       "addons_godot_mcp_toolkit_ui_dock_ext_extension_catalog",
       "addons_godot_mcp_toolkit_ui_dock_ext_extension_catalog_cache_path",
       "addons_godot_mcp_toolkit_ui_dock_ext_extension_catalog_compare_versions",
@@ -1294,7 +1371,7 @@
       "addons_godot_mcp_toolkit_ui_dock_ext_extension_catalog_write_cache",
       "godot_window"
     ],
-    "26": [
+    "27": [
       "godot_passivedata",
       "scripts_components_riva_speed_controller",
       "scripts_components_riva_speed_controller_build_feet_fx",
@@ -1324,7 +1401,37 @@
       "scripts_objects_smoke_trail_zone_ready",
       "scripts_objects_smoke_trail_zone_soft_puff_texture"
     ],
-    "27": [
+    "28": [
+      "scripts_core_wave_manager",
+      "scripts_core_wave_manager_alive_cap",
+      "scripts_core_wave_manager_boss_alive",
+      "scripts_core_wave_manager_boss_died",
+      "scripts_core_wave_manager_continue_endless",
+      "scripts_core_wave_manager_current_batch",
+      "scripts_core_wave_manager_current_interval",
+      "scripts_core_wave_manager_current_pool",
+      "scripts_core_wave_manager_curse",
+      "scripts_core_wave_manager_elapsed",
+      "scripts_core_wave_manager_enemy_died",
+      "scripts_core_wave_manager_exit_tree",
+      "scripts_core_wave_manager_is_cursed",
+      "scripts_core_wave_manager_load_wave_config",
+      "scripts_core_wave_manager_on_boss_died_internal",
+      "scripts_core_wave_manager_on_enemy_died_internal",
+      "scripts_core_wave_manager_on_spawn_tick",
+      "scripts_core_wave_manager_prefill_enemy_pool",
+      "scripts_core_wave_manager_process",
+      "scripts_core_wave_manager_progress",
+      "scripts_core_wave_manager_random_spawn_pos",
+      "scripts_core_wave_manager_ready",
+      "scripts_core_wave_manager_spawn_boss",
+      "scripts_core_wave_manager_spawn_single_enemy",
+      "scripts_core_wave_manager_start_run",
+      "scripts_core_wave_manager_stop_run",
+      "scripts_core_wave_manager_tryhard",
+      "scripts_core_wave_manager_wavemanager"
+    ],
+    "29": [
       "addons_godot_mcp_toolkit_commands_node_commands",
       "addons_godot_mcp_toolkit_commands_node_commands_batch_node_groups",
       "addons_godot_mcp_toolkit_commands_node_commands_batch_set_properties",
@@ -1353,7 +1460,7 @@
       "addons_godot_mcp_toolkit_commands_node_commands_set_property_scalar_single",
       "addons_godot_mcp_toolkit_commands_node_commands_stale_method_hint"
     ],
-    "28": [
+    "30": [
       "addons_godot_mcp_toolkit_transport_mcp_toolkit_command_registry",
       "addons_godot_mcp_toolkit_transport_mcp_toolkit_command_registry_add",
       "addons_godot_mcp_toolkit_transport_mcp_toolkit_command_registry_begin_extension_load",
@@ -1382,7 +1489,7 @@
       "addons_godot_mcp_toolkit_transport_mcp_toolkit_command_registry_remove",
       "addons_godot_mcp_toolkit_transport_mcp_toolkit_command_registry_require"
     ],
-    "29": [
+    "31": [
       "addons_godot_mcp_toolkit_transport_ws_transport",
       "addons_godot_mcp_toolkit_transport_ws_transport_accept_pending",
       "addons_godot_mcp_toolkit_transport_ws_transport_cleanup",
@@ -1409,34 +1516,7 @@
       "addons_godot_mcp_toolkit_transport_ws_transport_shutdown_listener",
       "addons_godot_mcp_toolkit_transport_ws_transport_validate_auth"
     ],
-    "30": [
-      "scripts_core_wave_manager",
-      "scripts_core_wave_manager_alive_cap",
-      "scripts_core_wave_manager_boss_alive",
-      "scripts_core_wave_manager_boss_died",
-      "scripts_core_wave_manager_current_batch",
-      "scripts_core_wave_manager_current_interval",
-      "scripts_core_wave_manager_current_pool",
-      "scripts_core_wave_manager_elapsed",
-      "scripts_core_wave_manager_enemy_died",
-      "scripts_core_wave_manager_exit_tree",
-      "scripts_core_wave_manager_load_wave_config",
-      "scripts_core_wave_manager_on_boss_died_internal",
-      "scripts_core_wave_manager_on_enemy_died_internal",
-      "scripts_core_wave_manager_on_spawn_tick",
-      "scripts_core_wave_manager_prefill_enemy_pool",
-      "scripts_core_wave_manager_process",
-      "scripts_core_wave_manager_progress",
-      "scripts_core_wave_manager_random_spawn_pos",
-      "scripts_core_wave_manager_ready",
-      "scripts_core_wave_manager_spawn_boss",
-      "scripts_core_wave_manager_spawn_single_enemy",
-      "scripts_core_wave_manager_start_run",
-      "scripts_core_wave_manager_stop_run",
-      "scripts_core_wave_manager_tryhard",
-      "scripts_core_wave_manager_wavemanager"
-    ],
-    "31": [
+    "32": [
       "godot_spiritanimal",
       "scripts_objects_spirit_hippo",
       "scripts_objects_spirit_hippo_devour_cost",
@@ -1462,7 +1542,7 @@
       "scripts_objects_spirit_owl_spiritowl",
       "scripts_objects_spirit_owl_summon"
     ],
-    "32": [
+    "33": [
       "scripts_components_player_weapon_inventory",
       "scripts_components_player_weapon_inventory_add_weapon",
       "scripts_components_player_weapon_inventory_advance_reload",
@@ -1488,7 +1568,33 @@
       "scripts_components_player_weapon_inventory_upgrade_weapon_stat",
       "scripts_components_player_weapon_inventory_weapon_changed"
     ],
-    "33": [
+    "34": [
+      "scripts_core_run_events",
+      "scripts_core_run_events_activate_shrine",
+      "scripts_core_run_events_announce",
+      "scripts_core_run_events_drain_queue",
+      "scripts_core_run_events_drop_marker",
+      "scripts_core_run_events_elapsed",
+      "scripts_core_run_events_ground",
+      "scripts_core_run_events_label3d",
+      "scripts_core_run_events_make_elite",
+      "scripts_core_run_events_make_marker",
+      "scripts_core_run_events_on_elite_died",
+      "scripts_core_run_events_open_cursed_chest",
+      "scripts_core_run_events_process",
+      "scripts_core_run_events_queue_elite",
+      "scripts_core_run_events_runevents",
+      "scripts_core_run_events_spawn_cursed_chest",
+      "scripts_core_run_events_spawn_item",
+      "scripts_core_run_events_spawn_miniboss",
+      "scripts_core_run_events_spawn_shrine",
+      "scripts_core_run_events_start",
+      "scripts_core_run_events_start_horde",
+      "scripts_core_run_events_start_random_event",
+      "scripts_core_run_events_update_elites",
+      "scripts_core_run_events_update_shrines"
+    ],
+    "35": [
       "addons_godot_mcp_toolkit_commands_animation_commands",
       "addons_godot_mcp_toolkit_commands_animation_commands_advance_mode_from_string",
       "addons_godot_mcp_toolkit_commands_animation_commands_advance_mode_to_string",
@@ -1513,7 +1619,7 @@
       "addons_godot_mcp_toolkit_commands_animation_commands_switch_mode_to_string",
       "addons_godot_mcp_toolkit_commands_animation_commands_track_type_name"
     ],
-    "34": [
+    "36": [
       "scripts_components_player_stat_block",
       "scripts_components_player_stat_block_armor",
       "scripts_components_player_stat_block_cooldown_mult",
@@ -1538,7 +1644,7 @@
       "scripts_components_player_stat_block_total",
       "scripts_components_player_stat_block_tryhard_tier"
     ],
-    "35": [
+    "37": [
       "scripts_components_status_effects",
       "scripts_components_status_effects_apply",
       "scripts_components_status_effects_apply_to",
@@ -1563,7 +1669,7 @@
       "scripts_components_status_effects_tick_damage",
       "scripts_components_status_effects_time_left"
     ],
-    "36": [
+    "38": [
       "scripts_ui_hud",
       "scripts_ui_hud_connect_to_player",
       "scripts_ui_hud_create_fps_label",
@@ -1588,7 +1694,7 @@
       "scripts_ui_hud_update_weapons",
       "scripts_ui_hud_update_xp"
     ],
-    "37": [
+    "39": [
       "tools_generate_soundtrack",
       "tools_generate_soundtrack_apply_delay",
       "tools_generate_soundtrack_apply_reverb",
@@ -1613,7 +1719,7 @@
       "tools_generate_soundtrack_snare",
       "tools_generate_soundtrack_write_wav"
     ],
-    "38": [
+    "40": [
       "addons_godot_mcp_toolkit_commands_scene_commands",
       "addons_godot_mcp_toolkit_commands_scene_commands_batch_instantiate",
       "addons_godot_mcp_toolkit_commands_scene_commands_build_query_page",
@@ -1637,7 +1743,7 @@
       "addons_godot_mcp_toolkit_commands_scene_commands_register",
       "addons_godot_mcp_toolkit_commands_scene_commands_walk_tree"
     ],
-    "39": [
+    "41": [
       "scripts_core_enemy_visuals",
       "scripts_core_enemy_visuals_attach",
       "scripts_core_enemy_visuals_detach",
@@ -1661,7 +1767,7 @@
       "scripts_core_enemy_visuals_ready",
       "scripts_core_enemy_visuals_write"
     ],
-    "40": [
+    "42": [
       "scripts_entities_necromancer_boss",
       "scripts_entities_necromancer_boss_apply_tint",
       "scripts_entities_necromancer_boss_boss_died",
@@ -1685,7 +1791,31 @@
       "scripts_entities_necromancer_boss_update_bar",
       "scripts_entities_necromancer_boss_update_phase"
     ],
-    "41": [
+    "43": [
+      "scripts_entities_player_weapon_visuals",
+      "scripts_entities_player_weapon_visuals_apply_obsidian",
+      "scripts_entities_player_weapon_visuals_attach_axe_to_hand",
+      "scripts_entities_player_weapon_visuals_attach_held_weapon",
+      "scripts_entities_player_weapon_visuals_attach_spear_to_hand",
+      "scripts_entities_player_weapon_visuals_build_aura",
+      "scripts_entities_player_weapon_visuals_playerweaponvisuals",
+      "scripts_entities_player_weapon_visuals_set_spear_charge",
+      "scripts_entities_player_weapon_visuals_setup_weapon_models",
+      "scripts_entities_player_weapon_visuals_update_aura",
+      "scripts_net_remote_player",
+      "scripts_net_remote_player_apply_state",
+      "scripts_net_remote_player_current_weapon",
+      "scripts_net_remote_player_is_dead",
+      "scripts_net_remote_player_physics_process",
+      "scripts_net_remote_player_play_action",
+      "scripts_net_remote_player_play_held_shot",
+      "scripts_net_remote_player_ready",
+      "scripts_net_remote_player_remoteplayer",
+      "scripts_net_remote_player_take_damage",
+      "scripts_net_remote_player_update_weapon_visuals",
+      "scripts_net_remote_player_weapon_attacked"
+    ],
+    "44": [
       "scripts_core_quality",
       "scripts_core_quality_alive_cap_end",
       "scripts_core_quality_apply_vfx",
@@ -1708,7 +1838,7 @@
       "scripts_core_quality_target_fps",
       "scripts_core_quality_use_impostors"
     ],
-    "42": [
+    "45": [
       "scripts_core_ui_manager",
       "scripts_core_ui_manager_initialize",
       "scripts_core_ui_manager_on_item_selected",
@@ -1731,7 +1861,7 @@
       "scripts_core_ui_manager_update_elapsed_time",
       "scripts_core_ui_manager_update_gold"
     ],
-    "43": [
+    "46": [
       "scripts_entities_enemy_data",
       "scripts_entities_enemy_data_apply_knockback",
       "scripts_entities_enemy_data_apply_slow",
@@ -1754,30 +1884,7 @@
       "scripts_entities_enemy_data_take_damage",
       "scripts_entities_enemy_data_update"
     ],
-    "44": [
-      "scripts_ui_upgrade_choice_ui",
-      "scripts_ui_upgrade_choice_ui_build_choices",
-      "scripts_ui_upgrade_choice_ui_card_label",
-      "scripts_ui_upgrade_choice_ui_card_pips",
-      "scripts_ui_upgrade_choice_ui_card_text",
-      "scripts_ui_upgrade_choice_ui_choice_key",
-      "scripts_ui_upgrade_choice_ui_choice_made",
-      "scripts_ui_upgrade_choice_ui_deal",
-      "scripts_ui_upgrade_choice_ui_make_card",
-      "scripts_ui_upgrade_choice_ui_make_column",
-      "scripts_ui_upgrade_choice_ui_on_banish",
-      "scripts_ui_upgrade_choice_ui_on_card_pressed",
-      "scripts_ui_upgrade_choice_ui_on_choice_selected",
-      "scripts_ui_upgrade_choice_ui_on_lock",
-      "scripts_ui_upgrade_choice_ui_on_reroll",
-      "scripts_ui_upgrade_choice_ui_present_choices",
-      "scripts_ui_upgrade_choice_ui_ready",
-      "scripts_ui_upgrade_choice_ui_refresh",
-      "tests_test_synergies",
-      "tests_test_synergies_ready",
-      "tests_test_synergies_upgradechoiceui_build"
-    ],
-    "45": [
+    "47": [
       "addons_godot_mcp_toolkit_core_unfocused_backup",
       "addons_godot_mcp_toolkit_core_unfocused_backup_backup_path",
       "addons_godot_mcp_toolkit_core_unfocused_backup_capture_if_absent",
@@ -1799,7 +1906,7 @@
       "addons_godot_mcp_toolkit_core_unfocused_sleep_controller_self_heal",
       "addons_godot_mcp_toolkit_core_unfocused_sleep_controller_set_settings_accessor"
     ],
-    "46": [
+    "48": [
       "addons_godot_mcp_toolkit_logging_log_buffer",
       "addons_godot_mcp_toolkit_logging_log_buffer_append_entry_unlocked",
       "addons_godot_mcp_toolkit_logging_log_buffer_clear",
@@ -1821,7 +1928,29 @@
       "addons_godot_mcp_toolkit_logging_log_buffer_tail_log_file",
       "addons_godot_mcp_toolkit_logging_log_buffer_uses_logger_api"
     ],
-    "47": [
+    "49": [
+      "addons_godot_mcp_toolkit_paths_project_paths",
+      "addons_godot_mcp_toolkit_paths_project_paths_ensure_dirs",
+      "addons_godot_mcp_toolkit_paths_project_paths_instance_dir",
+      "addons_godot_mcp_toolkit_paths_project_paths_project_hash",
+      "addons_godot_mcp_toolkit_paths_user_path_monitor",
+      "addons_godot_mcp_toolkit_paths_user_path_monitor_cache_settings",
+      "addons_godot_mcp_toolkit_paths_user_path_monitor_on_settings_changed",
+      "addons_godot_mcp_toolkit_paths_user_path_monitor_start",
+      "addons_godot_mcp_toolkit_paths_user_path_monitor_stop",
+      "addons_godot_mcp_toolkit_paths_user_path_monitor_user_path_changed",
+      "addons_godot_mcp_toolkit_security_audit",
+      "addons_godot_mcp_toolkit_security_audit_get_log_path",
+      "addons_godot_mcp_toolkit_security_audit_log_call",
+      "addons_godot_mcp_toolkit_security_audit_truncate_log",
+      "addons_godot_mcp_toolkit_security_auth",
+      "addons_godot_mcp_toolkit_security_auth_generate_token",
+      "addons_godot_mcp_toolkit_security_auth_get_published_token_path",
+      "addons_godot_mcp_toolkit_security_auth_get_token_path",
+      "addons_godot_mcp_toolkit_security_auth_validate",
+      "addons_godot_mcp_toolkit_security_auth_write_token"
+    ],
+    "50": [
       "addons_godot_mcp_toolkit_scene_scene_lease",
       "addons_godot_mcp_toolkit_scene_scene_lease_active_scene_path",
       "addons_godot_mcp_toolkit_scene_scene_lease_build_contention_hint",
@@ -1843,7 +1972,7 @@
       "addons_godot_mcp_toolkit_scene_scene_lease_try_acquire",
       "addons_godot_mcp_toolkit_scene_scene_lease_try_queue_for_lease"
     ],
-    "48": [
+    "51": [
       "scripts_core_hit_feedback",
       "scripts_core_hit_feedback_burst",
       "scripts_core_hit_feedback_enabled",
@@ -1865,7 +1994,28 @@
       "scripts_core_hit_feedback_slowmo",
       "scripts_core_hit_feedback_update_vignette"
     ],
-    "49": [
+    "52": [
+      "addons_godot_mcp_toolkit_commands_playtest_log_reader",
+      "addons_godot_mcp_toolkit_commands_playtest_log_reader_clear_debug_bridge",
+      "addons_godot_mcp_toolkit_commands_playtest_log_reader_cmd_debugger_get_log",
+      "addons_godot_mcp_toolkit_commands_playtest_log_reader_empty_log_page",
+      "addons_godot_mcp_toolkit_commands_playtest_log_reader_make_error_entry",
+      "addons_godot_mcp_toolkit_commands_playtest_log_reader_mark_session_started",
+      "addons_godot_mcp_toolkit_commands_playtest_log_reader_merge_debug_bridge_data",
+      "addons_godot_mcp_toolkit_commands_playtest_log_reader_scan_lines_for_errors",
+      "addons_godot_mcp_toolkit_commands_playtest_log_reader_set_debug_bridge",
+      "addons_godot_mcp_toolkit_commands_playtest_playtest_commands",
+      "addons_godot_mcp_toolkit_commands_playtest_playtest_commands_clear_debug_bridge",
+      "addons_godot_mcp_toolkit_commands_playtest_playtest_commands_register",
+      "addons_godot_mcp_toolkit_commands_playtest_playtest_control",
+      "addons_godot_mcp_toolkit_commands_playtest_playtest_control_cmd_game_start",
+      "addons_godot_mcp_toolkit_commands_playtest_playtest_control_cmd_game_stop",
+      "addons_godot_mcp_toolkit_commands_playtest_playtest_control_diagnose_startup",
+      "addons_godot_mcp_toolkit_commands_playtest_playtest_control_main_scene_missing",
+      "addons_godot_mcp_toolkit_commands_playtest_playtest_control_poll_runtime_ready",
+      "addons_godot_mcp_toolkit_commands_playtest_playtest_control_scan_compilation_errors"
+    ],
+    "53": [
       "addons_godot_mcp_toolkit_commands_tileset_tileset_alternatives",
       "addons_godot_mcp_toolkit_commands_tileset_tileset_alternatives_apply_alternative",
       "addons_godot_mcp_toolkit_commands_tileset_tileset_alternatives_cmd_add_alternative",
@@ -1886,7 +2036,7 @@
       "addons_godot_mcp_toolkit_commands_tileset_tileset_structure_cmd_setup_layers",
       "addons_godot_mcp_toolkit_commands_tileset_tileset_structure_variant_type_from_string"
     ],
-    "50": [
+    "54": [
       "addons_godot_mcp_toolkit_contract_mcp_toolkit_command_options",
       "addons_godot_mcp_toolkit_contract_mcp_toolkit_command_options_guard_project_path",
       "addons_godot_mcp_toolkit_contract_mcp_toolkit_command_options_guard_user_path",
@@ -1907,7 +2057,7 @@
       "addons_godot_mcp_toolkit_contract_mcp_toolkit_command_options_with_success_hint",
       "addons_godot_mcp_toolkit_contract_mcp_toolkit_command_options_with_timeout_ms"
     ],
-    "51": [
+    "55": [
       "addons_godot_mcp_toolkit_ui_mcp_json_sync",
       "addons_godot_mcp_toolkit_ui_mcp_json_sync_build_content",
       "addons_godot_mcp_toolkit_ui_mcp_json_sync_build_entry",
@@ -1928,7 +2078,7 @@
       "addons_godot_mcp_toolkit_ui_mcp_json_sync_stringify_entry",
       "addons_godot_mcp_toolkit_ui_mcp_json_sync_write_from_template"
     ],
-    "52": [
+    "56": [
       "scripts_core_weapon_anim_sets",
       "scripts_core_weapon_anim_sets_add_weapon_tracks",
       "scripts_core_weapon_anim_sets_arm_length",
@@ -1949,7 +2099,7 @@
       "scripts_core_weapon_anim_sets_supports",
       "scripts_core_weapon_anim_sets_weaponanimsets"
     ],
-    "53": [
+    "57": [
       "scripts_ui_character_select",
       "scripts_ui_character_select_btn_style",
       "scripts_ui_character_select_build_detail_panel",
@@ -1970,28 +2120,7 @@
       "scripts_ui_character_select_select",
       "scripts_ui_character_select_unhandled_input"
     ],
-    "54": [
-      "scripts_ui_lobby_menu",
-      "scripts_ui_lobby_menu_build_browse",
-      "scripts_ui_lobby_menu_build_room",
-      "scripts_ui_lobby_menu_center_panel",
-      "scripts_ui_lobby_menu_connect",
-      "scripts_ui_lobby_menu_create",
-      "scripts_ui_lobby_menu_exit_tree",
-      "scripts_ui_lobby_menu_initial_server_address",
-      "scripts_ui_lobby_menu_join_ip",
-      "scripts_ui_lobby_menu_join_selected",
-      "scripts_ui_lobby_menu_join_server",
-      "scripts_ui_lobby_menu_on_disconnected",
-      "scripts_ui_lobby_menu_ready",
-      "scripts_ui_lobby_menu_refresh_games",
-      "scripts_ui_lobby_menu_refresh_room",
-      "scripts_ui_lobby_menu_set_status",
-      "scripts_ui_lobby_menu_show_browse",
-      "scripts_ui_lobby_menu_show_room",
-      "scripts_ui_lobby_menu_title"
-    ],
-    "55": [
+    "58": [
       "scripts_ui_minimap",
       "scripts_ui_minimap_diamond",
       "scripts_ui_minimap_draw",
@@ -2012,17 +2141,17 @@
       "scripts_ui_minimap_unhandled_input",
       "scripts_ui_minimap_view_params"
     ],
-    "56": [
+    "59": [
       "addons_godot_mcp_toolkit_commands_editor_editor_execute",
       "addons_godot_mcp_toolkit_commands_editor_editor_execute_cmd_execute_code",
       "addons_godot_mcp_toolkit_commands_file_commands",
       "addons_godot_mcp_toolkit_commands_file_commands_cmd_file_delete",
       "addons_godot_mcp_toolkit_commands_file_commands_register",
-      "addons_godot_mcp_toolkit_commands_sound_commands",
-      "addons_godot_mcp_toolkit_commands_sound_commands_build_pcm",
-      "addons_godot_mcp_toolkit_commands_sound_commands_cmd_generate",
-      "addons_godot_mcp_toolkit_commands_sound_commands_oscillator",
-      "addons_godot_mcp_toolkit_commands_sound_commands_register",
+      "addons_godot_mcp_toolkit_commands_folder_commands",
+      "addons_godot_mcp_toolkit_commands_folder_commands_cmd_folder_create",
+      "addons_godot_mcp_toolkit_commands_folder_commands_cmd_folder_delete",
+      "addons_godot_mcp_toolkit_commands_folder_commands_folder_delete_recursive",
+      "addons_godot_mcp_toolkit_commands_folder_commands_register",
       "addons_godot_mcp_toolkit_core_modules",
       "addons_godot_mcp_toolkit_security_scrubber",
       "addons_godot_mcp_toolkit_security_scrubber_compile_patterns",
@@ -2032,27 +2161,47 @@
       "addons_godot_mcp_toolkit_security_untrusted_scrub_envelope_tags",
       "addons_godot_mcp_toolkit_security_untrusted_wrap"
     ],
-    "57": [
-      "addons_godot_mcp_toolkit_commands_folder_commands",
-      "addons_godot_mcp_toolkit_commands_folder_commands_cmd_folder_create",
-      "addons_godot_mcp_toolkit_commands_folder_commands_cmd_folder_delete",
-      "addons_godot_mcp_toolkit_commands_folder_commands_folder_delete_recursive",
-      "addons_godot_mcp_toolkit_commands_folder_commands_register",
+    "60": [
       "addons_godot_mcp_toolkit_commands_meta_commands",
       "addons_godot_mcp_toolkit_commands_meta_commands_cmd_set_limits",
       "addons_godot_mcp_toolkit_commands_meta_commands_register",
-      "addons_godot_mcp_toolkit_commands_project_commands",
-      "addons_godot_mcp_toolkit_commands_project_commands_cmd_autoload_manage",
-      "addons_godot_mcp_toolkit_commands_project_commands_cmd_get_layer_names",
-      "addons_godot_mcp_toolkit_commands_project_commands_cmd_project_get_settings",
-      "addons_godot_mcp_toolkit_commands_project_commands_cmd_project_set_setting",
-      "addons_godot_mcp_toolkit_commands_project_commands_cmd_set_layer_names",
-      "addons_godot_mcp_toolkit_commands_project_commands_register",
-      "addons_godot_mcp_toolkit_commands_project_commands_validate_layer_category",
+      "addons_godot_mcp_toolkit_commands_sound_commands",
+      "addons_godot_mcp_toolkit_commands_sound_commands_build_pcm",
+      "addons_godot_mcp_toolkit_commands_sound_commands_cmd_generate",
+      "addons_godot_mcp_toolkit_commands_sound_commands_oscillator",
+      "addons_godot_mcp_toolkit_commands_sound_commands_register",
+      "addons_godot_mcp_toolkit_commands_texture_commands",
+      "addons_godot_mcp_toolkit_commands_texture_commands_cmd_generate",
+      "addons_godot_mcp_toolkit_commands_texture_commands_draw_shape",
+      "addons_godot_mcp_toolkit_commands_texture_commands_in_directional_triangle",
+      "addons_godot_mcp_toolkit_commands_texture_commands_in_shape",
+      "addons_godot_mcp_toolkit_commands_texture_commands_parse_color",
+      "addons_godot_mcp_toolkit_commands_texture_commands_register",
+      "addons_godot_mcp_toolkit_commands_texture_commands_render_label",
       "addons_godot_mcp_toolkit_transport_builtin_command_registration",
       "addons_godot_mcp_toolkit_transport_builtin_command_registration_register_all"
     ],
-    "58": [
+    "61": [
+      "godot_node3d",
+      "scripts_core_environment_manager",
+      "scripts_core_environment_manager_correct_prop_heights",
+      "scripts_core_environment_manager_environmentmanager",
+      "scripts_core_environment_manager_generate_environment",
+      "scripts_core_environment_manager_generation_finished",
+      "scripts_core_environment_manager_get_floor_y",
+      "scripts_core_environment_manager_spawn_medieval_props",
+      "scripts_entities_held_weapon_rig",
+      "scripts_entities_held_weapon_rig_attach",
+      "scripts_entities_held_weapon_rig_heldweaponrig",
+      "scripts_entities_held_weapon_rig_process",
+      "scripts_entities_held_weapon_rig_supports",
+      "scripts_objects_slime_puddle",
+      "scripts_objects_slime_puddle_physics_process",
+      "scripts_objects_slime_puddle_ready",
+      "scripts_objects_slime_puddle_slimepuddle",
+      "scripts_objects_slime_puddle_spawn"
+    ],
+    "62": [
       "scripts_components_player_input_controller",
       "scripts_components_player_input_controller_alt_attack_pressed",
       "scripts_components_player_input_controller_alt_attack_released",
@@ -2072,7 +2221,7 @@
       "scripts_components_player_input_controller_weapon_cycle",
       "scripts_components_player_input_controller_weapon_select"
     ],
-    "59": [
+    "63": [
       "scripts_components_player_resources",
       "scripts_components_player_resources_add_ammo_fraction",
       "scripts_components_player_resources_add_mana",
@@ -2092,7 +2241,7 @@
       "scripts_components_player_resources_spend_energy",
       "scripts_components_player_resources_spend_mana"
     ],
-    "60": [
+    "64": [
       "scripts_components_target_lock_controller",
       "scripts_components_target_lock_controller_best_candidate",
       "scripts_components_target_lock_controller_camera_forward",
@@ -2112,45 +2261,46 @@
       "scripts_components_target_lock_controller_toggle",
       "scripts_components_target_lock_controller_unhandled_input"
     ],
-    "61": [
-      "addons_godot_mcp_toolkit_ui_onboarding_wizard",
-      "addons_godot_mcp_toolkit_ui_onboarding_wizard_check_and_show",
-      "addons_godot_mcp_toolkit_ui_onboarding_wizard_free_if_open",
-      "addons_godot_mcp_toolkit_ui_onboarding_wizard_init",
-      "addons_godot_mcp_toolkit_ui_onboarding_wizard_is_last_relevant_step",
-      "addons_godot_mcp_toolkit_ui_onboarding_wizard_is_onboarding_complete",
-      "addons_godot_mcp_toolkit_ui_onboarding_wizard_migrate_flag_after_rename",
-      "addons_godot_mcp_toolkit_ui_onboarding_wizard_on_confirmed",
-      "addons_godot_mcp_toolkit_ui_onboarding_wizard_on_custom_action",
-      "addons_godot_mcp_toolkit_ui_onboarding_wizard_save_progress",
-      "addons_godot_mcp_toolkit_ui_onboarding_wizard_show_step",
-      "addons_godot_mcp_toolkit_ui_onboarding_wizard_spec_dock_overview",
-      "addons_godot_mcp_toolkit_ui_onboarding_wizard_spec_for_step",
-      "addons_godot_mcp_toolkit_ui_onboarding_wizard_spec_mcp_json",
-      "addons_godot_mcp_toolkit_ui_onboarding_wizard_spec_welcome",
-      "addons_godot_mcp_toolkit_ui_onboarding_wizard_teardown",
-      "addons_godot_mcp_toolkit_ui_onboarding_wizard_write_flag"
+    "65": [
+      "scripts_ui_upgrade_choice_ui",
+      "scripts_ui_upgrade_choice_ui_build_choices",
+      "scripts_ui_upgrade_choice_ui_card_label",
+      "scripts_ui_upgrade_choice_ui_card_pips",
+      "scripts_ui_upgrade_choice_ui_card_text",
+      "scripts_ui_upgrade_choice_ui_choice_key",
+      "scripts_ui_upgrade_choice_ui_choice_made",
+      "scripts_ui_upgrade_choice_ui_deal",
+      "scripts_ui_upgrade_choice_ui_make_card",
+      "scripts_ui_upgrade_choice_ui_make_column",
+      "scripts_ui_upgrade_choice_ui_on_banish",
+      "scripts_ui_upgrade_choice_ui_on_card_pressed",
+      "scripts_ui_upgrade_choice_ui_on_choice_selected",
+      "scripts_ui_upgrade_choice_ui_on_lock",
+      "scripts_ui_upgrade_choice_ui_on_reroll",
+      "scripts_ui_upgrade_choice_ui_present_choices",
+      "scripts_ui_upgrade_choice_ui_ready",
+      "scripts_ui_upgrade_choice_ui_refresh"
     ],
-    "62": [
-      "godot_node3d",
-      "scripts_entities_held_weapon_rig",
-      "scripts_entities_held_weapon_rig_attach",
-      "scripts_entities_held_weapon_rig_heldweaponrig",
-      "scripts_entities_held_weapon_rig_process",
-      "scripts_entities_held_weapon_rig_supports",
-      "scripts_objects_slime_puddle",
-      "scripts_objects_slime_puddle_physics_process",
-      "scripts_objects_slime_puddle_ready",
-      "scripts_objects_slime_puddle_slimepuddle",
-      "scripts_objects_slime_puddle_spawn",
-      "scripts_world_dungeon_door",
-      "scripts_world_dungeon_door_add_bars",
-      "scripts_world_dungeon_door_build",
-      "scripts_world_dungeon_door_dungeondoor",
-      "scripts_world_dungeon_door_open",
-      "scripts_world_dungeon_door_spawn"
+    "66": [
+      "addons_godot_mcp_toolkit_ui_dock_dock",
+      "addons_godot_mcp_toolkit_ui_dock_dock_bind",
+      "addons_godot_mcp_toolkit_ui_dock_dock_build_ui",
+      "addons_godot_mcp_toolkit_ui_dock_dock_on_client_connected",
+      "addons_godot_mcp_toolkit_ui_dock_dock_on_client_disconnected",
+      "addons_godot_mcp_toolkit_ui_dock_dock_on_command_received",
+      "addons_godot_mcp_toolkit_ui_dock_dock_on_extensions_pressed",
+      "addons_godot_mcp_toolkit_ui_dock_dock_on_info_pressed",
+      "addons_godot_mcp_toolkit_ui_dock_dock_on_lsp_status_changed",
+      "addons_godot_mcp_toolkit_ui_dock_dock_on_port_status_changed",
+      "addons_godot_mcp_toolkit_ui_dock_dock_on_regen_token",
+      "addons_godot_mcp_toolkit_ui_dock_dock_on_runtime_timer_timeout",
+      "addons_godot_mcp_toolkit_ui_dock_dock_open_companion_skills",
+      "addons_godot_mcp_toolkit_ui_dock_dock_ready",
+      "addons_godot_mcp_toolkit_ui_dock_dock_refresh_status",
+      "addons_godot_mcp_toolkit_ui_dock_dock_show_audit_dialog",
+      "addons_godot_mcp_toolkit_ui_dock_dock_toast"
     ],
-    "63": [
+    "67": [
       "scripts_ui_main_menu",
       "scripts_ui_main_menu_btn_style",
       "scripts_ui_main_menu_build_background",
@@ -2169,7 +2319,7 @@
       "scripts_ui_main_menu_toggle_play_menu",
       "scripts_ui_main_menu_unhandled_input"
     ],
-    "64": [
+    "68": [
       "scripts_ui_settings_menu",
       "scripts_ui_settings_menu_add_attack_marks_toggle",
       "scripts_ui_settings_menu_add_quality_selector",
@@ -2188,7 +2338,7 @@
       "scripts_ui_settings_menu_set_menu_visible",
       "scripts_ui_settings_menu_start_touch_edit"
     ],
-    "65": [
+    "69": [
       "addons_godot_mcp_toolkit_commands_editor_editor_commands",
       "addons_godot_mcp_toolkit_commands_editor_editor_commands_cmd_set_lsp_status",
       "addons_godot_mcp_toolkit_commands_editor_editor_commands_register",
@@ -2206,7 +2356,7 @@
       "addons_godot_mcp_toolkit_commands_editor_editor_rescan_cmd_wait_for_idle",
       "addons_godot_mcp_toolkit_commands_editor_editor_rescan_should_reload_open_script"
     ],
-    "66": [
+    "70": [
       "addons_godot_mcp_toolkit_commands_tileset_tileset_tile_data",
       "addons_godot_mcp_toolkit_commands_tileset_tileset_tile_data_apply_animation",
       "addons_godot_mcp_toolkit_commands_tileset_tileset_tile_data_apply_custom_data",
@@ -2224,7 +2374,7 @@
       "addons_godot_mcp_toolkit_commands_tileset_tileset_tile_data_ensure_collision_polygon",
       "addons_godot_mcp_toolkit_commands_tileset_tileset_tile_data_foreign_key_error"
     ],
-    "67": [
+    "71": [
       "addons_godot_mcp_toolkit_transport_debug_bridge",
       "addons_godot_mcp_toolkit_transport_debug_bridge_buffer_error",
       "addons_godot_mcp_toolkit_transport_debug_bridge_capture",
@@ -2242,7 +2392,7 @@
       "addons_godot_mcp_toolkit_transport_debug_bridge_try_continue",
       "godot_editordebuggerplugin"
     ],
-    "68": [
+    "72": [
       "scripts_components_player_parry_controller",
       "scripts_components_player_parry_controller_cancel",
       "scripts_components_player_parry_controller_consume_bonus",
@@ -2260,7 +2410,7 @@
       "scripts_components_player_parry_controller_try_block_melee",
       "scripts_components_player_parry_controller_try_parry"
     ],
-    "69": [
+    "73": [
       "scripts_core_weapon_synergies",
       "scripts_core_weapon_synergies_active",
       "scripts_core_weapon_synergies_add",
@@ -2278,7 +2428,7 @@
       "scripts_core_weapon_synergies_weapon_name",
       "scripts_core_weapon_synergies_weaponsynergies"
     ],
-    "70": [
+    "74": [
       "scripts_objects_elemental_orbs",
       "scripts_objects_elemental_orbs_add_orb",
       "scripts_objects_elemental_orbs_create_orb",
@@ -2296,7 +2446,7 @@
       "scripts_objects_elemental_orbs_tick_contact_damage",
       "scripts_objects_elemental_orbs_update_orb_positions"
     ],
-    "71": [
+    "75": [
       "addons_godot_mcp_toolkit_commands_script_commands",
       "addons_godot_mcp_toolkit_commands_script_commands_check_autoload_hints",
       "addons_godot_mcp_toolkit_commands_script_commands_check_preload_hints",
@@ -2313,7 +2463,7 @@
       "addons_godot_mcp_toolkit_commands_script_commands_validate_gdscript",
       "addons_godot_mcp_toolkit_commands_script_commands_write_file_raw"
     ],
-    "72": [
+    "76": [
       "addons_godot_mcp_toolkit_commands_signal_commands",
       "addons_godot_mcp_toolkit_commands_signal_commands_cmd_signal_emit",
       "addons_godot_mcp_toolkit_commands_signal_commands_cmd_signal_list",
@@ -2330,24 +2480,7 @@
       "addons_godot_mcp_toolkit_scene_signal_pair_resolver_resolve_node",
       "addons_godot_mcp_toolkit_scene_signal_pair_resolver_resolve_pair"
     ],
-    "73": [
-      "addons_godot_mcp_toolkit_core_tool_menu",
-      "addons_godot_mcp_toolkit_core_tool_menu_init",
-      "addons_godot_mcp_toolkit_core_tool_menu_install",
-      "addons_godot_mcp_toolkit_core_tool_menu_on_extension_catalog",
-      "addons_godot_mcp_toolkit_core_tool_menu_on_open_settings",
-      "addons_godot_mcp_toolkit_core_tool_menu_on_regen_token",
-      "addons_godot_mcp_toolkit_core_tool_menu_on_show_audit",
-      "addons_godot_mcp_toolkit_core_tool_menu_on_submenu_id_pressed",
-      "addons_godot_mcp_toolkit_core_tool_menu_on_write_mcp_json",
-      "addons_godot_mcp_toolkit_core_tool_menu_on_write_mcp_json_result",
-      "addons_godot_mcp_toolkit_core_tool_menu_uninstall",
-      "addons_godot_mcp_toolkit_ui_toolkit_dialog_presenter",
-      "addons_godot_mcp_toolkit_ui_toolkit_dialog_presenter_dispose",
-      "addons_godot_mcp_toolkit_ui_toolkit_dialog_presenter_show_extension_catalog",
-      "addons_godot_mcp_toolkit_ui_toolkit_dialog_presenter_show_info"
-    ],
-    "74": [
+    "77": [
       "addons_godot_mcp_toolkit_transport_dispatch_dispatch_lane",
       "addons_godot_mcp_toolkit_transport_dispatch_dispatch_lane_cancel_queued",
       "addons_godot_mcp_toolkit_transport_dispatch_dispatch_lane_clear",
@@ -2364,24 +2497,7 @@
       "addons_godot_mcp_toolkit_transport_dispatch_dispatch_lane_set_handlers",
       "addons_godot_mcp_toolkit_transport_dispatch_dispatch_lane_wire_base"
     ],
-    "75": [
-      "addons_godot_mcp_toolkit_ui_dock_dock_section_card",
-      "addons_godot_mcp_toolkit_ui_dock_dock_section_card_make_collapsible",
-      "addons_godot_mcp_toolkit_ui_dock_dock_section_card_make_section",
-      "addons_godot_mcp_toolkit_ui_dock_dock_section_card_make_section_style",
-      "addons_godot_mcp_toolkit_ui_dock_ext_info_dialog",
-      "addons_godot_mcp_toolkit_ui_dock_ext_info_dialog_add_info_row",
-      "addons_godot_mcp_toolkit_ui_dock_ext_info_dialog_add_note_label",
-      "addons_godot_mcp_toolkit_ui_dock_ext_info_dialog_ensure_built",
-      "addons_godot_mcp_toolkit_ui_dock_ext_info_dialog_show_info",
-      "addons_godot_mcp_toolkit_ui_dock_security_audit_log_dialog",
-      "addons_godot_mcp_toolkit_ui_dock_security_audit_log_dialog_ensure_built",
-      "addons_godot_mcp_toolkit_ui_dock_security_audit_log_dialog_show_log",
-      "addons_godot_mcp_toolkit_ui_editor_popup",
-      "addons_godot_mcp_toolkit_ui_editor_popup_present",
-      "godot_acceptdialog"
-    ],
-    "76": [
+    "78": [
       "godot_subviewportcontainer",
       "scripts_ui_character_preview",
       "scripts_ui_character_preview_apply_texture",
@@ -2398,7 +2514,24 @@
       "scripts_ui_character_preview_ready",
       "scripts_ui_character_preview_show_character"
     ],
-    "77": [
+    "79": [
+      "scripts_core_main",
+      "scripts_core_main_char_id",
+      "scripts_core_main_fill_run_summary",
+      "scripts_core_main_get_floor_y",
+      "scripts_core_main_gold_with_bonus",
+      "scripts_core_main_input",
+      "scripts_core_main_on_boss_died",
+      "scripts_core_main_on_enemy_died",
+      "scripts_core_main_on_player_died",
+      "scripts_core_main_process",
+      "scripts_core_main_ready",
+      "scripts_core_main_restart",
+      "scripts_core_main_save_best_time",
+      "scripts_core_main_show_item_choice",
+      "scripts_core_main_start_endless"
+    ],
+    "80": [
       "scripts_ui_pause_menu",
       "scripts_ui_pause_menu_apply_style",
       "scripts_ui_pause_menu_close_menu",
@@ -2415,7 +2548,7 @@
       "scripts_ui_pause_menu_restart_requested",
       "scripts_ui_pause_menu_toggle"
     ],
-    "78": [
+    "81": [
       "addons_godot_mcp_toolkit_commands_classdb_commands",
       "addons_godot_mcp_toolkit_commands_classdb_commands_add_constants_native",
       "addons_godot_mcp_toolkit_commands_classdb_commands_add_method_section",
@@ -2431,23 +2564,23 @@
       "addons_godot_mcp_toolkit_commands_classdb_commands_resolve_limit",
       "addons_godot_mcp_toolkit_commands_classdb_commands_resolve_type"
     ],
-    "79": [
-      "addons_godot_mcp_toolkit_paths_project_paths",
-      "addons_godot_mcp_toolkit_paths_project_paths_ensure_dirs",
-      "addons_godot_mcp_toolkit_paths_project_paths_instance_dir",
-      "addons_godot_mcp_toolkit_paths_project_paths_project_hash",
-      "addons_godot_mcp_toolkit_paths_user_path_monitor",
-      "addons_godot_mcp_toolkit_paths_user_path_monitor_cache_settings",
-      "addons_godot_mcp_toolkit_paths_user_path_monitor_on_settings_changed",
-      "addons_godot_mcp_toolkit_paths_user_path_monitor_start",
-      "addons_godot_mcp_toolkit_paths_user_path_monitor_stop",
-      "addons_godot_mcp_toolkit_paths_user_path_monitor_user_path_changed",
-      "addons_godot_mcp_toolkit_security_audit",
-      "addons_godot_mcp_toolkit_security_audit_get_log_path",
-      "addons_godot_mcp_toolkit_security_audit_log_call",
-      "addons_godot_mcp_toolkit_security_audit_truncate_log"
+    "82": [
+      "addons_godot_mcp_toolkit_core_playtest_end_detector",
+      "addons_godot_mcp_toolkit_core_playtest_end_detector_init",
+      "addons_godot_mcp_toolkit_core_playtest_end_detector_poll",
+      "addons_godot_mcp_toolkit_core_plugin_composer",
+      "addons_godot_mcp_toolkit_core_plugin_composer_compose",
+      "addons_godot_mcp_toolkit_core_plugin_composer_dialog_presenter",
+      "addons_godot_mcp_toolkit_core_plugin_composer_dispose",
+      "addons_godot_mcp_toolkit_core_plugin_composer_dock",
+      "addons_godot_mcp_toolkit_core_plugin_composer_dock_host",
+      "addons_godot_mcp_toolkit_core_plugin_composer_poll_playtest",
+      "addons_godot_mcp_toolkit_core_plugin_composer_register_in_registry",
+      "addons_godot_mcp_toolkit_core_plugin_composer_republish_on_token_rewrite",
+      "addons_godot_mcp_toolkit_core_plugin_composer_server",
+      "addons_godot_mcp_toolkit_core_plugin_composer_write_flow"
     ],
-    "80": [
+    "83": [
       "godot_area3d",
       "scripts_objects_item_pickup",
       "scripts_objects_item_pickup_itempickup",
@@ -2463,7 +2596,23 @@
       "scripts_objects_weapon_pickup_physics_process",
       "scripts_objects_weapon_pickup_ready"
     ],
-    "81": [
+    "84": [
+      "godot_canvaslayer",
+      "scripts_ui_item_choice_ui",
+      "scripts_ui_item_choice_ui_item_selected",
+      "scripts_ui_item_choice_ui_present_choices",
+      "scripts_ui_item_choice_ui_ready",
+      "scripts_ui_item_choice_ui_select_item",
+      "scripts_ui_weapon_choice_ui",
+      "scripts_ui_weapon_choice_ui_build",
+      "scripts_ui_weapon_choice_ui_card",
+      "scripts_ui_weapon_choice_ui_chosen",
+      "scripts_ui_weapon_choice_ui_pick",
+      "scripts_ui_weapon_choice_ui_present",
+      "scripts_ui_weapon_choice_ui_unhandled_input",
+      "scripts_ui_weapon_choice_ui_weaponchoiceui"
+    ],
+    "85": [
       "godot_resource",
       "scripts_core_passive_data",
       "scripts_core_passive_data_apply_to_player",
@@ -2479,7 +2628,7 @@
       "scripts_entities_player_weapons_weapon_data_weapon_heavy_damage",
       "scripts_entities_player_weapons_weapon_data_weapondata"
     ],
-    "82": [
+    "86": [
       "scripts_components_health_component",
       "scripts_components_health_component_damage_taking",
       "scripts_components_health_component_default_damage",
@@ -2495,7 +2644,7 @@
       "scripts_components_health_component_set_invincibility",
       "scripts_components_health_component_take_damage"
     ],
-    "83": [
+    "87": [
       "addons_godot_mcp_toolkit_commands_audiobus_commands",
       "addons_godot_mcp_toolkit_commands_audiobus_commands_action_add_bus",
       "addons_godot_mcp_toolkit_commands_audiobus_commands_action_add_effect",
@@ -2510,22 +2659,7 @@
       "addons_godot_mcp_toolkit_commands_audiobus_commands_resolve_bus_index",
       "addons_godot_mcp_toolkit_commands_audiobus_commands_save_bus_layout"
     ],
-    "84": [
-      "addons_godot_mcp_toolkit_commands_particle_commands",
-      "addons_godot_mcp_toolkit_commands_particle_commands_adjust_for_3d",
-      "addons_godot_mcp_toolkit_commands_particle_commands_apply_props",
-      "addons_godot_mcp_toolkit_commands_particle_commands_apply_sub_resource",
-      "addons_godot_mcp_toolkit_commands_particle_commands_build_curve_texture",
-      "addons_godot_mcp_toolkit_commands_particle_commands_build_gradient_texture",
-      "addons_godot_mcp_toolkit_commands_particle_commands_class_has_prop",
-      "addons_godot_mcp_toolkit_commands_particle_commands_cmd_particles_create",
-      "addons_godot_mcp_toolkit_commands_particle_commands_color",
-      "addons_godot_mcp_toolkit_commands_particle_commands_expand_range",
-      "addons_godot_mcp_toolkit_commands_particle_commands_merge_overrides",
-      "addons_godot_mcp_toolkit_commands_particle_commands_register",
-      "addons_godot_mcp_toolkit_commands_particle_commands_vec3"
-    ],
-    "85": [
+    "88": [
       "addons_godot_mcp_toolkit_core_settings_registration",
       "addons_godot_mcp_toolkit_core_settings_registration_collect_mcp_setting_names",
       "addons_godot_mcp_toolkit_core_settings_registration_compute_status_text",
@@ -2540,7 +2674,7 @@
       "addons_godot_mcp_toolkit_core_settings_registration_register_status_field",
       "addons_godot_mcp_toolkit_core_settings_registration_unregister_all"
     ],
-    "86": [
+    "89": [
       "assets_binbunvfx_shared_script_vfx_controller",
       "assets_binbunvfx_shared_script_vfx_controller_enter_tree",
       "assets_binbunvfx_shared_script_vfx_controller_get_anim",
@@ -2555,22 +2689,7 @@
       "assets_binbunvfx_shared_script_vfx_controller_set_shader_params",
       "assets_binbunvfx_shared_script_vfx_controller_vfxcontroller"
     ],
-    "87": [
-      "godot_control",
-      "scripts_ui_crosshair",
-      "scripts_ui_crosshair_draw",
-      "scripts_ui_crosshair_dungeon_update",
-      "scripts_ui_crosshair_process",
-      "scripts_ui_crosshair_ready",
-      "scripts_ui_crosshair_trigger_kickback",
-      "scripts_ui_team_panel",
-      "scripts_ui_team_panel_draw",
-      "scripts_ui_team_panel_mates",
-      "scripts_ui_team_panel_process",
-      "scripts_ui_team_panel_ready",
-      "scripts_ui_team_panel_teampanel"
-    ],
-    "88": [
+    "90": [
       "scripts_components_stats_component",
       "scripts_components_stats_component_default_damage",
       "scripts_components_stats_component_emit_stats",
@@ -2585,7 +2704,7 @@
       "scripts_components_stats_component_statscomponent",
       "scripts_components_stats_component_take_damage"
     ],
-    "89": [
+    "91": [
       "scripts_core_enemy_manager",
       "scripts_core_enemy_manager_active_count",
       "scripts_core_enemy_manager_enemymanager",
@@ -2600,7 +2719,7 @@
       "scripts_core_enemy_manager_scene_root",
       "scripts_core_enemy_manager_spawn"
     ],
-    "90": [
+    "92": [
       "scripts_core_game_data",
       "scripts_core_game_data_apply_to_player",
       "scripts_core_game_data_first_unlocked_index",
@@ -2615,7 +2734,7 @@
       "scripts_core_game_data_preload_list",
       "scripts_core_game_data_preload_paths"
     ],
-    "91": [
+    "93": [
       "scripts_entities_necromancer_vfx",
       "scripts_entities_necromancer_vfx_add_aura",
       "scripts_entities_necromancer_vfx_column",
@@ -2630,7 +2749,7 @@
       "scripts_entities_necromancer_vfx_souls",
       "scripts_entities_necromancer_vfx_update_beam"
     ],
-    "92": [
+    "94": [
       "scripts_objects_flame_stream",
       "scripts_objects_flame_stream_aim",
       "scripts_objects_flame_stream_apply_size",
@@ -2645,7 +2764,7 @@
       "scripts_objects_flame_stream_ready",
       "scripts_objects_flame_stream_set_anchor"
     ],
-    "93": [
+    "95": [
       "addons_godot_mcp_toolkit_scene_mcp_toolkit_undo_redo_action",
       "addons_godot_mcp_toolkit_scene_mcp_toolkit_undo_redo_action_begin",
       "addons_godot_mcp_toolkit_scene_mcp_toolkit_undo_redo_action_commit",
@@ -2659,7 +2778,7 @@
       "addons_godot_mcp_toolkit_scene_mcp_toolkit_undo_redo_action_undo_property",
       "addons_godot_mcp_toolkit_scene_mcp_toolkit_undo_redo_action_undo_reference"
     ],
-    "94": [
+    "96": [
       "godot_skeletonmodifier3d",
       "scripts_components_foot_ik_modifier",
       "scripts_components_foot_ik_modifier_floor_y",
@@ -2673,7 +2792,7 @@
       "scripts_components_hand_ik_modifier_setup",
       "scripts_components_hand_ik_modifier_solve"
     ],
-    "95": [
+    "97": [
       "godot_staticbody3d",
       "scripts_objects_destructible_prop",
       "scripts_objects_destructible_prop_break",
@@ -2687,7 +2806,7 @@
       "scripts_objects_destructible_prop_spawn_debris",
       "scripts_objects_destructible_prop_take_damage"
     ],
-    "96": [
+    "98": [
       "scripts_core_enemy_query",
       "scripts_core_enemy_query_any_overlapping",
       "scripts_core_enemy_query_enemy_touches_shape",
@@ -2701,7 +2820,7 @@
       "scripts_core_enemy_query_shape_reach",
       "scripts_core_enemy_query_sphere_touches_shape"
     ],
-    "97": [
+    "99": [
       "scripts_core_enemy_registry",
       "scripts_core_enemy_registry_all",
       "scripts_core_enemy_registry_cell_of",
@@ -2714,34 +2833,6 @@
       "scripts_core_enemy_registry_register",
       "scripts_core_enemy_registry_separation_push",
       "scripts_core_enemy_registry_unregister"
-    ],
-    "98": [
-      "scripts_core_main",
-      "scripts_core_main_char_id",
-      "scripts_core_main_get_floor_y",
-      "scripts_core_main_gold_with_bonus",
-      "scripts_core_main_input",
-      "scripts_core_main_on_boss_died",
-      "scripts_core_main_on_enemy_died",
-      "scripts_core_main_on_player_died",
-      "scripts_core_main_process",
-      "scripts_core_main_ready",
-      "scripts_core_main_restart",
-      "scripts_core_main_save_best_time"
-    ],
-    "99": [
-      "scripts_net_remote_player",
-      "scripts_net_remote_player_apply_state",
-      "scripts_net_remote_player_current_weapon",
-      "scripts_net_remote_player_is_dead",
-      "scripts_net_remote_player_physics_process",
-      "scripts_net_remote_player_play_action",
-      "scripts_net_remote_player_play_held_shot",
-      "scripts_net_remote_player_ready",
-      "scripts_net_remote_player_remoteplayer",
-      "scripts_net_remote_player_take_damage",
-      "scripts_net_remote_player_update_weapon_visuals",
-      "scripts_net_remote_player_weapon_attacked"
     ],
     "100": [
       "scripts_objects_zombie_arm_projectile",
@@ -2784,19 +2875,6 @@
       "addons_godot_mcp_toolkit_commands_editor_editor_screenshot_window_is_minimized"
     ],
     "103": [
-      "addons_godot_mcp_toolkit_core_plugin_composer",
-      "addons_godot_mcp_toolkit_core_plugin_composer_compose",
-      "addons_godot_mcp_toolkit_core_plugin_composer_dialog_presenter",
-      "addons_godot_mcp_toolkit_core_plugin_composer_dispose",
-      "addons_godot_mcp_toolkit_core_plugin_composer_dock",
-      "addons_godot_mcp_toolkit_core_plugin_composer_dock_host",
-      "addons_godot_mcp_toolkit_core_plugin_composer_poll_playtest",
-      "addons_godot_mcp_toolkit_core_plugin_composer_register_in_registry",
-      "addons_godot_mcp_toolkit_core_plugin_composer_republish_on_token_rewrite",
-      "addons_godot_mcp_toolkit_core_plugin_composer_server",
-      "addons_godot_mcp_toolkit_core_plugin_composer_write_flow"
-    ],
-    "104": [
       "addons_godot_mcp_toolkit_transport_dispatch_mutation_watchdog",
       "addons_godot_mcp_toolkit_transport_dispatch_mutation_watchdog_arm",
       "addons_godot_mcp_toolkit_transport_dispatch_mutation_watchdog_current_generation",
@@ -2809,7 +2887,33 @@
       "addons_godot_mcp_toolkit_transport_notifier_send_notification",
       "addons_godot_mcp_toolkit_transport_notifier_send_result"
     ],
+    "104": [
+      "addons_godot_mcp_toolkit_ui_dock_ext_info_dialog",
+      "addons_godot_mcp_toolkit_ui_dock_ext_info_dialog_add_info_row",
+      "addons_godot_mcp_toolkit_ui_dock_ext_info_dialog_add_note_label",
+      "addons_godot_mcp_toolkit_ui_dock_ext_info_dialog_ensure_built",
+      "addons_godot_mcp_toolkit_ui_dock_ext_info_dialog_show_info",
+      "addons_godot_mcp_toolkit_ui_dock_security_audit_log_dialog",
+      "addons_godot_mcp_toolkit_ui_dock_security_audit_log_dialog_ensure_built",
+      "addons_godot_mcp_toolkit_ui_dock_security_audit_log_dialog_show_log",
+      "addons_godot_mcp_toolkit_ui_editor_popup",
+      "addons_godot_mcp_toolkit_ui_editor_popup_present",
+      "godot_acceptdialog"
+    ],
     "105": [
+      "addons_web_texture_limit_plugin",
+      "addons_web_texture_limit_plugin_enter_tree",
+      "addons_web_texture_limit_plugin_exit_tree",
+      "addons_web_texture_limit_web_texture_export",
+      "addons_web_texture_limit_web_texture_export_begin_customize_resources",
+      "addons_web_texture_limit_web_texture_export_customize_resource",
+      "addons_web_texture_limit_web_texture_export_end_customize_resources",
+      "addons_web_texture_limit_web_texture_export_get_customization_configuration_hash",
+      "addons_web_texture_limit_web_texture_export_get_name",
+      "godot_editorexportplugin",
+      "godot_editorplugin"
+    ],
+    "106": [
       "godot_label3d",
       "scripts_core_pool_manager",
       "scripts_core_pool_manager_get_bullet",
@@ -2822,7 +2926,7 @@
       "scripts_objects_floating_damage_ready",
       "scripts_objects_floating_damage_spawn"
     ],
-    "106": [
+    "107": [
       "scripts_components_inventory_component",
       "scripts_components_inventory_component_add_item",
       "scripts_components_inventory_component_clear_items",
@@ -2835,7 +2939,7 @@
       "scripts_components_inventory_component_items_changed",
       "scripts_components_inventory_component_remove_item"
     ],
-    "107": [
+    "108": [
       "scripts_components_player_camera_aim_controller",
       "scripts_components_player_camera_aim_controller_apply_camera_recoil",
       "scripts_components_player_camera_aim_controller_build_flash_entry",
@@ -2848,7 +2952,7 @@
       "scripts_components_player_camera_aim_controller_orient_player_to_aim",
       "scripts_components_player_camera_aim_controller_playercameraandaimcontroller"
     ],
-    "108": [
+    "109": [
       "scripts_components_player_movement_controller",
       "scripts_components_player_movement_controller_add_dash",
       "scripts_components_player_movement_controller_can_pay_jump",
@@ -2861,7 +2965,7 @@
       "scripts_components_player_movement_controller_spawn_footstep_puff",
       "scripts_components_player_movement_controller_spawn_jump_burst"
     ],
-    "109": [
+    "110": [
       "scripts_core_enemy_benchmark",
       "scripts_core_enemy_benchmark_avg",
       "scripts_core_enemy_benchmark_enemybenchmark",
@@ -2874,7 +2978,7 @@
       "scripts_core_enemy_benchmark_summary",
       "scripts_core_enemy_benchmark_topup"
     ],
-    "110": [
+    "111": [
       "scripts_objects_spear_projectile",
       "scripts_objects_spear_projectile_apply_impact",
       "scripts_objects_spear_projectile_get_shooter",
@@ -2887,19 +2991,19 @@
       "scripts_objects_spear_projectile_setup_spear_trail",
       "scripts_objects_spear_projectile_start_return"
     ],
-    "111": [
-      "addons_godot_mcp_toolkit_commands_playtest_playtest_commands",
-      "addons_godot_mcp_toolkit_commands_playtest_playtest_commands_clear_debug_bridge",
-      "addons_godot_mcp_toolkit_commands_playtest_playtest_commands_register",
-      "addons_godot_mcp_toolkit_commands_playtest_playtest_control",
-      "addons_godot_mcp_toolkit_commands_playtest_playtest_control_cmd_game_start",
-      "addons_godot_mcp_toolkit_commands_playtest_playtest_control_cmd_game_stop",
-      "addons_godot_mcp_toolkit_commands_playtest_playtest_control_diagnose_startup",
-      "addons_godot_mcp_toolkit_commands_playtest_playtest_control_main_scene_missing",
-      "addons_godot_mcp_toolkit_commands_playtest_playtest_control_poll_runtime_ready",
-      "addons_godot_mcp_toolkit_commands_playtest_playtest_control_scan_compilation_errors"
-    ],
     "112": [
+      "addons_godot_mcp_toolkit_commands_path_commands",
+      "addons_godot_mcp_toolkit_commands_path_commands_action_add",
+      "addons_godot_mcp_toolkit_commands_path_commands_action_clear",
+      "addons_godot_mcp_toolkit_commands_path_commands_action_remove",
+      "addons_godot_mcp_toolkit_commands_path_commands_action_set",
+      "addons_godot_mcp_toolkit_commands_path_commands_cmd_edit_curve2d",
+      "addons_godot_mcp_toolkit_commands_path_commands_ok",
+      "addons_godot_mcp_toolkit_commands_path_commands_register",
+      "addons_godot_mcp_toolkit_commands_path_commands_to_vec2",
+      "addons_godot_mcp_toolkit_commands_path_commands_wrap_undo_redo"
+    ],
+    "113": [
       "addons_godot_mcp_toolkit_plugin",
       "addons_godot_mcp_toolkit_plugin_check_onboarding",
       "addons_godot_mcp_toolkit_plugin_disable_plugin",
@@ -2911,7 +3015,7 @@
       "addons_godot_mcp_toolkit_plugin_register_editor_settings",
       "addons_godot_mcp_toolkit_plugin_reveal_dock"
     ],
-    "113": [
+    "114": [
       "addons_godot_mcp_toolkit_scene_undo_redo_helpers",
       "addons_godot_mcp_toolkit_scene_undo_redo_helpers_animation_insert_key_silent",
       "addons_godot_mcp_toolkit_scene_undo_redo_helpers_animation_remove_key_at",
@@ -2923,7 +3027,7 @@
       "addons_godot_mcp_toolkit_scene_undo_redo_helpers_tilemap_restore_batch",
       "addons_godot_mcp_toolkit_scene_undo_redo_helpers_write_file_silent"
     ],
-    "114": [
+    "115": [
       "addons_godot_mcp_toolkit_transport_dispatch_server_request_router",
       "addons_godot_mcp_toolkit_transport_dispatch_server_request_router_build_lanes",
       "addons_godot_mcp_toolkit_transport_dispatch_server_request_router_clear",
@@ -2934,18 +3038,6 @@
       "addons_godot_mcp_toolkit_transport_dispatch_server_request_router_route_request",
       "addons_godot_mcp_toolkit_transport_dispatch_server_request_router_select_lane",
       "addons_godot_mcp_toolkit_transport_dispatch_server_request_router_set_registry"
-    ],
-    "115": [
-      "addons_web_texture_limit_plugin",
-      "addons_web_texture_limit_plugin_enter_tree",
-      "addons_web_texture_limit_plugin_exit_tree",
-      "addons_web_texture_limit_web_texture_export",
-      "addons_web_texture_limit_web_texture_export_begin_customize_resources",
-      "addons_web_texture_limit_web_texture_export_customize_resource",
-      "addons_web_texture_limit_web_texture_export_end_customize_resources",
-      "addons_web_texture_limit_web_texture_export_get_customization_configuration_hash",
-      "addons_web_texture_limit_web_texture_export_get_name",
-      "godot_editorplugin"
     ],
     "116": [
       "godot_characterbody3d",
@@ -2996,18 +3088,6 @@
       "scripts_entities_player_weapon_heavy_damage"
     ],
     "120": [
-      "scripts_entities_player_weapon_visuals",
-      "scripts_entities_player_weapon_visuals_apply_obsidian",
-      "scripts_entities_player_weapon_visuals_attach_axe_to_hand",
-      "scripts_entities_player_weapon_visuals_attach_held_weapon",
-      "scripts_entities_player_weapon_visuals_attach_spear_to_hand",
-      "scripts_entities_player_weapon_visuals_build_aura",
-      "scripts_entities_player_weapon_visuals_playerweaponvisuals",
-      "scripts_entities_player_weapon_visuals_set_spear_charge",
-      "scripts_entities_player_weapon_visuals_setup_weapon_models",
-      "scripts_entities_player_weapon_visuals_update_aura"
-    ],
-    "121": [
       "scripts_objects_bullet",
       "scripts_objects_bullet_build_spark_entry",
       "scripts_objects_bullet_on_area_entered",
@@ -3019,7 +3099,7 @@
       "scripts_objects_bullet_setup_trail",
       "scripts_objects_bullet_spawn_impact_sparks"
     ],
-    "122": [
+    "121": [
       "scripts_objects_dungeon_axe",
       "scripts_objects_dungeon_axe_area_damage",
       "scripts_objects_dungeon_axe_check_pickup",
@@ -3031,7 +3111,7 @@
       "scripts_objects_dungeon_axe_start_spin",
       "scripts_objects_dungeon_axe_throw"
     ],
-    "123": [
+    "122": [
       "scripts_objects_spirit_animal",
       "scripts_objects_spirit_animal_build",
       "scripts_objects_spirit_animal_hit_enemy",
@@ -3043,7 +3123,7 @@
       "scripts_objects_spirit_animal_spiritanimal",
       "scripts_objects_spirit_animal_start_vanish"
     ],
-    "124": [
+    "123": [
       "scripts_objects_spore_projectile",
       "scripts_objects_spore_projectile_burst",
       "scripts_objects_spore_projectile_explode",
@@ -3055,7 +3135,7 @@
       "scripts_objects_spore_projectile_setup_spore_trail",
       "scripts_objects_spore_projectile_spawn_burst_visual"
     ],
-    "125": [
+    "124": [
       "scripts_objects_treasure_chest",
       "scripts_objects_treasure_chest_box",
       "scripts_objects_treasure_chest_build",
@@ -3067,51 +3147,18 @@
       "scripts_objects_treasure_chest_spawn",
       "scripts_objects_treasure_chest_treasurechest"
     ],
+    "125": [
+      "addons_godot_mcp_toolkit_ui_dock_status_dock_status_panel",
+      "addons_godot_mcp_toolkit_ui_dock_status_dock_status_panel_init",
+      "addons_godot_mcp_toolkit_ui_dock_status_dock_status_panel_insert_warning_panel",
+      "addons_godot_mcp_toolkit_ui_dock_status_dock_status_panel_refresh",
+      "addons_godot_mcp_toolkit_ui_dock_status_dock_status_panel_refresh_lsp",
+      "addons_godot_mcp_toolkit_ui_dock_status_dock_status_panel_refresh_runtime",
+      "addons_godot_mcp_toolkit_ui_dock_status_dock_status_panel_set_activity",
+      "addons_godot_mcp_toolkit_ui_dock_status_dock_status_panel_set_peer_count",
+      "addons_godot_mcp_toolkit_ui_dock_status_dock_status_panel_update_port_warning"
+    ],
     "126": [
-      "addons_godot_mcp_toolkit_commands_playtest_log_reader",
-      "addons_godot_mcp_toolkit_commands_playtest_log_reader_clear_debug_bridge",
-      "addons_godot_mcp_toolkit_commands_playtest_log_reader_cmd_debugger_get_log",
-      "addons_godot_mcp_toolkit_commands_playtest_log_reader_empty_log_page",
-      "addons_godot_mcp_toolkit_commands_playtest_log_reader_make_error_entry",
-      "addons_godot_mcp_toolkit_commands_playtest_log_reader_mark_session_started",
-      "addons_godot_mcp_toolkit_commands_playtest_log_reader_merge_debug_bridge_data",
-      "addons_godot_mcp_toolkit_commands_playtest_log_reader_scan_lines_for_errors",
-      "addons_godot_mcp_toolkit_commands_playtest_log_reader_set_debug_bridge"
-    ],
-    "127": [
-      "addons_godot_mcp_toolkit_core_export_strip",
-      "addons_godot_mcp_toolkit_core_export_strip_compute_strip_paths",
-      "addons_godot_mcp_toolkit_core_export_strip_decide_warning",
-      "addons_godot_mcp_toolkit_core_export_strip_emit_warning",
-      "addons_godot_mcp_toolkit_core_export_strip_export_begin",
-      "addons_godot_mcp_toolkit_core_export_strip_export_end",
-      "addons_godot_mcp_toolkit_core_export_strip_export_file",
-      "addons_godot_mcp_toolkit_core_export_strip_get_name",
-      "godot_editorexportplugin"
-    ],
-    "128": [
-      "addons_godot_mcp_toolkit_paths_lsp_publisher",
-      "addons_godot_mcp_toolkit_paths_lsp_publisher_connect_settings_watch",
-      "addons_godot_mcp_toolkit_paths_lsp_publisher_disconnect_settings_watch",
-      "addons_godot_mcp_toolkit_paths_lsp_publisher_get_reported_lsp_status",
-      "addons_godot_mcp_toolkit_paths_lsp_publisher_on_editor_settings_changed",
-      "addons_godot_mcp_toolkit_paths_lsp_publisher_resolve_lsp_endpoint",
-      "addons_godot_mcp_toolkit_paths_lsp_publisher_set_bound_port_provider",
-      "addons_godot_mcp_toolkit_paths_lsp_publisher_set_reported_lsp_status",
-      "addons_godot_mcp_toolkit_paths_lsp_publisher_set_status_changed_handler"
-    ],
-    "129": [
-      "addons_godot_mcp_toolkit_ui_settings_navigator",
-      "addons_godot_mcp_toolkit_ui_settings_navigator_collect_nodes_by_class",
-      "addons_godot_mcp_toolkit_ui_settings_navigator_disable_advanced_settings",
-      "addons_godot_mcp_toolkit_ui_settings_navigator_enable_advanced_settings",
-      "addons_godot_mcp_toolkit_ui_settings_navigator_find_node_by_class",
-      "addons_godot_mcp_toolkit_ui_settings_navigator_find_tree_item",
-      "addons_godot_mcp_toolkit_ui_settings_navigator_find_tree_item_contains",
-      "addons_godot_mcp_toolkit_ui_settings_navigator_open_mcp_settings",
-      "addons_godot_mcp_toolkit_ui_settings_navigator_select_mcp_section"
-    ],
-    "130": [
       "godot_meshinstance3d",
       "scripts_objects_blade_trail",
       "scripts_objects_blade_trail_bladetrail",
@@ -3122,7 +3169,7 @@
       "scripts_objects_blade_trail_setup",
       "scripts_objects_blade_trail_smooth"
     ],
-    "131": [
+    "127": [
       "scripts_core_enemy_motion",
       "scripts_core_enemy_motion_available",
       "scripts_core_enemy_motion_build",
@@ -3133,7 +3180,7 @@
       "scripts_core_enemy_motion_push_out_of_player",
       "scripts_core_enemy_motion_reset"
     ],
-    "132": [
+    "128": [
       "scripts_objects_spinning_axe_projectile",
       "scripts_objects_spinning_axe_projectile_apply_area_damage",
       "scripts_objects_spinning_axe_projectile_cleanup_and_free",
@@ -3144,7 +3191,7 @@
       "scripts_objects_spinning_axe_projectile_setup_trails",
       "scripts_objects_spinning_axe_projectile_start_spinning_in_place"
     ],
-    "133": [
+    "129": [
       "scripts_objects_stand_aura",
       "scripts_objects_stand_aura_burst",
       "scripts_objects_stand_aura_get_menace_font",
@@ -3155,18 +3202,7 @@
       "scripts_objects_stand_aura_spawn_menace",
       "scripts_objects_stand_aura_standaura"
     ],
-    "134": [
-      "scripts_ui_loading_screen",
-      "scripts_ui_loading_screen_compile_shaders",
-      "scripts_ui_loading_screen_load",
-      "scripts_ui_loading_screen_load_scene",
-      "scripts_ui_loading_screen_only_data",
-      "scripts_ui_loading_screen_process",
-      "scripts_ui_loading_screen_ready",
-      "scripts_ui_loading_screen_step",
-      "scripts_ui_loading_screen_warm_dungeon"
-    ],
-    "135": [
+    "130": [
       "scripts_ui_rumbang_style",
       "scripts_ui_rumbang_style_button_style",
       "scripts_ui_rumbang_style_flat",
@@ -3177,18 +3213,7 @@
       "scripts_ui_rumbang_style_style_button",
       "scripts_ui_rumbang_style_style_title"
     ],
-    "136": [
-      "scripts_ui_vitals_panel",
-      "scripts_ui_vitals_panel_draw",
-      "scripts_ui_vitals_panel_hp_ratio",
-      "scripts_ui_vitals_panel_is_low",
-      "scripts_ui_vitals_panel_process",
-      "scripts_ui_vitals_panel_ready",
-      "scripts_ui_vitals_panel_set_values",
-      "scripts_ui_vitals_panel_trail_ratio",
-      "scripts_ui_vitals_panel_vitalspanel"
-    ],
-    "137": [
+    "131": [
       "addons_godot_mcp_toolkit_commands_input_map_commands",
       "addons_godot_mcp_toolkit_commands_input_map_commands_build_input_event",
       "addons_godot_mcp_toolkit_commands_input_map_commands_cmd_input_map_action",
@@ -3198,7 +3223,7 @@
       "addons_godot_mcp_toolkit_commands_input_map_commands_register",
       "addons_godot_mcp_toolkit_commands_input_map_commands_serialise_input_event"
     ],
-    "138": [
+    "132": [
       "addons_godot_mcp_toolkit_commands_procedural_commands",
       "addons_godot_mcp_toolkit_commands_procedural_commands_cmd_edit_curve",
       "addons_godot_mcp_toolkit_commands_procedural_commands_cmd_edit_gradient",
@@ -3208,17 +3233,17 @@
       "addons_godot_mcp_toolkit_commands_procedural_commands_save_resource",
       "addons_godot_mcp_toolkit_commands_procedural_commands_tangent_mode"
     ],
-    "139": [
-      "addons_godot_mcp_toolkit_commands_texture_commands",
-      "addons_godot_mcp_toolkit_commands_texture_commands_cmd_generate",
-      "addons_godot_mcp_toolkit_commands_texture_commands_draw_shape",
-      "addons_godot_mcp_toolkit_commands_texture_commands_in_directional_triangle",
-      "addons_godot_mcp_toolkit_commands_texture_commands_in_shape",
-      "addons_godot_mcp_toolkit_commands_texture_commands_parse_color",
-      "addons_godot_mcp_toolkit_commands_texture_commands_register",
-      "addons_godot_mcp_toolkit_commands_texture_commands_render_label"
+    "133": [
+      "addons_godot_mcp_toolkit_commands_project_commands",
+      "addons_godot_mcp_toolkit_commands_project_commands_cmd_autoload_manage",
+      "addons_godot_mcp_toolkit_commands_project_commands_cmd_get_layer_names",
+      "addons_godot_mcp_toolkit_commands_project_commands_cmd_project_get_settings",
+      "addons_godot_mcp_toolkit_commands_project_commands_cmd_project_set_setting",
+      "addons_godot_mcp_toolkit_commands_project_commands_cmd_set_layer_names",
+      "addons_godot_mcp_toolkit_commands_project_commands_register",
+      "addons_godot_mcp_toolkit_commands_project_commands_validate_layer_category"
     ],
-    "140": [
+    "134": [
       "addons_godot_mcp_toolkit_contract_mcp_toolkit_error",
       "addons_godot_mcp_toolkit_contract_mcp_toolkit_error_fail",
       "addons_godot_mcp_toolkit_contract_mcp_toolkit_error_guard_response_size",
@@ -3228,7 +3253,17 @@
       "addons_godot_mcp_toolkit_contract_mcp_toolkit_error_require",
       "addons_godot_mcp_toolkit_contract_mcp_toolkit_error_response_byte_size"
     ],
-    "141": [
+    "135": [
+      "addons_godot_mcp_toolkit_core_export_strip",
+      "addons_godot_mcp_toolkit_core_export_strip_compute_strip_paths",
+      "addons_godot_mcp_toolkit_core_export_strip_decide_warning",
+      "addons_godot_mcp_toolkit_core_export_strip_emit_warning",
+      "addons_godot_mcp_toolkit_core_export_strip_export_begin",
+      "addons_godot_mcp_toolkit_core_export_strip_export_end",
+      "addons_godot_mcp_toolkit_core_export_strip_export_file",
+      "addons_godot_mcp_toolkit_core_export_strip_get_name"
+    ],
+    "136": [
       "addons_godot_mcp_toolkit_logging_log_helpers",
       "addons_godot_mcp_toolkit_logging_log_helpers_compile_ansi_re",
       "addons_godot_mcp_toolkit_logging_log_helpers_configured_log_path",
@@ -3238,7 +3273,7 @@
       "addons_godot_mcp_toolkit_logging_log_helpers_resolve_log_path",
       "addons_godot_mcp_toolkit_logging_log_helpers_strip_ansi"
     ],
-    "142": [
+    "137": [
       "addons_godot_mcp_toolkit_runtime_mcp_runtime_server_await_frame_or_timeout",
       "addons_godot_mcp_toolkit_runtime_mcp_runtime_server_cmd_runtime_screenshot",
       "addons_godot_mcp_toolkit_runtime_mcp_runtime_server_downscale_inline_png",
@@ -3248,7 +3283,7 @@
       "addons_godot_mcp_toolkit_runtime_mcp_runtime_server_should_signal_minimized",
       "addons_godot_mcp_toolkit_runtime_mcp_runtime_server_window_is_minimized"
     ],
-    "143": [
+    "138": [
       "addons_godot_mcp_toolkit_scene_mcp_toolkit_safe_scene_ops",
       "addons_godot_mcp_toolkit_scene_mcp_toolkit_safe_scene_ops_check_save",
       "addons_godot_mcp_toolkit_scene_mcp_toolkit_safe_scene_ops_is_dispatching",
@@ -3258,7 +3293,17 @@
       "addons_godot_mcp_toolkit_scene_mcp_toolkit_safe_scene_ops_save_scene",
       "addons_godot_mcp_toolkit_scene_mcp_toolkit_safe_scene_ops_wait_for_scan_idle"
     ],
-    "144": [
+    "139": [
+      "addons_godot_mcp_toolkit_ui_dock_limits_dock_limits_section",
+      "addons_godot_mcp_toolkit_ui_dock_limits_dock_limits_section_init",
+      "addons_godot_mcp_toolkit_ui_dock_limits_dock_limits_section_on_regen_pressed",
+      "addons_godot_mcp_toolkit_ui_dock_limits_dock_limits_section_on_save_cap_changed",
+      "addons_godot_mcp_toolkit_ui_dock_limits_dock_limits_section_on_script_cap_changed",
+      "addons_godot_mcp_toolkit_ui_dock_limits_dock_limits_section_on_ws_buffer_changed",
+      "addons_godot_mcp_toolkit_ui_dock_limits_dock_limits_section_regenerate_token_requested",
+      "godot_vboxcontainer"
+    ],
+    "140": [
       "godot_dungeonnecromancer",
       "scripts_entities_dungeon_rat_king",
       "scripts_entities_dungeon_rat_king_die",
@@ -3268,7 +3313,7 @@
       "scripts_entities_dungeon_rat_king_summon",
       "scripts_entities_dungeon_rat_king_summon_count"
     ],
-    "145": [
+    "141": [
       "scripts_components_auto_combat_controller",
       "scripts_components_auto_combat_controller_autocombatcontroller",
       "scripts_components_auto_combat_controller_fire_available_weapons",
@@ -3278,7 +3323,7 @@
       "scripts_components_auto_combat_controller_process",
       "scripts_components_auto_combat_controller_ready"
     ],
-    "146": [
+    "142": [
       "scripts_components_player_finisher_controller",
       "scripts_components_player_finisher_controller_candidate",
       "scripts_components_player_finisher_controller_is_active",
@@ -3288,7 +3333,7 @@
       "scripts_components_player_finisher_controller_strike",
       "scripts_components_player_finisher_controller_try_finish"
     ],
-    "147": [
+    "143": [
       "scripts_core_asset_preloader",
       "scripts_core_asset_preloader_add",
       "scripts_core_asset_preloader_add_many",
@@ -3298,7 +3343,7 @@
       "scripts_core_asset_preloader_progress",
       "scripts_core_asset_preloader_start"
     ],
-    "148": [
+    "144": [
       "scripts_entities_camera_controller",
       "scripts_entities_camera_controller_apply_camera_recoil",
       "scripts_entities_camera_controller_cameracontroller",
@@ -3308,7 +3353,7 @@
       "scripts_entities_camera_controller_ready",
       "scripts_entities_camera_controller_update_shoulder"
     ],
-    "149": [
+    "145": [
       "scripts_entities_enemy_behavior",
       "scripts_entities_enemy_behavior_apply_config",
       "scripts_entities_enemy_behavior_enemybehavior",
@@ -3318,7 +3363,7 @@
       "scripts_entities_enemy_behavior_process_ai",
       "scripts_entities_enemy_behavior_try_global_shot"
     ],
-    "150": [
+    "146": [
       "scripts_entities_necromancer_boss_add_transition",
       "scripts_entities_necromancer_boss_apply_texture_and_collect_meshes",
       "scripts_entities_necromancer_boss_find_first_node_of_type",
@@ -3328,7 +3373,7 @@
       "scripts_entities_necromancer_boss_setup_animations",
       "scripts_entities_necromancer_boss_setup_model"
     ],
-    "151": [
+    "147": [
       "scripts_entities_player_add_weapon",
       "scripts_entities_player_current_weapon",
       "scripts_entities_player_emit_reload_state",
@@ -3338,7 +3383,7 @@
       "scripts_entities_player_throw_spear",
       "scripts_entities_player_update_weapon_visuals"
     ],
-    "152": [
+    "148": [
       "scripts_entities_player_cycle_slots",
       "scripts_entities_player_hide_for_spawn",
       "scripts_entities_player_is_finishing",
@@ -3348,7 +3393,7 @@
       "scripts_entities_player_setup_weapon_models",
       "scripts_entities_player_try_spawn_elemental_orbs"
     ],
-    "153": [
+    "149": [
       "scripts_objects_axe_ribbon",
       "scripts_objects_axe_ribbon_axeribbon",
       "scripts_objects_axe_ribbon_build",
@@ -3358,7 +3403,7 @@
       "scripts_objects_axe_ribbon_make",
       "scripts_objects_axe_ribbon_process"
     ],
-    "154": [
+    "150": [
       "scripts_objects_ground_blast",
       "scripts_objects_ground_blast_explode",
       "scripts_objects_ground_blast_groundblast",
@@ -3368,7 +3413,7 @@
       "scripts_objects_ground_blast_soft_dot",
       "scripts_objects_ground_blast_spawn"
     ],
-    "155": [
+    "151": [
       "scripts_objects_heal_soul",
       "scripts_objects_heal_soul_burst",
       "scripts_objects_heal_soul_collect",
@@ -3378,7 +3423,7 @@
       "scripts_objects_heal_soul_physics_process",
       "scripts_objects_heal_soul_ready"
     ],
-    "156": [
+    "152": [
       "scripts_objects_serpent_projectile",
       "scripts_objects_serpent_projectile_animate_body",
       "scripts_objects_serpent_projectile_build_visual",
@@ -3388,7 +3433,7 @@
       "scripts_objects_serpent_projectile_ready",
       "scripts_objects_serpent_projectile_setup"
     ],
-    "157": [
+    "153": [
       "scripts_objects_xp_orb",
       "scripts_objects_xp_orb_ensure_shared",
       "scripts_objects_xp_orb_on_body_entered",
@@ -3398,7 +3443,7 @@
       "scripts_objects_xp_orb_setup_sprite_2d",
       "scripts_objects_xp_orb_xporb"
     ],
-    "158": [
+    "154": [
       "scripts_patterns_builder_pattern",
       "scripts_patterns_builder_pattern_build",
       "scripts_patterns_builder_pattern_init",
@@ -3408,7 +3453,7 @@
       "scripts_patterns_builder_pattern_set_projectile",
       "scripts_patterns_builder_pattern_weaponbuilder"
     ],
-    "159": [
+    "155": [
       "scripts_ui_menu_background",
       "scripts_ui_menu_background_apply_camera",
       "scripts_ui_menu_background_build_environment",
@@ -3418,27 +3463,7 @@
       "scripts_ui_menu_background_ready",
       "scripts_ui_menu_background_switch_shot"
     ],
-    "160": [
-      "scripts_ui_resource_bars",
-      "scripts_ui_resource_bars_bar",
-      "scripts_ui_resource_bars_draw",
-      "scripts_ui_resource_bars_layout",
-      "scripts_ui_resource_bars_on_denied",
-      "scripts_ui_resource_bars_process",
-      "scripts_ui_resource_bars_ready",
-      "scripts_ui_resource_bars_resourcebars"
-    ],
-    "161": [
-      "scripts_ui_weapon_choice_ui",
-      "scripts_ui_weapon_choice_ui_build",
-      "scripts_ui_weapon_choice_ui_card",
-      "scripts_ui_weapon_choice_ui_chosen",
-      "scripts_ui_weapon_choice_ui_pick",
-      "scripts_ui_weapon_choice_ui_present",
-      "scripts_ui_weapon_choice_ui_unhandled_input",
-      "scripts_ui_weapon_choice_ui_weaponchoiceui"
-    ],
-    "162": [
+    "156": [
       "addons_godot_mcp_toolkit_commands_resource_commands",
       "addons_godot_mcp_toolkit_commands_resource_commands_apply_resource_properties",
       "addons_godot_mcp_toolkit_commands_resource_commands_cmd_resource_delete",
@@ -3447,7 +3472,7 @@
       "addons_godot_mcp_toolkit_commands_resource_commands_property_names_of",
       "addons_godot_mcp_toolkit_commands_resource_commands_register"
     ],
-    "163": [
+    "157": [
       "addons_godot_mcp_toolkit_commands_spriteframes_commands",
       "addons_godot_mcp_toolkit_commands_spriteframes_commands_build_list",
       "addons_godot_mcp_toolkit_commands_spriteframes_commands_cmd_create",
@@ -3456,7 +3481,7 @@
       "addons_godot_mcp_toolkit_commands_spriteframes_commands_load_frame",
       "addons_godot_mcp_toolkit_commands_spriteframes_commands_register"
     ],
-    "164": [
+    "158": [
       "addons_godot_mcp_toolkit_commands_tilemap_commands",
       "addons_godot_mcp_toolkit_commands_tilemap_commands_cmd_tilemap_read_cells",
       "addons_godot_mcp_toolkit_commands_tilemap_commands_cmd_tilemap_set_cells",
@@ -3465,7 +3490,7 @@
       "addons_godot_mcp_toolkit_commands_tilemap_commands_resolve_scene_node",
       "addons_godot_mcp_toolkit_commands_tilemap_commands_tilemap_version_hint"
     ],
-    "165": [
+    "159": [
       "addons_godot_mcp_toolkit_core_autoload_identity",
       "addons_godot_mcp_toolkit_core_autoload_identity_settings_key",
       "addons_godot_mcp_toolkit_core_autoload_identity_settings_value",
@@ -3474,7 +3499,7 @@
       "addons_godot_mcp_toolkit_core_autoload_registration_ensure_registered",
       "addons_godot_mcp_toolkit_core_autoload_registration_unregister"
     ],
-    "166": [
+    "160": [
       "addons_godot_mcp_toolkit_core_editor_access",
       "addons_godot_mcp_toolkit_core_editor_access_clear_plugin",
       "addons_godot_mcp_toolkit_core_editor_access_get_editor_theme",
@@ -3483,7 +3508,34 @@
       "addons_godot_mcp_toolkit_core_editor_access_has_plugin",
       "addons_godot_mcp_toolkit_core_editor_access_set_plugin"
     ],
-    "167": [
+    "161": [
+      "addons_godot_mcp_toolkit_ui_dock_limits_dock_unfocused_control",
+      "addons_godot_mcp_toolkit_ui_dock_limits_dock_unfocused_control_enter_tree",
+      "addons_godot_mcp_toolkit_ui_dock_limits_dock_unfocused_control_exit_tree",
+      "addons_godot_mcp_toolkit_ui_dock_limits_dock_unfocused_control_init",
+      "addons_godot_mcp_toolkit_ui_dock_limits_dock_unfocused_control_on_toggled",
+      "addons_godot_mcp_toolkit_ui_dock_limits_dock_unfocused_control_refresh",
+      "godot_hboxcontainer"
+    ],
+    "162": [
+      "addons_godot_mcp_toolkit_ui_dock_mcp_dock_mcp_json_panel",
+      "addons_godot_mcp_toolkit_ui_dock_mcp_dock_mcp_json_panel_init",
+      "addons_godot_mcp_toolkit_ui_dock_mcp_dock_mcp_json_panel_on_button_pressed",
+      "addons_godot_mcp_toolkit_ui_dock_mcp_dock_mcp_json_panel_on_mcp_json_write_result",
+      "addons_godot_mcp_toolkit_ui_dock_mcp_dock_mcp_json_panel_refresh",
+      "addons_godot_mcp_toolkit_ui_dock_mcp_dock_mcp_json_panel_sync_read_only_state",
+      "godot_panelcontainer"
+    ],
+    "163": [
+      "addons_godot_mcp_toolkit_ui_dock_security_dock_audit_section",
+      "addons_godot_mcp_toolkit_ui_dock_security_dock_audit_section_exit_tree",
+      "addons_godot_mcp_toolkit_ui_dock_security_dock_audit_section_init",
+      "addons_godot_mcp_toolkit_ui_dock_security_dock_audit_section_on_audit_enabled_toggled",
+      "addons_godot_mcp_toolkit_ui_dock_security_dock_audit_section_on_audit_max_size_changed",
+      "addons_godot_mcp_toolkit_ui_dock_security_dock_audit_section_on_clear_audit_log",
+      "addons_godot_mcp_toolkit_ui_dock_security_dock_audit_section_show_dialog"
+    ],
+    "164": [
       "addons_godot_mcp_toolkit_versioning_stale_instance_hint",
       "addons_godot_mcp_toolkit_versioning_stale_instance_hint_recovery_message",
       "addons_godot_mcp_toolkit_versioning_stale_instance_hint_should_hint_on_call",
@@ -3492,7 +3544,7 @@
       "addons_godot_mcp_toolkit_versioning_stale_instance_hint_source_has_method",
       "addons_godot_mcp_toolkit_versioning_stale_instance_hint_write_hint"
     ],
-    "168": [
+    "165": [
       "scripts_core_audio_manager",
       "scripts_core_audio_manager_exists",
       "scripts_core_audio_manager_get_stream",
@@ -3501,16 +3553,7 @@
       "scripts_core_audio_manager_play_at",
       "scripts_core_audio_manager_ready"
     ],
-    "169": [
-      "scripts_core_environment_manager",
-      "scripts_core_environment_manager_correct_prop_heights",
-      "scripts_core_environment_manager_environmentmanager",
-      "scripts_core_environment_manager_generate_environment",
-      "scripts_core_environment_manager_generation_finished",
-      "scripts_core_environment_manager_get_floor_y",
-      "scripts_core_environment_manager_spawn_medieval_props"
-    ],
-    "170": [
+    "166": [
       "scripts_core_game_state",
       "scripts_core_game_state_add_gold",
       "scripts_core_game_state_add_time",
@@ -3519,7 +3562,7 @@
       "scripts_core_game_state_get_instance",
       "scripts_core_game_state_reset_session"
     ],
-    "171": [
+    "167": [
       "scripts_core_item_db",
       "scripts_core_item_db_get_all_items",
       "scripts_core_item_db_get_available_items",
@@ -3528,7 +3571,7 @@
       "scripts_core_item_db_get_max_stacks",
       "scripts_core_item_db_roll_choices"
     ],
-    "172": [
+    "168": [
       "scripts_core_loot_manager",
       "scripts_core_loot_manager_initialize",
       "scripts_core_loot_manager_lootmanager",
@@ -3537,7 +3580,7 @@
       "scripts_core_loot_manager_spawn_weapon_pickup",
       "scripts_core_loot_manager_spawn_xp_orb"
     ],
-    "173": [
+    "169": [
       "scripts_entities_player_weapons_weapon_upgrades",
       "scripts_entities_player_weapons_weapon_upgrades_apply",
       "scripts_entities_player_weapons_weapon_upgrades_for_weapon",
@@ -3546,7 +3589,7 @@
       "scripts_entities_player_weapons_weapon_upgrades_level_label",
       "scripts_entities_player_weapons_weapon_upgrades_weaponupgrades"
     ],
-    "174": [
+    "170": [
       "scripts_objects_melee_hitbox",
       "scripts_objects_melee_hitbox_meleehitbox",
       "scripts_objects_melee_hitbox_on_body_entered",
@@ -3555,7 +3598,7 @@
       "scripts_objects_melee_hitbox_ready",
       "scripts_objects_melee_hitbox_setup"
     ],
-    "175": [
+    "171": [
       "scripts_objects_mortar_shell",
       "scripts_objects_mortar_shell_ensure_resources",
       "scripts_objects_mortar_shell_explode",
@@ -3564,7 +3607,7 @@
       "scripts_objects_mortar_shell_process",
       "scripts_objects_mortar_shell_setup"
     ],
-    "176": [
+    "172": [
       "scripts_objects_radiation_zone",
       "scripts_objects_radiation_zone_bake_textures",
       "scripts_objects_radiation_zone_build_visual",
@@ -3573,7 +3616,7 @@
       "scripts_objects_radiation_zone_ready",
       "scripts_objects_radiation_zone_step"
     ],
-    "177": [
+    "173": [
       "scripts_objects_resource_pickup",
       "scripts_objects_resource_pickup_collect",
       "scripts_objects_resource_pickup_on_body_entered",
@@ -3582,7 +3625,7 @@
       "scripts_objects_resource_pickup_resourcepickup",
       "scripts_objects_resource_pickup_spawn"
     ],
-    "178": [
+    "174": [
       "scripts_objects_spore_pellet",
       "scripts_objects_spore_pellet_finish",
       "scripts_objects_spore_pellet_fire",
@@ -3591,16 +3634,7 @@
       "scripts_objects_spore_pellet_ready",
       "scripts_objects_spore_pellet_sporepellet"
     ],
-    "179": [
-      "scripts_ui_neon_frame",
-      "scripts_ui_neon_frame_attach",
-      "scripts_ui_neon_frame_draw",
-      "scripts_ui_neon_frame_glow_line",
-      "scripts_ui_neon_frame_neonframe",
-      "scripts_ui_neon_frame_process",
-      "scripts_ui_neon_frame_ready"
-    ],
-    "180": [
+    "175": [
       "scripts_world_dungeon_portal",
       "scripts_world_dungeon_portal_dungeonportal",
       "scripts_world_dungeon_portal_entered",
@@ -3609,7 +3643,7 @@
       "scripts_world_dungeon_portal_ready",
       "scripts_world_dungeon_portal_spawn"
     ],
-    "181": [
+    "176": [
       "tests_net_test_net_game",
       "tests_net_test_net_game_client",
       "tests_net_test_net_game_host",
@@ -3618,7 +3652,7 @@
       "tests_net_test_net_game_role",
       "tests_net_test_net_game_wait_for"
     ],
-    "182": [
+    "177": [
       "addons_godot_mcp_toolkit_commands_asset_commands",
       "addons_godot_mcp_toolkit_commands_asset_commands_cmd_asset_get_dependencies",
       "addons_godot_mcp_toolkit_commands_asset_commands_cmd_asset_import",
@@ -3626,7 +3660,7 @@
       "addons_godot_mcp_toolkit_commands_asset_commands_register",
       "addons_godot_mcp_toolkit_commands_asset_commands_walk_filesystem_directory"
     ],
-    "183": [
+    "178": [
       "addons_godot_mcp_toolkit_commands_debug_commands",
       "addons_godot_mcp_toolkit_commands_debug_commands_cmd_debug_continue",
       "addons_godot_mcp_toolkit_commands_debug_commands_cmd_debug_list_breakpoints",
@@ -3634,7 +3668,7 @@
       "addons_godot_mcp_toolkit_commands_debug_commands_cmd_debug_state",
       "addons_godot_mcp_toolkit_commands_debug_commands_register"
     ],
-    "184": [
+    "179": [
       "addons_godot_mcp_toolkit_commands_save_commands",
       "addons_godot_mcp_toolkit_commands_save_commands_cmd_save_delete",
       "addons_godot_mcp_toolkit_commands_save_commands_cmd_save_list",
@@ -3642,7 +3676,7 @@
       "addons_godot_mcp_toolkit_commands_save_commands_cmd_save_write",
       "addons_godot_mcp_toolkit_commands_save_commands_register"
     ],
-    "185": [
+    "180": [
       "addons_godot_mcp_toolkit_commands_theme_commands",
       "addons_godot_mcp_toolkit_commands_theme_commands_apply_edit",
       "addons_godot_mcp_toolkit_commands_theme_commands_cmd_theme_edit",
@@ -3650,7 +3684,7 @@
       "addons_godot_mcp_toolkit_commands_theme_commands_create_stylebox",
       "addons_godot_mcp_toolkit_commands_theme_commands_register"
     ],
-    "186": [
+    "181": [
       "addons_godot_mcp_toolkit_contract_execute_hints",
       "addons_godot_mcp_toolkit_contract_execute_hints_bare_global_hint",
       "addons_godot_mcp_toolkit_contract_execute_hints_build_hint",
@@ -3658,7 +3692,7 @@
       "addons_godot_mcp_toolkit_contract_execute_hints_is_leading_reference",
       "addons_godot_mcp_toolkit_contract_execute_hints_load_hint"
     ],
-    "187": [
+    "182": [
       "addons_godot_mcp_toolkit_core_disable_cleanup_coordinator",
       "addons_godot_mcp_toolkit_core_disable_cleanup_coordinator_advance_to_editor_settings_prompt",
       "addons_godot_mcp_toolkit_core_disable_cleanup_coordinator_done",
@@ -3666,7 +3700,7 @@
       "addons_godot_mcp_toolkit_core_disable_cleanup_coordinator_prompt_mcp_json_orphan",
       "addons_godot_mcp_toolkit_core_disable_cleanup_coordinator_start"
     ],
-    "188": [
+    "183": [
       "addons_godot_mcp_toolkit_runtime_text_input_synth",
       "addons_godot_mcp_toolkit_runtime_text_input_synth_build_hint",
       "addons_godot_mcp_toolkit_runtime_text_input_synth_char_count",
@@ -3674,15 +3708,7 @@
       "addons_godot_mcp_toolkit_runtime_text_input_synth_synthesize_enter",
       "addons_godot_mcp_toolkit_runtime_text_input_synth_synthesize_text_events"
     ],
-    "189": [
-      "addons_godot_mcp_toolkit_security_auth",
-      "addons_godot_mcp_toolkit_security_auth_generate_token",
-      "addons_godot_mcp_toolkit_security_auth_get_published_token_path",
-      "addons_godot_mcp_toolkit_security_auth_get_token_path",
-      "addons_godot_mcp_toolkit_security_auth_validate",
-      "addons_godot_mcp_toolkit_security_auth_write_token"
-    ],
-    "190": [
+    "184": [
       "addons_godot_mcp_toolkit_versioning_nodejs_check",
       "addons_godot_mcp_toolkit_versioning_nodejs_check_check",
       "addons_godot_mcp_toolkit_versioning_nodejs_check_login_shell",
@@ -3690,15 +3716,7 @@
       "addons_godot_mcp_toolkit_versioning_nodejs_check_try_direct",
       "addons_godot_mcp_toolkit_versioning_nodejs_check_try_login_shell"
     ],
-    "191": [
-      "godot_canvaslayer",
-      "scripts_ui_item_choice_ui",
-      "scripts_ui_item_choice_ui_item_selected",
-      "scripts_ui_item_choice_ui_present_choices",
-      "scripts_ui_item_choice_ui_ready",
-      "scripts_ui_item_choice_ui_select_item"
-    ],
-    "192": [
+    "185": [
       "godot_dungeonslug",
       "scripts_entities_dungeon_bloater",
       "scripts_entities_dungeon_bloater_die",
@@ -3706,7 +3724,7 @@
       "scripts_entities_dungeon_bloater_init",
       "scripts_entities_dungeon_bloater_on_impact"
     ],
-    "193": [
+    "186": [
       "scripts_net_net_players",
       "scripts_net_net_players_alive",
       "scripts_net_net_players_all",
@@ -3714,7 +3732,7 @@
       "scripts_net_net_players_nearest",
       "scripts_net_net_players_netplayers"
     ],
-    "194": [
+    "187": [
       "scripts_objects_flame_blast",
       "scripts_objects_flame_blast_add_embers",
       "scripts_objects_flame_blast_add_smoke",
@@ -3722,7 +3740,7 @@
       "scripts_objects_flame_blast_play",
       "scripts_objects_flame_blast_spawn"
     ],
-    "195": [
+    "188": [
       "scripts_objects_mage_orb",
       "scripts_objects_mage_orb_burst",
       "scripts_objects_mage_orb_mageorb",
@@ -3730,7 +3748,7 @@
       "scripts_objects_mage_orb_ready",
       "scripts_objects_mage_orb_spawn"
     ],
-    "196": [
+    "189": [
       "scripts_patterns_flyweight_enemy_type_flyweight_factory",
       "scripts_patterns_flyweight_enemy_type_flyweight_factory_create",
       "scripts_patterns_flyweight_enemy_type_flyweight_factory_create_dungeon",
@@ -3738,7 +3756,7 @@
       "scripts_patterns_flyweight_enemy_type_flyweight_factory_get_flyweight",
       "scripts_patterns_flyweight_enemy_type_flyweight_factory_pool_size"
     ],
-    "197": [
+    "190": [
       "scripts_ui_hud_draw",
       "scripts_ui_hud_draw_bar",
       "scripts_ui_hud_draw_huddraw",
@@ -3746,7 +3764,15 @@
       "scripts_ui_hud_draw_slant",
       "scripts_ui_hud_draw_text"
     ],
-    "198": [
+    "191": [
+      "scripts_world_dungeon_door",
+      "scripts_world_dungeon_door_add_bars",
+      "scripts_world_dungeon_door_build",
+      "scripts_world_dungeon_door_dungeondoor",
+      "scripts_world_dungeon_door_open",
+      "scripts_world_dungeon_door_spawn"
+    ],
+    "192": [
       "tests_net_test_net_dedicated",
       "tests_net_test_net_dedicated_check",
       "tests_net_test_net_dedicated_load_game",
@@ -3754,7 +3780,7 @@
       "tests_net_test_net_dedicated_role",
       "tests_net_test_net_dedicated_wait_for"
     ],
-    "199": [
+    "193": [
       "tests_net_test_net_lobby",
       "tests_net_test_net_lobby_client",
       "tests_net_test_net_lobby_host",
@@ -3762,7 +3788,7 @@
       "tests_net_test_net_lobby_role",
       "tests_net_test_net_lobby_wait_for"
     ],
-    "200": [
+    "194": [
       "tests_test_parry",
       "tests_test_parry_face",
       "tests_test_parry_forward",
@@ -3770,259 +3796,258 @@
       "tests_test_parry_ready",
       "tests_test_parry_wait"
     ],
-    "201": [
+    "195": [
       "addons_godot_mcp_toolkit_companionskills_mcp_extension_creator_references_example_extension",
       "addons_godot_mcp_toolkit_companionskills_mcp_extension_creator_references_example_extension_mcptoolkitnotesexample",
       "addons_godot_mcp_toolkit_companionskills_mcp_extension_creator_references_example_extension_register",
       "addons_godot_mcp_toolkit_companionskills_mcp_extension_creator_references_example_extension_write",
       "godot_mcptoolkitextension"
     ],
-    "202": [
+    "196": [
+      "addons_godot_mcp_toolkit_contract_mcp_toolkit_tool_context",
+      "addons_godot_mcp_toolkit_contract_mcp_toolkit_tool_context_cancel",
+      "addons_godot_mcp_toolkit_contract_mcp_toolkit_tool_context_cancelled",
+      "addons_godot_mcp_toolkit_contract_mcp_toolkit_tool_context_is_cancelled",
+      "addons_godot_mcp_toolkit_contract_mcp_toolkit_tool_context_mcptoolkittoolcontext"
+    ],
+    "197": [
       "addons_godot_mcp_toolkit_contract_pagination",
       "addons_godot_mcp_toolkit_contract_pagination_build",
       "addons_godot_mcp_toolkit_contract_pagination_byte_page",
       "addons_godot_mcp_toolkit_contract_pagination_line_page",
       "addons_godot_mcp_toolkit_contract_pagination_list_page"
     ],
-    "203": [
+    "198": [
       "addons_godot_mcp_toolkit_core_dock_host",
       "addons_godot_mcp_toolkit_core_dock_host_add",
       "addons_godot_mcp_toolkit_core_dock_host_has_editor_dock",
       "addons_godot_mcp_toolkit_core_dock_host_remove",
       "addons_godot_mcp_toolkit_core_dock_host_reveal"
     ],
-    "204": [
+    "199": [
       "godot_immediatemesh",
       "scripts_objects_ribbon_trail_3d",
       "scripts_objects_ribbon_trail_3d_add_trail_point",
       "scripts_objects_ribbon_trail_3d_ribbontrail3d",
       "scripts_objects_ribbon_trail_3d_update_trail"
     ],
-    "205": [
+    "200": [
       "scripts_components_experience_component",
       "scripts_components_experience_component_experience_gained",
       "scripts_components_experience_component_experiencecomponent",
       "scripts_components_experience_component_gain_experience",
       "scripts_components_experience_component_leveled_up"
     ],
-    "206": [
-      "scripts_core_spawn_dissolve",
-      "scripts_core_spawn_dissolve_collect_meshes",
-      "scripts_core_spawn_dissolve_get_noise",
-      "scripts_core_spawn_dissolve_play",
-      "scripts_core_spawn_dissolve_spawndissolve"
-    ],
-    "207": [
+    "201": [
       "scripts_net_net_ghost",
       "scripts_net_net_ghost_netghost",
       "scripts_net_net_ghost_neutralize",
       "scripts_net_net_ghost_physics_process",
       "scripts_net_net_ghost_spawn"
     ],
-    "208": [
+    "202": [
       "scripts_patterns_factory_method_enemy_creator",
       "scripts_patterns_factory_method_enemy_creator_configure",
       "scripts_patterns_factory_method_enemy_creator_create_enemy",
       "scripts_patterns_factory_method_enemy_creator_create_product",
       "scripts_patterns_factory_method_enemy_creator_enemycreator"
     ],
-    "209": [
+    "203": [
       "scripts_patterns_prototype_weapon_prototype_registry",
       "scripts_patterns_prototype_weapon_prototype_registry_clone_of",
       "scripts_patterns_prototype_weapon_prototype_registry_has_prototype",
       "scripts_patterns_prototype_weapon_prototype_registry_register_all",
       "scripts_patterns_prototype_weapon_prototype_registry_weaponprototyperegistry"
     ],
-    "210": [
+    "204": [
       "tests_test_dungeon_mage",
       "tests_test_dungeon_mage_flat",
       "tests_test_dungeon_mage_keep_player_alive",
       "tests_test_dungeon_mage_place_player",
       "tests_test_dungeon_mage_ready"
     ],
-    "211": [
+    "205": [
       "tests_test_loading_screen",
       "tests_test_loading_screen_finish",
       "tests_test_loading_screen_process",
       "tests_test_loading_screen_ready",
       "tests_test_loading_screen_start"
     ],
-    "212": [
+    "206": [
       "addons_godot_mcp_toolkit_extensions_mcp_toolkit_extension_options",
       "addons_godot_mcp_toolkit_extensions_mcp_toolkit_extension_options_init",
       "addons_godot_mcp_toolkit_extensions_mcp_toolkit_extension_options_mcptoolkitextensionoptions",
       "godot_mcptoolkitcommandoptions"
     ],
-    "213": [
+    "207": [
+      "addons_godot_mcp_toolkit_ui_dock_dock_section_card",
+      "addons_godot_mcp_toolkit_ui_dock_dock_section_card_make_collapsible",
+      "addons_godot_mcp_toolkit_ui_dock_dock_section_card_make_section",
+      "addons_godot_mcp_toolkit_ui_dock_dock_section_card_make_section_style"
+    ],
+    "208": [
       "godot_dungeonrat",
       "scripts_entities_dungeon_big_rat",
       "scripts_entities_dungeon_big_rat_dungeonbigrat",
       "scripts_entities_dungeon_big_rat_init"
     ],
-    "214": [
-      "scripts_core_performance_governor",
-      "scripts_core_performance_governor_performancegovernor",
-      "scripts_core_performance_governor_process",
-      "scripts_core_performance_governor_setup"
-    ],
-    "215": [
+    "209": [
       "scripts_net_dedicated_server",
       "scripts_net_dedicated_server_on_lobby_changed",
       "scripts_net_dedicated_server_process",
       "scripts_net_dedicated_server_ready"
     ],
-    "216": [
+    "210": [
       "scripts_objects_eruption",
       "scripts_objects_eruption_physics_process",
       "scripts_objects_eruption_ready",
       "scripts_objects_eruption_shake_camera"
     ],
-    "217": [
+    "211": [
       "scripts_patterns_builder_director",
       "scripts_patterns_builder_director_construct_melee",
       "scripts_patterns_builder_director_construct_ranged",
       "scripts_patterns_builder_director_weapondirector"
     ],
-    "218": [
+    "212": [
       "scripts_patterns_decorator_base_weapon_damage",
       "scripts_patterns_decorator_base_weapon_damage_baseweapondamage",
       "scripts_patterns_decorator_base_weapon_damage_init",
       "scripts_patterns_decorator_base_weapon_damage_value"
     ],
-    "219": [
+    "213": [
       "scripts_patterns_decorator_berserk_damage_decorator",
       "scripts_patterns_decorator_berserk_damage_decorator_berserkdamagedecorator",
       "scripts_patterns_decorator_berserk_damage_decorator_init",
       "scripts_patterns_decorator_berserk_damage_decorator_value"
     ],
-    "220": [
+    "214": [
       "scripts_patterns_decorator_damage_decorator",
       "scripts_patterns_decorator_damage_decorator_damagedecorator",
       "scripts_patterns_decorator_damage_decorator_init",
       "scripts_patterns_decorator_damage_decorator_value"
     ],
-    "221": [
+    "215": [
       "scripts_patterns_decorator_stat_block_damage_decorator",
       "scripts_patterns_decorator_stat_block_damage_decorator_init",
       "scripts_patterns_decorator_stat_block_damage_decorator_statblockdamagedecorator",
       "scripts_patterns_decorator_stat_block_damage_decorator_value"
     ],
-    "222": [
+    "216": [
       "scripts_patterns_decorator_upgrade_damage_decorator",
       "scripts_patterns_decorator_upgrade_damage_decorator_init",
       "scripts_patterns_decorator_upgrade_damage_decorator_upgradedamagedecorator",
       "scripts_patterns_decorator_upgrade_damage_decorator_value"
     ],
-    "223": [
+    "217": [
       "scripts_patterns_flyweight_enemy_type_flyweight",
       "scripts_patterns_flyweight_enemy_type_flyweight_apply_to",
       "scripts_patterns_flyweight_enemy_type_flyweight_enemytypeflyweight",
       "scripts_patterns_flyweight_enemy_type_flyweight_init"
     ],
-    "224": [
+    "218": [
       "tests_net_test_net_idle",
       "tests_net_test_net_idle_ready",
       "tests_net_test_net_idle_role",
       "tests_net_test_net_idle_wait_for"
     ],
-    "225": [
-      "tests_shot_dungeon",
-      "tests_shot_dungeon_args_room",
-      "tests_shot_dungeon_ready",
-      "tests_shot_dungeon_run"
-    ],
-    "226": [
+    "219": [
       "tests_test_resources",
       "tests_test_resources_boot",
       "tests_test_resources_ready",
       "tests_test_resources_wait"
     ],
-    "227": [
+    "220": [
       "tests_ui_ui_snapshots",
       "tests_ui_ui_snapshots_ready",
       "tests_ui_ui_snapshots_shot",
       "tests_ui_ui_snapshots_show"
     ],
-    "228": [
-      "addons_godot_mcp_toolkit_core_playtest_end_detector",
-      "addons_godot_mcp_toolkit_core_playtest_end_detector_init",
-      "addons_godot_mcp_toolkit_core_playtest_end_detector_poll"
-    ],
-    "229": [
+    "221": [
       "addons_godot_mcp_toolkit_runtime_mcp_runtime_server_log_port_config",
       "addons_godot_mcp_toolkit_runtime_mcp_runtime_server_ready",
       "addons_godot_mcp_toolkit_runtime_mcp_runtime_server_start_server"
     ],
-    "230": [
+    "222": [
       "addons_godot_mcp_toolkit_transport_port_config",
       "addons_godot_mcp_toolkit_transport_port_config_error",
       "addons_godot_mcp_toolkit_transport_port_config_resolve"
     ],
-    "231": [
+    "223": [
       "assets_binbunvfx_shared_script_vfx_light",
       "assets_binbunvfx_shared_script_vfx_light_vfx_light",
       "godot_omnilight3d"
     ],
-    "232": [
+    "224": [
       "scripts_patterns_adapter_gamepad_movement_adapter",
       "scripts_patterns_adapter_gamepad_movement_adapter_gamepadmovementadapter",
       "scripts_patterns_adapter_gamepad_movement_adapter_get_movement_vector"
     ],
-    "233": [
+    "225": [
       "scripts_patterns_adapter_keyboard_movement_adapter",
       "scripts_patterns_adapter_keyboard_movement_adapter_get_movement_vector",
       "scripts_patterns_adapter_keyboard_movement_adapter_keyboardmovementadapter"
     ],
-    "234": [
+    "226": [
       "scripts_patterns_adapter_movement_source",
       "scripts_patterns_adapter_movement_source_get_movement_vector",
       "scripts_patterns_adapter_movement_source_movementsource"
     ],
-    "235": [
+    "227": [
       "scripts_patterns_adapter_touch_movement_adapter",
       "scripts_patterns_adapter_touch_movement_adapter_get_movement_vector",
       "scripts_patterns_adapter_touch_movement_adapter_touchmovementadapter"
     ],
-    "236": [
+    "228": [
       "scripts_patterns_decorator_damage_source",
       "scripts_patterns_decorator_damage_source_damagesource",
       "scripts_patterns_decorator_damage_source_value"
     ],
-    "237": [
+    "229": [
       "scripts_patterns_factory_method_boss_creator",
       "scripts_patterns_factory_method_boss_creator_bosscreator",
       "scripts_patterns_factory_method_boss_creator_create_product"
     ],
-    "238": [
+    "230": [
       "scripts_patterns_factory_method_necromancer_boss_creator",
       "scripts_patterns_factory_method_necromancer_boss_creator_create_product",
       "scripts_patterns_factory_method_necromancer_boss_creator_necromancerbosscreator"
     ],
-    "239": [
+    "231": [
+      "tests_test_dungeon_brute",
+      "tests_test_dungeon_brute_keep_player_alive",
+      "tests_test_dungeon_brute_ready"
+    ],
+    "232": [
       "tests_test_dungeon_generation",
       "tests_test_dungeon_generation_reachable",
       "tests_test_dungeon_generation_ready"
     ],
-    "240": [
+    "233": [
+      "tests_test_garri_axe",
+      "tests_test_garri_axe_ready",
+      "tests_test_garri_axe_wait"
+    ],
+    "234": [
       "tests_test_sewer_enemies",
       "tests_test_sewer_enemies_pressure",
       "tests_test_sewer_enemies_ready"
     ],
-    "241": [
-      "tests_test_sewer_generation",
-      "tests_test_sewer_generation_reachable",
-      "tests_test_sewer_generation_ready"
+    "235": [
+      "tests_test_synergies",
+      "tests_test_synergies_ready",
+      "tests_test_synergies_upgradechoiceui_build"
     ]
   },
   "cohesion": {
     "0": 0.058177278401997504,
     "1": 0.059154929577464786,
     "2": 0.05314685314685315,
-    "3": 0.06656426011264721,
-    "4": 0.06721311475409836,
-    "5": 0.05185185185185185,
-    "6": 0.08080808080808081,
-    "7": 0.07826694619147449,
+    "3": 0.05096153846153846,
+    "4": 0.0629800307219662,
+    "5": 0.06656426011264721,
+    "6": 0.06721311475409836,
+    "7": 0.08080808080808081,
     "8": 0.07197763801537387,
     "9": 0.05725490196078432,
     "10": 0.06588235294117648,
@@ -4031,232 +4056,226 @@
     "13": 0.05959183673469388,
     "14": 0.08788159111933395,
     "15": 0.08383838383838384,
-    "16": 0.13414634146341464,
-    "17": 0.05873015873015873,
-    "18": 0.1265597147950089,
-    "19": 0.062388591800356503,
-    "20": 0.09848484848484848,
-    "21": 0.10037878787878787,
-    "22": 0.08817204301075268,
-    "23": 0.07881773399014778,
-    "24": 0.1748768472906404,
-    "25": 0.12698412698412698,
-    "26": 0.0873015873015873,
-    "27": 0.1623931623931624,
-    "28": 0.07977207977207977,
-    "29": 0.13333333333333333,
-    "30": 0.15333333333333332,
-    "31": 0.10507246376811594,
-    "32": 0.14855072463768115,
-    "33": 0.2134387351778656,
-    "34": 0.22134387351778656,
-    "35": 0.13043478260869565,
-    "36": 0.11857707509881422,
-    "37": 0.233201581027668,
-    "38": 0.22077922077922077,
-    "39": 0.15151515151515152,
-    "40": 0.16883116883116883,
-    "41": 0.2,
-    "42": 0.11428571428571428,
-    "43": 0.12380952380952381,
-    "44": 0.19047619047619047,
-    "45": 0.2,
-    "46": 0.1736842105263158,
-    "47": 0.1736842105263158,
-    "48": 0.19473684210526315,
-    "49": 0.13450292397660818,
-    "50": 0.11695906432748537,
-    "51": 0.24561403508771928,
-    "52": 0.19298245614035087,
-    "53": 0.21052631578947367,
-    "54": 0.26900584795321636,
-    "55": 0.18128654970760233,
-    "56": 0.1437908496732026,
-    "57": 0.1830065359477124,
-    "58": 0.13071895424836602,
-    "59": 0.1503267973856209,
-    "60": 0.24836601307189543,
-    "61": 0.25735294117647056,
-    "62": 0.125,
-    "63": 0.19117647058823528,
-    "64": 0.18382352941176472,
-    "65": 0.2,
-    "66": 0.24166666666666667,
-    "67": 0.16666666666666666,
-    "68": 0.20833333333333334,
-    "69": 0.24166666666666667,
-    "70": 0.20833333333333334,
-    "71": 0.2571428571428571,
-    "72": 0.2571428571428571,
-    "73": 0.13333333333333333,
-    "74": 0.24761904761904763,
-    "75": 0.2,
-    "76": 0.19047619047619047,
-    "77": 0.2,
-    "78": 0.3076923076923077,
-    "79": 0.2087912087912088,
-    "80": 0.15384615384615385,
-    "81": 0.2087912087912088,
-    "82": 0.1978021978021978,
-    "83": 0.41025641025641024,
-    "84": 0.3717948717948718,
-    "85": 0.3076923076923077,
-    "86": 0.2692307692307692,
-    "87": 0.19230769230769232,
-    "88": 0.19230769230769232,
-    "89": 0.1794871794871795,
-    "90": 0.2564102564102564,
-    "91": 0.23076923076923078,
-    "92": 0.1794871794871795,
-    "93": 0.16666666666666666,
-    "94": 0.21212121212121213,
-    "95": 0.24242424242424243,
-    "96": 0.30303030303030304,
-    "97": 0.2727272727272727,
-    "98": 0.24242424242424243,
-    "99": 0.19696969696969696,
+    "16": 0.048726467331118496,
+    "17": 0.08536585365853659,
+    "18": 0.13414634146341464,
+    "19": 0.11411411411411411,
+    "20": 0.06951871657754011,
+    "21": 0.062388591800356503,
+    "22": 0.09848484848484848,
+    "23": 0.10037878787878787,
+    "24": 0.08817204301075268,
+    "25": 0.1748768472906404,
+    "26": 0.12698412698412698,
+    "27": 0.0873015873015873,
+    "28": 0.14285714285714285,
+    "29": 0.1623931623931624,
+    "30": 0.07977207977207977,
+    "31": 0.13333333333333333,
+    "32": 0.10507246376811594,
+    "33": 0.14855072463768115,
+    "34": 0.2318840579710145,
+    "35": 0.2134387351778656,
+    "36": 0.22134387351778656,
+    "37": 0.13043478260869565,
+    "38": 0.11857707509881422,
+    "39": 0.233201581027668,
+    "40": 0.22077922077922077,
+    "41": 0.15151515151515152,
+    "42": 0.16883116883116883,
+    "43": 0.11255411255411256,
+    "44": 0.2,
+    "45": 0.11428571428571428,
+    "46": 0.12380952380952381,
+    "47": 0.2,
+    "48": 0.1736842105263158,
+    "49": 0.14210526315789473,
+    "50": 0.1736842105263158,
+    "51": 0.19473684210526315,
+    "52": 0.15789473684210525,
+    "53": 0.13450292397660818,
+    "54": 0.11695906432748537,
+    "55": 0.24561403508771928,
+    "56": 0.19298245614035087,
+    "57": 0.21052631578947367,
+    "58": 0.18128654970760233,
+    "59": 0.1437908496732026,
+    "60": 0.17647058823529413,
+    "61": 0.12418300653594772,
+    "62": 0.13071895424836602,
+    "63": 0.1503267973856209,
+    "64": 0.24836601307189543,
+    "65": 0.23529411764705882,
+    "66": 0.18382352941176472,
+    "67": 0.19117647058823528,
+    "68": 0.18382352941176472,
+    "69": 0.2,
+    "70": 0.24166666666666667,
+    "71": 0.16666666666666666,
+    "72": 0.20833333333333334,
+    "73": 0.24166666666666667,
+    "74": 0.20833333333333334,
+    "75": 0.2571428571428571,
+    "76": 0.2571428571428571,
+    "77": 0.24761904761904763,
+    "78": 0.19047619047619047,
+    "79": 0.18095238095238095,
+    "80": 0.2,
+    "81": 0.3076923076923077,
+    "82": 0.26373626373626374,
+    "83": 0.15384615384615385,
+    "84": 0.17582417582417584,
+    "85": 0.2087912087912088,
+    "86": 0.1978021978021978,
+    "87": 0.41025641025641024,
+    "88": 0.3076923076923077,
+    "89": 0.2692307692307692,
+    "90": 0.19230769230769232,
+    "91": 0.1794871794871795,
+    "92": 0.2564102564102564,
+    "93": 0.23076923076923078,
+    "94": 0.1794871794871795,
+    "95": 0.16666666666666666,
+    "96": 0.21212121212121213,
+    "97": 0.24242424242424243,
+    "98": 0.30303030303030304,
+    "99": 0.2727272727272727,
     "100": 0.25757575757575757,
     "101": 0.5818181818181818,
     "102": 0.4,
-    "103": 0.38181818181818183,
-    "104": 0.21818181818181817,
+    "103": 0.21818181818181817,
+    "104": 0.2727272727272727,
     "105": 0.18181818181818182,
-    "106": 0.2,
-    "107": 0.2545454545454545,
-    "108": 0.2909090909090909,
+    "106": 0.18181818181818182,
+    "107": 0.2,
+    "108": 0.2545454545454545,
     "109": 0.2909090909090909,
-    "110": 0.3090909090909091,
-    "111": 0.28888888888888886,
-    "112": 0.24444444444444444,
-    "113": 0.2,
-    "114": 0.26666666666666666,
-    "115": 0.2,
+    "110": 0.2909090909090909,
+    "111": 0.3090909090909091,
+    "112": 0.5333333333333333,
+    "113": 0.24444444444444444,
+    "114": 0.2,
+    "115": 0.26666666666666666,
     "116": 0.28888888888888886,
     "117": 0.3111111111111111,
     "118": 0.26666666666666666,
     "119": 0.2222222222222222,
-    "120": 0.26666666666666666,
-    "121": 0.3111111111111111,
-    "122": 0.26666666666666666,
-    "123": 0.3111111111111111,
-    "124": 0.3333333333333333,
-    "125": 0.28888888888888886,
-    "126": 0.3333333333333333,
-    "127": 0.3055555555555556,
-    "128": 0.2777777777777778,
-    "129": 0.5,
-    "130": 0.3055555555555556,
-    "131": 0.3611111111111111,
-    "132": 0.3888888888888889,
-    "133": 0.3611111111111111,
-    "134": 0.3888888888888889,
-    "135": 0.3611111111111111,
-    "136": 0.25,
-    "137": 0.5,
-    "138": 0.5357142857142857,
-    "139": 0.4642857142857143,
-    "140": 0.35714285714285715,
+    "120": 0.3111111111111111,
+    "121": 0.26666666666666666,
+    "122": 0.3111111111111111,
+    "123": 0.3333333333333333,
+    "124": 0.28888888888888886,
+    "125": 0.3611111111111111,
+    "126": 0.3055555555555556,
+    "127": 0.3611111111111111,
+    "128": 0.3888888888888889,
+    "129": 0.3611111111111111,
+    "130": 0.3611111111111111,
+    "131": 0.5,
+    "132": 0.5357142857142857,
+    "133": 0.5,
+    "134": 0.35714285714285715,
+    "135": 0.35714285714285715,
+    "136": 0.32142857142857145,
+    "137": 0.2857142857142857,
+    "138": 0.35714285714285715,
+    "139": 0.25,
+    "140": 0.25,
     "141": 0.32142857142857145,
-    "142": 0.2857142857142857,
-    "143": 0.35714285714285715,
-    "144": 0.25,
-    "145": 0.32142857142857145,
-    "146": 0.42857142857142855,
-    "147": 0.2857142857142857,
-    "148": 0.35714285714285715,
+    "142": 0.42857142857142855,
+    "143": 0.2857142857142857,
+    "144": 0.35714285714285715,
+    "145": 0.2857142857142857,
+    "146": 0.32142857142857145,
+    "147": 0.32142857142857145,
+    "148": 0.25,
     "149": 0.2857142857142857,
-    "150": 0.32142857142857145,
-    "151": 0.32142857142857145,
-    "152": 0.25,
-    "153": 0.2857142857142857,
-    "154": 0.35714285714285715,
-    "155": 0.35714285714285715,
-    "156": 0.39285714285714285,
-    "157": 0.39285714285714285,
-    "158": 0.25,
-    "159": 0.42857142857142855,
-    "160": 0.35714285714285715,
-    "161": 0.32142857142857145,
-    "162": 0.5238095238095238,
-    "163": 0.5714285714285714,
-    "164": 0.6190476190476191,
-    "165": 0.3333333333333333,
+    "150": 0.35714285714285715,
+    "151": 0.35714285714285715,
+    "152": 0.39285714285714285,
+    "153": 0.39285714285714285,
+    "154": 0.25,
+    "155": 0.42857142857142855,
+    "156": 0.5238095238095238,
+    "157": 0.5714285714285714,
+    "158": 0.6190476190476191,
+    "159": 0.3333333333333333,
+    "160": 0.2857142857142857,
+    "161": 0.38095238095238093,
+    "162": 0.47619047619047616,
+    "163": 0.2857142857142857,
+    "164": 0.3333333333333333,
+    "165": 0.5238095238095238,
     "166": 0.2857142857142857,
-    "167": 0.3333333333333333,
-    "168": 0.5238095238095238,
+    "167": 0.42857142857142855,
+    "168": 0.2857142857142857,
     "169": 0.38095238095238093,
-    "170": 0.2857142857142857,
-    "171": 0.42857142857142855,
-    "172": 0.2857142857142857,
+    "170": 0.3333333333333333,
+    "171": 0.38095238095238093,
+    "172": 0.38095238095238093,
     "173": 0.38095238095238093,
-    "174": 0.3333333333333333,
-    "175": 0.38095238095238093,
-    "176": 0.38095238095238093,
-    "177": 0.38095238095238093,
-    "178": 0.42857142857142855,
-    "179": 0.3333333333333333,
-    "180": 0.2857142857142857,
-    "181": 0.6190476190476191,
-    "182": 0.6,
-    "183": 0.6,
-    "184": 0.6,
-    "185": 0.6666666666666666,
+    "174": 0.42857142857142855,
+    "175": 0.2857142857142857,
+    "176": 0.6190476190476191,
+    "177": 0.6,
+    "178": 0.6,
+    "179": 0.6,
+    "180": 0.6666666666666666,
+    "181": 0.6,
+    "182": 0.6666666666666666,
+    "183": 0.3333333333333333,
+    "184": 0.6666666666666666,
+    "185": 0.4,
     "186": 0.6,
-    "187": 0.6666666666666666,
-    "188": 0.3333333333333333,
-    "189": 0.4666666666666667,
-    "190": 0.6666666666666666,
+    "187": 0.4666666666666667,
+    "188": 0.4,
+    "189": 0.5333333333333333,
+    "190": 0.4,
     "191": 0.4,
-    "192": 0.4,
-    "193": 0.6,
-    "194": 0.4666666666666667,
+    "192": 0.6666666666666666,
+    "193": 0.6666666666666666,
+    "194": 0.6,
     "195": 0.4,
-    "196": 0.5333333333333333,
-    "197": 0.4,
-    "198": 0.6666666666666666,
-    "199": 0.6666666666666666,
-    "200": 0.6,
-    "201": 0.4,
-    "202": 0.7,
-    "203": 0.8,
-    "204": 0.4,
-    "205": 0.4,
-    "206": 0.6,
-    "207": 0.5,
-    "208": 0.6,
-    "209": 0.4,
-    "210": 0.7,
+    "196": 0.4,
+    "197": 0.7,
+    "198": 0.8,
+    "199": 0.4,
+    "200": 0.4,
+    "201": 0.5,
+    "202": 0.6,
+    "203": 0.4,
+    "204": 0.7,
+    "205": 0.5,
+    "206": 0.5,
+    "207": 0.8333333333333334,
+    "208": 0.5,
+    "209": 0.5,
+    "210": 0.6666666666666666,
     "211": 0.5,
     "212": 0.5,
     "213": 0.5,
     "214": 0.5,
     "215": 0.5,
-    "216": 0.6666666666666666,
+    "216": 0.5,
     "217": 0.5,
-    "218": 0.5,
-    "219": 0.5,
-    "220": 0.5,
-    "221": 0.5,
-    "222": 0.5,
-    "223": 0.5,
-    "224": 0.8333333333333334,
+    "218": 0.8333333333333334,
+    "219": 1.0,
+    "220": 0.8333333333333334,
+    "221": 0.6666666666666666,
+    "222": 1.0,
+    "223": 0.6666666666666666,
+    "224": 0.6666666666666666,
     "225": 0.6666666666666666,
-    "226": 1.0,
-    "227": 0.8333333333333334,
+    "226": 0.6666666666666666,
+    "227": 0.6666666666666666,
     "228": 0.6666666666666666,
     "229": 0.6666666666666666,
-    "230": 1.0,
-    "231": 0.6666666666666666,
-    "232": 0.6666666666666666,
-    "233": 0.6666666666666666,
-    "234": 0.6666666666666666,
-    "235": 0.6666666666666666,
-    "236": 0.6666666666666666,
-    "237": 0.6666666666666666,
-    "238": 0.6666666666666666,
-    "239": 1.0,
-    "240": 1.0,
-    "241": 1.0
+    "230": 0.6666666666666666,
+    "231": 1.0,
+    "232": 1.0,
+    "233": 1.0,
+    "234": 1.0,
+    "235": 1.0
   },
   "gods": [
     {
@@ -4320,7 +4339,7 @@
       ],
       "confidence": "INFERRED",
       "relation": "calls",
-      "note": "Bridges community 24 → community 142"
+      "note": "Bridges community 25 → community 137"
     },
     {
       "source": "_ready",
@@ -4331,7 +4350,7 @@
       ],
       "confidence": "INFERRED",
       "relation": "calls",
-      "note": "Bridges community 40 → community 150"
+      "note": "Bridges community 42 → community 146"
     },
     {
       "source": "select_slot",
@@ -4342,7 +4361,7 @@
       ],
       "confidence": "INFERRED",
       "relation": "calls",
-      "note": "Bridges community 152 → community 151"
+      "note": "Bridges community 148 → community 147"
     }
   ],
   "questions": [
@@ -4359,7 +4378,7 @@
     {
       "type": "isolated_nodes",
       "question": "What connects `cmd_execute_code`, `cmd_wait_for_idle`, `normalize_editor_path` to the rest of the system?",
-      "why": "1015 weakly-connected nodes found - possible documentation gaps or missing edges."
+      "why": "1024 weakly-connected nodes found - possible documentation gaps or missing edges."
     },
     {
       "type": "low_cohesion",
@@ -4378,8 +4397,8 @@
     },
     {
       "type": "low_cohesion",
-      "question": "Should `Community 3 (godot_proceduralmap)` be split into smaller, more focused modules?",
-      "why": "Cohesion score 0.06656426011264721 - nodes in this community are weakly interconnected."
+      "question": "Should `Community 3 (godot_control)` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.05096153846153846 - nodes in this community are weakly interconnected."
     }
   ]
 }

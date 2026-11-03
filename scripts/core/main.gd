@@ -24,6 +24,11 @@ func _ready() -> void:
 
 	if player.has_signal("player_died"):
 		player.connect("player_died", _on_player_died)
+	# Resumen de la partida (supervivencia) en las pantallas de victoria y caída
+	if GameData.game_mode != "dungeon":
+		for screen in [hud.victory_screen, hud.game_over_screen]:
+			if screen:
+				screen.visibility_changed.connect(_fill_run_summary.bind(screen))
 
 	var bench := EnemyBenchmark.from_env()
 	if bench != null:
@@ -69,6 +74,51 @@ func _input(event: InputEvent) -> void:
 				if boss.has_signal("boss_died"):
 					boss.boss_died.connect(_on_boss_died)
 
+## Elección de objeto (la piden ItemPickup y los eventos de RunEvents).
+func show_item_choice() -> void:
+	facade.ui_manager.show_item_choice()
+
+## Añade (o rellena) el resumen de la partida bajo las estadísticas de la pantalla de fin.
+func _fill_run_summary(screen: Control) -> void:
+	if not screen.visible:
+		return
+	var stats := screen.find_child("Stats", true, false) as Label
+	if stats == null:
+		return
+	var vb := stats.get_parent()
+	var summary := vb.get_node_or_null("RunSummary") as Label
+	if summary == null:
+		summary = Label.new()
+		summary.name = "RunSummary"
+		summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		summary.add_theme_color_override("font_color", RumbangStyle.TEXT)
+		summary.add_theme_font_size_override("font_size", 10)
+		vb.add_child(summary)
+		vb.move_child(summary, stats.get_index() + 1)
+	summary.text = "
+".join(RunStats.summary_lines(player.get("weapon_inventory") if is_instance_valid(player) else null))
+	# Tras vencer al jefe se puede seguir: modo infinito
+	if screen == hud.victory_screen and RunStats.endless_from < 0.0 and vb.get_node_or_null("EndlessBtn") == null:
+		var btn := Button.new()
+		btn.name = "EndlessBtn"
+		btn.text = "♾ MODO INFINITO"
+		btn.pressed.connect(_start_endless)
+		vb.add_child(btn)
+		vb.move_child(btn, summary.get_index() + 1)
+
+## Sigue la partida tras la victoria: la aparición vuelve y cada minuto es más duro.
+func _start_endless() -> void:
+	RunStats.endless_from = GameState.get_instance().elapsed_time
+	hud.victory_screen.visible = false
+	var btn: Node = hud.victory_screen.find_child("EndlessBtn", true, false)
+	if btn:
+		btn.queue_free()
+	get_tree().paused = false
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	var waves: WaveManager = facade.wave_manager
+	waves.continue_endless()
+	waves.events.announce("MODO INFINITO", RumbangStyle.NEON_CYAN, "¿Cuánto aguantas?")
+
 ## Aplica el multiplicador de oro ("Duende") del jugador.
 func _gold_with_bonus(base: int) -> int:
 	var sb = player.get("stat_block") if is_instance_valid(player) else null
@@ -89,6 +139,8 @@ func _on_boss_died(pos: Vector3, gold_val: int) -> void:
 	facade.update_gold(GameState.get_instance().gold)
 	SaveManager.add_gold(gold_val)
 	_save_best_time()
+	if RunStats.endless_from >= 0.0:
+		return                        # en el modo infinito un jefe más no termina la partida
 	# Derrotar al Nigromante (7:10) termina la partida con victoria
 	AudioManager.play("victory")
 	facade.show_victory()

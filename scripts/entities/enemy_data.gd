@@ -277,6 +277,7 @@ func apply_status(effect_id: String, dps: float, duration: float, source: Node =
 func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 	if recycled:
 		return
+	RunStats.add_damage(HitFeedback.weapon_tag, minf(amount, maxf(hp, 0.0)))   # resumen de la partida
 	hp -= amount
 	enemy_hit.emit()
 	var now := Time.get_ticks_msec() / 1000.0

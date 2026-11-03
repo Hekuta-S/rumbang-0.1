@@ -5,10 +5,12 @@ var weapon_pickup_scene = preload("res://scenes/objects/weapon_pickup.tscn")
 var xp_orb_scene = preload("res://scenes/objects/xp_orb.tscn")
 var item_pickup_scene = preload("res://scenes/objects/item_pickup.tscn")
 
-const PLAYABLE_MIN_X: float = -2300.0
-const PLAYABLE_MAX_X: float = 2300.0
-const PLAYABLE_MIN_Z: float = -2300.0
-const PLAYABLE_MAX_Z: float = 2300.0
+## Dentro de la zona jugable de WaveManager (±95 m), con margen: antes eran ±2300 m y los
+## objetos y armas del suelo caían fuera del mapa.
+const PLAYABLE_MIN_X: float = WaveManager.PLAYABLE_MIN_X + 15.0
+const PLAYABLE_MAX_X: float = WaveManager.PLAYABLE_MAX_X - 15.0
+const PLAYABLE_MIN_Z: float = WaveManager.PLAYABLE_MIN_Z + 15.0
+const PLAYABLE_MAX_Z: float = WaveManager.PLAYABLE_MAX_Z - 15.0
 
 var player: Node3D
 
