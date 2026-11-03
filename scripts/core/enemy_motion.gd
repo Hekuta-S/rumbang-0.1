@@ -69,10 +69,11 @@ static func _build() -> void:
 		for cx in range(c0.x, c1.x + 1):
 			for cz in range(c0.y, c1.y + 1):
 				var k := Vector2i(cx, cz)
-				if _grid.has(k):
-					(_grid[k] as PackedFloat32Array).append_array(packed)
-				else:
-					_grid[k] = packed.duplicate()
+				# Se vuelve a guardar: `(_grid[k] as PackedFloat32Array).append_array()` trabajaría
+				# sobre una copia y la celda se quedaría solo con su primer obstáculo.
+				var cur: PackedFloat32Array = _grid.get(k, PackedFloat32Array())
+				cur.append_array(packed)
+				_grid[k] = cur
 
 static func height_at(x: float, z: float) -> float:
 	if not _built:

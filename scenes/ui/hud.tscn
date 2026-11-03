@@ -284,11 +284,18 @@ grow_vertical = 2
 script = ExtResource("2_crosshair")
 
 [node name="HubImage" type="TextureRect" parent="Control" unique_id=317692766]
-layout_mode = 0
-offset_left = 1113.0
-offset_top = 794.0
-offset_right = 3285.0
-offset_bottom = 1518.0
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = 444.61
+offset_top = 74.0
+offset_right = 2616.61
+offset_bottom = 798.0
+grow_horizontal = 2
+grow_vertical = 0
 rotation = 3.140961
 scale = Vector2(0.4094021, 0.37660912)
 texture = ExtResource("3_image")

@@ -133,6 +133,13 @@ func get_weapon_ammo(w_type: int) -> int:
 		return weapon_ammo.get(w_type, weapon_mag_size[w_type])
 	return -1
 
+## true si alguna de las armas que lleva usa balas (reserva de la mazmorra o cargador).
+func has_ammo_weapon() -> bool:
+	for wt in weapon_slots:
+		if PlayerResources.AMMO_MAX.has(wt) or weapon_mag_size.get(wt, 0) > 0:
+			return true
+	return false
+
 func select_slot(slot_idx: int) -> void:
 	if slot_idx < 0 or slot_idx >= weapon_slots.size():
 		return

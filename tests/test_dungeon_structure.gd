@@ -62,7 +62,7 @@ func _ready() -> void:
 	gs.runes["furia"] = int(gs.runes.get("furia", 0)) + 1
 	assert(absf(float(p.get_weapon_modifiers(p.current_weapon())["damage"]) - dmg0 - 0.15) < 0.001, "Runa de Furia: +15% daño")
 	var stun0 := DungeonRunes.stun_mult()
-	gs.runes["quebranto"] = 1
+	gs.runes["quebranto"] = int(gs.runes.get("quebranto", 0)) + 1   # la runa del desafío pudo ser esta
 	assert(DungeonRunes.stun_mult() > stun0, "Runa del Quebranto: más aguante")
 	print("CHECK 3 PASSED: runas aplicadas")
 
