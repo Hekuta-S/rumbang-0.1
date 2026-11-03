@@ -99,6 +99,20 @@ func _on_settings_changed() -> void:
 func _is_hidden(i: int) -> bool:
 	return SettingsManager.touch_hidden.has(String(BUTTONS[i]["key"]))
 
+## RECARGAR solo tiene sentido con un arma de balas: sin ninguna no se dibuja ni recibe toques
+## (en el editor de disposición sigue visible para poder colocarlo).
+var _has_ammo_weapon := false
+func _is_unavailable(i: int) -> bool:
+	return String(BUTTONS[i]["key"]) == "reload" and not _has_ammo_weapon and not _editing
+
+func _refresh_ammo_weapon() -> void:
+	var player := get_tree().get_first_node_in_group("player")
+	var inv: PlayerWeaponInventory = player.get("weapon_inventory") if player else null
+	var has := inv != null and inv.has_ammo_weapon()
+	if has != _has_ammo_weapon:
+		_has_ammo_weapon = has
+		_overlay.queue_redraw()
+
 func _exit_tree() -> void:
 	if _editing:
 		end_edit()
@@ -190,6 +204,7 @@ func _process(delta: float) -> void:
 	# Pausa: soltar todo para que el personaje no siga corriendo al volver
 	if get_tree().paused and (_joy_id != -1 or _any_button_down() or _look_id != -1):
 		_release_all()
+	_refresh_ammo_weapon()
 	var target := ACTIVE_ALPHA if (_joy_id != -1 or _any_button_down()) else IDLE_ALPHA
 	var new_alpha := lerpf(_alpha, target, minf(1.0, delta * 12.0))
 	if absf(new_alpha - _alpha) > 0.003:
@@ -212,7 +227,7 @@ func _draw_controls() -> void:
 	# Botones de acción: círculo de color con icono; se aprietan al pulsarlos
 	for i in BUTTONS.size():
 		var hidden := _is_hidden(i)
-		if hidden and not _editing:
+		if (hidden and not _editing) or _is_unavailable(i):
 			continue
 		var b: Dictionary = BUTTONS[i]
 		var pressed := _btn_id[i] != -1
@@ -332,7 +347,7 @@ func _button_at(pos: Vector2) -> int:
 	var best := -1
 	var best_d := INF
 	for i in BUTTONS.size():
-		if _btn_id[i] != -1 or _is_hidden(i):
+		if _btn_id[i] != -1 or _is_hidden(i) or _is_unavailable(i):
 			continue
 		var d := pos.distance_to(_btn_center[i])
 		if d <= _btn_radius[i] * 1.2 and d < best_d:

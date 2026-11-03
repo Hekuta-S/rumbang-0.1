@@ -2,13 +2,17 @@
 ## Persists progression to user://soul_knight_save.json:
 ## - best floor reached per character id
 ## - total gold collected across runs
+## - meta: contadores, logros y códice de evoluciones (ver MetaProgress)
 extends Node
 
 const SAVE_PATH := "user://soul_knight_save.json"
 
+## Las pruebas lo cambian para no tocar la partida guardada del jugador.
+var save_path := SAVE_PATH
 var best_floors: Dictionary = {}
 var upgrades: Dictionary = {}
 var total_gold: int = 0
+var meta: Dictionary = {}
 
 func _ready() -> void:
 	load_save()
@@ -17,9 +21,10 @@ func load_save() -> void:
 	best_floors = {}
 	upgrades = {}
 	total_gold = 0
-	if not FileAccess.file_exists(SAVE_PATH):
+	meta = {}
+	if not FileAccess.file_exists(save_path):
 		return
-	var file := FileAccess.open(SAVE_PATH, FileAccess.READ)
+	var file := FileAccess.open(save_path, FileAccess.READ)
 	if file == null:
 		return
 	var parsed: Variant = JSON.parse_string(file.get_as_text())
@@ -37,15 +42,20 @@ func load_save() -> void:
 					upgrades[str(key)] = int(upgs[key])
 		if data.get("total_gold") is int or data.get("total_gold") is float:
 			total_gold = int(data["total_gold"])
+		if data.get("meta") is Dictionary:
+			meta = data["meta"]
+			# JSON devuelve los números como float: los ids de las evoluciones vuelven a int
+			meta["evolutions"] = (meta.get("evolutions", []) as Array).map(func(w): return int(w))
 
 func save() -> void:
-	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	var file := FileAccess.open(save_path, FileAccess.WRITE)
 	if file == null:
 		return
 	var payload := {
 		"best_floors": best_floors,
 		"upgrades": upgrades,
 		"total_gold": total_gold,
+		"meta": meta,
 	}
 	file.store_string(JSON.stringify(payload))
 

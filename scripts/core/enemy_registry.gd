@@ -18,18 +18,26 @@ static var _grid: Dictionary = {}
 static var _grid_frame: int = -1
 static var _query_buf: Array = []
 
+## Clave entera de una celda (más rápida que un Vector2i como clave de Dictionary: la rejilla se
+## reconstruye con todos los enemigos en cada tick de física).
+static func _key(cx: int, cz: int) -> int:
+	return (cx + 32768) * 65536 + (cz + 32768)
+
 static func _cell_of(x: float, z: float) -> Vector2i:
 	return Vector2i(int(floor(x / CELL)), int(floor(z / CELL)))
 
 static func _rebuild_grid() -> void:
 	for cell in _grid.values():
 		(cell as Array).clear()
+	var inv := 1.0 / CELL
 	for e in _enemies:
-		var c := _cell_of(e.global_position.x, e.global_position.z)
-		if _grid.has(c):
-			(_grid[c] as Array).append(e)
+		var p: Vector3 = e.global_position
+		var k := (int(floor(p.x * inv)) + 32768) * 65536 + (int(floor(p.z * inv)) + 32768)
+		var cell = _grid.get(k)
+		if cell == null:
+			_grid[k] = [e]
 		else:
-			_grid[c] = [e]
+			(cell as Array).append(e)
 
 ## Enemigos a distancia <= radius de `pos` (distancia 3D). Devuelve un Array nuevo, se puede modificar.
 static func query_radius(pos: Vector3, radius: float) -> Array:
@@ -49,15 +57,19 @@ static func query_radius_into(pos: Vector3, radius: float, out: Array) -> void:
 	var c1 := _cell_of(pos.x + radius, pos.z + radius)
 	for cx in range(c0.x, c1.x + 1):
 		for cz in range(c0.y, c1.y + 1):
-			var key := Vector2i(cx, cz)
-			if not _grid.has(key):
+			var cell = _grid.get(_key(cx, cz))
+			if cell == null:
 				continue
-			for e in _grid[key]:
+			for e in cell:
 				if e.global_position.distance_squared_to(pos) <= r2:
 					out.append(e)
 
 ## Empuje de separación horizontal sobre `me` respecto a los vecinos a menos de `radius` (sin Arrays ni
 ## Vector3 intermedios: es el bucle más caliente de la IA). Cada vecino empuja con (1 - d/radius).
+## En un enjambre denso basta con los SEP_MAX_NEIGHBORS primeros vecinos que tocan (si no, el coste
+## crece con el cuadrado de la multitud).
+const SEP_MAX_NEIGHBORS := 6
+
 static func separation_push(me: Object, radius: float) -> Vector3:
 	var frame := Engine.get_physics_frames()
 	if frame != _grid_frame:
@@ -69,14 +81,15 @@ static func separation_push(me: Object, radius: float) -> Vector3:
 	var r2 := radius * radius
 	var pushx := 0.0
 	var pushz := 0.0
+	var found := 0
 	var c0 := _cell_of(px - radius, pz - radius)
 	var c1 := _cell_of(px + radius, pz + radius)
 	for cx in range(c0.x, c1.x + 1):
 		for cz in range(c0.y, c1.y + 1):
-			var key := Vector2i(cx, cz)
-			if not _grid.has(key):
+			var cell = _grid.get(_key(cx, cz))
+			if cell == null:
 				continue
-			for o in _grid[key]:
+			for o in cell:
 				if o == me:
 					continue
 				var q: Vector3 = o.global_position
@@ -93,6 +106,9 @@ static func separation_push(me: Object, radius: float) -> Vector3:
 				var w := (1.0 - d / radius) / d
 				pushx += ax * w
 				pushz += az * w
+				found += 1
+				if found >= SEP_MAX_NEIGHBORS:
+					return Vector3(pushx, 0.0, pushz)
 	return Vector3(pushx, 0.0, pushz)
 
 static func register(e: Object) -> void:

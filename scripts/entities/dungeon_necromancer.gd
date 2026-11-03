@@ -13,6 +13,9 @@ extends DungeonGoblin
 ##  - roar (rugido): solo al cambiar de fase; es inmune mientras ruge y la onda empuja.
 ## Fases al bajar del 66 % y del 33 %: anticipaciones más cortas, menos pausa entre ataques, más
 ## erupciones y más zombis. Armadura total: solo se aturde al acumular mucho daño seguido.
+##  - Cada cambio de fase: cámara lenta y cartel "FASE N" mientras ruge.
+##  - Fase 3: CATACLYSM (cataclismo), un círculo enorme alrededor del jefe → alejarse o esquivar.
+##  - Al bajar del FINAL_KNEEL_HP de vida cae de rodillas indefenso: un remate lo mata.
 
 signal phase_changed(phase: int)
 
@@ -67,6 +70,14 @@ const MAX_ZOMBIES := 5
 const ERUPTION_RADIUS := 1.6
 const ERUPTION_SPREAD := 4.0          ## alrededor del jugador (m)
 const BOSS_NAME := "NIGROMANTE"
+## Ataque de desesperación (solo fase 3, "min_phase" 2). Usa el clip del rugido, que tienen todos los jefes.
+const CATACLYSM := {"range": [0.0, 9.0], "weight": 3, "cooldown": 9.0, "shape": "circle", "radius": 8.0, "center": 0.0,
+	"min_phase": 2, "windup_clip": "roar", "attack_clip": "", "windup": 1.5, "track": 0.0,
+	"attack_time": 0.8, "window": Vector2(0.0, 0.15), "lunge": 0.0, "dash": 0.0,
+	"damage": 5.0, "recover": 1.2, "shake": 0.9}
+const FINAL_KNEEL_HP := 0.06
+const FINAL_KNEEL_EXTRA := 3.0        ## s de más que dura de rodillas (sobre stunned_time)
+var _final_kneel := false
 
 ## Nombre de la barra (DungeonRatKing lo cambia); el color de la barra y de sus efectos es telegraph_color
 var boss_name := BOSS_NAME
@@ -99,11 +110,21 @@ func _init() -> void:
 	sfx_pitch = 0.6
 	attack_rest = PHASE_REST[0]
 	face_player_dist = 20.0
+	stun_ratio = 0.25             # 150 de aturdimiento: hace falta castigarle y pararle varias veces
+	show_hp_bar = false           # su vida va en la barra de jefe
+	stun_parry = 0.2
+	finish_damage_frac = 0.12     # el remate le quita un 12 % de la vida
 
 func _ready() -> void:
+	if not attacks.has("cataclysm"):
+		attacks = attacks.duplicate()
+		attacks["cataclysm"] = CATACLYSM
 	super()
 	add_to_group("boss")
 	_build_boss_bar()
+
+func _phase_level() -> int:
+	return phase
 
 func is_immune() -> bool:
 	return _atk_name == "roar" and (state == State.WINDUP or state == State.ATTACK)
@@ -129,14 +150,28 @@ func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 	if want > phase:
 		phase = want
 		_phase_pending = true
+	# Casi muerto: de rodillas, esperando el remate final
+	if not _final_kneel and hp <= max_hp * FINAL_KNEEL_HP:
+		_final_kneel = true
+		_phase_pending = false
+		windup_scale = PHASE_WINDUP[phase]   # si se levanta, pelea con el ritmo de su fase
+		attack_rest = PHASE_REST[phase]
+		finish_damage_frac = 0.0
+		_stun = 0.0
+		_set_state(State.STUNNED)
+		_state_t = -FINAL_KNEEL_EXTRA
+		HitFeedback.slowmo(0.6, 0.3)
+		_boss_banner("¡REMATALO!", STUN_COLOR)
 
 func _physics_process(delta: float) -> void:
-	if _phase_pending and state != State.WINDUP and state != State.ATTACK and state != State.DEAD:
+	if _phase_pending and state != State.WINDUP and state != State.ATTACK and state != State.DEAD and state != State.STUNNED:
 		_phase_pending = false
 		windup_scale = PHASE_WINDUP[phase]
 		attack_rest = PHASE_REST[phase]
 		_start_attack("roar")
 		phase_changed.emit(phase)
+		HitFeedback.slowmo(0.5, 0.35)
+		_boss_banner("FASE %d" % (phase + 1), telegraph_color)
 	super(delta)
 	_update_boss_bar(delta)
 
@@ -210,10 +245,12 @@ func _die() -> void:
 		tw.tween_interval(1.2)
 		tw.tween_callback(_bar_layer.queue_free)
 
-## Parry al jefe: no se aturde, pero cuenta como daño contra su armadura.
+## Parry al jefe: no se aturde, pero cuenta como daño contra su armadura (y llena su barra).
 func _on_parried() -> void:
 	_flash_color = PlayerParryController.COLOR
 	_flash = 1.0
+	if _add_stun(stun_max() * stun_parry):
+		return
 	_armor_dmg += PlayerParryController.BOSS_ARMOR
 	if _armor_dmg >= armor_break:
 		_armor_dmg = 0.0
@@ -223,6 +260,26 @@ func summon_count() -> int:
 	return _summons.filter(func(z): return is_instance_valid(z) and not z.is_dead()).size()
 
 # ───────────────────────────── Barra de jefe ─────────────────────────────
+
+## Cartel grande bajo la barra (cambio de fase, remate final).
+func _boss_banner(text: String, col: Color) -> void:
+	if _bar_layer == null:
+		return
+	var l := Label.new()
+	l.text = text
+	l.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	l.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	l.offset_top = 130.0
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.theme = RumbangStyle.get_theme()
+	RumbangStyle.style_title(l, 30, col.lightened(0.2), col)
+	_bar_layer.add_child(l)
+	l.modulate.a = 0.0
+	var tw := l.create_tween()
+	tw.tween_property(l, "modulate:a", 1.0, 0.2)
+	tw.tween_interval(1.6)
+	tw.tween_property(l, "modulate:a", 0.0, 0.5)
+	tw.tween_callback(l.queue_free)
 
 func _build_boss_bar() -> void:
 	_bar_layer = CanvasLayer.new()

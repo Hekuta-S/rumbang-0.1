@@ -5,10 +5,12 @@ var weapon_pickup_scene = preload("res://scenes/objects/weapon_pickup.tscn")
 var xp_orb_scene = preload("res://scenes/objects/xp_orb.tscn")
 var item_pickup_scene = preload("res://scenes/objects/item_pickup.tscn")
 
-const PLAYABLE_MIN_X: float = -2300.0
-const PLAYABLE_MAX_X: float = 2300.0
-const PLAYABLE_MIN_Z: float = -2300.0
-const PLAYABLE_MAX_Z: float = 2300.0
+## Dentro de la zona jugable de WaveManager (±95 m), con margen: antes eran ±2300 m y los
+## objetos y armas del suelo caían fuera del mapa.
+const PLAYABLE_MIN_X: float = WaveManager.PLAYABLE_MIN_X + 15.0
+const PLAYABLE_MAX_X: float = WaveManager.PLAYABLE_MAX_X - 15.0
+const PLAYABLE_MIN_Z: float = WaveManager.PLAYABLE_MIN_Z + 15.0
+const PLAYABLE_MAX_Z: float = WaveManager.PLAYABLE_MAX_Z - 15.0
 
 var player: Node3D
 
@@ -48,16 +50,18 @@ func spawn_item_pickup() -> void:
 	pickup.position = Vector3(px, py + 0.5, pz)
 	get_parent().add_child(pickup)
 
-## Tope de orbes de XP en el suelo: pasado el tope, el XP se suma al orbe más reciente
-## en vez de crear otro nodo con partículas.
-const MAX_XP_ORBS := 90
+## Tope de orbes de XP en el suelo (Quality.xp_orbs_max: menos en móvil): pasado el tope, el XP se
+## suma al orbe más reciente en vez de crear otro nodo con partículas.
 var _xp_orbs: Array[XPOrb] = []
 
 func spawn_xp_orb(pos: Vector3) -> void:
 	if not xp_orb_scene:
 		return
-	_xp_orbs = _xp_orbs.filter(func(o): return is_instance_valid(o))
-	if _xp_orbs.size() >= MAX_XP_ORBS:
+	var cap := Quality.xp_orbs_max()
+	# Los recogidos se quitan solo al llegar al tope (no un Array nuevo por cada enemigo muerto)
+	if _xp_orbs.size() >= cap:
+		_xp_orbs = _xp_orbs.filter(func(o): return is_instance_valid(o))
+	if _xp_orbs.size() >= cap:
 		var last: XPOrb = _xp_orbs[_xp_orbs.size() - 1]
 		last.xp_amount += 1.0
 		return

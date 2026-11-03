@@ -8,8 +8,12 @@ extends ProceduralMap
 ## origen y la final (la más lejana) guarda el altar.
 ##  - Forma de cada caverna: unión de varias elipses con borde deformado por ruido
 ##    (nunca un cuadrado), de 28–44 m de ancho.
-##  - Suelo de tierra y paredes de roca irregulares (MultiMesh, 1 llamada cada uno);
-##    colisión de paredes con cajas fusionadas por filas.
+##  - Suelo de tierra y paredes de roca (MultiMesh) con texturas horneadas en Blender (roca, tierra,
+##    madera y piedra en assets/textures/dungeon, de blender_sources/dungeon_assets.blend) proyectadas
+##    por coordenadas del mundo (shaders cave_floor / cave_rock) y teñidas con la paleta del nivel.
+##    Las paredes son 3 variantes de bloque de roca (cave_rock_*.glb) repartidas en trozos de
+##    WALL_CHUNK m (la cámara descarta los que no ve). Colisión con cajas fusionadas por filas.
+##  - Props con detalle de madera o piedra (shader prop_detail, ver STONE_PROPS).
 ##  - Temas por caverna: campamento (chozas, tiendas, fogata), almacén (barriles y
 ##    cajas destruibles, empalizadas) o santuario (tótem y postes de calaveras).
 ##  - Barriles y cajas son DestructibleProp: se rompen a golpes.
@@ -41,6 +45,21 @@ const TREASURE_CHANCE := 0.6
 ## Estructuras que se pueden destruir a golpes (nodos DestructibleProp en vez de instancias fijas).
 const STRUCTURES := ["hut", "tent", "palisade", "skull_pole", "totem"]
 const TOTEM_SOULS := 3                ## almas verdes que suelta un tótem al romperse
+# ── Aspecto (texturas y materiales) ──
+const TEX_DIR := "res://assets/textures/dungeon/"
+const ROCK_SHADER: Shader = preload("res://assets/shaders/cave_rock.gdshader")
+const FLOOR_SHADER: Shader = preload("res://assets/shaders/cave_floor.gdshader")
+const DETAIL_SHADER: Shader = preload("res://assets/shaders/prop_detail.gdshader")
+const ROCK_MESHES := ["cave_rock_a", "cave_rock_b", "cave_rock_c"]
+const WALL_CHUNK := 48.0              ## lado de cada trozo de pared (m)
+## Props con detalle de piedra (el resto, madera)
+const STONE_PROPS := ["rock_a", "rock_b", "stalagmite", "altar", "pillar", "wall", "grave_a", "grave_b",
+	"bones", "brazier", "campfire"]
+## Props con fuego: su llama del modelo se oculta y la dibuja FLAME_SHADER (ver _add_flame)
+const FIRE_PROPS := ["brazier", "campfire"]
+const FLAME_SHADER: Shader = preload("res://assets/shaders/fire_flame.gdshader")
+static var _detail_mats: Dictionary = {}   # "wood" | "stone" | "fire" -> ShaderMaterial compartido
+static var _flame_noise: NoiseTexture2D
 const SHRINE_TOTEM_SOULS := 5         ## el tótem grande del santuario suelta más
 
 ## Amplitud del ruido que deforma el borde de las cavernas (en radios de la elipse).
@@ -603,10 +622,63 @@ func _build_floor() -> void:
 	add_child(body)
 
 func _floor_material() -> Material:
-	var mat := StandardMaterial3D.new()
-	mat.vertex_color_use_as_albedo = true
-	mat.roughness = 1.0
+	var mat := ShaderMaterial.new()
+	mat.shader = FLOOR_SHADER
+	mat.set_shader_parameter("albedo_tex", load(TEX_DIR + "ground_albedo.png"))
+	mat.set_shader_parameter("normal_tex", load(TEX_DIR + "ground_normal.png"))
+	mat.set_shader_parameter("use_normal_map", Quality.level() != Quality.Level.LOW)
 	return mat
+
+## Material de los props: detalle de madera o de piedra (uno compartido por cada tipo).
+static func detail_material(kind: String) -> ShaderMaterial:
+	var key := "fire" if kind in FIRE_PROPS else ("stone" if kind in STONE_PROPS else "wood")
+	if not _detail_mats.has(key):
+		var tex := "wood" if key == "wood" else "stone"
+		var mat := ShaderMaterial.new()
+		mat.shader = DETAIL_SHADER
+		mat.set_shader_parameter("detail_tex", load(TEX_DIR + tex + "_albedo.png"))
+		mat.set_shader_parameter("detail_normal", load(TEX_DIR + tex + "_normal.png"))
+		mat.set_shader_parameter("tile_m", 1.4 if tex == "stone" else 0.9)
+		mat.set_shader_parameter("roughness_value", 0.9 if tex == "stone" else 0.8)
+		mat.set_shader_parameter("use_normal_map", Quality.level() != Quality.Level.LOW)
+		mat.set_shader_parameter("hide_emissive", key == "fire")
+		_detail_mats[key] = mat
+	return _detail_mats[key]
+
+## Llama animada (fire_flame) de `height` m con la base en `base`, del color de fuego del nivel.
+func _add_flame(base: Vector3, height: float) -> void:
+	if _flame_noise == null:
+		var fn := FastNoiseLite.new()
+		fn.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+		fn.frequency = 0.03
+		fn.fractal_octaves = 3
+		_flame_noise = NoiseTexture2D.new()
+		_flame_noise.width = 128
+		_flame_noise.height = 128
+		_flame_noise.seamless = true
+		_flame_noise.noise = fn
+	var quad := QuadMesh.new()
+	quad.size = Vector2(height * 0.75, height)
+	var mat := ShaderMaterial.new()
+	mat.shader = FLAME_SHADER
+	mat.set_shader_parameter("noise_tex", _flame_noise)
+	var fire: Color = palette()["fire"]
+	mat.set_shader_parameter("fire_color", Vector3(fire.r, fire.g, fire.b))
+	mat.set_shader_parameter("seed", float(absi(hash(base)) % 1000) * 0.01)   # sin _rng: el mapa no cambia
+	quad.material = mat
+	var mi := MeshInstance3D.new()
+	mi.mesh = quad
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.position = base + Vector3(0.0, height * 0.5, 0.0)
+	add_child(mi)
+
+## Las mallas de los props llevan el material de detalle en vez del plano (prop_flat).
+func _load_kind(kind: String) -> Mesh:
+	var fresh := not _mesh_cache.has(kind)
+	var mesh := super(kind)
+	if fresh and mesh != null:
+		mesh.surface_set_material(0, detail_material(kind))
+	return mesh
 
 ## Color de la celda de suelo `c`: tierra con manchas de musgo cerca de las paredes.
 func _floor_color(c: Vector2i) -> Color:
@@ -623,36 +695,69 @@ func _build_walls() -> void:
 
 ## Bloques de roca girados y escalados al azar: pared de cueva sin rejilla visible.
 func _build_wall_visuals() -> void:
-	var rock := BoxMesh.new()
-	rock.size = Vector3(CELL, 1.0, CELL)
-	var mat := StandardMaterial3D.new()
-	mat.vertex_color_use_as_albedo = true
-	mat.roughness = 1.0
-	rock.material = mat
+	var meshes: Array[Mesh] = []
+	for f in ROCK_MESHES:
+		var m := _rock_mesh(f)
+		if m != null:
+			meshes.append(m)
+	if meshes.is_empty():
+		var box := BoxMesh.new()          # respaldo si los .glb aún no están importados
+		box.size = Vector3(CELL, 1.0, CELL)
+		meshes.append(box)
+	var mat := ShaderMaterial.new()
+	mat.shader = ROCK_SHADER
+	mat.set_shader_parameter("albedo_tex", load(TEX_DIR + "rock_albedo.png"))
+	mat.set_shader_parameter("normal_tex", load(TEX_DIR + "rock_normal.png"))
+	mat.set_shader_parameter("use_normal_map", Quality.level() != Quality.Level.LOW)
 	var all: Array = []
 	for c in _walls:
 		all.append([c, _rng.randf_range(WALL_H * 0.8, WALL_H * 1.3), 1.25])
 	for c in _outer:
 		all.append([c, _rng.randf_range(WALL_H * 1.3, WALL_H * 2.0), 1.4])
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.use_colors = true
-	mm.mesh = rock
-	mm.instance_count = all.size()
+	# trozo espacial + variante -> [[Transform3D, Color]]. La variante sale de la celda (no del rng:
+	# así el resto del mapa se genera igual que antes con la misma semilla).
+	var groups: Dictionary = {}
 	for i in all.size():
 		var c: Vector2i = all[i][0]
 		var h: float = all[i][1]
 		var s: float = all[i][2] * _rng.randf_range(0.9, 1.15)
 		var basis := Basis.from_euler(Vector3(_rng.randf_range(-0.12, 0.12), _rng.randf() * TAU, _rng.randf_range(-0.12, 0.12)))
 		basis = basis.scaled_local(Vector3(s, h, s))
-		mm.set_instance_transform(i, Transform3D(basis, _cell_pos(c) + Vector3(0.0, h * 0.5 - 0.2, 0.0)))
+		var pos := _cell_pos(c) + Vector3(0.0, h * 0.5 - 0.2, 0.0)
 		var v := _rng.randf_range(0.7, 1.0)
-		mm.set_instance_color(i, (palette()["rock"] as Color) * v)
-	var mmi := MultiMeshInstance3D.new()
-	mmi.name = "Walls"
-	mmi.multimesh = mm
-	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if _mobile else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	add_child(mmi)
+		var key := Vector3i(int(floor(pos.x / WALL_CHUNK)), int(floor(pos.z / WALL_CHUNK)), absi(hash(c)) % meshes.size())
+		if not groups.has(key):
+			groups[key] = []
+		(groups[key] as Array).append([Transform3D(basis, pos), (palette()["rock"] as Color) * v])
+	var holder := Node3D.new()
+	holder.name = "Walls"
+	add_child(holder)
+	for key in groups:
+		var list: Array = groups[key]
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_colors = true
+		mm.mesh = meshes[key.z]
+		mm.instance_count = list.size()
+		for i in list.size():
+			mm.set_instance_transform(i, list[i][0])
+			mm.set_instance_color(i, list[i][1])
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		mmi.material_override = mat
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if _mobile else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		holder.add_child(mmi)
+
+## Malla de un bloque de roca (cave_rock_*.glb), o null si no está.
+func _rock_mesh(file: String) -> Mesh:
+	var path := PROP_DIR + file + ".glb"
+	if not ResourceLoader.exists(path):
+		return null
+	var root := (load(path) as PackedScene).instantiate()
+	var mi := _find_mesh_instance(root)
+	var mesh: Mesh = mi.mesh if mi else null
+	root.free()
+	return mesh
 
 ## Colisión: fusiona celdas consecutivas de cada fila en una sola caja.
 func _build_wall_colliders() -> void:
@@ -836,6 +941,7 @@ func _try_place(r: Dictionary, kind: String, radius: float, min_wall: int, max_w
 
 func _add_campfire(pos: Vector2) -> void:
 	_place("campfire", pos, 1.5, -1.0, 1.0)
+	_add_flame(Vector3(pos.x, 0.05, pos.y), 1.25)
 	_add_light(Vector3(pos.x, 1.4, pos.y), palette()["fire"], 3.2, 14.0)
 	if embers_enabled:
 		_add_embers(Vector3(pos.x, 0.8, pos.y))
@@ -913,6 +1019,7 @@ func _build_breakables() -> void:
 		var mesh := _load_kind(kind)
 		if mesh == null:
 			continue
+		DestructibleProp.prewarm(kind, String(_prop_def(kind)["file"]), mesh, _mesh_xf[kind])
 		var d := DestructibleProp.new()
 		d.name = "%s_%d" % [kind, destructibles.size()]
 		d.setup(kind, mesh, _mesh_xf[kind], _prop_def(kind), b[1], DestructibleProp.hp_for(kind))
@@ -1027,6 +1134,7 @@ func _pick_treasure() -> void:
 ## Braseros con la luz del tema del nivel.
 func _add_brazier(pos: Vector2) -> void:
 	_place("brazier", pos, 0.8)
+	_add_flame(Vector3(pos.x, 1.08, pos.y), 0.8)
 	_add_light(Vector3(pos.x, 1.7, pos.y), palette()["fire"], 2.6, 11.0)
 	if embers_enabled:
 		_add_embers(Vector3(pos.x, 1.4, pos.y))

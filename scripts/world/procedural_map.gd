@@ -692,6 +692,11 @@ func _flatten_mesh(src: Mesh) -> Mesh:
 	if _prop_material == null:
 		_prop_material = ShaderMaterial.new()
 		_prop_material.shader = PROP_SHADER
+	return flatten_with(src, _prop_material)
+
+## Igual que _flatten_mesh pero con el material que se pida (lo usa también DestructibleProp para
+## las piezas sueltas de los props rotos).
+static func flatten_with(src: Mesh, material: Material) -> Mesh:
 	var verts := PackedVector3Array()
 	var norms := PackedVector3Array()
 	var cols := PackedColorArray()
@@ -731,7 +736,7 @@ func _flatten_mesh(src: Mesh) -> Mesh:
 	out[Mesh.ARRAY_INDEX] = idx
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, out)
-	mesh.surface_set_material(0, _prop_material)
+	mesh.surface_set_material(0, material)
 	return mesh
 
 func _find_mesh_instance(n: Node) -> MeshInstance3D:

@@ -8,6 +8,8 @@ extends RefCounted
 enum Level { LOW, MEDIUM, HIGH }
 
 static var _level: int = -1
+## Fracción del tope de enemigos que se permite ahora (la baja PerformanceGovernor si la CPU no llega).
+static var crowd_factor: float = 1.0
 
 ## Para probar el modo móvil en PC: lanzar con la variable de entorno RUMBANG_FORCE_MOBILE=1.
 ## Móvil: Android/iOS nativos y también el navegador de un móvil (versión web en iPhone o Android).
@@ -60,11 +62,23 @@ static func level_name() -> String:
 static func particle_factor() -> float:
 	return [0.35, 0.7, 1.0][level()]
 
-## Máximo de enemigos vivos a la vez al final de la partida. Medido en PC (banco RUMBANG_BENCH): 300 enemigos
-## cuestan ~13 ms de física por tick; un móvil es varias veces más lento, así que Medio (el valor por defecto
-## en Android) queda en 160 hasta validarlo en un dispositivo real.
+## Máximo de enemigos vivos a la vez al final de la partida. Medido en PC simulando móvil (banco
+## RUMBANG_BENCH, ver OPTIMIZACION_MOVIL.md): tras la optimización de 2026-11 la IA cuesta ~45 % menos
+## (reparto por multitud, obstáculos empaquetados, rejilla con claves enteras) y 600 enemigos van a
+## ~58 FPS en PC. Un móvil es 3-5 veces más lento: Medio (el valor por defecto en Android) sube de
+## 160 a 220 y Alto a 320; validar en un dispositivo real antes de subir más.
 static func alive_cap_end() -> int:
-	return [100, 160, 300][level()]
+	if is_mobile():
+		return [120, 220, 320][level()]
+	return [150, 300, 500][level()]
+
+## Números de daño flotantes a la vez (PoolManager).
+static func floating_numbers_max() -> int:
+	return 24 if is_mobile() else 50
+
+## Orbes de experiencia en el suelo a la vez (LootManager: pasado el tope se suman al más reciente).
+static func xp_orbs_max() -> int:
+	return 50 if is_mobile() else 90
 
 ## Resolución 3D base (la gobernadora de rendimiento puede bajarla temporalmente).
 static func scale_3d() -> float:
@@ -100,9 +114,16 @@ static func new_light() -> OmniLight3D:
 	l.visible = lights_enabled()
 	return l
 
+## Tope de FPS en móvil: 60, o 30 en calidad Baja (batería y temperatura: un móvil caliente baja de
+## frecuencia y acaba yendo peor que a 30 estables).
+static func mobile_max_fps() -> int:
+	return 30 if level() == Level.LOW else 60
+
 ## FPS objetivo para la resolución dinámica.
 static func target_fps() -> float:
-	return 45.0 if is_mobile() else 60.0
+	if is_mobile():
+		return 28.0 if mobile_max_fps() == 30 else 45.0
+	return 60.0
 
 ## Escala una cantidad de partículas por el nivel de calidad (mínimo 2).
 static func count(n: int) -> int:

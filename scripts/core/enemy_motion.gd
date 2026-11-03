@@ -8,12 +8,17 @@ extends RefCounted
 ##  - el jugador (no se meten dentro de él).
 ## El CharacterBody3D del enemigo sigue existiendo como objetivo de golpes; solo se mueve por asignación.
 
-const CELL := 8.0
+const CELL := 4.0                      ## celdas pequeñas: menos obstáculos que mirar por enemigo
 const ENEMY_RADIUS := 0.45
 const PLAYER_RADIUS := 0.5
 
 static var _map: Node = null
-static var _grid: Dictionary = {}       # Vector2i -> Array[Dictionary] de obstáculos
+## Obstáculos por celda, empaquetados (es el bucle más caliente del movimiento: sin diccionarios con
+## claves de texto ni Arrays nuevos). Cada obstáculo son OBS_STRIDE floats:
+##   centro x, centro z, alcance (radio que lo envuelve), tipo (0 cilindro / 1 caja), yaw, mitad x, mitad z
+## (en un cilindro "mitad x" es su radio).
+const OBS_STRIDE := 7
+static var _grid: Dictionary = {}       # Vector2i -> PackedFloat32Array
 static var _built: bool = false
 ## Copia local de la malla de alturas del mapa: se evita una llamada a método del nodo por cada consulta.
 static var _hs: PackedFloat32Array = PackedFloat32Array()
@@ -55,15 +60,20 @@ static func _build() -> void:
 	for o in _map.get_colliders():
 		var c: Vector2 = o["pos"]
 		var reach: float = o["r"]
+		var is_cyl: bool = o["shape"] == "cyl"
+		var half: Vector2 = o.get("half", Vector2.ZERO)
+		var packed := PackedFloat32Array([c.x, c.y, reach, 0.0 if is_cyl else 1.0, float(o.get("yaw", 0.0)),
+			reach if is_cyl else half.x, 0.0 if is_cyl else half.y])
 		var c0 := Vector2i(int(floor((c.x - reach) / CELL)), int(floor((c.y - reach) / CELL)))
 		var c1 := Vector2i(int(floor((c.x + reach) / CELL)), int(floor((c.y + reach) / CELL)))
 		for cx in range(c0.x, c1.x + 1):
 			for cz in range(c0.y, c1.y + 1):
 				var k := Vector2i(cx, cz)
-				if _grid.has(k):
-					(_grid[k] as Array).append(o)
-				else:
-					_grid[k] = [o]
+				# Se vuelve a guardar: `(_grid[k] as PackedFloat32Array).append_array()` trabajaría
+				# sobre una copia y la celda se quedaría solo con su primer obstáculo.
+				var cur: PackedFloat32Array = _grid.get(k, PackedFloat32Array())
+				cur.append_array(packed)
+				_grid[k] = cur
 
 static func height_at(x: float, z: float) -> float:
 	if not _built:
@@ -122,19 +132,36 @@ static func move(e, vel: Vector3, delta: float, player_pos: Vector3) -> void:
 	e.ground_y = h_new
 
 static func _push_out_of_obstacles(p: Vector2) -> Vector2:
-	var cell: Array = _grid.get(Vector2i(int(floor(p.x / CELL)), int(floor(p.y / CELL))), [])
-	for o in cell:
-		var c: Vector2 = o["pos"]
-		if o["shape"] == "cyl":
-			var r: float = float(o["r"]) + ENEMY_RADIUS
+	var cell = _grid.get(Vector2i(int(floor(p.x / CELL)), int(floor(p.y / CELL))))
+	if cell == null:
+		return p                              # la mayoría de celdas no tienen obstáculos
+	var obs: PackedFloat32Array = cell
+	var i := 0
+	var n := obs.size()
+	while i < n:
+		var cx := obs[i]
+		var cz := obs[i + 1]
+		var dx := p.x - cx
+		var dz := p.y - cz
+		var reach := obs[i + 2] + ENEMY_RADIUS
+		var kind := obs[i + 3]
+		var yaw := obs[i + 4]
+		var hx := obs[i + 5]
+		var hz := obs[i + 6]
+		i += OBS_STRIDE
+		# Descarte rápido: fuera del círculo que envuelve al obstáculo
+		if dx * dx + dz * dz >= reach * reach:
+			continue
+		var c := Vector2(cx, cz)
+		if kind == 0.0:
+			var r := hx + ENEMY_RADIUS
 			var d := p - c
 			var dist := d.length()
 			if dist < r:
 				p = c + (d / dist if dist > 0.0001 else Vector2.RIGHT) * r
 		else:
 			# Caja orientada: se pasa al marco local, se calcula el punto más cercano y se empuja hacia fuera
-			var yaw: float = o["yaw"]
-			var half: Vector2 = o["half"]
+			var half := Vector2(hx, hz)
 			var local := (p - c).rotated(-yaw)
 			var closest := Vector2(clampf(local.x, -half.x, half.x), clampf(local.y, -half.y, half.y))
 			var delta := local - closest
@@ -144,9 +171,9 @@ static func _push_out_of_obstacles(p: Vector2) -> Vector2:
 					local = closest + delta / dist * ENEMY_RADIUS
 				else:
 					# Dentro de la caja: sale por el lado más cercano
-					var dx := half.x - absf(local.x)
-					var dy := half.y - absf(local.y)
-					if dx < dy:
+					var gap_x := half.x - absf(local.x)
+					var gap_z := half.y - absf(local.y)
+					if gap_x < gap_z:
 						local.x = signf(local.x if local.x != 0.0 else 1.0) * (half.x + ENEMY_RADIUS)
 					else:
 						local.y = signf(local.y if local.y != 0.0 else 1.0) * (half.y + ENEMY_RADIUS)

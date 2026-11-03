@@ -7,6 +7,9 @@ extends RefCounted
 ##
 ## Cualquier cosa del registro debe exponer global_position y, opcionalmente, hit_radius / hit_height.
 
+## Candidatos reutilizados por overlapping() (lo llaman las hitboxes en cada tick de física).
+static var _near_buf: Array = []
+
 const DEFAULT_RADIUS := 0.45
 const DEFAULT_HEIGHT := 1.6
 
@@ -33,7 +36,8 @@ static func overlapping(area: Area3D) -> Array:
 			continue
 		var xf := cs.global_transform
 		var reach := _shape_reach(cs.shape, xf) + 2.5   # + alto/radio de un enemigo
-		for e in EnemyRegistry.query_radius(xf.origin, reach):
+		EnemyRegistry.query_radius_into(xf.origin, reach, _near_buf)   # sin Array nuevo por llamada
+		for e in _near_buf:
 			if not out.has(e) and _enemy_touches_shape(e, cs.shape, xf):
 				out.append(e)
 	return out

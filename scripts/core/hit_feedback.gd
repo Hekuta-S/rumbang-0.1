@@ -50,6 +50,8 @@ var _flashes: Array[MeshInstance3D] = []
 var _flash_idx: int = 0
 var _trauma: float = 0.0
 var _stop_until_us: int = 0
+var _slow_until_us: int = 0
+var _slow_scale: float = 1.0
 var _last_sfx_ms: int = 0
 var _last_us: int = 0
 
@@ -82,6 +84,18 @@ static func freeze(seconds: float) -> void:
 	var inst := _instance()
 	if inst:
 		inst._freeze(seconds)
+
+## Cámara lenta durante `seconds` (tiempo real) a velocidad `world_scale` (los remates). Solo en mazmorra;
+## un hitstop a la vez manda sobre ella.
+static func slowmo(seconds: float, world_scale: float) -> void:
+	if not enabled():
+		return
+	var inst := _instance()
+	if inst:
+		inst._slow_until_us = Time.get_ticks_usec() + int(seconds * 1_000_000.0)
+		inst._slow_scale = world_scale
+		if not inst.get_tree().paused and inst._stop_until_us == 0:
+			Engine.time_scale = world_scale
 
 ## Llamado por Player.take_damage() cuando el golpe entra (no durante la invulnerabilidad).
 static func on_player_hit(player: Node3D, amount: float, from_dir: Vector3) -> void:
@@ -249,9 +263,18 @@ func _process(_delta: float) -> void:
 	var real_dt := float(now - _last_us) / 1_000_000.0
 	_last_us = now
 	# Pausar durante el freeze no debe dejar el mundo a cámara lenta
-	if (_stop_until_us > 0 and now >= _stop_until_us) or (get_tree().paused and Engine.time_scale != 1.0):
+	if get_tree().paused:
 		_stop_until_us = 0
-		Engine.time_scale = 1.0
+		_slow_until_us = 0
+		if Engine.time_scale != 1.0:
+			Engine.time_scale = 1.0
+	elif _stop_until_us > 0 and now >= _stop_until_us:
+		_stop_until_us = 0
+		Engine.time_scale = _slow_scale if now < _slow_until_us else 1.0
+	elif _slow_until_us > 0 and now >= _slow_until_us:
+		_slow_until_us = 0
+		if _stop_until_us == 0:
+			Engine.time_scale = 1.0
 	_update_vignette(real_dt)
 	var cam := get_viewport().get_camera_3d()
 	if cam == null:

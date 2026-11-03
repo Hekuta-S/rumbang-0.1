@@ -184,10 +184,20 @@ func _far_from_centers(q: Vector2i) -> bool:
 # ───────────────────────────── Geometría ─────────────────────────────
 
 func _floor_material() -> Material:
+	var mat := _brick_material()
+	mat.set_shader_parameter("floor_tiles", true)
+	return mat
+
+## Material de ladrillo/losas con las texturas horneadas (assets/textures/dungeon: brick y flagstone).
+func _brick_material() -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
 	mat.shader = BRICK_SHADER
-	mat.set_shader_parameter("floor_tiles", true)
 	mat.set_shader_parameter("grime_color", palette()["moss"])
+	mat.set_shader_parameter("brick_tex", load(TEX_DIR + "brick_albedo.png"))
+	mat.set_shader_parameter("brick_normal", load(TEX_DIR + "brick_normal.png"))
+	mat.set_shader_parameter("tile_tex", load(TEX_DIR + "flagstone_albedo.png"))
+	mat.set_shader_parameter("tile_normal", load(TEX_DIR + "flagstone_normal.png"))
+	mat.set_shader_parameter("use_normal_map", Quality.level() != Quality.Level.LOW)
 	return mat
 
 ## Losas del color del tema, más sucias junto a las paredes y bajo el agua.
@@ -204,10 +214,7 @@ func _floor_color(c: Vector2i) -> Color:
 func _build_wall_visuals() -> void:
 	var box := BoxMesh.new()
 	box.size = Vector3(CELL, 1.0, CELL)
-	var mat := ShaderMaterial.new()
-	mat.shader = BRICK_SHADER
-	mat.set_shader_parameter("grime_color", palette()["moss"])
-	box.material = mat
+	box.material = _brick_material()
 	var all: Array = []
 	for c in _walls:
 		all.append([c, WALL_H * _rng.randf_range(1.05, 1.15)])

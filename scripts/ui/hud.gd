@@ -63,6 +63,8 @@ func _ready() -> void:
 		$Control.add_child(team)
 	if stats_panel:
 		stats_panel.visible = false
+	if GameData.game_mode == "dungeon":
+		_drop_weapon_bar_over_xp()
 	call_deferred("_connect_to_player")
 	_style_end_screens()
 	if time_label:
@@ -73,6 +75,16 @@ func _process(delta: float) -> void:
 		fps_label.text = "FPS: %d" % Engine.get_frames_per_second()
 	if GameData.game_mode == "dungeon" and stats_panel and stats_panel.visible:
 		_follow_player_with_stats(delta)
+
+## Mazmorra: no hay experiencia, así que se oculta su barra y la barra de armas baja hasta tapar ese hueco
+## (la franja de la XP queda fuera de pantalla). HubImage está anclado abajo al centro, así que basta moverlo.
+const DUNGEON_HUB_DROP := 46.0
+func _drop_weapon_bar_over_xp() -> void:
+	if xp_bar:
+		xp_bar.visible = false
+	var hub := $Control/HubImage as Control
+	hub.offset_top += DUNGEON_HUB_DROP
+	hub.offset_bottom += DUNGEON_HUB_DROP
 
 ## Mazmorra (cámara al hombro): el panel de vida sigue al personaje en horizontal,
 ## manteniendo la misma separación que tenía con el personaje centrado.

@@ -43,16 +43,26 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if EnemyManager.instance == null:
 		return
+	_keep_player_alive()
 	_topup()
 	_elapsed += delta
 	_timer += delta
 	_frames += 1
+	PerfProbe.frame()
 	_worst_ms = maxf(_worst_ms, delta * 1000.0)
 	if _timer >= REPORT_EVERY:
 		_report()
 	if duration > 0.0 and _elapsed >= duration:
 		_summary()
 		get_tree().quit()
+
+## Mide siempre lo mismo: si el jugador muere a mitad, la partida cambia (pantalla de fin, sin combate).
+func _keep_player_alive() -> void:
+	var player := EnemyManager.player_node()
+	var hc = player.get("health_comp") if player else null
+	if hc:
+		hc.max_hp = 1.0e9
+		hc.hp = 1.0e9
 
 ## Rellena hasta `target` enemigos vivos en un anillo alrededor del jugador (reparte el coste entre frames).
 func _topup() -> void:
@@ -78,9 +88,18 @@ func _report() -> void:
 	var draws := Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
 	var vis := EnemyVisuals.instance
 	var drawn := vis.drawn_count() if vis != null else -1
-	print("[BENCH] t=%5.1fs enemigos=%d fps=%5.1f peor_frame=%5.1fms física=%5.2fms proceso=%5.2fms draws=%d dibujados=%d mem=%.0fMB" % [
+	print("[BENCH] t=%5.1fs enemigos=%d fps=%5.1f peor_frame=%5.1fms física=%5.2fms proceso=%5.2fms draws=%d dibujados=%d mem=%.0fMB nodos=%d cuerpos=%d pares=%d" % [
 		_elapsed, EnemyManager.active_count(), fps, _worst_ms, phys, proc, int(draws), drawn,
-		float(Performance.get_monitor(Performance.MEMORY_STATIC)) / 1048576.0])
+		float(Performance.get_monitor(Performance.MEMORY_STATIC)) / 1048576.0,
+		int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
+		int(Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS)),
+		int(Performance.get_monitor(Performance.PHYSICS_3D_COLLISION_PAIRS))])
+	if PerfProbe.enabled:
+		# Cuántos enemigos se actualizan por tick de física (con el reparto por distancia y multitud)
+		var per_tick := 0.0
+		for e in EnemyManager.instance._active:
+			per_tick += 1.0 / float(maxi(e.tick_span, 1))
+		print("[PERF] actualizados/tick=%.0f multitud=%.2f | %s" % [per_tick, EnemyData.crowd_scale, PerfProbe.report()])
 	_fps_samples.append(fps)
 	_phys_samples.append(phys)
 	_draw_samples.append(draws)
