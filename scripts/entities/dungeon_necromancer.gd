@@ -99,6 +99,10 @@ func _init() -> void:
 	sfx_pitch = 0.6
 	attack_rest = PHASE_REST[0]
 	face_player_dist = 20.0
+	stun_ratio = 0.25             # 150 de aturdimiento: hace falta castigarle y pararle varias veces
+	show_hp_bar = false           # su vida va en la barra de jefe
+	stun_parry = 0.2
+	finish_damage_frac = 0.12     # el remate le quita un 12 % de la vida
 
 func _ready() -> void:
 	super()
@@ -131,7 +135,7 @@ func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 		_phase_pending = true
 
 func _physics_process(delta: float) -> void:
-	if _phase_pending and state != State.WINDUP and state != State.ATTACK and state != State.DEAD:
+	if _phase_pending and state != State.WINDUP and state != State.ATTACK and state != State.DEAD and state != State.STUNNED:
 		_phase_pending = false
 		windup_scale = PHASE_WINDUP[phase]
 		attack_rest = PHASE_REST[phase]
@@ -210,10 +214,12 @@ func _die() -> void:
 		tw.tween_interval(1.2)
 		tw.tween_callback(_bar_layer.queue_free)
 
-## Parry al jefe: no se aturde, pero cuenta como daño contra su armadura.
+## Parry al jefe: no se aturde, pero cuenta como daño contra su armadura (y llena su barra).
 func _on_parried() -> void:
 	_flash_color = PlayerParryController.COLOR
 	_flash = 1.0
+	if _add_stun(stun_max() * stun_parry):
+		return
 	_armor_dmg += PlayerParryController.BOSS_ARMOR
 	if _armor_dmg >= armor_break:
 		_armor_dmg = 0.0

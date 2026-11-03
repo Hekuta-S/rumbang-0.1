@@ -17,10 +17,18 @@ extends CharacterBody3D
 ##    EnemyQuery, el apuntado suave y la lanza lanzada), take_damage(amount, dir),
 ##    apply_knockback(v), hit_radius / hit_height, y avisa a HitFeedback.
 ## Los valores de combate son iniciales: se ajustan jugando (Fase D de AUDITORIA_COMBATE_MAZMORRAS.md).
+##
+## Color del aviso según cómo se evita (como los anillos de God of War, ver guard_kind):
+##  ámbar = cuerpo a cuerpo, se para con un parry · rojo = área, solo se esquiva ·
+##  azul = proyectil, la guardia reduce el daño.
+## Barra de aturdimiento: se llena con golpes (más con los pesados, al castigar la recuperación
+## y con los parry) y se vacía sola si se le deja en paz. Llena → STUNNED: queda indefenso unos
+## segundos y se le puede rematar (PlayerFinisherController → receive_finisher).
 
 signal died(goblin: DungeonGoblin)
 
-enum State { IDLE, APPROACH, WINDUP, ATTACK, RECOVER, HURT, STAGGER, DEAD }
+## STUNNED va al final: el número de cada estado viaja en las instantáneas de red (NetWorld)
+enum State { IDLE, APPROACH, WINDUP, ATTACK, RECOVER, HURT, STAGGER, DEAD, STUNNED }
 
 const MODEL_DIR := "res://assets/models/entities/enemigos/goblins/"
 const CLIPS := {
@@ -75,6 +83,38 @@ const WHISKER := 1.4                  ## alcance de los rayos que esquivan obst�
 const STUCK_TIME := 0.35              ## sin avanzar este tiempo → paso lateral para soltarse
 const GRAVITY := 22.0
 
+const GUARD_PARRY := Color(1.0, 0.72, 0.12)
+const GUARD_DODGE := Color(1.0, 0.1, 0.05)
+const GUARD_RANGED := Color(0.35, 0.65, 1.0)
+
+# ── Aturdimiento y remate ──
+const STUN_HIT_MULT := 0.5            ## un golpe normal llena la barra con la mitad de su daño
+const STUN_HEAVY_MULT := 1.0          ## un golpe pesado (los que aturden), con todo su daño
+const STUN_PUNISH_MULT := 1.5         ## × extra si está en RECOVER (castigar el ataque fallado)
+const STUN_DECAY_DELAY := 2.5         ## s sin recibir golpes antes de que la barra se vacíe
+const STUN_DECAY := 0.2               ## fracción de la barra que se vacía por segundo
+const STUNNED_TIME := 3.2
+const STUN_COLOR := Color(1.0, 0.85, 0.35)
+const STUN_BAR_TINT := Color(1.0, 0.78, 0.25)
+const HP_BAR_TINT := Color(0.9, 0.16, 0.12)
+const STUN_BAR_SHADER := """
+shader_type spatial;
+render_mode unshaded, cull_disabled, shadows_disabled, depth_draw_never;
+instance uniform float fill = 0.0;
+instance uniform float pulse = 0.0;
+instance uniform vec3 tint = vec3(1.0, 0.78, 0.25);
+void vertex() {
+	MODELVIEW_MATRIX = VIEW_MATRIX * mat4(INV_VIEW_MATRIX[0], INV_VIEW_MATRIX[1], INV_VIEW_MATRIX[2], MODEL_MATRIX[3]);
+}
+void fragment() {
+	float edge = step(UV.x, 0.025) + step(0.975, UV.x) + step(UV.y, 0.14) + step(0.86, UV.y);
+	vec3 bar = mix(tint, vec3(1.0, 1.0, 0.85), pulse);
+	vec3 c = UV.x < fill ? bar : vec3(0.08, 0.06, 0.04);
+	ALBEDO = mix(c, vec3(0.0), clamp(edge, 0.0, 1.0));
+	ALPHA = 0.9;
+}
+"""
+
 var hit_radius := 0.5
 var hit_height := 1.4
 # Campos que rellena EnemyTypeFlyweight.apply_to (estado intrínseco compartido)
@@ -120,6 +160,18 @@ const ATTACK_PACE := 1.25
 const RECOVER_PACE := 1.2
 const EXTRA_REST := 0.25              ## s de más entre un ataque y el siguiente
 var face_player_dist := 4.0           ## en APPROACH mira al jugador (y no al camino) por debajo de esto
+var stun_ratio := 0.45                ## tamaño de la barra de aturdimiento = vida máxima × esto
+var show_hp_bar := true               ## barra de vida sobre la de aguante (los jefes ya tienen la suya en pantalla)
+var stun_parry := 0.4                 ## fracción de la barra que llena un parry
+var stunned_time := STUNNED_TIME
+## Remate: fracción de la vida máxima que quita (0 = lo mata; los jefes solo pierden un trozo)
+var finish_damage_frac := 0.0
+var _guard_color := GUARD_PARRY
+var _stun := 0.0
+var _stun_idle := 0.0
+var _stun_bar: MeshInstance3D
+var _hp_bar: MeshInstance3D
+static var _stun_shader: Shader
 var _next_attack_at := 0.0
 var _atk_target := Vector3.ZERO       ## posición del jugador fijada para los ataques "at_target"
 
@@ -175,6 +227,7 @@ func _ready() -> void:
 	add_child(col)
 	_build_model()
 	_build_telegraph()
+	_build_stun_bar()
 	EnemyRegistry.register(self)
 	player = NetPlayers.nearest(global_position) as CharacterBody3D
 	_facing = -global_transform.basis.z
@@ -388,6 +441,106 @@ func _build_telegraph() -> void:
 	_telegraph.visible = false
 	add_child(_telegraph)
 
+## Cómo se evita un ataque: "parry" (cuerpo a cuerpo), "dodge" (áreas: solo esquivar) o
+## "ranged" (proyectiles: la guardia reduce el daño). Decide el color del aviso y si el parry vale.
+static func guard_kind(a: Dictionary) -> String:
+	if a.get("unblockable", false) or a["shape"] == "circle" or a.get("eruption", false) or a.get("burst", false):
+		return "dodge"
+	if a.get("ranged", false):
+		return "ranged"
+	return "parry"
+
+static func guard_color(a: Dictionary) -> Color:
+	match guard_kind(a):
+		"dodge": return GUARD_DODGE
+		"ranged": return GUARD_RANGED
+	return GUARD_PARRY
+
+## Barritas sobre la cabeza: vida (arriba, desde el primer golpe) y aguante acumulado (debajo,
+## oculta mientras está vacía).
+func _build_stun_bar() -> void:
+	var k := clampf(model_height / MODEL_HEIGHT, 1.0, 1.8)
+	_stun_bar = _make_head_bar(Vector2(0.9, 0.1) * k, model_height + 0.35, STUN_BAR_TINT)
+	_hp_bar = _make_head_bar(Vector2(0.9, 0.12) * k, model_height + 0.35 + 0.14 * k, HP_BAR_TINT)
+
+func _make_head_bar(size: Vector2, height: float, tint: Color) -> MeshInstance3D:
+	if _stun_shader == null:
+		_stun_shader = Shader.new()
+		_stun_shader.code = STUN_BAR_SHADER
+	var quad := QuadMesh.new()
+	quad.size = size
+	var mat := ShaderMaterial.new()
+	mat.shader = _stun_shader
+	mat.render_priority = 1
+	quad.material = mat
+	var bar := MeshInstance3D.new()
+	bar.mesh = quad
+	bar.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	bar.position = Vector3(0, height, 0)
+	bar.visible = false
+	add_child(bar)
+	bar.set_instance_shader_parameter("tint", Vector3(tint.r, tint.g, tint.b))
+	return bar
+
+func stun_max() -> float:
+	return maxf(max_hp * stun_ratio, 1.0)
+
+## 0..1 (lo envía NetWorld a las copias de los clientes).
+func stun_fraction() -> float:
+	return 1.0 if state == State.STUNNED else clampf(_stun / stun_max(), 0.0, 1.0)
+
+func _update_stun_bar() -> void:
+	var f := stun_fraction()
+	_stun_bar.visible = f > 0.01 and state != State.DEAD
+	_hp_bar.visible = show_hp_bar and state != State.DEAD and (hp < max_hp or _stun_bar.visible)
+	if _hp_bar.visible:
+		_hp_bar.set_instance_shader_parameter("fill", clampf(hp / max_hp, 0.0, 1.0))
+	if _stun_bar.visible:
+		_stun_bar.set_instance_shader_parameter("fill", f)
+		_stun_bar.set_instance_shader_parameter("pulse", 0.5 + 0.5 * sin(_state_t * 12.0) if state == State.STUNNED else 0.0)
+
+## Suma aturdimiento; true si la barra se llena y queda indefenso (STUNNED).
+func _add_stun(amount: float) -> bool:
+	if state == State.DEAD or state == State.STUNNED or amount <= 0.0:
+		return false
+	_stun_idle = 0.0
+	_stun = minf(_stun + amount, stun_max())
+	if _stun < stun_max():
+		return false
+	_set_state(State.STUNNED)
+	_knock = -_facing * 3.0 * knock_scale
+	AudioManager.play_at("impact_zap", global_position, -2.0, 0.55)
+	HitFeedback.freeze(0.08)
+	HitFeedback.shake(0.3)
+	return true
+
+## Se puede rematar ahora mismo (PlayerFinisherController).
+func can_be_finished() -> bool:
+	return state == State.STUNNED
+
+## Lo que quita un remate: toda la vida, o un trozo a los jefes.
+func finisher_damage() -> float:
+	if finish_damage_frac > 0.0:
+		return max_hp * finish_damage_frac
+	return hp + max_hp
+
+## Remate del jugador. En un cliente, el daño lo aplica el anfitrión (take_damage de la copia).
+func receive_finisher(dir: Vector3) -> void:
+	var dmg := finisher_damage()
+	if puppet:
+		take_damage(dmg, dir)
+		return
+	if not can_be_finished():
+		return
+	_stun = 0.0
+	take_damage(dmg, dir)
+	if state == State.STUNNED:
+		# Sobrevive (jefe): cae de espaldas y se recupera enseguida
+		_model.rotation.z = 0.0
+		_set_state(State.STAGGER)
+		_state_t = stagger_time - 1.0
+		_knock = dir.normalized() * 6.0 * knock_scale
+
 # ───────────────────────────── Estados ─────────────────────────────
 
 func _set_state(s: State) -> void:
@@ -404,6 +557,9 @@ func _set_state(s: State) -> void:
 			_poise = 0.0
 			_play(_atk["windup_clip"], 0.08)
 			_shape_telegraph(_atk)
+			_guard_color = guard_color(_atk)
+			(_telegraph.material_override as ShaderMaterial).set_shader_parameter("color",
+				Vector3(_guard_color.r, _guard_color.g, _guard_color.b))
 			_telegraph.visible = _atk["shape"] != "none" and SettingsManager.show_attack_marks
 			AudioManager.play_at(warn_sfx, global_position, 0.0, randf_range(0.9, 1.1) * sfx_pitch)
 		State.ATTACK:
@@ -415,6 +571,10 @@ func _set_state(s: State) -> void:
 		State.RECOVER: _play("recover", 0.05)
 		State.HURT: _play("hurt", 0.03)
 		State.STAGGER: _play("hurt", 0.03)
+		State.STUNNED:
+			_play("hurt", 0.03)
+			if _anim:
+				_anim.speed_scale = 0.5
 		State.DEAD: _play("death", 0.05)
 
 func _physics_process(delta: float) -> void:
@@ -430,7 +590,11 @@ func _physics_process(delta: float) -> void:
 	_state_t += delta
 	_clock += delta
 	_armor_dmg = maxf(_armor_dmg - ARMOR_DECAY * delta, 0.0)
+	_stun_idle += delta
+	if _stun_idle > STUN_DECAY_DELAY and state != State.STUNNED:
+		_stun = maxf(_stun - stun_max() * STUN_DECAY * delta, 0.0)
 	_update_flash(delta)
+	_update_stun_bar()
 	if not is_on_floor():
 		velocity.y -= GRAVITY * delta
 	else:
@@ -483,8 +647,8 @@ func _physics_process(delta: float) -> void:
 					_place_target_telegraph()
 			var mat := _telegraph.material_override as ShaderMaterial
 			mat.set_shader_parameter("progress", clampf(_state_t / windup, 0.0, 1.0))
-			# Destello rojo creciente: ¡va a pegar!
-			_flash_color = telegraph_color
+			# Destello creciente del color del aviso: ¡va a pegar!
+			_flash_color = _guard_color
 			_flash = maxf(_flash, 0.15 + 0.45 * (_state_t / windup) * (0.6 + 0.4 * sin(_state_t * 30.0)))
 			if _state_t >= windup:
 				_set_state(State.ATTACK)
@@ -518,6 +682,12 @@ func _physics_process(delta: float) -> void:
 			if _state_t >= stagger_time:
 				_model.rotation.z = 0.0
 				_set_state(State.APPROACH)
+		State.STUNNED:
+			_stun_wobble()
+			if _state_t >= stunned_time:
+				_model.rotation.z = 0.0
+				_stun = 0.0
+				_set_state(State.APPROACH)
 		State.DEAD:
 			pass
 
@@ -533,8 +703,18 @@ func _physics_process(delta: float) -> void:
 	else:
 		_stuck_t = 0.0
 
+## Indefenso esperando el remate: se tambalea y destella en dorado.
+func _stun_wobble() -> void:
+	_model.rotation.z = sin(_state_t * 6.0) * 0.1
+	_flash_color = STUN_COLOR
+	_flash = maxf(_flash, 0.25 + 0.2 * sin(_state_t * 10.0))
+
 ## El jugador ha parado este golpe con un parry: aturdimiento corto (corta también las embestidas).
 func _on_parried() -> void:
+	if _add_stun(stun_max() * stun_parry):
+		_flash_color = PlayerParryController.COLOR
+		_flash = 1.0
+		return
 	_set_state(State.STAGGER)
 	_state_t = stagger_time - PlayerParryController.STUN
 	_flash_color = PlayerParryController.COLOR
@@ -660,8 +840,8 @@ func _try_hit_player() -> void:
 	if not _clear_line(global_position + Vector3(0, 0.8, 0), player.global_position + Vector3(0, 0.8, 0)):
 		return
 	_hit_done = true
-	# Parry del jugador: el golpe no entra y este enemigo se lleva la reacción
-	if player.has_method("try_parry_melee") and player.try_parry_melee(self):
+	# Parry del jugador: el golpe no entra y este enemigo se lleva la reacción (las áreas no se paran)
+	if guard_kind(_atk) == "parry" and player.has_method("try_parry_melee") and player.try_parry_melee(self):
 		_on_parried()
 		return
 	var dmg: float = _atk["damage"]
@@ -699,7 +879,14 @@ func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 		_last_hurt_sfx = now
 		AudioManager.play_at(hurt_sfx, global_position, -4.0, randf_range(0.9, 1.15) * sfx_pitch)
 	var heavy := amount >= stagger_damage or knockback_dir.length() >= stagger_knock
+	var stun_gain := amount * (STUN_HEAVY_MULT if heavy else STUN_HIT_MULT)
+	if state == State.RECOVER:
+		stun_gain *= STUN_PUNISH_MULT
+	if _add_stun(stun_gain):
+		return
 	match state:
+		State.STUNNED:
+			pass                                   # indefenso hasta el remate o hasta que se le pase
 		State.ATTACK:
 			pass                                   # el golpe ya salió: no se interrumpe
 		State.WINDUP:
@@ -772,10 +959,15 @@ func net_apply(pos: Vector3, yaw: float, st: int, hp_value: float, atk: String, 
 	if st != int(state) and state != State.DEAD:
 		_set_state(st as State)
 
+## Aturdimiento acumulado en el anfitrión (cliente), para la barrita.
+func net_stun(fraction: float) -> void:
+	_stun = fraction * stun_max()
+
 func _puppet_process(delta: float) -> void:
 	_state_t += delta
 	_clock += delta
 	_update_flash(delta)
+	_update_stun_bar()
 	if state == State.DEAD:
 		return
 	global_position = global_position.lerp(_net_pos, 1.0 - exp(-14.0 * delta))
@@ -788,10 +980,12 @@ func _puppet_process(delta: float) -> void:
 				_place_target_telegraph()
 			var mat := _telegraph.material_override as ShaderMaterial
 			mat.set_shader_parameter("progress", clampf(_state_t / windup, 0.0, 1.0))
-			_flash_color = telegraph_color
+			_flash_color = _guard_color
 			_flash = maxf(_flash, 0.15 + 0.45 * (_state_t / windup) * (0.6 + 0.4 * sin(_state_t * 30.0)))
 		State.STAGGER:
 			_model.rotation.z = sin(_state_t * 14.0) * 0.12 * clampf(1.0 - _state_t / stagger_time, 0.0, 1.0)
+		State.STUNNED:
+			_stun_wobble()
 		_:
 			_model.rotation.z = 0.0
 

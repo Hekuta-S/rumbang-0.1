@@ -77,6 +77,12 @@ func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 		return
 	super(amount, knockback_dir)
 
+## Un remate lo deja muerto del todo (no se levanta).
+func receive_finisher(dir: Vector3) -> void:
+	if not puppet:
+		_revived = true
+	super(dir)
+
 func _die() -> void:
 	if not can_revive or _revived:
 		super()

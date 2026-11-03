@@ -64,6 +64,7 @@ const PlayerAnimationController = preload("res://scripts/components/player_anima
 
 var movement_controller: PlayerMovementController
 var parry_controller: PlayerParryController
+var finisher_controller: PlayerFinisherController
 var animation_controller: PlayerAnimationController
 var weapon_inventory: PlayerWeaponInventory
 var camera_aim_controller: PlayerCameraAndAimController
@@ -260,11 +261,11 @@ func _ready() -> void:
 	input_controller.weapon_select.connect(select_slot)
 	input_controller.skill_pressed.connect(activate_skill)
 	input_controller.dodge_pressed.connect(func():
-		if movement_controller:
+		if movement_controller and not is_finishing():
 			movement_controller.perform_dodge()
 	)
 	input_controller.parry_pressed.connect(func():
-		if parry_controller:
+		if parry_controller and not is_finishing():
 			parry_controller.try_parry()
 	)
 	input_controller.attack_pressed.connect(attack)
@@ -308,6 +309,10 @@ func _ready() -> void:
 	parry_controller = PlayerParryController.new()
 	parry_controller.name = "PlayerParryController"
 	add_child(parry_controller)
+	if GameData.game_mode == "dungeon":
+		finisher_controller = PlayerFinisherController.new()
+		finisher_controller.name = "PlayerFinisherController"
+		add_child(finisher_controller)
 	# Espalanza visible en la mano (con estela, aura y animaciones): solo en la mazmorra.
 	# En supervivencia se queda el modelo procedural oculto de siempre.
 	if weapon_visuals and GameData.game_mode == "dungeon":
@@ -824,8 +829,15 @@ func start_reload() -> void:
 func auto_attack(target) -> void:
 	combat_controller.auto_attack(target)
 
+## En mitad de un remate (PlayerFinisherController): no se ataca, esquiva ni para.
+func is_finishing() -> bool:
+	return finisher_controller != null and finisher_controller.is_active()
+
 func attack() -> void:
 	if GameData.game_mode == "dungeon":
+		# Con un enemigo aturdido cerca, el ataque es su remate
+		if finisher_controller and finisher_controller.try_finish():
+			return
 		combat_controller.buffer_attack()
 	else:
 		combat_controller.attack()

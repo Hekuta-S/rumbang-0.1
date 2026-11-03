@@ -213,7 +213,7 @@ func _send_snapshot() -> void:
 		var e: DungeonGoblin = _enemies[id]
 		if not is_instance_valid(e) or e.is_dead():
 			continue
-		list.append([id, e.global_position, e.rotation.y, int(e.state), e.hp, e.attack_name(), e.attack_target()])
+		list.append([id, e.global_position, e.rotation.y, int(e.state), e.hp, e.attack_name(), e.attack_target(), e.stun_fraction()])
 	if not list.is_empty():
 		_snapshot.rpc(list)
 
@@ -223,6 +223,7 @@ func _snapshot(list: Array) -> void:
 		var e: DungeonGoblin = _enemies.get(int(s[0]))
 		if is_instance_valid(e):
 			e.net_apply(s[1], s[2], int(s[3]), float(s[4]), str(s[5]), s[6])
+			e.net_stun(float(s[7]))
 
 @rpc("authority", "reliable")
 func _enemy_died(id: int) -> void:
