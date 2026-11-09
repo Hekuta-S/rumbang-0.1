@@ -110,6 +110,7 @@ func _init() -> void:
 	sfx_pitch = 0.6
 	attack_rest = PHASE_REST[0]
 	face_player_dist = 20.0
+	uses_attack_token = false     # a distancia / jefe: no consume ficha de ataque
 	stun_ratio = 0.25             # 150 de aturdimiento: hace falta castigarle y pararle varias veces
 	show_hp_bar = false           # su vida va en la barra de jefe
 	stun_parry = 0.2

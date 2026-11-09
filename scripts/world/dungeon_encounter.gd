@@ -38,6 +38,8 @@ const PORTAL_WEAPONS := [
 	WeaponData.WeaponType.SPEAR_LANCE, WeaponData.WeaponType.FLAME_THROWER,
 	WeaponData.WeaponType.SPORE_BAZOOKA, WeaponData.WeaponType.TRI_SHOTGUN,
 	WeaponData.WeaponType.DUSTS, WeaponData.WeaponType.SERPENTS,
+	WeaponData.WeaponType.DAGGERS, WeaponData.WeaponType.MACE, WeaponData.WeaponType.GREATSWORD,
+	WeaponData.WeaponType.SWORD,
 ]
 
 var map: DungeonMap
@@ -217,9 +219,15 @@ func _spawn_at(room: int, pos: Vector3, kind: String = "goblin") -> DungeonGobli
 ## Cuenta un enemigo vivo de la caverna; los que nacen de él (DungeonSlug al dividirse) también.
 func _track(room: int, g: DungeonGoblin) -> void:
 	_alive[room] = _alive.get(room, 0) + 1
-	g.died.connect(func(dead): _on_goblin_died(room); _drop_resources(dead); _award_gold(dead))
+	g.died.connect(func(dead): _on_goblin_died(room); _drop_resources(dead); _award_gold(dead); EquipmentPickup.drop_for_enemy(get_parent(), dead); _notify_kill())
 	if g.has_signal("spawned"):
 		g.spawned.connect(func(child): _track(room, child))
+
+## Una baja: los efectos especiales del equipo ("kill") se activan.
+func _notify_kill() -> void:
+	var p := get_tree().get_first_node_in_group("player") if is_inside_tree() else null
+	if p and p.has_method("notify_equipment"):
+		p.notify_equipment("kill")
 
 ## Los enemigos sueltan balas (si llevas un arma de fuego) o maná.
 const AMMO_DROP_CHANCE := 0.3
@@ -367,6 +375,7 @@ func next_level() -> void:
 		return
 	_changing_level = true
 	level += 1
+	AttackTokens.set_level(level)
 	var fade := CanvasLayer.new()
 	fade.layer = 90
 	fade.process_mode = Node.PROCESS_MODE_ALWAYS
@@ -593,7 +602,12 @@ func _spawn_chests() -> void:
 			chest.opened.connect(_on_chest_opened)
 			_chests.append(chest)
 
-func _on_chest_opened(_chest: TreasureChest) -> void:
+## Pieza de equipo garantizada que sale del cofre (poco común como mínimo).
+const CHEST_MIN_RARITY := 1
+
+func _on_chest_opened(chest: TreasureChest) -> void:
+	if is_instance_valid(chest):
+		EquipmentPickup.try_drop(get_parent(), chest.global_position + Vector3(0, 0, 1.4), 1.0, CHEST_MIN_RARITY)
 	var ui := WeaponChoiceUI.present(get_parent(), _roll_weapons(TREASURE_CHOICES), level, "¡TESORO!", "ELIGE UN ARMA")
 	ui.chosen.connect(give_weapon)
 

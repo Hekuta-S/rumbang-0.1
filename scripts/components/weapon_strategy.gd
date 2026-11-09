@@ -64,6 +64,23 @@ func _scale_melee(node: Node3D) -> void:
 func _scale_ranged(node: Node3D) -> void:
 	node.scale = Vector3.ONE * _ranged_size()
 
+## Golpe contra el suelo (clavado de la espalanza, mazazo de la maza): onda expansiva en el suelo y polvo.
+func _slam_effects(at: Vector3, radius: float, color: Color = Color(0.3, 1.0, 0.55)) -> void:
+	var root := c.player.get_tree().current_scene
+	if root == null:
+		return
+	var ground := Vector3(at.x, c.player.global_position.y + 0.05, at.z)
+	NecroVFX.shockwave(root, ground, radius * 1.4, color)
+	var dust := DustVFX.haze(Quality.count(22), 0.9, radius * 0.6, 0.6, 1.4, Color(0.75, 0.68, 0.55), 0.3)
+	dust.one_shot = true
+	dust.explosiveness = 0.95
+	dust.initial_velocity_min = 1.5
+	dust.initial_velocity_max = 3.5
+	root.add_child(dust)
+	dust.global_position = ground + Vector3(0, 0.15, 0)
+	dust.emitting = true
+	root.get_tree().create_timer(1.4).timeout.connect(dust.queue_free)
+
 func animate_weapon_swing(weapon_type: int, side: float) -> void:
 	var weapon: Node3D = c.player.weapon_models.get(weapon_type)
 	if not weapon or not is_instance_valid(weapon):
@@ -410,10 +427,44 @@ class SpearLanceStrategy extends WeaponStrategy:
 	## frente, atrás, derecha, izquierda y luego las 4 diagonales.
 	const BLADE_ANGLES: Array[float] = [0.0, 180.0, 90.0, -90.0, 45.0, -45.0, 135.0, -135.0]
 	const MAX_BLADES: int = 8
-	## El clavado del salto (tercer golpe del combo) pega mucho más fuerte que los ligeros.
-	const ATTACK3_DAMAGE_MULT := 2.4
+	## El clavado del salto (el especial tras el combo) pega mucho más fuerte que los ligeros.
+	const ATTACK3_DAMAGE_MULT := 2.0
+	## attack2 son dos tajos (dos ventanas): cada uno pega menos para que el par no doble el daño.
+	const ATTACK2_DAMAGE_MULT := 0.65
+	## Zona de golpe de cada ataque del combo, en metros y en ejes del personaje (mira a -Z, centro en
+	## los pies). Ajustada al alcance real de la lanza (~2,6 m): antes se escalaba la caja de 5,4 m de
+	## la escena y la estocada llegaba a ~14 m. "size" es una caja; con "radius" es un cilindro.
+	const HIT_SHAPES := {
+		"attack1": {"size": Vector3(1.2, 2.0, 3.0), "center": Vector3(0.0, 0.9, -1.6)},   # estocada
+		"attack2": {"size": Vector3(3.6, 2.0, 2.4), "center": Vector3(0.0, 0.9, -1.2)},   # tajos
+		"attack4": {"radius": 2.4, "height": 2.0, "center": Vector3(0.0, 0.9, 0.0)},      # giro
+		"attack3": {"size": Vector3(3.0, 2.2, 3.0), "center": Vector3(0.0, 0.9, -1.5)},   # clavado
+	}
 
 	var _active_hitbox: Node3D = null
+
+	## Sustituye la forma de la escena del hitbox por la zona de este golpe (sin tocar la escena,
+	## que también usa el modo supervivencia).
+	static func _apply_hit_shape(hitbox: Node3D, hit: Dictionary) -> void:
+		# Un CollisionShape3D nuevo: cambiar la forma del de la escena no llegaba a la física (el área
+		# seguía detectando con la caja de 5,4 m)
+		var old := hitbox.get_node_or_null("CollisionShape3D")
+		if old:
+			hitbox.remove_child(old)
+			old.free()
+		var cs := CollisionShape3D.new()
+		cs.name = "CollisionShape3D"
+		hitbox.add_child(cs)
+		if hit.has("radius"):
+			var cyl := CylinderShape3D.new()
+			cyl.radius = float(hit["radius"])
+			cyl.height = float(hit["height"])
+			cs.shape = cyl
+		else:
+			var box := BoxShape3D.new()
+			box.size = hit["size"]
+			cs.shape = box
+		cs.transform = Transform3D(Basis.IDENTITY, hit["center"])
 	var _anim_connected: bool = false
 
 	func _connect_animation_signals() -> void:
@@ -440,36 +491,26 @@ class SpearLanceStrategy extends WeaponStrategy:
 
 		var mods: Dictionary = c.player.get_weapon_modifiers(WeaponData.WeaponType.SPEAR_LANCE)
 		var base_dmg = c.player._weapon_damage(WeaponData.WeaponType.SPEAR_LANCE)
+		var size_k := float(mods.get("size", 1.0))
 		var dmg = base_dmg
 		var kb = 6.0
-		var box_size = Vector3(1.0, 1.0, 1.8) * float(mods.get("size", 1.0))
-		var offset = Vector3(0, 0.8, -1.3)
+		var hit: Dictionary = HIT_SHAPES.get(anim_name, HIT_SHAPES["attack1"])
 
 		# Combo: estocada (1) → dos tajos horizontales (2) → salto y clavado en el suelo (3, el más fuerte)
 		var shake := 0.14
 		var stop := 0.0
 		if anim_name == "attack1":
-			dmg = base_dmg
 			kb = 7.0
-			box_size = Vector3(0.9, 1.0, 2.4) * float(mods.get("size", 1.0))
-			offset = Vector3(0, 0.8, -1.7)
 		elif anim_name == "attack2":
-			dmg = base_dmg * 0.85           # dos tajos: cada uno un poco menos
-			kb = 6.0
-			box_size = Vector3(3.6, 1.0, 1.8) * float(mods.get("size", 1.0))
-			offset = Vector3(0, 0.8, -1.1)
+			dmg = base_dmg * ATTACK2_DAMAGE_MULT   # dos tajos: cada uno bastante menos
 			shake = 0.2
 		elif anim_name == "attack4":
-			dmg = base_dmg * 0.95           # slash giratorio: alrededor de Mikeura
+			dmg = base_dmg * 0.8            # slash giratorio: alrededor de Mikeura
 			kb = 5.0
-			box_size = Vector3(2.6, 1.0, 2.6) * float(mods.get("size", 1.0))
-			offset = Vector3(0, 0.8, 0.0)
 			shake = 0.2
 		elif anim_name == "attack3":
 			dmg = base_dmg * ATTACK3_DAMAGE_MULT
 			kb = 14.0
-			box_size = Vector3(2.8, 1.6, 3.0) * float(mods.get("size", 1.0))
-			offset = Vector3(0, 0.8, -1.4)
 			shake = 0.65
 			stop = 0.07
 
@@ -478,10 +519,12 @@ class SpearLanceStrategy extends WeaponStrategy:
 			dmg *= c.player.parry_bonus_mult()
 
 		var spear_scene = preload("res://scenes/objects/spear_lance_hitbox.tscn").instantiate()
+		# La forma se cambia ANTES de entrar al árbol: si no, la física ya registró la caja de la escena
+		_apply_hit_shape(spear_scene, hit)
 		c.player.mesh.add_child(spear_scene)
-		spear_scene.position = offset
+		spear_scene.position = Vector3.ZERO
 		spear_scene.rotation = Vector3.ZERO
-		spear_scene.scale = box_size
+		spear_scene.scale = Vector3.ONE * size_k
 		_scale_melee(spear_scene)
 		spear_scene.source_weapon = WeaponData.WeaponType.SPEAR_LANCE
 		spear_scene.source_player = c.player
@@ -493,7 +536,7 @@ class SpearLanceStrategy extends WeaponStrategy:
 			HitFeedback.freeze(stop)
 		_play_swing_sound(anim_name)
 		if anim_name == "attack3":
-			_slam_effects(spear_scene.global_position, box_size.x)
+			_slam_effects(spear_scene.to_global(hit["center"]), float(hit["size"].x) * 0.75 * size_k * _melee_size())
 
 		var trail: BladeTrail = c.player.weapon_visuals.spear_trail if c.player.weapon_visuals else null
 		if is_instance_valid(trail) and trail.is_visible_in_tree():
@@ -516,23 +559,6 @@ class SpearLanceStrategy extends WeaponStrategy:
 				AudioManager.play("impact_blunt", -6.0, 0.6)
 			_:
 				AudioManager.play("swing_sweep", -4.0, pitch)
-
-	## Clavado del salto: onda expansiva verde en el suelo y polvo levantado.
-	func _slam_effects(at: Vector3, radius: float) -> void:
-		var root := c.player.get_tree().current_scene
-		if root == null:
-			return
-		var ground := Vector3(at.x, c.player.global_position.y + 0.05, at.z)
-		NecroVFX.shockwave(root, ground, radius * 1.4, Color(0.3, 1.0, 0.55))
-		var dust := DustVFX.haze(Quality.count(22), 0.9, radius * 0.6, 0.6, 1.4, Color(0.75, 0.68, 0.55), 0.3)
-		dust.one_shot = true
-		dust.explosiveness = 0.95
-		dust.initial_velocity_min = 1.5
-		dust.initial_velocity_max = 3.5
-		root.add_child(dust)
-		dust.global_position = ground + Vector3(0, 0.15, 0)
-		dust.emitting = true
-		root.get_tree().create_timer(1.4).timeout.connect(dust.queue_free)
 
 	func _on_dungeon_hit_closed(_attack_id: int) -> void:
 		if is_instance_valid(_active_hitbox):
@@ -732,27 +758,31 @@ class SpearLanceStrategy extends WeaponStrategy:
 	func throw_spear_charged(power: float) -> void:
 		if c.player.current_weapon() != WeaponData.WeaponType.SPEAR_LANCE: return
 		c.attack_cooldown = c.SPEAR_THROW_CD * 0.6
-		c.face_locked_target()
-		var target = c.player.get("auto_combat_target")
-		# Mazmorra: el objetivo fijado manda sobre el combate automático
-		var lock = c.player.get("target_lock")
-		if lock != null and lock.has_target():
-			target = lock.target
-		# Sin objetivo fijado, pequeña ayuda: engancha al enemigo más alineado del cono corto.
-		if not is_instance_valid(target):
-			target = c.face_aim_assist_enemy()
-		var forward: Vector3 = -c.player.mesh.global_transform.basis.z
-		forward.y = 0.0
-		var aim_dir := forward.normalized()
-		var start_pos: Vector3 = c.player.global_position + Vector3(0, 1.3, 0) + aim_dir * 0.6
-		if is_instance_valid(target):
-			aim_dir = ((target.global_position + Vector3(0, 0.9, 0)) - start_pos).normalized()
+		var aim_dir: Vector3
+		var start_pos: Vector3
+		if GameData.game_mode == "dungeon":
+			# Como la bazuca y los polvos: sale hacia el crosshair (o el objetivo fijado), con su inclinación
+			var flat := _dungeon_aim()
+			_face(flat, 0.45)
+			start_pos = c.player.global_position + Vector3(0, 1.3, 0) + flat * 0.6
+			aim_dir = _dungeon_shot_dir(start_pos)
+		else:
+			var target = c.player.get("auto_combat_target")
+			# Sin objetivo, pequeña ayuda: engancha al enemigo más alineado del cono corto.
+			if not is_instance_valid(target):
+				target = c.face_aim_assist_enemy()
+			var forward: Vector3 = -c.player.mesh.global_transform.basis.z
+			forward.y = 0.0
+			aim_dir = forward.normalized()
+			start_pos = c.player.global_position + Vector3(0, 1.3, 0) + aim_dir * 0.6
+			if is_instance_valid(target):
+				aim_dir = ((target.global_position + Vector3(0, 0.9, 0)) - start_pos).normalized()
 		var dmg_mult: float = c.player.stat_block.damage_mult() if c.player.stat_block else 1.0
 		var proj = c.spear_projectile_scene.instantiate()
 		c.player.get_parent().add_child(proj)
 		proj.global_position = start_pos
 		_scale_ranged(proj)
-		proj.setup(aim_dir, lerpf(34.0, 70.0, power), lerpf(25.0, 90.0, power) * dmg_mult, c.player.get_rid())
+		proj.setup(aim_dir, lerpf(34.0, 70.0, power), lerpf(20.0, 70.0, power) * dmg_mult, c.player.get_rid())
 		if proj.has_method("make_espalanza"):
 			proj.make_espalanza(power)
 		if c.player.animation_controller:
@@ -764,6 +794,11 @@ class SpearLanceStrategy extends WeaponStrategy:
 		c.player.apply_camera_recoil(0.01 + 0.02 * power, 0.0, 0.08 + 0.12 * power)
 
 	## Called by the thrown spear when it lands / returns to the c.player.
+
+	## Mientras se carga el lanzamiento (mazmorra), Mikeura sigue a la mira: mover la cámara apunta.
+	func face_charge_aim() -> void:
+		if GameData.game_mode == "dungeon":
+			_face(_dungeon_aim(), 0.2)
 
 	func on_spear_returned() -> void:
 		c.is_spear_thrown = false
@@ -1668,3 +1703,372 @@ class ZombieArmStrategy extends WeaponStrategy:
 		AudioManager.play("ataque-espalanza", -12.0, 0.8)
 		
 		c.player.apply_camera_recoil(0.015, randf_range(-0.005, 0.005), 0.05)
+
+
+## ── Armas cuerpo a cuerpo con combo animado (mazmorra): Dagas Gemelas y Maza Rúnica ──
+## Como la espalanza: el golpe sale cuando la animación abre su ventana (hit_window_opened) y la zona de
+## golpe es una forma a medida por acción, en ejes del personaje (mira a -Z, centro en los pies).
+## HITS: acción -> {"size"|"radius"+"height", "center", "dmg" (× daño del arma), "kb", "shake",
+## "stun" (fracción extra de la barra de aturdimiento), "sfx": [nombre, dB, tono]}.
+class ComboMeleeStrategy extends WeaponStrategy:
+	var weapon: int = -1
+	var hits: Dictionary = {}
+	var _active_hitbox: Node3D = null
+	var _anim_connected := false
+
+	func _connect_animation_signals() -> void:
+		if _anim_connected:
+			return
+		var ac = c.player.animation_controller if (c.player and is_instance_valid(c.player)) else null
+		if ac and ac.has_signal("hit_window_opened"):
+			ac.hit_window_opened.connect(_on_hit_opened)
+			ac.hit_window_closed.connect(_on_hit_closed)
+			_anim_connected = true
+
+	func _on_hit_opened(_attack_id: int, anim_name: String) -> void:
+		if not is_instance_valid(c.player) or not c.player.is_inside_tree():
+			return
+		if c.player.current_weapon() != weapon or not hits.has(anim_name):
+			return
+		if is_instance_valid(_active_hitbox):
+			_active_hitbox.queue_free()
+		if not c.face_locked_target():
+			c.assist_spear_facing()
+		var h: Dictionary = hits[anim_name]
+		var dmg: float = c.player._weapon_damage(weapon) * float(h["dmg"])
+		if c.player.has_method("parry_bonus_mult"):
+			dmg *= c.player.parry_bonus_mult()
+		_active_hitbox = _spawn_hitbox(h, dmg, 0.3)
+		HitFeedback.shake(float(h["shake"]))
+		var sfx: Array = h["sfx"]
+		AudioManager.play(sfx[0], sfx[1], float(sfx[2]) * randf_range(0.94, 1.06))
+		_emit_trails(0.3)
+		_on_strike(anim_name, h)
+
+	func _on_hit_closed(_attack_id: int) -> void:
+		if is_instance_valid(_active_hitbox):
+			_active_hitbox.queue_free()
+			_active_hitbox = null
+
+	## Zona de golpe colgada del personaje (le sigue mientras dura).
+	func _spawn_hitbox(h: Dictionary, dmg: float, duration: float, dir: Vector3 = Vector3.ZERO) -> Node3D:
+		var mods: Dictionary = c.player.get_weapon_modifiers(weapon)
+		var hb = preload("res://scenes/objects/spear_lance_hitbox.tscn").instantiate()
+		SpearLanceStrategy._apply_hit_shape(hb, h)    # antes de entrar al árbol (ver la espalanza)
+		c.player.mesh.add_child(hb)
+		hb.scale = Vector3.ONE * float(mods.get("size", 1.0))
+		_scale_melee(hb)
+		hb.source_weapon = weapon
+		hb.source_player = c.player
+		hb.stun_fraction = float(h.get("stun", 0.0))
+		var fwd: Vector3 = -c.player.mesh.global_transform.basis.z.normalized()
+		hb.setup(dmg, duration, float(h["kb"]), dir if dir != Vector3.ZERO else fwd)
+		return hb
+
+	func _emit_trails(_duration: float) -> void:
+		pass
+
+	## Gancho para efectos propios de cada golpe (p. ej. el mazazo vertical).
+	func _on_strike(_anim_name: String, _h: Dictionary) -> void:
+		pass
+
+	func attack(cd_mult: float) -> void:
+		_connect_animation_signals()
+		c.attack_cooldown = c.player.get_weapon_data(weapon).base_cooldown * cd_mult
+		if GameData.game_mode == "dungeon":
+			return     # el golpe lo genera _on_hit_opened cuando la animación llega a su ventana
+		# Supervivencia (sin animaciones de combo): golpe inmediato con la zona del primer golpe
+		if not c.face_locked_target():
+			c.assist_spear_facing()
+		var first: Dictionary = hits.values()[0]
+		var hb := _spawn_hitbox(first, c.player._weapon_damage(weapon) * float(first["dmg"]), 0.2)
+		hb.reparent(c.player.get_parent())
+		var sfx: Array = first["sfx"]
+		AudioManager.play(sfx[0], sfx[1], float(sfx[2]))
+
+	## Recurso del especial: se cobra solo si el especial va a salir de verdad (no en enfriamiento).
+	func _pay_special() -> bool:
+		var res = c.player.get("resources")
+		return res == null or res.spend(weapon, true)
+
+
+class DaggersStrategy extends ComboMeleeStrategy:
+	## Embestida (click derecho): sale disparado hacia la mira, invulnerable, y corta a todos los
+	## enemigos que atraviesa (cada uno una vez).
+	const DASH_SPEED := 24.0              ## m/s iniciales (el dash se frena solo: ~4 m de recorrido)
+	const DASH_TIME := 0.3
+	const DASH_COOLDOWN := 1.1
+	const DASH_DAMAGE_MULT := 1.8
+	const DASH_HIT := {"size": Vector3(1.8, 2.0, 2.4), "center": Vector3(0.0, 0.9, -0.5), "dmg": DASH_DAMAGE_MULT,
+		"kb": 4.0, "shake": 0.2, "stun": 0.1, "sfx": ["swing_spin", -2.0, 1.4]}
+	var _dash_ready_at := 0.0
+
+	func _init(controller: PlayerCombatController) -> void:
+		super(controller)
+		weapon = WeaponData.WeaponType.DAGGERS
+		var light := {"size": Vector3(1.5, 1.8, 2.1), "center": Vector3(0.0, 0.9, -1.0), "dmg": 1.0,
+			"kb": 3.0, "shake": 0.08, "stun": 0.0, "sfx": ["swing_light", -4.0, 1.35]}
+		hits = {
+			"dagger1": light,
+			"dagger2": light,
+			# Torbellino: una vuelta completa, corta todo alrededor
+			"dagger3": {"radius": 2.2, "height": 1.8, "center": Vector3(0.0, 0.9, 0.0), "dmg": 1.2,
+				"kb": 5.0, "shake": 0.14, "stun": 0.0, "sfx": ["swing_spin", -3.0, 1.4]},
+		}
+
+	func _emit_trails(duration: float) -> void:
+		var vis = c.player.weapon_visuals
+		if vis == null:
+			return
+		for t in vis.dagger_trails:
+			if is_instance_valid(t) and t.is_visible_in_tree():
+				t.emit(duration)
+
+	func dash_cooldown_left() -> float:
+		return maxf(_dash_ready_at - Time.get_ticks_msec() / 1000.0, 0.0)
+
+	func dagger_dash() -> bool:
+		var now := Time.get_ticks_msec() / 1000.0
+		if now < _dash_ready_at or (c.player.movement_controller and c.player.movement_controller.is_dodging()):
+			return false
+		if not _pay_special():
+			return false
+		_dash_ready_at = now + DASH_COOLDOWN
+		_connect_animation_signals()
+		var dir := _dungeon_aim() if GameData.game_mode == "dungeon" else _flat_forward()
+		_face(dir, DASH_TIME + 0.1)
+		var ac = c.player.animation_controller
+		if ac:
+			ac.cancel_action()
+			ac.play_action(PlayerAnimationController.DAGGER_DASH)
+		var mc = c.player.movement_controller
+		if mc:
+			mc.add_dash(dir * DASH_SPEED)
+		if c.player.health_comp and c.player.health_comp.has_method("set_invincibility"):
+			c.player.health_comp.set_invincibility(DASH_TIME)
+		c.attack_cooldown = maxf(c.attack_cooldown, DASH_TIME + 0.05)
+		var dmg: float = c.player._weapon_damage(weapon) * DASH_DAMAGE_MULT
+		_spawn_hitbox(DASH_HIT, dmg, DASH_TIME + 0.05, dir)
+		_emit_trails(DASH_TIME + 0.1)
+		AudioManager.play("dodge", -3.0, 1.25)
+		AudioManager.play("swing_spin", -2.0, 1.4)
+		HitFeedback.shake(0.15)
+		return true
+
+	func _flat_forward() -> Vector3:
+		var f: Vector3 = -c.player.mesh.global_transform.basis.z
+		f.y = 0.0
+		return f.normalized() if f.length_squared() > 0.0001 else Vector3.FORWARD
+
+
+class MaceStrategy extends ComboMeleeStrategy:
+	## Mazazo al suelo (click derecho): onda expansiva alrededor del punto de impacto que daña (menos en
+	## el borde), empuja hacia fuera y llena buena parte de la barra de aturdimiento.
+	const SLAM_COOLDOWN := 5.0
+	const SLAM_IMPACT := 0.6             ## s del clip mace_slam en que la maza toca el suelo (tras el salto)
+	const SLAM_RADIUS := 5.0
+	const SLAM_REACH := 1.9              ## el impacto queda delante de los pies (cae hacia delante)
+	const SLAM_DAMAGE_MULT := 2.4
+	const SLAM_EDGE_DAMAGE := 0.5        ## fracción del daño en el borde de la onda
+	const SLAM_STUN := 0.6
+	const SLAM_KNOCK := 11.0
+	## Golpes que acaban contra el suelo: segundos del clip en que la cabeza de la maza lo toca (fotograma 24).
+	## La ventana de golpe se abre algo antes; el impacto (parón, sonido, onda, cráter) espera a este instante.
+	const GROUND_HIT := {"mace1": 0.767, "mace4": 0.767}
+	const CRATER := {"mace1": [1.0, 1.0], "mace4": [1.15, 1.25]}   ## [radio m, fuerza] del cráter
+	var _slam_ready_at := 0.0
+
+	func _init(controller: PlayerCombatController) -> void:
+		super(controller)
+		weapon = WeaponData.WeaponType.MACE
+		GroundImpactVFX._ensure_assets()   # texturas del cráter ya hechas antes del primer golpe
+		# Maza de dos manos de ~1,7 m: llega bastante más lejos que la espalanza
+		hits = {
+			"mace1": {"size": Vector3(3.0, 2.4, 3.6), "center": Vector3(0.0, 0.9, -1.8), "dmg": 1.0,
+				"kb": 11.0, "shake": 0.45, "stun": 0.25, "sfx": ["slam_boom", -3.0, 1.15]},
+			"mace2": {"size": Vector3(5.0, 2.2, 3.4), "center": Vector3(0.0, 0.9, -1.3), "dmg": 0.9,
+				"kb": 12.0, "shake": 0.35, "stun": 0.25, "sfx": ["swing_sweep", -1.0, 0.6]},
+			# Helicóptero: vuelta completa con la maza estirada
+			"mace3": {"radius": 3.0, "height": 2.2, "center": Vector3(0.0, 0.9, 0.0), "dmg": 1.3,
+				"kb": 14.0, "shake": 0.4, "stun": 0.35, "sfx": ["swing_spin", -1.0, 0.55]},
+			# Cierre del combo: la saca del suelo, la sube y la deja caer en vertical (más daño y aturdimiento)
+			"mace4": {"size": Vector3(2.6, 2.4, 3.6), "center": Vector3(0.0, 0.9, -1.8), "dmg": 1.35,
+				"kb": 13.0, "shake": 0.55, "stun": 0.4, "sfx": ["slam_boom", -2.0, 1.0]},
+		}
+
+	func _emit_trails(duration: float) -> void:
+		var t: BladeTrail = c.player.weapon_visuals.mace_trail if c.player.weapon_visuals else null
+		if is_instance_valid(t) and t.is_visible_in_tree():
+			t.emit(duration)
+
+	func _on_strike(anim_name: String, h: Dictionary) -> void:
+		if not GROUND_HIT.has(anim_name):
+			return
+		var window: Array = PlayerAnimationController.attack_windows(anim_name)[0]
+		var speed: float = PlayerAnimationController.COMBOS[weapon]["speed"]
+		var wait := maxf(float(GROUND_HIT[anim_name]) - float(window[0]), 0.0) / speed
+		c.player.get_tree().create_timer(wait).timeout.connect(_ground_hit.bind(anim_name, h))
+
+	## La diagonal y el vertical acaban contra el suelo: golpe seco, pequeña onda y cráter con tierra volando
+	## (parón largo: la maza pesa).
+	func _ground_hit(anim_name: String, h: Dictionary) -> void:
+		if not is_instance_valid(c.player) or not c.player.is_inside_tree():
+			return
+		var ac = c.player.animation_controller
+		if ac == null or ac._current_action_name != anim_name:
+			return   # el golpe se cortó (esquiva, parada...) antes de llegar al suelo
+		HitFeedback.freeze(0.14 if anim_name == "mace4" else 0.12)
+		AudioManager.play("impact_blunt", -5.0, 0.6)
+		var at: Vector3 = c.player.mesh.to_global(h["center"])
+		_slam_effects(at, 1.6 * _melee_size())
+		var cr: Array = CRATER[anim_name]
+		GroundImpactVFX.spawn(c.player.get_tree().current_scene, at, float(cr[0]) * _melee_size(), float(cr[1]))
+
+	func slam_cooldown_left() -> float:
+		return maxf(_slam_ready_at - Time.get_ticks_msec() / 1000.0, 0.0)
+
+	func mace_slam() -> bool:
+		var now := Time.get_ticks_msec() / 1000.0
+		if now < _slam_ready_at or (c.player.movement_controller and c.player.movement_controller.is_dodging()):
+			return false
+		var ac = c.player.animation_controller
+		var lib: AnimationLibrary = ac.anim_player.get_animation_library("") if ac and ac.anim_player else null
+		if lib == null or not lib.has_animation(PlayerAnimationController.MACE_SLAM):
+			return false
+		if not _pay_special():
+			return false
+		_slam_ready_at = now + SLAM_COOLDOWN
+		_connect_animation_signals()
+		_face(_dungeon_aim(), SLAM_IMPACT + 0.3)
+		ac.cancel_action()
+		ac.play_action(PlayerAnimationController.MACE_SLAM)
+		var length: float = lib.get_animation(PlayerAnimationController.MACE_SLAM).length
+		c.attack_cooldown = maxf(c.attack_cooldown, length * 0.85)
+		var mc = c.player.movement_controller
+		if mc:
+			mc.slow_until = now + length * 0.85
+			mc.slow_mult = 0.1
+		AudioManager.play("swing_spin", -4.0, 0.6)
+		c.player.get_tree().create_timer(SLAM_IMPACT).timeout.connect(_slam_impact)
+		return true
+
+	func _slam_impact() -> void:
+		if not is_instance_valid(c.player) or not c.player.is_inside_tree():
+			return
+		var fwd: Vector3 = -c.player.mesh.global_transform.basis.z
+		fwd.y = 0.0
+		fwd = fwd.normalized() if fwd.length_squared() > 0.0001 else Vector3.FORWARD
+		var mods: Dictionary = c.player.get_weapon_modifiers(weapon)
+		var radius: float = SLAM_RADIUS * float(mods.get("size", 1.0)) * _melee_size()
+		var at: Vector3 = c.player.global_position + fwd * SLAM_REACH
+		var dmg: float = c.player._weapon_damage(weapon) * SLAM_DAMAGE_MULT
+		if c.player.has_method("parry_bonus_mult"):
+			dmg *= c.player.parry_bonus_mult()
+		for e in EnemyRegistry.query_radius(at, radius + 1.0):
+			if not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if e.has_method("is_dead") and e.is_dead():
+				continue
+			var to: Vector3 = e.global_position - at
+			if absf(to.y) > 2.5:
+				continue
+			to.y = 0.0
+			var d := to.length() - EnemyQuery.radius_of(e)
+			if d > radius:
+				continue
+			var k := clampf(d / radius, 0.0, 1.0)
+			var push := (to / maxf(to.length(), 0.001)) if to.length_squared() > 0.0001 else fwd
+			HitFeedback.weapon_tag = weapon
+			e.take_damage(dmg * lerpf(1.0, SLAM_EDGE_DAMAGE, k), push * SLAM_KNOCK * lerpf(1.0, 0.5, k))
+			if e.has_method("add_stun_fraction"):
+				e.add_stun_fraction(SLAM_STUN)
+			if c.player.has_method("on_damage_dealt"):
+				c.player.on_damage_dealt(dmg, weapon)
+		_slam_effects(at, radius * 0.75)
+		GroundImpactVFX.spawn(c.player.get_tree().current_scene, at, 1.7 * _melee_size(), 1.8)
+		_emit_trails(0.2)
+		AudioManager.play("slam_boom", 2.0, 0.85)
+		AudioManager.play("impact_blunt", -4.0, 0.5)
+		HitFeedback.shake(0.8)
+		HitFeedback.freeze(0.08)
+
+
+class GreatswordStrategy extends ComboMeleeStrategy:
+	## Espadón (dos manos): tajo en diagonal, barrido y martillazo vertical (el clip "Great Sword Slash" cortado en
+	## tres) y, corriendo, una estocada con carrerilla. Sin especial: la mecánica propia es andar/correr (ver
+	## PlayerMovementController). El avance de cada golpe lo pone el root motion del clip.
+	## Segundo del clip en que el espadón toca el suelo en el martillazo (fotograma 99 del clip entero).
+	const GROUND_HIT := {"gs3": 0.74}
+	const CRATER := {"gs3": [1.0, 1.1]}   ## [radio m, fuerza] del cráter
+
+	func _init(controller: PlayerCombatController) -> void:
+		super(controller)
+		weapon = WeaponData.WeaponType.GREATSWORD
+		GroundImpactVFX._ensure_assets()
+		hits = {
+			"gs1": {"size": Vector3(3.6, 2.4, 4.0), "center": Vector3(0.0, 0.9, -1.9), "dmg": 1.0,
+				"kb": 9.0, "shake": 0.3, "stun": 0.15, "sfx": ["swing_sweep", -2.0, 0.8]},
+			"gs2": {"size": Vector3(5.6, 2.2, 3.8), "center": Vector3(0.0, 0.9, -1.5), "dmg": 1.1,
+				"kb": 11.0, "shake": 0.3, "stun": 0.2, "sfx": ["swing_sweep", -1.0, 0.7]},
+			# Martillazo vertical: cierra el combo (más daño y aturdimiento)
+			"gs3": {"size": Vector3(3.2, 2.6, 4.2), "center": Vector3(0.0, 0.9, -2.0), "dmg": 1.7,
+				"kb": 13.0, "shake": 0.5, "stun": 0.4, "sfx": ["slam_boom", -3.0, 1.05]},
+			# Estocada con carrerilla (ataque_si_va_corriendo): larga y estrecha
+			"gs_run": {"size": Vector3(2.8, 2.4, 5.0), "center": Vector3(0.0, 0.9, -2.5), "dmg": 1.5,
+				"kb": 12.0, "shake": 0.4, "stun": 0.25, "sfx": ["swing_spin", -2.0, 0.75]},
+		}
+
+	func _emit_trails(duration: float) -> void:
+		var t: BladeTrail = c.player.weapon_visuals.greatsword_trail if c.player.weapon_visuals else null
+		if is_instance_valid(t) and t.is_visible_in_tree():
+			t.emit(duration)
+
+	func _on_strike(anim_name: String, h: Dictionary) -> void:
+		if not GROUND_HIT.has(anim_name):
+			return
+		var window: Array = PlayerAnimationController.attack_windows(anim_name)[0]
+		var speed: float = PlayerAnimationController.COMBOS[weapon]["speed"]
+		var wait := maxf(float(GROUND_HIT[anim_name]) - float(window[0]), 0.0) / speed
+		c.player.get_tree().create_timer(wait).timeout.connect(_ground_hit.bind(anim_name, h))
+
+	## El martillazo acaba contra el suelo: parón, golpe seco, onda y cráter.
+	func _ground_hit(anim_name: String, h: Dictionary) -> void:
+		if not is_instance_valid(c.player) or not c.player.is_inside_tree():
+			return
+		var ac = c.player.animation_controller
+		if ac == null or ac._current_action_name != anim_name:
+			return   # el golpe se cortó (esquiva, parada...) antes de llegar al suelo
+		HitFeedback.freeze(0.1)
+		AudioManager.play("impact_blunt", -5.0, 0.7)
+		var at: Vector3 = c.player.mesh.to_global(h["center"])
+		_slam_effects(at, 1.4 * _melee_size(), Color(1.0, 0.8, 0.5))
+		var cr: Array = CRATER[anim_name]
+		GroundImpactVFX.spawn(c.player.get_tree().current_scene, at, float(cr[0]) * _melee_size(), float(cr[1]))
+
+
+class SwordStrategy extends ComboMeleeStrategy:
+	## Espada de una mano: tajo (sw1), revés (sw2) y el clip "combo" partido en el fotograma 40 en sus dos golpes
+	## (sw3, sw4); corriendo, el ataque con carrerilla (sw_run). Sin especial, como el espadón: anda y corre (ver
+	## PlayerMovementController). Golpes más cortos y rápidos que los del espadón; el avance lo pone el root motion.
+	func _init(controller: PlayerCombatController) -> void:
+		super(controller)
+		weapon = WeaponData.WeaponType.SWORD
+		hits = {
+			"sw1": {"size": Vector3(3.0, 2.2, 3.0), "center": Vector3(0.0, 0.9, -1.4), "dmg": 1.0,
+				"kb": 7.0, "shake": 0.22, "stun": 0.1, "sfx": ["swing_sweep", -3.0, 1.1]},
+			"sw2": {"size": Vector3(3.4, 2.2, 3.0), "center": Vector3(0.0, 0.9, -1.4), "dmg": 1.0,
+				"kb": 7.0, "shake": 0.22, "stun": 0.1, "sfx": ["swing_sweep", -3.0, 1.0]},
+			"sw3": {"size": Vector3(3.4, 2.2, 3.2), "center": Vector3(0.0, 0.9, -1.5), "dmg": 1.1,
+				"kb": 8.0, "shake": 0.25, "stun": 0.12, "sfx": ["swing_sweep", -2.0, 1.05]},
+			# Cierre del combo: más daño y empuje
+			"sw4": {"size": Vector3(3.0, 2.4, 3.8), "center": Vector3(0.0, 0.9, -1.8), "dmg": 1.45,
+				"kb": 11.0, "shake": 0.4, "stun": 0.25, "sfx": ["swing_spin", -2.0, 0.95]},
+			# Embestida corriendo: larga y estrecha
+			"sw_run": {"size": Vector3(2.6, 2.4, 4.4), "center": Vector3(0.0, 0.9, -2.2), "dmg": 1.35,
+				"kb": 10.0, "shake": 0.35, "stun": 0.2, "sfx": ["swing_spin", -2.0, 0.9]},
+		}
+
+	func _emit_trails(duration: float) -> void:
+		var t: BladeTrail = c.player.weapon_visuals.sword_trail if c.player.weapon_visuals else null
+		if is_instance_valid(t) and t.is_visible_in_tree():
+			t.emit(duration)

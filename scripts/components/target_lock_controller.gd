@@ -92,7 +92,8 @@ func feed_flick(dx: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	var pressed := false
-	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_TAB:
+	# Teclado: C (Tab abre el menú de pausa, Q cambia de arma). También clic central o botón táctil.
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_C:
 		pressed = true
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_MIDDLE:
 		pressed = true
@@ -100,15 +101,20 @@ func _unhandled_input(event: InputEvent) -> void:
 		toggle()
 		get_viewport().set_input_as_handled()
 
+## El botón táctil se lee en el paso de física: VirtualInput borra sus flags "just_pressed" al
+## final de cada paso de física, así que desde _process se perdía cuando el frame traía un paso.
+func _physics_process(_delta: float) -> void:
+	if VirtualInput.just_pressed_target:
+		VirtualInput.just_pressed_target = false     # se consume: solo cuenta una vez por pulsación
+		toggle()
+
 func _process(delta: float) -> void:
 	_t += delta
 	_switch_cd = maxf(_switch_cd - delta, 0.0)
 	_flick = lerpf(_flick, 0.0, minf(FLICK_DECAY * delta, 1.0))
 
 	var joy := Input.is_joy_button_pressed(0, JOY_BUTTON_RIGHT_STICK)
-	var touch_pressed: bool = VirtualInput.just_pressed_target
-	VirtualInput.just_pressed_target = false     # se consume: solo cuenta una vez por pulsación
-	if (joy and not _joy_was_pressed) or touch_pressed:
+	if joy and not _joy_was_pressed:
 		toggle()
 	_joy_was_pressed = joy
 

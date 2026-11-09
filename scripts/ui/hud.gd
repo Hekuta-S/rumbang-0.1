@@ -34,7 +34,9 @@ var weapon_textures: Dictionary = {
 	"Lanzallamas": preload("res://assets/ui/ingame_hub/armas/lanzallamas.png"),
 	"Cañón Railgun": preload("res://assets/ui/ingame_hub/armas/magia-saimon.png"),
 	"Rifle de Plasma": preload("res://assets/ui/ingame_hub/armas/pistola.png"),
-	"Polvos Alquímicos": preload("res://assets/ui/ingame_hub/armas/polvos.png")
+	"Polvos Alquímicos": preload("res://assets/ui/ingame_hub/armas/polvos.png"),
+	"Dagas Gemelas": preload("res://assets/ui/ingame_hub/armas/dagas.png"),
+	"Maza Rúnica": preload("res://assets/ui/ingame_hub/armas/maza.png")
 }
 @onready var stats_panel: Control = $Control/StatsPanel
 var _last_stats: Array = []

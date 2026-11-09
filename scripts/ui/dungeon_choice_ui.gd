@@ -60,7 +60,7 @@ func _build() -> void:
 	vbox.add_child(_info)
 	_row = HBoxContainer.new()
 	_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	_row.add_theme_constant_override("separation", 22)
+	_row.add_theme_constant_override("separation", 12 if _options.size() > 5 else 22)
 	vbox.add_child(_row)
 	if keep_open:
 		var close := Button.new()
@@ -94,7 +94,9 @@ func _fill() -> void:
 func _card(o: Dictionary, number: int) -> Button:
 	var col_c: Color = o.get("color", Style.ACCENT)
 	var b := Button.new()
-	b.custom_minimum_size = Vector2(230, 250)
+	# Con muchas opciones (la forja de Tatan vende también equipo) las cartas se estrechan para caber
+	var many := _options.size() > 5
+	b.custom_minimum_size = Vector2(186 if many else 230, 300 if many else 250)
 	b.focus_mode = Control.FOCUS_ALL
 	b.disabled = bool(o.get("disabled", false))
 	for st in ["normal", "hover", "pressed", "focus", "disabled"]:
@@ -114,9 +116,9 @@ func _card(o: Dictionary, number: int) -> Button:
 	col.add_theme_constant_override("separation", 10)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(col)
-	col.add_child(_label(str(o.get("icon", "")), 44, Color.WHITE))
-	col.add_child(_label("%d · %s" % [number, o["title"]], 13, col_c))
-	col.add_child(_label(str(o.get("desc", "")), 11, Style.TEXT))
+	col.add_child(_label(str(o.get("icon", "")), 36 if many else 44, Color.WHITE))
+	col.add_child(_label("%d · %s" % [number, o["title"]], 12 if many else 13, col_c))
+	col.add_child(_label(str(o.get("desc", "")), 10 if many else 11, Style.TEXT))
 	var price := int(o.get("price", -1))
 	if price >= 0:
 		col.add_child(_label("%d ORO" % price, 13, Style.TITLE if not b.disabled else Style.TEXT_DIM))
@@ -130,7 +132,7 @@ func _label(text: String, size: int, color: Color) -> Label:
 	l.text = text
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.custom_minimum_size = Vector2(200, 0)
+	l.custom_minimum_size = Vector2(200 if _options.size() <= 5 else 160, 0)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", color)

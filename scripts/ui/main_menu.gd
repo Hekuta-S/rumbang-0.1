@@ -34,10 +34,43 @@ var upgrades_panel: ColorRect
 var lbl_gold: Label
 var upgrades_container: VBoxContainer
 
+## Incrustado en el Salón (DungeonHub): sin fondo ni columna de botones, solo los paneles de mejoras y
+## logros y los ajustes, que se abren con open_panel(); al cerrarlos avisa con panel_closed.
+var embedded := false
+signal panel_closed
+
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	theme = Style.get_theme()
+	if embedded:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		center_container = Control.new()   # los paneles la muestran al volver; aquí no se ve
+		center_container.visible = false
+		add_child(center_container)
+		_play_menu = PanelContainer.new()
+		_play_menu.visible = false
+		add_child(_play_menu)
+		_build_upgrades_panel()
+		_build_codex_panel()
+		return
 	_build_ui()
+
+## "mejoras", "logros" o "ajustes" (solo en modo incrustado).
+func open_panel(kind: String) -> void:
+	match kind:
+		"mejoras":
+			_on_upgrades_menu()
+		"logros":
+			_on_codex_menu()
+		"ajustes":
+			_on_options_menu()
+
+func _panel_back(panel: Control) -> void:
+	panel.hide()
+	if embedded:
+		panel_closed.emit()
+	else:
+		center_container.show()
 
 func _build_ui() -> void:
 	_build_background()
@@ -175,12 +208,11 @@ func _build_play_menu() -> void:
 	hint.custom_minimum_size = Vector2(330, 34)
 	hint.add_theme_font_size_override("font_size", 11)
 	hint.add_theme_color_override("font_color", C_TEXT_DIM)
-	var modes := []
-	# Un botón de mazmorra por mundo (WorldDefs)
-	for id in WorldDefs.ORDER:
-		var w: Dictionary = WorldDefs.get_def(id)
-		modes.append(["  MAZMORRA: %s" % str(w["name"]).to_upper(), "%s Combate a mano, nivel a nivel." % w["subtitle"],
-			_on_play_dungeon.bind(id)])
+	# Las mazmorras tienen su propio menú: el Salón de la Invocación (DungeonHub), con su intro
+	var modes := [
+		["  MAZMORRAS", "El rey y su mago te invocan a su mundo: cavernas, cloacas y jefes, a mano y nivel a nivel.",
+			_on_dungeon_hub],
+	]
 	modes += [
 		["  SUPERVIVENCIA", "Hordas sin fin en campo abierto: aguanta todo lo que puedas.", _on_play],
 		["  MULTIJUGADOR", "Mazmorra cooperativa en tu wifi u online, hasta 4 jugadores.", func(): get_tree().change_scene_to_file("res://scenes/ui/lobby_menu.tscn")],
@@ -307,10 +339,7 @@ func _build_upgrades_panel() -> void:
 	
 	var btn_back := _make_button("VOLVER", C_BTN_BORDER)
 	btn_back.custom_minimum_size = Vector2(150, 40)
-	btn_back.pressed.connect(func():
-		upgrades_panel.hide()
-		center_container.show()
-	)
+	btn_back.pressed.connect(func(): _panel_back(upgrades_panel))
 	header.add_child(btn_back)
 	
 	var scroll := ScrollContainer.new()
@@ -394,6 +423,10 @@ func _on_play() -> void:
 	GameData.game_mode = "survival"
 	SceneLoader.load_scene("res://scenes/ui/character_select.tscn")
 
+func _on_dungeon_hub() -> void:
+	GameData.game_mode = "dungeon"
+	SceneLoader.load_scene("res://scenes/ui/dungeon_hub.tscn")
+
 func _on_play_dungeon(world: String = WorldDefs.DEFAULT) -> void:
 	GameData.game_mode = "dungeon"
 	GameData.world = world
@@ -449,10 +482,7 @@ func _build_codex_panel() -> void:
 	header.add_child(spacer)
 	var btn_back := _make_button("VOLVER", C_BTN_BORDER)
 	btn_back.custom_minimum_size = Vector2(150, 40)
-	btn_back.pressed.connect(func():
-		codex_panel.hide()
-		center_container.show()
-	)
+	btn_back.pressed.connect(func(): _panel_back(codex_panel))
 	header.add_child(btn_back)
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -499,3 +529,5 @@ func _on_options_menu() -> void:
 	var SettingsMenu = load("res://scripts/ui/settings_menu.gd")
 	var sm = SettingsMenu.new()
 	add_child(sm)
+	if embedded:
+		sm.tree_exited.connect(func(): panel_closed.emit())

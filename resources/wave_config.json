@@ -7,7 +7,7 @@
 		},
 		{
 			"type": 2,
-			"weight": 33,
+			"weight": 15,
 			"is_zombie": false
 		},
 		{
@@ -47,7 +47,7 @@
 				},
 				{
 					"type": 2,
-					"weight": 20,
+					"weight": 8,
 					"is_zombie": false
 				}
 			]
@@ -62,7 +62,7 @@
 				},
 				{
 					"type": 2,
-					"weight": 32,
+					"weight": 14,
 					"is_zombie": false
 				},
 				{
@@ -87,7 +87,7 @@
 				},
 				{
 					"type": 2,
-					"weight": 33,
+					"weight": 15,
 					"is_zombie": false
 				},
 				{
@@ -122,7 +122,7 @@
 				},
 				{
 					"type": 2,
-					"weight": 39,
+					"weight": 20,
 					"is_zombie": false
 				},
 				{

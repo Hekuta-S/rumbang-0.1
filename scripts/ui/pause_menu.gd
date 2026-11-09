@@ -10,6 +10,8 @@ const Style := preload("res://scripts/ui/rumbang_style.gd")
 signal restart_requested
 
 var retry_btn: Button
+var equip_btn: Button               ## pestaña EQUIPO (solo mazmorra, ver EquipmentPanel)
+var _equip_panel: EquipmentPanel
 
 func _ready():
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -22,7 +24,18 @@ func _ready():
 
 func _input(event):
 	if event.is_action_pressed("ui_cancel"):
+		if is_instance_valid(_equip_panel):
+			return   # el panel de equipo se cierra solo con su propio Esc
 		toggle()
+	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_TAB:
+		# Tab = lo que llevas: abre el menú directo en EQUIPO (equipado + mochila + estadísticas) y lo cierra
+		# del todo, también con el panel abierto. Sin sistema de equipo (supervivencia) abre solo la pausa.
+		if visible:
+			close_menu()
+		else:
+			open_menu()
+			open_equipment()
+		get_viewport().set_input_as_handled()
 
 ## En Android, el botón "atrás" pausa y reanuda en vez de cerrar el juego.
 func _notification(what: int) -> void:
@@ -53,8 +66,14 @@ func _apply_style() -> void:
 	retry_btn.pressed.connect(_on_retry_pressed)
 	vb.add_child(retry_btn)
 	vb.move_child(retry_btn, resume_btn.get_index() + 1)
+	equip_btn = Button.new()
+	equip_btn.name = "EquipBtn"
+	equip_btn.text = "EQUIPO"
+	equip_btn.pressed.connect(open_equipment)
+	vb.add_child(equip_btn)
+	vb.move_child(equip_btn, retry_btn.get_index() + 1)
 	# En el móvil los botones son más grandes (dedos) y el panel cabe en pantallas pequeñas
-	for btn in [resume_btn, retry_btn, menu_btn, options_btn, quit_btn]:
+	for btn in [resume_btn, retry_btn, equip_btn, menu_btn, options_btn, quit_btn]:
 		btn.custom_minimum_size = Vector2(0, 68 if mobile else 48)
 		if mobile:
 			btn.add_theme_font_size_override("font_size", 22)
@@ -118,7 +137,24 @@ func _refresh_stats_panel() -> void:
 	_stats_label.text = "
 ".join(lines)
 
+## Abre la pestaña EQUIPO encima del menú de pausa.
+func open_equipment() -> void:
+	var player := get_tree().get_first_node_in_group("player")
+	var eq = player.get("equipment") if player else null
+	if eq == null or is_instance_valid(_equip_panel):
+		return
+	_equip_panel = EquipmentPanel.create(eq, player.get("stat_block"))
+	$Control/Row.visible = false
+	_equip_panel.closed.connect(func():
+		$Control/Row.visible = true
+		if not Quality.is_mobile():
+			_refresh_stats_panel()
+		equip_btn.grab_focus.call_deferred())
+	$Control.add_child(_equip_panel)
+
 func open_menu():
+	var p := get_tree().get_first_node_in_group("player")
+	equip_btn.visible = p != null and p.get("equipment") != null
 	if not Quality.is_mobile():
 		_refresh_stats_panel()
 	visible = true
@@ -127,6 +163,9 @@ func open_menu():
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 func close_menu():
+	if is_instance_valid(_equip_panel):
+		_equip_panel.queue_free()
+		$Control/Row.visible = true
 	visible = false
 	get_tree().paused = false
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -142,7 +181,7 @@ func _on_retry_pressed():
 func _on_menu_pressed():
 	get_tree().paused = false
 	Net.leave()
-	SceneLoader.load_scene("res://scenes/ui/main_menu.tscn")
+	SceneLoader.load_scene("res://scenes/ui/dungeon_hub.tscn")
 
 func _on_options_pressed():
 	var SettingsMenu = load("res://scripts/ui/settings_menu.gd")

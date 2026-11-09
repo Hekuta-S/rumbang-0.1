@@ -8,7 +8,11 @@ signal chosen(weapon_type: int)
 
 const Style := preload("res://scripts/ui/rumbang_style.gd")
 const DESCRIPTIONS := {
-	WeaponData.WeaponType.SPEAR_LANCE: "Combo de tres golpes cuerpo a cuerpo. Click derecho: carga un lanzamiento.",
+	WeaponData.WeaponType.SPEAR_LANCE: "Combo de tres golpes cuerpo a cuerpo. Click derecho: carga un lanzamiento hacia la mira.",
+	WeaponData.WeaponType.DAGGERS: "Dos dagas: cortes muy rápidos y flojos. Click derecho: embestida que atraviesa a los enemigos.",
+	WeaponData.WeaponType.MACE: "Maza enorme a dos manos: golpes lentos y brutales que aturden. Click derecho: salto y mazazo al suelo con onda expansiva.",
+	WeaponData.WeaponType.GREATSWORD: "Espadón a dos manos: tres tajos pesados encadenados. Se anda despacio y se corre tras un rato sin combatir: el ataque al correr embiste.",
+	WeaponData.WeaponType.SWORD: "Espada de una mano: combo de cuatro golpes rápidos. Como el espadón, se anda y se corre tras un rato sin combatir, y el ataque al correr embiste.",
 	WeaponData.WeaponType.FLAME_THROWER: "Chorro de fuego continuo. Click derecho: explosión que empuja a todos (y a ti).",
 	WeaponData.WeaponType.SPORE_BAZOOKA: "Proyectil de esporas que estalla en una nube corrosiva. Click derecho: perdigonazo.",
 	WeaponData.WeaponType.TRI_SHOTGUN: "Escopetazo en cono a corta distancia. Click derecho: ráfaga de cuatro disparos.",
@@ -21,6 +25,8 @@ const ICONS := {
 	WeaponData.WeaponType.SPORE_BAZOOKA: "res://assets/ui/ingame_hub/armas/bazoka_esporas.png",
 	WeaponData.WeaponType.TRI_SHOTGUN: "res://assets/ui/ingame_hub/armas/escopeta.png",
 	WeaponData.WeaponType.DUSTS: "res://assets/ui/ingame_hub/armas/polvos.png",
+	WeaponData.WeaponType.DAGGERS: "res://assets/ui/ingame_hub/armas/dagas.png",
+	WeaponData.WeaponType.MACE: "res://assets/ui/ingame_hub/armas/maza.png",
 }
 
 var _options: Array = []

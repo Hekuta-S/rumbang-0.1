@@ -5,12 +5,14 @@ extends StaticBody3D
 ## Bloquea el paso del jugador (capa 1) y está en el grupo "destructibles":
 ## MeleeHitbox y las balas del jugador le llaman take_damage().
 ## Al romperse se parte en sus PIEZAS REALES, que salen con física:
-##  - Si existe <archivo>_pieces.glb (barril, caja: hechos pieza a pieza en Blender, ver
-##    blender_sources/dungeon_assets.blend, texto dungeon_props.py), esas piezas (duelas, aros, tablas).
+##  - Si existe <archivo>_pieces.glb (hechos pieza a pieza en blender_sources/dungeon_assets.blend:
+##    barril y caja en el texto dungeon_props.py, choza y tótem en dungeon_structures.py), esas piezas
+##    (duelas, aros, tablas; troncos, sectores del techo, cabezas talladas...).
 ##  - Si no, la malla del prop se parte en sus partes conectadas (troncos, techo, pieles...): las
 ##    MAX_SPLIT más grandes salen como piezas y el resto se pierde entre astillas y polvo.
-## Las piezas pequeñas (BURST_KINDS) revientan hacia fuera desde el lado del golpe; las estructuras
-## grandes se desploman. Luego se quedan en el suelo un rato y se hunden en él.
+## Las piezas pequeñas (BURST_KINDS) revientan hacia fuera desde el lado del golpe con una caja de
+## colisión; las estructuras grandes se desploman y chocan con su casco convexo. Luego se quedan en el
+## suelo un rato y se hunden en él.
 ## Además: astillas sueltas, polvo, sonido y un pequeño shake.
 
 signal destroyed(prop: DestructibleProp)
@@ -131,6 +133,9 @@ func _break(dir: Vector3) -> void:
 		_spawn_debris(pos, dir, 0.6)
 	_spawn_dust(pos)
 	HitFeedback.shake(0.15 if kind in BURST_KINDS else 0.35)
+	# Botín: cajas, barriles y bolsas pueden soltar una pieza de equipo (EquipmentPickup)
+	if kind in BURST_KINDS and get_parent():
+		EquipmentPickup.try_drop(get_parent(), global_position, EquipmentPickup.PROP_CHANCE)
 	destroyed.emit(self)
 	queue_free()
 
@@ -170,12 +175,26 @@ static func _pieces_for(p_kind: String, file: String, mesh: Mesh, mesh_xf: Trans
 				xf = (n as Node3D).transform * xf
 				n = n.get_parent()
 			var m := ProceduralMap.flatten_with(mi.mesh, mat)
-			out.append({"mesh": m, "xf": xf, "aabb": m.get_aabb()})
+			# tex_offset: la malla de la pieza está centrada en su origen; el shader lo suma para que la
+			# textura quede donde estaba en el prop entero
+			out.append({"mesh": m, "xf": xf, "aabb": m.get_aabb(), "tex_offset": xf.origin})
 		root.free()
 	else:
 		out = _split_components(mesh, mesh_xf, mat)
+	if p_kind not in BURST_KINDS:
+		for pc in out:
+			pc["hull"] = _hull_points(pc["mesh"], pc["xf"])
 	_pieces_cache[p_kind] = out
 	return out
+
+## Casco convexo de una pieza, centrado en su centro (espacio del prop): las piezas grandes y curvas de
+## las estructuras (sectores del techo, paredes) chocan con su forma y no con una caja que flota.
+static func _hull_points(m: Mesh, xf: Transform3D) -> PackedVector3Array:
+	var c := xf * m.get_aabb().get_center()
+	var pts := PackedVector3Array()
+	for q in m.create_convex_shape(true, true).points:
+		pts.append(xf * q - c)
+	return pts
 
 ## Parte la malla en sus partes conectadas. Los vértices con la misma posición se unen antes (glTF
 ## los duplica en las aristas duras). Devuelve las MAX_SPLIT más grandes.
@@ -184,6 +203,7 @@ static func _split_components(mesh: Mesh, mesh_xf: Transform3D, mat: Material) -
 	var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 	var nrm = arr[Mesh.ARRAY_NORMAL]
 	var col = arr[Mesh.ARRAY_COLOR]
+	var uv2 = arr[Mesh.ARRAY_TEX_UV2]           # clase de detalle (ProceduralMap.detail_class)
 	var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
 	var parent := PackedInt32Array()
 	parent.resize(v.size())
@@ -214,6 +234,7 @@ static func _split_components(mesh: Mesh, mesh_xf: Transform3D, mat: Material) -
 		var nv := PackedVector3Array()
 		var nn := PackedVector3Array()
 		var nc := PackedColorArray()
+		var nu := PackedVector2Array()
 		var ni := PackedInt32Array()
 		for t in tris:
 			for k in 3:
@@ -225,6 +246,8 @@ static func _split_components(mesh: Mesh, mesh_xf: Transform3D, mat: Material) -
 						nn.append(nrm[src])
 					if col != null:
 						nc.append(col[src])
+					if uv2 != null:
+						nu.append(uv2[src])
 				ni.append(remap[src])
 		var a := []
 		a.resize(Mesh.ARRAY_MAX)
@@ -233,6 +256,8 @@ static func _split_components(mesh: Mesh, mesh_xf: Transform3D, mat: Material) -
 			a[Mesh.ARRAY_NORMAL] = nn
 		if not nc.is_empty():
 			a[Mesh.ARRAY_COLOR] = nc
+		if not nu.is_empty():
+			a[Mesh.ARRAY_TEX_UV2] = nu
 		a[Mesh.ARRAY_INDEX] = ni
 		var m := ArrayMesh.new()
 		m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, a)
@@ -302,12 +327,22 @@ func _spawn_pieces(dir: Vector3) -> bool:
 		var mxf := Transform3D(Basis().scaled(Vector3.ONE * sc), Vector3.ZERO) * (p["xf"] as Transform3D)
 		mxf.origin -= local_center * sc
 		mi.transform = mxf
+		if p.has("tex_offset"):
+			mi.set_instance_shader_parameter("obj_offset", p["tex_offset"])
 		rb.add_child(mi)
 		var cs := CollisionShape3D.new()
-		var bs := BoxShape3D.new()
-		bs.size = size * 0.9
-		cs.shape = bs
-		cs.basis = (p["xf"] as Transform3D).basis.orthonormalized()
+		if p.has("hull"):
+			var pts := PackedVector3Array()
+			for q in (p["hull"] as PackedVector3Array):
+				pts.append(q * sc)
+			var hs := ConvexPolygonShape3D.new()
+			hs.points = pts
+			cs.shape = hs
+		else:
+			var bs := BoxShape3D.new()
+			bs.size = size * 0.9
+			cs.shape = bs
+			cs.basis = (p["xf"] as Transform3D).basis.orthonormalized()
 		rb.add_child(cs)
 		root.add_child(rb)
 		var world_center := rot * (local_center * sc)

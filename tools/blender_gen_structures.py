@@ -1,4 +1,5 @@
-"""Genera los modelos low poly de las estructuras goblin (totem, poste de calaveras, choza, tienda, empalizada, fogata, hongo y estalagmita).
+"""Genera los modelos low poly de las estructuras goblin (poste de calaveras, tienda, empalizada, fogata, hongo y estalagmita).
+La choza y el tótem se hacen pieza a pieza en blender_sources/dungeon_assets.blend (texto dungeon_structures.py).
 
 Uso (en Blender, con la escena vacía o no): exec(open(".../tools/blender_gen_structures.py").read())
 Exporta a assets/models/mapa/*.glb. Cada material lleva el color en el albedo y, si brilla, emisión
@@ -120,49 +121,6 @@ def export(name):
     _parts.clear()
 
 
-# ───────────────────────── Tótem (alto 3.4 m) ─────────────────────────
-def totem():
-    cyl("g_stone", (0, 0, 0), 0.62, 0.22, 8)
-    cyl("g_stone_dark", (0, 0, 0.22), 0.5, 0.16, 8)
-    for k in range(5):  # piedras sueltas del pie con musgo
-        a = k * 1.26
-        ico("g_moss" if k % 2 else "g_stone", (math.cos(a) * 0.62, math.sin(a) * 0.62, 0.1), 0.13, (1, 1, 0.7))
-    cyl("g_wood", (0, 0, 0.38), 0.3, 2.3, 8, r2=0.34)
-    # tres caras talladas, cada una con ceño, ojos verdes brillantes y boca
-    for i, z in enumerate((0.75, 1.5, 2.2)):
-        s = 1.0 - i * 0.08
-        box("g_wood_dark", (0, 0.27, z + 0.2), (0.5 * s, 0.14, 0.1))                 # ceño
-        box("g_paint" if i != 1 else "g_paint_white", (0, 0.3, z - 0.05), (0.46 * s, 0.05, 0.12))  # pintura de guerra
-        for sx in (-1, 1):
-            box("g_dark", (sx * 0.11 * s, 0.3, z + 0.08), (0.12 * s, 0.07, 0.1))
-            box("g_glow_green", (sx * 0.11 * s, 0.34, z + 0.08), (0.06, 0.03, 0.06))
-        box("g_dark", (0, 0.3, z - 0.2), (0.22 * s, 0.07, 0.12))                    # boca
-        for sx in (-0.08, 0, 0.08):
-            box("g_bone", (sx * s, 0.34, z - 0.18), (0.04, 0.03, 0.07))           # colmillos
-        box("g_wood_light", (0, 0.32, z + 0.0), (0.08, 0.1, 0.22))                  # nariz
-    # alas (tablones laterales con plumas)
-    box("g_wood_dark", (0, 0, 2.05), (2.2, 0.12, 0.14))
-    for sx in (-1, 1):
-        for k in range(5):
-            x = sx * (0.35 + k * 0.2)
-            cone("g_paint" if k % 2 == 0 else "g_paint_white", (x, 0, 2.05), 0.07, 0.5 - k * 0.03, (180, 0, 0), 4)
-        ico("g_bone", (sx * 1.08, 0, 2.05), 0.1)
-    # cabeza: calavera con cuernos y cristal verde flotante (las almas salen de aquí al romperse)
-    ico("g_bone", (0, 0.02, 2.85), 0.3, (1, 0.95, 0.9))
-    box("g_bone", (0, 0.24, 2.72), (0.24, 0.1, 0.14))
-    for sx in (-1, 1):
-        box("g_dark", (sx * 0.12, 0.24, 2.88), (0.12, 0.07, 0.12))
-        box("g_glow_green", (sx * 0.12, 0.27, 2.88), (0.06, 0.03, 0.06))
-        cone("g_bone", (sx * 0.24, 0, 3.0), 0.07, 0.42, (0, -sx * 28, 0), 5)
-    cone("g_glow_green", (0, 0, 3.22), 0.14, 0.4, (0, 0, 0), 4)
-    cone("g_glow_green", (0, 0, 3.22), 0.14, -0.25, (0, 0, 0), 4)
-    # enredaderas brillantes colgando
-    for k, (x, z) in enumerate(((0.3, 1.9), (-0.3, 1.2), (0.28, 0.9))):
-        cyl("g_moss", (x, 0.1, z - 0.4), 0.025, 0.5, 4)
-        ico("g_glow_green", (x, 0.1, z - 0.42), 0.06)
-    export("goblin_totem")
-
-
 # ───────────────────────── Poste de calaveras (2.8 m) ─────────────────────────
 def skull_pole():
     cyl("g_stone_dark", (0, 0, 0), 0.22, 0.14, 6)
@@ -181,44 +139,6 @@ def skull_pole():
         box("g_bone", (math.cos(a) * 0.12, math.sin(a) * 0.12, 0.7 + k * 0.1), (0.05, 0.05, 0.3), (20, 0, math.degrees(a)))
     box("g_rope", (0, 0, 1.97), (0.12, 0.12, 0.05))
     export("goblin_skull_pole")
-
-
-# ───────────────────────── Choza (alto 4.2 m, radio 2.3) ─────────────────────────
-def hut():
-    cyl("g_stone_dark", (0, 0, 0), 2.05, 0.28, 10)                                   # zócalo
-    cyl("g_wood", (0, 0, 0.28), 1.85, 1.6, 10, r2=1.78)                               # paredes
-    for k in range(10):                                                              # postes verticales
-        a = k * math.tau / 10 if hasattr(math, "tau") else k * 6.2832 / 10
-        cyl("g_wood_dark", (math.cos(a) * 1.84, math.sin(a) * 1.84, 0.28), 0.1, 1.7, 5)
-    cyl("g_wood_dark", (0, 0, 1.75), 1.9, 0.18, 10)                                   # viga superior
-    cyl("g_straw_dark", (0, 0, 1.9), 2.35, 0.35, 10, r2=1.9)                          # alero
-    cyl("g_straw", (0, 0, 2.2), 2.05, 1.2, 10, r2=1.0)                                # techo
-    cyl("g_straw", (0, 0, 3.3), 1.05, 0.9, 10, r2=0.18)
-    for k in range(6):                                                               # mechones de paja
-        a = k * 1.05
-        box("g_straw_dark", (math.cos(a) * 1.5, math.sin(a) * 1.5, 2.4), (0.5, 0.18, 0.1), (0, 0, math.degrees(a) + 90))
-    # puerta
-    box("g_dark", (0, 1.82, 1.0), (0.85, 0.12, 1.5))
-    box("g_wood_dark", (-0.5, 1.88, 1.0), (0.12, 0.14, 1.6))
-    box("g_wood_dark", (0.5, 1.88, 1.0), (0.12, 0.14, 1.6))
-    box("g_wood_dark", (0, 1.88, 1.82), (1.2, 0.14, 0.12))
-    box("g_hide_red", (0.0, 1.95, 1.7), (0.7, 0.04, 0.3))                             # cortina roja
-    # ventanas con luz anaranjada
-    for ang in (100, 220, 330):
-        a = math.radians(ang)
-        box("g_glow_orange", (math.cos(a) * 1.86, math.sin(a) * 1.86, 1.1), (0.34, 0.1, 0.34), (0, 0, ang - 90))
-        box("g_wood_dark", (math.cos(a) * 1.9, math.sin(a) * 1.9, 1.1), (0.46, 0.08, 0.46), (0, 0, ang - 90))
-    # cráneo sobre la puerta y cuernos en la cumbre
-    skull((0, 2.0, 1.95), 1.4, 0)
-    cyl("g_wood", (0, 0, 4.0), 0.06, 0.5, 5)
-    for sx in (-1, 1):
-        cone("g_bone", (sx * 0.15, 0, 4.1), 0.07, 0.6, (0, -sx * 35, 0), 5)
-    ico("g_bone", (0, 0, 4.0), 0.13)
-    # estacas y barriles del lateral
-    for k in range(7):
-        a = 0.6 + k * 0.38 + 1.9
-        cone("g_wood_dark", (math.cos(a) * 2.4, math.sin(a) * 2.4, 0.0), 0.08, 0.9, (0, 0, 0), 4)
-    export("goblin_hut")
 
 
 # ───────────────────────── Tienda (alto 2.7 m) ─────────────────────────
@@ -289,9 +209,7 @@ def stalagmite():
     export("cave_stalagmite")
 
 
-clear(); totem()
 clear(); skull_pole()
-clear(); hut()
 clear(); tent()
 clear(); palisade()
 clear(); campfire()

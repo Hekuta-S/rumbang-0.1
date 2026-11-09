@@ -121,6 +121,9 @@ var hit_height := 1.4
 var max_hp := 40.0
 var hp := 40.0
 var speed := 4.5
+var _force_dot := false               ## StatusEffects lo activa mientras aplica un tick de daño con el tiempo
+var _chill_until_ms := 0              ## escarcha: hasta cuándo va lento
+var _chill_factor := 1.0
 var attack_range := 1.0
 var damage := 0.5
 var gold_reward := 8
@@ -160,6 +163,19 @@ const ATTACK_PACE := 1.25
 const RECOVER_PACE := 1.2
 const EXTRA_REST := 0.25              ## s de más entre un ataque y el siguiente
 var face_player_dist := 4.0           ## en APPROACH mira al jugador (y no al camino) por debajo de esto
+## Fichas de ataque (ver AttackTokens): false = no consume ficha (a distancia y jefes siguen sus reglas)
+var uses_attack_token := true
+## Rodeo mientras espera ficha: banda de distancia al jugador (m) y velocidad relativa
+const WAIT_MIN := 3.4
+const WAIT_MAX := 5.6
+const WAIT_SPEED := 0.55
+const WAIT_SWITCH := 3.5              ## s medios entre cambios de sentido al rodear
+const TOKEN_RETRY := 0.15             ## s entre intentos de reservar ficha
+const TOKEN_PENALTY := 1.5            ## s sin reservar tras agotar la reserva sin atacar
+var _token_block_until := 0.0
+var _token_retry_at := 0.0
+var _wait_side := 1.0
+var _wait_t := 0.0
 var stun_ratio := 0.45                ## tamaño de la barra de aturdimiento = vida máxima × esto
 var show_hp_bar := true               ## barra de vida sobre la de aguante (los jefes ya tienen la suya en pantalla)
 var stun_parry := 0.4                 ## fracción de la barra que llena un parry
@@ -432,6 +448,56 @@ func _place_target_telegraph() -> void:
 func _approach_dir(to_p: Vector3, _dist: float, sees: bool) -> Vector3:
 	return _nav_dir(to_p, sees)
 
+## ¿Puede este enemigo comprometerse a atacar? Reserva/conserva su ficha si está cerca del jugador.
+## false = debe esperar rodeando (sin ficha libre dentro de ENGAGE_DIST).
+func _token_gate(dist: float) -> bool:
+	if not uses_attack_token or puppet:
+		return true
+	if dist > AttackTokens.ENGAGE_DIST:
+		AttackTokens.release(self)
+		return true
+	if AttackTokens.has(self):
+		if AttackTokens.held_for(self) > AttackTokens.RESERVE_MAX:
+			# Lleva demasiado con la ficha sin atacar: la suelta para que otro la use
+			AttackTokens.release(self)
+			_token_block_until = _clock + TOKEN_PENALTY
+			return false
+		return true
+	if _clock < _token_block_until or _clock < _token_retry_at:
+		return false
+	if AttackTokens.try_acquire(self):
+		return true
+	_token_retry_at = _clock + TOKEN_RETRY
+	return false
+
+## Los ataques con proyectil (babosas, hechiceros) no necesitan ficha.
+func _token_exempt(attack: String) -> bool:
+	var a: Dictionary = attacks[attack]
+	return a.get("ranged", false) or int(a.get("orbs", 0)) > 0
+
+## Sin ficha: se mantiene entre WAIT_MIN y WAIT_MAX del jugador, rodeándole de lado y sin quedarse quieto.
+func _wait_dir(to_p: Vector3, dist: float, sees: bool, delta: float) -> Vector3:
+	if not sees or dist > WAIT_MAX:
+		return _nav_dir(to_p, sees) * (1.0 if dist > AttackTokens.ENGAGE_DIST else 0.8)
+	var n := to_p.normalized()
+	if dist < WAIT_MIN:
+		return _avoid(-n) * WAIT_SPEED
+	_wait_t -= delta
+	if _wait_t <= 0.0:
+		_wait_t = WAIT_SWITCH * randf_range(0.6, 1.4)
+		_wait_side = -_wait_side
+	var side := n.cross(Vector3.UP) * _wait_side
+	var origin := global_position + Vector3(0, 0.5, 0)
+	if not _clear_line(origin, origin + side * 1.2):
+		_wait_side = -_wait_side
+		side = -side
+	# Ligera tendencia a la banda media para no derivar hacia dentro o fuera
+	var mid := (WAIT_MIN + WAIT_MAX) * 0.5
+	return _avoid((side + n * clampf((dist - mid) * 0.3, -0.5, 0.5)).normalized()) * WAIT_SPEED
+
+func _exit_tree() -> void:
+	AttackTokens.release(self)
+
 func _play(clip: String, blend: float = 0.1) -> void:
 	if _anim and _anim.has_animation(clip):
 		_anim.play(clip, blend)
@@ -520,6 +586,13 @@ func _add_stun(amount: float) -> bool:
 	HitFeedback.shake(0.3)
 	return true
 
+## Aturdimiento extra de armas contundentes (maza): `fraction` de la barra. En un cliente (copia) no hace
+## nada: el anfitrión lo suma al recibir el golpe reenviado.
+func add_stun_fraction(fraction: float) -> bool:
+	if puppet:
+		return false
+	return _add_stun(stun_max() * fraction)
+
 ## Se puede rematar ahora mismo (PlayerFinisherController).
 func can_be_finished() -> bool:
 	return state == State.STUNNED
@@ -553,6 +626,10 @@ func _set_state(s: State) -> void:
 	state = s
 	_state_t = 0.0
 	_telegraph.visible = false
+	if s != State.APPROACH and s != State.WINDUP and s != State.ATTACK:
+		AttackTokens.release(self)    # cualquier otro estado (RECOVER, aturdido, muerto...) suelta la ficha
+		if s == State.RECOVER and EnemyRegistry.count() > AttackTokens.max_tokens():
+			_token_block_until = _clock + AttackTokens.REST_AFTER_ATTACK   # que rote con los que esperan
 	# La anticipación dura ATTACK_PACE veces más: su clip va algo más lento para no quedarse congelado
 	if _anim:
 		_anim.speed_scale = 1.0 / ATTACK_PACE if s == State.WINDUP else 1.0
@@ -620,12 +697,15 @@ func _physics_process(delta: float) -> void:
 		State.APPROACH:
 			var sees := _sees_player()
 			# Ataques al alcance por distancia; los de línea (embestidas) piden línea de visión
+			var gated := _token_gate(dist)
 			var pick := _choose_attack(dist, sees) if _clock >= _next_attack_at else ""
+			if pick != "" and not gated and not _token_exempt(pick):
+				pick = ""             # sin ficha no entra en WINDUP (los ataques a distancia sí)
 			if pick != "":
 				_turn_towards(to_p, delta)
 				_start_attack(pick)
 			else:
-				var dir := _approach_dir(to_p, dist, sees)
+				var dir := _approach_dir(to_p, dist, sees) if gated else _wait_dir(to_p, dist, sees, delta)
 				# Atascado contra algo: paso lateral corto hacia el lado que rodeaba
 				if _unstick_t > 0.0:
 					_unstick_t -= delta
@@ -642,7 +722,7 @@ func _physics_process(delta: float) -> void:
 							if not path.is_empty():
 								map.penalize_cell(path[0])
 				_turn_towards(to_p if sees and dist < face_player_dist else dir, delta)
-				move = dir * speed + EnemyRegistry.separation_push(self, 1.2) * 2.0
+				move = dir * speed * chill_mult() + EnemyRegistry.separation_push(self, 1.2) * 2.0
 		State.WINDUP:
 			var windup: float = float(_atk["windup"]) * windup_scale * ATTACK_PACE
 			if _state_t <= float(_atk["track"]):
@@ -872,6 +952,11 @@ func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 	if root:
 		FloatingDamage.spawn(root, global_position + Vector3(0, 1.8, 0), amount, Color(1.0, 0.88, 0.22), amount >= stagger_damage)
 	var killed := hp <= 0.0
+	ElementalHits.on_hit(self, amount)   # elemento del arma (fuego, selva, escarcha, sombra)
+	if _force_dot:                       # tick de quemadura/veneno: sin empuje, aturdimiento ni efectos de golpe
+		if killed:
+			_die()
+		return
 	var push := knockback_dir
 	push.y = 0.0
 	if push.length_squared() > 0.0001:
@@ -913,6 +998,16 @@ func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 					_set_state(State.STAGGER)
 			else:
 				_set_state(State.HURT)
+
+## Escarcha: el enemigo se mueve a `factor` de su velocidad durante `duration` s (la mayor lentitud manda).
+func apply_chill(factor: float, duration: float) -> void:
+	var now := Time.get_ticks_msec()
+	if now >= _chill_until_ms or factor < _chill_factor:
+		_chill_factor = factor
+	_chill_until_ms = maxi(_chill_until_ms, now + int(duration * 1000.0))
+
+func chill_mult() -> float:
+	return _chill_factor if Time.get_ticks_msec() < _chill_until_ms else 1.0
 
 func apply_knockback(v: Vector3) -> void:
 	if state == State.DEAD:

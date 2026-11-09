@@ -99,9 +99,9 @@ func _draw() -> void:
 		return
 	HudDraw.panel(self, Rect2(Vector2.ZERO, size), RumbangStyle.NEON_CYAN)
 	var y := PAD
-	_bar(y, ENERGY_H, _res.energy / PlayerResources.ENERGY_MAX, ENERGY_COLOR, PlayerResources.Kind.ENERGY, "ENERGÍA %d" % int(_res.energy))
+	_bar(y, ENERGY_H, _res.energy / _res.energy_max(), ENERGY_COLOR, PlayerResources.Kind.ENERGY, "ENERGÍA %d" % int(_res.energy))
 	y += ENERGY_H + GAP
-	_bar(y, BAR_H, _res.mana / PlayerResources.MANA_MAX, MANA_COLOR, PlayerResources.Kind.MANA, "MANÁ %d" % int(_res.mana))
+	_bar(y, BAR_H, _res.mana / _res.mana_max(), MANA_COLOR, PlayerResources.Kind.MANA, "MANÁ %d" % int(_res.mana))
 	y += BAR_H + GAP
 	if not _show_ammo:
 		return

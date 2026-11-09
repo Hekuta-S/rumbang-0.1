@@ -18,11 +18,11 @@ const BOSS_TIME_S: float = 430.0
 const BOSS_SPAWN_FACTOR: float = 0.35
 
 # Curva de intensidad: se interpola de "inicio" a "final" entre 0 y BOSS_TIME_S.
-const INTERVAL_START: float = 1.4
+const INTERVAL_START: float = 2.4
 const INTERVAL_END: float = 0.25
 const BATCH_START: int = 1
 const BATCH_END: int = 6
-const ALIVE_CAP_START: int = 40
+const ALIVE_CAP_START: int = 18
 ## Escalado por minuto de partida.
 const HP_PER_MINUTE: float = 0.15
 const DAMAGE_PER_MINUTE: float = 0.06
@@ -90,7 +90,7 @@ func start_run(p_player: Node3D) -> void:
 	endless = false
 	_curse_until = 0.0
 	_running = true
-	_pending_spawns = 5
+	_pending_spawns = 2
 	spawn_timer.start(_current_interval())
 	events.start(p_player)
 

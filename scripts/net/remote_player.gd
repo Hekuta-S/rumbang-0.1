@@ -13,6 +13,7 @@ signal weapon_attacked(weapon_type: int)    ## el controlador de animación espe
 var peer_id := 0
 var char_index := 0
 var net_char_id := ""                 ## lo lee PlayerAnimationController (_char_id)
+var net_look: Dictionary = {}         ## apariencia del personaje personalizable (ídem)
 var net_on_floor := true              ## ídem (no se puede sobrescribir is_on_floor)
 var weapon := -1
 var hp := 1.0
@@ -23,6 +24,9 @@ var weapon_visuals: Node
 var weapon_models: Dictionary = {}
 var animation_controller: PlayerAnimationController
 
+var _net_helmet := 0                  ## casco que lleva ahora (índice de la red, 0 = ninguno)
+var _net_chest := 0                   ## set de su pechera (ídem)
+var _net_legs := 0                    ## set de sus pantalones (ídem)
 var _target_pos := Vector3.ZERO
 var _target_yaw := 0.0
 var _label: Label3D
@@ -45,6 +49,7 @@ func _ready() -> void:
 
 	var ch: Dictionary = GameData.CHARACTERS[clampi(char_index, 0, GameData.CHARACTERS.size() - 1)]
 	net_char_id = str(ch["id"])
+	net_look = Net.look_of(peer_id)
 	move_speed = float(ch.get("stats", {}).get("move_speed", 7.0)) * GameData.DUNGEON_MOVE_SPEED_MULT
 
 	# Mismo esqueleto, animaciones y armas en la mano que el jugador local
@@ -57,6 +62,7 @@ func _ready() -> void:
 	if animation_controller.model:
 		weapon_visuals.attach_spear_to_hand(animation_controller.model)
 		weapon_visuals.attach_axe_to_hand(animation_controller.model)
+		weapon_visuals.attach_melee_to_hands(animation_controller.model)
 
 	_label = Label3D.new()
 	_label.text = Net.name_of(peer_id)
@@ -83,8 +89,18 @@ func update_weapon_visuals() -> void:
 
 # ───────────────────────────── Estado de la red ─────────────────────────────
 
-## Estado recibido de su dueño: [pos, yaw, vel, en_suelo, arma, hp, max_hp, caído, disparando].
+## Estado recibido de su dueño: [pos, yaw, vel, en_suelo, arma, hp, max_hp, caído, disparando, casco?, pechera?, pantalones?]
+## (casco / pechera: CharacterLookApplier.helmet_net_index / armor_net_index; 0 = ninguno; opcionales por compatibilidad).
 func apply_state(s: Array) -> void:
+	if s.size() > 9 and int(s[9]) != _net_helmet and animation_controller and animation_controller.model:
+		_net_helmet = int(s[9])
+		CharacterLookApplier.set_helmet_on(animation_controller.model, CharacterLookApplier.helmet_from_net_index(_net_helmet))
+	if s.size() > 10 and int(s[10]) != _net_chest and animation_controller and animation_controller.model:
+		_net_chest = int(s[10])
+		CharacterLookApplier.set_armor_on(animation_controller.model, "pechera", CharacterLookApplier.armor_from_net_index(_net_chest))
+	if s.size() > 11 and int(s[11]) != _net_legs and animation_controller and animation_controller.model:
+		_net_legs = int(s[11])
+		CharacterLookApplier.set_armor_on(animation_controller.model, "pantalones", CharacterLookApplier.armor_from_net_index(_net_legs))
 	_target_pos = s[0]
 	_target_yaw = s[1]
 	velocity = s[2]

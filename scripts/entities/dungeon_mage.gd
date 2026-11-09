@@ -87,6 +87,7 @@ func _init() -> void:
 	sfx_pitch = 1.25
 	attack_rest = 1.0
 	face_player_dist = KEEP_MAX + 4.0
+	uses_attack_token = false     # a distancia / jefe: no consume ficha de ataque
 
 func _approach_dir(to_p: Vector3, dist: float, sees: bool) -> Vector3:
 	if not sees or dist > KEEP_MAX:

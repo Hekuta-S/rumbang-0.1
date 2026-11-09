@@ -992,6 +992,419 @@ func attach_axe_to_hand(model: Node3D) -> bool:
 	axe_trail = AxeRibbon.make(axe, axe_blade_tip, AxeRibbon.TIP, false)
 	return true
 
+## ── Dagas Gemelas y Maza Rúnica (mazmorra) ──
+## Modelos con la hoja/el mango a lo largo de +Y y el agarre en el origen (tools/blender_melee_weapons.py).
+## La hoja apunta a MELEE_BLADE_DIR en ejes del hueso de la mano: es el agarre con el que se animaron los
+## clips (tools/blender_melee_anims.py, BLADE_LOCAL), hacia delante con el puño cerrado y simétrico.
+const MELEE_BLADE_DIR := {"mixamorig_RightHand": Vector3(0.5, 0.0, -0.87), "mixamorig_LeftHand": Vector3(-0.5, 0.0, -0.87)}
+const MELEE_GRIP_OFFSET := Vector3(0.0, 0.08, 0.02)    # centro de la palma (como la espalanza)
+var dagger_trails: Array[BladeTrail] = []
+var mace_trail: BladeTrail
+var _dagger_holder_r: Node3D
+var _dagger_holder_l: Node3D
+var _mace_holder: Node3D
+var _dagger_skin := -1
+var _mace_skin := -1
+
+## Ajuste fino del agarre POR modelo (resources/dagger_grip.json y resources/mace_grip.json, los escribe
+## tools/greatsword_grip_editor.tscn). Dagas: clave "<id>_right" / "<id>_left" (o "<id>" para ambas manos);
+## mazas: "<id>". Cada entrada: {"pos": [x, y, z] m, "rot": [x, y, z] grados}.
+const DAGGER_GRIP_CONFIG_PATH := "res://resources/dagger_grip.json"
+const MACE_GRIP_CONFIG_PATH := "res://resources/mace_grip.json"
+static var _dagger_grip_config: Dictionary = {}
+static var _dagger_grip_config_loaded := false
+static var _mace_grip_config: Dictionary = {}
+static var _mace_grip_config_loaded := false
+## Espadón (GreatswordModels): cuelga de la mano derecha; la otra mano lo agarra por el mango (anim. de Mixamo).
+## GS_BLADE_DIR: hoja en ejes del hueso de la mano derecha (como MELEE_BLADE_DIR); GS_GRIP_OFFSET: palma.
+const GS_BLADE_DIR := Vector3(0.60, 0.38, -0.70)
+const GS_GRIP_OFFSET := Vector3(0.0, 0.08, 0.02)
+var greatsword_trail: BladeTrail
+var _gs_holder: Node3D          ## raíz colgada de la mano (en ella cambia el modelo según el espadón equipado)
+var _gs_skin := -1
+
+## Ajuste fino del agarre POR espadón (resources/greatsword_grip.json, lo escribe
+## tools/greatsword_grip_editor.tscn). Cada entrada: {"pos": [x, y, z] m, "rot": [x, y, z] grados}.
+## La rotación se aplica en los ejes locales del modelo (Y = hoja) antes de alinear la hoja a GS_BLADE_DIR,
+## así que X/Z inclinan la hoja y Y la gira sobre sí misma.
+const GS_GRIP_CONFIG_PATH := "res://resources/greatsword_grip.json"
+static var _gs_grip_config: Dictionary = {}
+static var _gs_grip_config_loaded := false
+
+## Agarre: +Y del modelo hacia la hoja, el canto plano (−Z del modelo) hacia los dedos (−Y del hueso).
+static func melee_grip_basis(blade_dir: Vector3) -> Basis:
+	var y := blade_dir.normalized()
+	var z := Vector3(0.0, -1.0, 0.0)
+	return Basis(y.cross(z), y, z)
+
+## Agarre de una daga/maza: igual que melee_grip_basis pero con rotación fina sobre los ejes del modelo.
+static func melee_grip_transform(bone: String, pos: Vector3, rot_deg: Vector3) -> Transform3D:
+	var extra := Basis.from_euler(rot_deg * (PI / 180.0))
+	return Transform3D(melee_grip_basis(MELEE_BLADE_DIR[bone]) * extra, pos)
+
+static func _melee_bone(hand: String) -> String:
+	return "mixamorig_LeftHand" if hand == "left" else "mixamorig_RightHand"
+
+static func dagger_grip_config() -> Dictionary:
+	if not _dagger_grip_config_loaded:
+		_dagger_grip_config_loaded = true
+		var txt := FileAccess.get_file_as_string(DAGGER_GRIP_CONFIG_PATH)
+		if txt != "":
+			var parsed: Variant = JSON.parse_string(txt)
+			if parsed is Dictionary:
+				_dagger_grip_config = parsed
+	return _dagger_grip_config
+
+static func reload_dagger_grip_config() -> void:
+	_dagger_grip_config_loaded = false
+	_dagger_grip_config = {}
+
+static func mace_grip_config() -> Dictionary:
+	if not _mace_grip_config_loaded:
+		_mace_grip_config_loaded = true
+		var txt := FileAccess.get_file_as_string(MACE_GRIP_CONFIG_PATH)
+		if txt != "":
+			var parsed: Variant = JSON.parse_string(txt)
+			if parsed is Dictionary:
+				_mace_grip_config = parsed
+	return _mace_grip_config
+
+static func reload_mace_grip_config() -> void:
+	_mace_grip_config_loaded = false
+	_mace_grip_config = {}
+
+## Posición y rotación (grados) del agarre de la daga `skin` en la mano indicada.
+static func dagger_grip_values(skin: int, hand: String) -> Dictionary:
+	var id := String(DaggerModels.skin(skin)["id"])
+	var cfg: Dictionary = dagger_grip_config()
+	var entry: Variant = cfg.get(id + "_" + hand, cfg.get(id, {}))
+	if not entry is Dictionary:
+		entry = {}
+	return {
+		"pos": _gs_vec3(entry.get("pos"), MELEE_GRIP_OFFSET),
+		"rot": _gs_vec3(entry.get("rot"), Vector3.ZERO),
+	}
+
+static func dagger_grip_transform(skin: int, hand: String) -> Transform3D:
+	var v := dagger_grip_values(skin, hand)
+	return melee_grip_transform(_melee_bone(hand), v["pos"], v["rot"])
+
+## Posición y rotación (grados) del agarre de la maza `skin` (mano derecha).
+static func mace_grip_values(skin: int) -> Dictionary:
+	var id := String(MaceModels.skin(skin)["id"])
+	var entry: Variant = mace_grip_config().get(id, {})
+	if not entry is Dictionary:
+		entry = {}
+	return {
+		"pos": _gs_vec3(entry.get("pos"), MELEE_GRIP_OFFSET),
+		"rot": _gs_vec3(entry.get("rot"), Vector3.ZERO),
+	}
+
+static func mace_grip_transform(skin: int) -> Transform3D:
+	var v := mace_grip_values(skin)
+	return melee_grip_transform("mixamorig_RightHand", v["pos"], v["rot"])
+
+func _make_melee_holder(skel: Skeleton3D, node_name: String, bone: String, holder_name: String) -> Node3D:
+	var follower := BoneFollower.new()
+	follower.name = node_name
+	skel.add_child(follower)
+	follower.setup(skel, bone)
+	var holder := Node3D.new()
+	holder.name = holder_name
+	follower.add_child(holder)
+	return holder
+
+func _rebuild_dagger_holder(holder: Node3D, skin: int, hand: String) -> void:
+	for child in holder.get_children():
+		child.queue_free()
+	holder.add_child(DaggerModels.build(skin))
+	var base := Marker3D.new()
+	base.position = Vector3(0, DaggerModels.tip_y(skin) * 0.25, 0)
+	holder.add_child(base)
+	var tip := Marker3D.new()
+	tip.position = Vector3(0, DaggerModels.tip_y(skin), 0)
+	holder.add_child(tip)
+	var trail := BladeTrail.new()
+	holder.add_child(trail)
+	trail.setup(base, tip, DaggerModels.skin_color(skin))
+	if dagger_trails.size() != 2:
+		dagger_trails.resize(2)
+	dagger_trails[0 if hand == "right" else 1] = trail
+
+func _rebuild_mace_holder(skin: int) -> void:
+	for child in _mace_holder.get_children():
+		child.queue_free()
+	_mace_holder.add_child(MaceModels.build(skin))
+	var y := MaceModels.head_y(skin)
+	var span := MaceModels.head_span(skin)
+	var base := Marker3D.new()
+	base.position = Vector3(0, y - span * 0.5, 0)
+	_mace_holder.add_child(base)
+	var tip := Marker3D.new()
+	tip.position = Vector3(0, y + span * 0.5, 0)
+	_mace_holder.add_child(tip)
+	mace_trail = BladeTrail.new()
+	_mace_holder.add_child(mace_trail)
+	mace_trail.setup(base, tip, MaceModels.skin_color(skin))
+
+func _sync_dagger_visibility() -> void:
+	if is_instance_valid(_dagger_holder_l) and is_instance_valid(_dagger_holder_r):
+		_dagger_holder_l.visible = _dagger_holder_r.visible
+
+## Raíz de la daga en la mano indicada ("right"/"left"); null si el modelo no tiene el hueso.
+func dagger_holder(hand: String) -> Node3D:
+	return _dagger_holder_l if hand == "left" else _dagger_holder_r
+
+func mace_holder() -> Node3D:
+	return _mace_holder
+
+## Previsualiza un agarre de daga sin guardarlo (lo usa el editor de agarre al mover los controles).
+func set_dagger_grip(hand: String, pos: Vector3, rot_deg: Vector3) -> void:
+	var holder := dagger_holder(hand)
+	if holder != null:
+		holder.transform = melee_grip_transform(_melee_bone(hand), pos, rot_deg)
+
+## Previsualiza un agarre de maza sin guardarlo.
+func set_mace_grip(pos: Vector3, rot_deg: Vector3) -> void:
+	if _mace_holder != null:
+		_mace_holder.transform = melee_grip_transform("mixamorig_RightHand", pos, rot_deg)
+
+## Elige cuál de las dagas lleva en cada mano (y recoloca las estelas).
+func set_dagger_skin(skin: int) -> void:
+	skin = clampi(skin, 0, DaggerModels.count() - 1)
+	if _dagger_holder_r == null:
+		return
+	_dagger_holder_r.transform = dagger_grip_transform(skin, "right")
+	_dagger_holder_l.transform = dagger_grip_transform(skin, "left")
+	if skin == _dagger_skin:
+		return
+	_dagger_skin = skin
+	_rebuild_dagger_holder(_dagger_holder_r, skin, "right")
+	_rebuild_dagger_holder(_dagger_holder_l, skin, "left")
+
+## Elige cuál de las mazas lleva en la mano derecha (y recoloca la estela).
+func set_mace_skin(skin: int) -> void:
+	skin = clampi(skin, 0, MaceModels.count() - 1)
+	if _mace_holder == null:
+		return
+	_mace_holder.transform = mace_grip_transform(skin)
+	if skin == _mace_skin:
+		return
+	_mace_skin = skin
+	_rebuild_mace_holder(skin)
+
+func _attach_daggers(skel: Skeleton3D) -> void:
+	_dagger_holder_r = _make_melee_holder(skel, "RightHand_Dagas", "mixamorig_RightHand", "Dagas_Derecha")
+	_dagger_holder_l = _make_melee_holder(skel, "LeftHand_Dagas", "mixamorig_LeftHand", "Dagas_Izquierda")
+	_dagger_holder_r.set_meta("in_hand", true)
+	_dagger_holder_r.visible = false
+	_dagger_holder_l.visible = false
+	if not _dagger_holder_r.visibility_changed.is_connected(_sync_dagger_visibility):
+		_dagger_holder_r.visibility_changed.connect(_sync_dagger_visibility)
+	_dagger_skin = -1
+	set_dagger_skin(0)
+
+func _attach_mace(skel: Skeleton3D) -> void:
+	_mace_holder = _make_melee_holder(skel, "RightHand_Maza", "mixamorig_RightHand", "Maza")
+	_mace_holder.set_meta("in_hand", true)
+	_mace_holder.visible = false
+	_mace_skin = -1
+	set_mace_skin(0)
+
+## Como melee_grip_basis pero con la hoja en cualquier dirección: +Y del espadón hacia `blade_dir` y su canto plano
+## (-Z del modelo) hacia los dedos en lo posible (base ortonormal).
+static func gs_grip_basis(blade_dir: Vector3) -> Basis:
+	var y := blade_dir.normalized()
+	var z := Vector3(0.0, -1.0, 0.0)
+	z = (z - y * y.dot(z)).normalized()
+	return Basis(y.cross(z), y, z)
+
+## Ajuste guardado de cada espadón: {id: {"pos": [x,y,z], "rot": [x,y,z]}}. Sin archivo, todos usan GS_GRIP_OFFSET.
+static func gs_grip_config() -> Dictionary:
+	if not _gs_grip_config_loaded:
+		_gs_grip_config_loaded = true
+		var txt := FileAccess.get_file_as_string(GS_GRIP_CONFIG_PATH)
+		if txt != "":
+			var parsed: Variant = JSON.parse_string(txt)
+			if parsed is Dictionary:
+				_gs_grip_config = parsed
+	return _gs_grip_config
+
+## Vuelve a leer el JSON (el editor de agarre lo llama tras guardar).
+static func reload_gs_grip_config() -> void:
+	_gs_grip_config_loaded = false
+	_gs_grip_config = {}
+
+static func _gs_vec3(value: Variant, fallback: Vector3) -> Vector3:
+	if value is Array and (value as Array).size() >= 3:
+		return Vector3(float(value[0]), float(value[1]), float(value[2]))
+	return fallback
+
+## Posición y rotación (grados) del agarre del espadón `skin`, mezclando el JSON con los valores por defecto.
+static func gs_grip_values(skin: int) -> Dictionary:
+	var id := String(GreatswordModels.skin(skin)["id"])
+	var cfg: Dictionary = gs_grip_config().get(id, {})
+	return {
+		"pos": _gs_vec3(cfg.get("pos"), GS_GRIP_OFFSET),
+		"rot": _gs_vec3(cfg.get("rot"), Vector3.ZERO),
+	}
+
+## Transformación local del espadón colgado de la mano (posición y rotación ya ajustadas para `skin`).
+static func gs_grip_transform(skin: int) -> Transform3D:
+	var v := gs_grip_values(skin)
+	return gs_grip_transform_values(v["pos"], v["rot"])
+
+static func gs_grip_transform_values(pos: Vector3, rot_deg: Vector3) -> Transform3D:
+	var extra := Basis.from_euler(rot_deg * (PI / 180.0))
+	return Transform3D(gs_grip_basis(GS_BLADE_DIR) * extra, pos)
+
+## Raíz del espadón colgada de la mano derecha (null si el modelo no tiene el hueso).
+func greatsword_holder() -> Node3D:
+	return _gs_holder
+
+## Previsualiza un agarre sin guardarlo (lo usa el editor de agarre al mover los controles).
+func set_greatsword_grip(pos: Vector3, rot_deg: Vector3) -> void:
+	if _gs_holder == null:
+		return
+	_gs_holder.transform = gs_grip_transform_values(pos, rot_deg)
+
+## Espadón en la mano derecha. El modelo (uno de los cuatro de GreatswordModels) se cambia con set_greatsword_skin.
+func _attach_greatsword(skel: Skeleton3D) -> void:
+	# BoneFollower en vez de BoneAttachment3D: no hereda la escala (no uniforme) del esqueleto del personaje
+	var follower := BoneFollower.new()
+	follower.name = "RightHand_Espadon"
+	skel.add_child(follower)
+	follower.setup(skel, "mixamorig_RightHand")
+	_gs_holder = Node3D.new()
+	_gs_holder.name = "Espadon"
+	_gs_holder.transform = gs_grip_transform(0)
+	follower.add_child(_gs_holder)
+	_gs_holder.set_meta("in_hand", true)
+	_gs_holder.visible = false
+	set_greatsword_skin(0)
+
+## Elige cuál de los cuatro espadones lleva en la mano (y recoloca la estela).
+func set_greatsword_skin(skin: int) -> void:
+	skin = clampi(skin, 0, GreatswordModels.count() - 1)
+	if _gs_holder == null or skin == _gs_skin:
+		return
+	_gs_skin = skin
+	_gs_holder.transform = gs_grip_transform(skin)
+	for child in _gs_holder.get_children():
+		child.queue_free()
+	if is_instance_valid(greatsword_trail):
+		greatsword_trail.queue_free()
+	_gs_holder.add_child(GreatswordModels.build(skin))
+	var base := Marker3D.new()
+	base.position = Vector3(0, GreatswordModels.tip_y(skin) * 0.35, 0)
+	_gs_holder.add_child(base)
+	var tip := Marker3D.new()
+	tip.position = Vector3(0, GreatswordModels.tip_y(skin), 0)
+	_gs_holder.add_child(tip)
+	greatsword_trail = BladeTrail.new()
+	_gs_holder.add_child(greatsword_trail)
+	greatsword_trail.setup(base, tip, GreatswordModels.skin_color(skin))
+
+## ── Espada de una mano (SwordModels): igual que el espadón, colgada de la mano derecha ──
+## Mismo convenio de agarre que el espadón (gs_grip_basis / GS_BLADE_DIR): los clips también son de Mixamo.
+## El ajuste fino por espada va en resources/sword_grip.json (lo escribe tools/greatsword_grip_editor.tscn).
+const SWORD_GRIP_OFFSET := Vector3(0.0, 0.08, 0.02)
+const SWORD_GRIP_CONFIG_PATH := "res://resources/sword_grip.json"
+static var _sword_grip_config: Dictionary = {}
+static var _sword_grip_config_loaded := false
+var sword_trail: BladeTrail
+var _sword_holder: Node3D
+var _sword_skin := -1
+
+static func sword_grip_config() -> Dictionary:
+	if not _sword_grip_config_loaded:
+		_sword_grip_config_loaded = true
+		var txt := FileAccess.get_file_as_string(SWORD_GRIP_CONFIG_PATH)
+		if txt != "":
+			var parsed: Variant = JSON.parse_string(txt)
+			if parsed is Dictionary:
+				_sword_grip_config = parsed
+	return _sword_grip_config
+
+static func reload_sword_grip_config() -> void:
+	_sword_grip_config_loaded = false
+	_sword_grip_config = {}
+
+## Posición y rotación (grados) del agarre de la espada `skin`, mezclando el JSON con los valores por defecto.
+static func sword_grip_values(skin: int) -> Dictionary:
+	var id := String(SwordModels.skin(skin)["id"])
+	var cfg: Variant = sword_grip_config().get(id, {})
+	if not cfg is Dictionary:
+		cfg = {}
+	return {
+		"pos": _gs_vec3(cfg.get("pos"), SWORD_GRIP_OFFSET),
+		"rot": _gs_vec3(cfg.get("rot"), Vector3.ZERO),
+	}
+
+static func sword_grip_transform(skin: int) -> Transform3D:
+	var v := sword_grip_values(skin)
+	return gs_grip_transform_values(v["pos"], v["rot"])
+
+func sword_holder() -> Node3D:
+	return _sword_holder
+
+## Previsualiza un agarre de espada sin guardarlo (editor de agarre).
+func set_sword_grip(pos: Vector3, rot_deg: Vector3) -> void:
+	if _sword_holder != null:
+		_sword_holder.transform = gs_grip_transform_values(pos, rot_deg)
+
+func _attach_sword(skel: Skeleton3D) -> void:
+	_sword_holder = _make_melee_holder(skel, "RightHand_Espada", "mixamorig_RightHand", "Espada")
+	_sword_holder.set_meta("in_hand", true)
+	_sword_holder.visible = false
+	_sword_skin = -1
+	set_sword_skin(0)
+
+## Elige cuál de las cuatro espadas lleva en la mano (y recoloca la estela).
+func set_sword_skin(skin: int) -> void:
+	skin = clampi(skin, 0, SwordModels.count() - 1)
+	if _sword_holder == null:
+		return
+	_sword_holder.transform = sword_grip_transform(skin)
+	if skin == _sword_skin:
+		return
+	_sword_skin = skin
+	for child in _sword_holder.get_children():
+		child.queue_free()
+	_sword_holder.add_child(SwordModels.build(skin))
+	var base := Marker3D.new()
+	base.position = Vector3(0, SwordModels.tip_y(skin) * 0.3, 0)
+	_sword_holder.add_child(base)
+	var tip := Marker3D.new()
+	tip.position = Vector3(0, SwordModels.tip_y(skin), 0)
+	_sword_holder.add_child(tip)
+	sword_trail = BladeTrail.new()
+	_sword_holder.add_child(sword_trail)
+	sword_trail.setup(base, tip, SwordModels.skin_color(skin))
+
+## Cuelga las dos dagas (una en cada mano) y la maza (mano derecha) del modelo animado.
+func attach_melee_to_hands(model: Node3D) -> bool:
+	if model == null:
+		return false
+	var skels := model.find_children("*", "Skeleton3D", true, false)
+	if skels.is_empty():
+		return false
+	var skel: Skeleton3D = skels[0]
+	for bone in MELEE_BLADE_DIR:
+		if skel.find_bone(bone) < 0:
+			return false
+	_attach_daggers(skel)
+	_attach_mace(skel)
+	_attach_greatsword(skel)
+	_attach_sword(skel)
+	for pair in [[WeaponData.WeaponType.DAGGERS, _dagger_holder_r], [WeaponData.WeaponType.MACE, _mace_holder],
+			[WeaponData.WeaponType.GREATSWORD, _gs_holder], [WeaponData.WeaponType.SWORD, _sword_holder]]:
+		var old: Node3D = weapon_models.get(pair[0])
+		if is_instance_valid(old):
+			old.queue_free()
+		weapon_models[pair[0]] = pair[1]
+	return true
+
 ## Arma sujeta con las dos manos (mazmorra): su modelo va en el ancla animada del personaje y
 ## sustituye al modelo procedural.
 func attach_held_weapon(p_player: Node3D, anchor: Node3D, weapon_type: int, weapon_scale: float = 1.0) -> bool:

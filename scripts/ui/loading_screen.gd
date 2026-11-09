@@ -53,8 +53,8 @@ func _load() -> void:
 		if label:
 			label.text = "No se pudo cargar. Volviendo al menú..."
 		await get_tree().create_timer(2.5).timeout
-		SceneLoader.next_scene_path = "res://scenes/ui/main_menu.tscn"
-		get_tree().change_scene_to_file("res://scenes/ui/main_menu.tscn")
+		SceneLoader.next_scene_path = "res://scenes/ui/dungeon_hub.tscn"
+		get_tree().change_scene_to_file("res://scenes/ui/dungeon_hub.tscn")
 		return
 	_step("Cargando recursos...", 40.0)
 	await get_tree().process_frame

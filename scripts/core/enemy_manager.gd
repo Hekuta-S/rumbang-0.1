@@ -8,9 +8,6 @@ static var instance: EnemyManager = null
 static var _free: Dictionary = {}    # tipo (int) -> Array[EnemyData]
 ## Nº de tick de física del bucle de enemigos: es el reloj con el que el shader de impostores interpola.
 static var tick: int = 0
-## A partir de cuántos enemigos vivos se reparte la IA entre ticks (EnemyData.crowd_scale), y hasta cuánto.
-const CROWD_REF := 120.0
-const CROWD_MAX := 5.0
 
 var _active: Array = []              # EnemyData vivos
 var _player: Node3D = null
@@ -25,12 +22,14 @@ func _exit_tree() -> void:
 		instance = null
 	_free.clear()
 	_active.clear()
+	HiveMind.reset()
 
 ## Un solo bucle para todos los enemigos de datos.
 func _physics_process(delta: float) -> void:
 	tick += 1
 	var t0 := PerfProbe.begin()
-	EnemyData.crowd_scale = clampf(float(_active.size()) / CROWD_REF, 1.0, CROWD_MAX)
+	# Mente colmena: datos compartidos de la multitud, calculados una vez antes de actualizar a nadie
+	HiveMind.begin_tick(get_tree(), _active.size())
 	var vis := EnemyVisuals.instance
 	var tick_f := float(tick)
 	var i := 0
@@ -43,7 +42,9 @@ func _physics_process(delta: float) -> void:
 			e.tick_age = 0
 			e.update(dt)
 			if vis != null:
+				var tv := PerfProbe.begin()
 				vis.write(e, tick_f)
+				PerfProbe.end("enemigos.dibujo", tv)
 		# Si e (u otro anterior) se recicló durante su update, la lista se desplazó: no se avanza
 		if i < _active.size() and _active[i] == e:
 			i += 1
@@ -99,6 +100,7 @@ static func prefill(counts: Dictionary) -> void:
 
 ## Lo llama EnemyData.recycle(): vuelve al pool de su tipo.
 static func release(e: EnemyData) -> void:
+	HiveMind.release_token(e)
 	if instance != null and e.active_idx >= 0:
 		# Swap-remove O(1): el último ocupa el hueco (el bucle de física lo procesa al no avanzar el índice)
 		var act: Array = instance._active

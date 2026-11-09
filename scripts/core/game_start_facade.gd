@@ -69,6 +69,10 @@ func _setup_dungeon_encounter() -> void:
 	enc.name = "DungeonEncounter"
 	_scene_root.add_child(enc)
 	enc.setup(map, _player)
+	# Tira del equipo en el HUD (una sola vez por escena)
+	var eq = _player.get("equipment")
+	if eq and _scene_root.get_node_or_null("EquipmentHud") == null:
+		EquipmentHud.attach(_scene_root, eq)
 	if Net.is_online():
 		var old_nw := _scene_root.get_node_or_null("NetWorld")
 		if old_nw:
@@ -228,6 +232,18 @@ func _apply_character_data() -> void:
 	if winv and winv.has_method("reset_progress"):
 		winv.reset_progress()
 	GameData.apply_to_player(_player)
+	# Mazmorra: mochila vacía, vuelve lo equipado y su vida máxima se suma a la del personaje
+	var eq = _player.get("equipment")
+	if eq:
+		eq.start_run()
+	var sb = _player.get("stat_block")
+	if sb and sb.has_method("rebase_equipment_hp"):
+		sb.rebase_equipment_hp()
+	# La partida empieza con la energía y el maná llenos (con el máximo que da el equipo)
+	var res = _player.get("resources")
+	if eq and res and res.has_method("energy_max"):
+		res.energy = res.energy_max()
+		res.mana = res.mana_max()
 
 func _reset_player_position_and_stats() -> void:
 	var start_x = 0.0

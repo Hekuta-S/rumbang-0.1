@@ -21,20 +21,20 @@ var camera_pivot: Node3D
 
 ## Mazmorra: brazo con esfera de colisión (no atraviesa paredes), regreso suave tras chocar,
 ## zoom con la rueda y seguimiento del objetivo fijado (TargetLockController).
-## Estilo Deadlock: cámara pegada a la espalda y algo elevada, al hombro derecho, con campo de visión
-## amplio y el punto de mira libre en el centro de la pantalla.
-const DUNGEON_SPRING_LENGTH := 3.3
-const DUNGEON_MIN_LENGTH := 2.2
-const DUNGEON_MAX_LENGTH := 5.2
+## Estilo God of War (2018): cámara muy cerca, a la altura del hombro derecho, con campo de visión
+## cerrado; el personaje ocupa el tercio izquierdo y el punto de mira queda libre en el centro.
+const DUNGEON_SPRING_LENGTH := 1.9
+const DUNGEON_MIN_LENGTH := 1.4
+const DUNGEON_MAX_LENGTH := 3.8
 const DUNGEON_START_PITCH := -0.1    ## empieza mirando un poco hacia abajo (el horizonte queda sobre el crosshair)
-const FOV_BASE := 80.0
-const FOV_DODGE := 88.0              ## el campo de visión se abre un instante al rodar
+const FOV_BASE := 64.0
+const FOV_DODGE := 72.0              ## el campo de visión se abre un instante al rodar
 const FOV_SPEED := 9.0
 const ARM_RETURN_SPEED := 5.0        ## lo rápido que se aleja de nuevo tras acercarse por una pared
 const LOCK_YAW_SPEED := 7.0
 const LOCK_PITCH := -0.28           ## inclinación a la que tiende la cámara con objetivo fijado
 ## Cámara al hombro: el personaje queda a la izquierda y el crosshair libre en el centro.
-const SHOULDER := Vector3(0.78, 0.5, 0.0)
+const SHOULDER := Vector3(0.62, 0.6, 0.0)
 const SHOULDER_MARGIN := 0.25       ## distancia mínima de la cámara a una pared lateral
 var _dungeon := false
 var _cam_len := -1.0

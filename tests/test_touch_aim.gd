@@ -86,6 +86,32 @@ func _ready() -> void:
 	assert(lock.has_target(), "Una pulsación de FIJ fija al enemigo (y no lo suelta al instante)")
 	print("CHECK 4 PASSED: FIJ fija una vez")
 
+	# 4b. Teclado: C fija y suelta; Tab ya no fija sino que abre/cierra el menú de pausa
+	var key := func(code: Key) -> void:
+		var ev := InputEventKey.new()
+		ev.keycode = code
+		ev.physical_keycode = code
+		ev.pressed = true
+		Input.parse_input_event(ev)
+		await get_tree().process_frame
+		ev = ev.duplicate()
+		ev.pressed = false
+		Input.parse_input_event(ev)
+		await get_tree().process_frame
+	lock._set_target(null)
+	await key.call(KEY_C)
+	assert(lock.has_target(), "C fija al enemigo")
+	await key.call(KEY_C)
+	assert(not lock.has_target(), "C vuelve a soltarlo")
+	var pm = get_tree().current_scene.find_child("PauseMenu", true, false)
+	assert(pm != null and not pm.visible, "Menú de pausa cerrado al empezar")
+	await key.call(KEY_TAB)
+	assert(pm.visible and not lock.has_target(), "Tab abre el menú y no fija objetivo")
+	assert(is_instance_valid(pm._equip_panel) and not pm.get_node("Control/Row").visible, "Tab abre directo la pantalla de equipo")
+	await key.call(KEY_TAB)
+	assert(not pm.visible and not get_tree().paused and not is_instance_valid(pm._equip_panel), "Tab cierra todo y reanuda")
+	print("CHECK 4b PASSED: C fija objetivo, Tab abre y cierra la pantalla de equipo")
+
 	# 5. Los polvos de Tatan y la escopeta de Riva también se apuntan; la espalanza no
 	var ic = _player.input_controller
 	for w in [W.DUSTS, W.TRI_SHOTGUN, W.SPORE_BAZOOKA]:

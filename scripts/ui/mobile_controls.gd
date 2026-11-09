@@ -16,10 +16,6 @@ const ACTIVE_ALPHA := 0.95
 const JOY_ZONE_WIDTH := 0.5        ## fracción izquierda de la pantalla donde nace el joystick
 const JOY_ZONE_TOP := 0.2          ## no nace en el 20 % superior (HUD)
 
-const COL_FILL := Color(0.05, 0.07, 0.12, 0.35)
-const COL_RING := Color(0.85, 0.92, 1.0, 0.75)
-const COL_KNOB := Color(0.85, 0.92, 1.0, 0.85)
-
 ## Botones de acción. mode: "hold" = activo mientras el dedo esté puesto; "tap" = un solo pulso.
 ## ring 0 = botón grande; 1 y 2 = arcos interior y exterior; angle en grados (270 = arriba, 180 = izquierda).
 ## Cada botón se dibuja con un icono vectorial (ver _draw_icon), sin texto.
@@ -33,7 +29,22 @@ const BUTTONS := [
 	{"key": "parry", "name": "Parar", "mode": "tap", "color": Color(1.0, 0.9, 0.3), "ring": 2, "angle": 215.0},
 	{"key": "reload", "name": "Recargar", "mode": "tap", "color": Color(0.6, 0.9, 0.9), "ring": 2, "angle": 245.0},
 	{"key": "weapon", "name": "Cambiar arma", "mode": "tap", "color": Color(0.85, 0.85, 0.9), "ring": 2, "angle": 275.0},
+	# Solo en el salón (menú)
+	{"key": "run", "name": "Correr", "mode": "hold", "color": Color(0.35, 0.7, 1.0), "ring": 1, "angle": 215.0},
+	{"key": "interact", "name": "Interactuar", "mode": "tap", "color": Color(1.0, 0.85, 0.3), "ring": 0, "angle": 0.0},
 ]
+
+## Botones permitidos por modo (el primero ocupa el botón grande, el segundo el arco interior).
+## "survival": solo caminar (joystick) y saltar. "hub" (salón): caminar, correr e interactuar.
+## Cualquier otro modo (mazmorra) muestra todos los botones de combate.
+const MODE_KEYS := {
+	"survival": ["jump"],
+	"hub": ["interact", "run"],
+}
+const HUB_ONLY := ["run", "interact"]
+
+## "survival", "hub" o "dungeon". Si no se asigna antes de añadir el nodo, se toma de GameData.game_mode.
+var mode := ""
 
 ## Editor de disposición: el joystick también se puede mover/escalar.
 const JOY_KEY := "joystick"
@@ -72,6 +83,8 @@ func _ready() -> void:
 	layer = 50
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	add_to_group("mobile_controls")
+	if mode == "":
+		mode = GameData.game_mode
 	SettingsManager.touch_edit_requested.connect(begin_edit)
 	_touch_available = DisplayServer.is_touchscreen_available()
 	VirtualInput.touch_ui_active = true
@@ -83,6 +96,7 @@ func _ready() -> void:
 	_overlay = Control.new()
 	_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_overlay.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED   # textura de piedra del joystick (StoneUI)
 	_overlay.draw.connect(_draw_controls)
 	add_child(_overlay)
 
@@ -103,7 +117,16 @@ func _is_hidden(i: int) -> bool:
 ## (en el editor de disposición sigue visible para poder colocarlo).
 var _has_ammo_weapon := false
 func _is_unavailable(i: int) -> bool:
-	return String(BUTTONS[i]["key"]) == "reload" and not _has_ammo_weapon and not _editing
+	var key := String(BUTTONS[i]["key"])
+	if not _in_mode(key):
+		return true
+	return key == "reload" and not _has_ammo_weapon and not _editing
+
+## ¿El botón existe en el modo actual?
+func _in_mode(key: String) -> bool:
+	if MODE_KEYS.has(mode):
+		return (MODE_KEYS[mode] as Array).has(key)
+	return not HUB_ONLY.has(key)
 
 func _refresh_ammo_weapon() -> void:
 	var player := get_tree().get_first_node_in_group("player")
@@ -163,15 +186,25 @@ func _layout() -> void:
 	var ring2 := ring1 + small_r * 2.0 + 8.0
 	for i in BUTTONS.size():
 		var b: Dictionary = BUTTONS[i]
-		match int(b["ring"]):
+		var ring := int(b["ring"])
+		var angle := float(b["angle"])
+		if MODE_KEYS.has(mode):
+			# Modos con pocos botones: el principal ocupa el sitio del ataque, el segundo el arco interior
+			var rank: int = (MODE_KEYS[mode] as Array).find(String(b["key"]))
+			if rank == 0:
+				ring = 0
+			elif rank > 0:
+				ring = 1
+				angle = 215.0
+		match ring:
 			0:
 				_btn_center[i] = origin
 				_btn_radius[i] = big_r
 			1:
-				_btn_center[i] = origin + Vector2.from_angle(deg_to_rad(float(b["angle"]))) * ring1
+				_btn_center[i] = origin + Vector2.from_angle(deg_to_rad(angle)) * ring1
 				_btn_radius[i] = small_r
 			_:
-				_btn_center[i] = origin + Vector2.from_angle(deg_to_rad(float(b["angle"]))) * ring2
+				_btn_center[i] = origin + Vector2.from_angle(deg_to_rad(angle)) * ring2
 				_btn_radius[i] = small_r
 		# Disposición personalizada (posición y tamaño elegidos por el jugador)
 		var bc := _custom(String(b["key"]))
@@ -216,15 +249,10 @@ func _draw_controls() -> void:
 	if _editing:
 		a = 1.0
 		_overlay.draw_rect(Rect2(Vector2.ZERO, _overlay.size), Color(0.02, 0.02, 0.06, 0.82))
-	# Joystick: base translúcida con aro y pulgar
-	_overlay.draw_circle(_joy_center, _joy_radius, Color(COL_FILL.r, COL_FILL.g, COL_FILL.b, COL_FILL.a * a * 1.6))
-	_overlay.draw_arc(_joy_center, _joy_radius, 0.0, TAU, 56, Color(COL_RING.r, COL_RING.g, COL_RING.b, COL_RING.a * a), 3.0, true)
-	var knob_pos := _joy_center + _joy_offset
-	var knob_r := _joy_radius * 0.45
-	_overlay.draw_circle(knob_pos, knob_r, Color(COL_KNOB.r, COL_KNOB.g, COL_KNOB.b, COL_KNOB.a * a * 0.55))
-	_overlay.draw_arc(knob_pos, knob_r, 0.0, TAU, 40, Color(1, 1, 1, a), 2.5, true)
+	_draw_joystick(a)
 
-	# Botones de acción: círculo de color con icono; se aprietan al pulsarlos
+	# Botones de acción: huecos de hierro como los del inventario (pozo oscuro, resplandor del color
+	# del botón, anillo de metal con muescas e icono); se aprietan al pulsarlos.
 	for i in BUTTONS.size():
 		var hidden := _is_hidden(i)
 		if (hidden and not _editing) or _is_unavailable(i):
@@ -232,23 +260,79 @@ func _draw_controls() -> void:
 		var b: Dictionary = BUTTONS[i]
 		var pressed := _btn_id[i] != -1
 		var c: Vector2 = _btn_center[i]
-		var r: float = _btn_radius[i] * (0.92 if pressed else 1.0)
-		var base: Color = b["color"]
-		var fill := base.lightened(0.35) if pressed else base
+		var r: float = _btn_radius[i] * (0.93 if pressed else 1.0)
 		var ba := a * (0.35 if hidden else 1.0)   # en el editor, los ocultos salen apagados
-		_overlay.draw_circle(c, r, Color(fill.r, fill.g, fill.b, 0.4 * ba * 1.4))
-		_overlay.draw_arc(c, r, 0.0, TAU, 48, Color(fill.r, fill.g, fill.b, ba), 3.5, true)
-		_draw_icon(String(b["key"]), c, r, Color(1, 1, 1, ba))
+		_draw_socket(c, r, b["color"], ba, pressed, int(b["ring"]) == 0)
+		var icon_col: Color = Color.WHITE if pressed else (b["color"] as Color).lightened(0.55)
+		_draw_icon(String(b["key"]), c + Vector2(0, 1.5), r * 0.92, Color(0, 0, 0, 0.6 * ba))   # sombra del icono
+		_draw_icon(String(b["key"]), c, r * 0.92, Color(icon_col, ba))
 		if _editing and b["key"] == _edit_sel:
 			_draw_selection(c, r)
 	if _editing and _edit_sel == JOY_KEY:
 		_draw_selection(_joy_center, _joy_radius)
 
+## Joystick: disco de piedra oscura con borde de hierro y ocho muescas; el pulgar es un pomo de hierro.
+func _draw_joystick(a: float) -> void:
+	var c := _joy_center
+	var r := _joy_radius
+	var band := maxf(6.0, r * 0.14)
+	var st := StoneUI.STONE_DARK
+	StoneUI.draw_stone_disc(_overlay, c, r - band * 0.5, Color(st.r, st.g, st.b, 0.85 * a))
+	_overlay.draw_arc(c, r - band - 4.0, 0.0, TAU, 56, Color(0, 0, 0, 0.35 * a), 6.0, true)   # sombra interior
+	# guía de dirección: anillo fino y cuatro marcas ámbar
+	_overlay.draw_arc(c, r * 0.55, 0.0, TAU, 48, Color(StoneUI.OUTLINE, 0.45 * a), 1.5, true)
+	for k in 4:
+		var d := Vector2.from_angle(-PI * 0.5 + k * PI * 0.5)
+		var tip := c + d * (r - band - 6.0)
+		var side := Vector2(-d.y, d.x) * r * 0.07
+		_overlay.draw_colored_polygon(PackedVector2Array([tip, tip - d * r * 0.1 + side, tip - d * r * 0.1 - side]),
+			Color(StoneUI.AMBER, 0.55 * a))
+	StoneUI.draw_iron_ring(_overlay, c, r - band, r, a, 8)
+	# pomo de hierro
+	var kp := c + _joy_offset
+	var kr := r * 0.42
+	var active := _joy_id != -1
+	_overlay.draw_circle(kp + Vector2(0, kr * 0.12), kr, Color(0, 0, 0, 0.4 * a))   # sombra
+	_overlay.draw_circle(kp, kr, Color(StoneUI.IRON_DARK, 0.95 * a))
+	_overlay.draw_circle(kp, kr * 0.8, Color(StoneUI.IRON, 0.95 * a))
+	_overlay.draw_arc(kp, kr * 0.62, PI * 0.95, PI * 1.55, 20, Color(StoneUI.IRON_LIGHT, 0.7 * a), maxf(2.0, kr * 0.12), true)
+	_overlay.draw_arc(kp, kr, 0.0, TAU, 40, Color(StoneUI.OUTLINE, a), 1.8, true)
+	_overlay.draw_circle(kp, kr * 0.22, Color(StoneUI.AMBER if active else StoneUI.IRON_LIGHT, a))
+	_overlay.draw_circle(kp, kr * 0.1, Color(StoneUI.OUTLINE, a))
+	if active:
+		_overlay.draw_arc(kp, kr + 2.0, 0.0, TAU, 40, Color(StoneUI.AMBER, 0.8 * a), 2.0, true)
+
+## Hueco redondo del estilo del inventario. `big` = botón de ataque (anillo doble con remaches).
+func _draw_socket(c: Vector2, r: float, col: Color, a: float, pressed: bool, big: bool) -> void:
+	var band := maxf(5.0, r * (0.17 if big else 0.2))
+	var inner := r - band
+	_overlay.draw_circle(c + Vector2(0, 2.0), r, Color(0, 0, 0, 0.35 * a))   # sombra sobre la escena
+	_overlay.draw_circle(c, inner, Color(0.025, 0.04, 0.04, 0.82 * a))
+	var glow := 0.75 if pressed else 0.5
+	for i in 5:
+		_overlay.draw_arc(c, inner - 1.5 - i * (inner * 0.07), 0.0, TAU, 48,
+			Color(col, (glow - i * 0.1) * a), maxf(2.0, inner * 0.07), true)
+	if pressed:
+		_overlay.draw_circle(c, inner * 0.6, Color(col, 0.18 * a))
+	StoneUI.draw_iron_ring(_overlay, c, inner, r, a, 8 if big else 4)
+	if big:
+		# segundo aro exterior con remaches, como la placa del HUD de armas
+		var outer := r + band * 0.55
+		_overlay.draw_arc(c, outer, 0.0, TAU, 64, Color(StoneUI.IRON_DARK, a), band * 0.5, true)
+		_overlay.draw_arc(c, outer + band * 0.25, 0.0, TAU, 64, Color(StoneUI.OUTLINE, a), 1.4, true)
+		for k in 8:
+			var p := c + Vector2.from_angle(PI / 8.0 + k * TAU / 8.0) * outer
+			_overlay.draw_circle(p, maxf(1.8, band * 0.16), Color(StoneUI.IRON_LIGHT, a))
+			_overlay.draw_circle(p, maxf(0.9, band * 0.07), Color(StoneUI.OUTLINE, a))
+	if pressed:
+		_overlay.draw_arc(c, inner - 1.0, 0.0, TAU, 48, Color(StoneUI.AMBER, a), 3.0, true)
+
 func _draw_selection(c: Vector2, r: float) -> void:
-	_overlay.draw_arc(c, r + 9.0, 0.0, TAU, 64, Color(1, 0.95, 0.35, 0.95), 3.0, true)
+	var amber := Color(StoneUI.AMBER, 0.95)
+	_overlay.draw_arc(c, r + 10.0, 0.0, TAU, 64, amber, 3.0, true)
 	for k in 4:
 		var dir := Vector2.from_angle(PI * 0.25 + k * PI * 0.5)
-		_overlay.draw_circle(c + dir * (r + 9.0), 4.0, Color(1, 0.95, 0.35, 0.95))
+		StoneUI.draw_diamond(_overlay, c + dir * (r + 10.0), 5.0)
 
 # ───────────────────────────── Iconos ─────────────────────────────
 
@@ -388,6 +472,8 @@ func _set_button(bi: int, down: bool) -> void:
 	match String(BUTTONS[bi]["key"]):
 		"attack": VirtualInput.is_attacking = down
 		"jump": VirtualInput.is_jumping = down
+		"run": VirtualInput.is_running = down
+		"interact": VirtualInput.just_pressed_interact = down or VirtualInput.just_pressed_interact
 		"alt": VirtualInput.is_alt_attack = down
 		"skill": VirtualInput.just_pressed_skill = down or VirtualInput.just_pressed_skill
 		"reload": VirtualInput.just_pressed_reload = down or VirtualInput.just_pressed_reload
@@ -401,13 +487,17 @@ func _on_drag(idx: int, pos: Vector2, relative: Vector2) -> void:
 		_update_joystick(pos)
 	elif idx == _look_id:
 		VirtualInput.look_vector += relative
-	elif VirtualInput.attack_aims and _attack_button_id() == idx:
+	elif VirtualInput.attack_aims and _button_id("attack") == idx:
 		# Apuntando con el botón de disparo: el mismo dedo mueve la mira
 		VirtualInput.look_vector += relative
+	elif VirtualInput.alt_aims and _button_id("alt") == idx:
+		# Cargando el especial (lanzamiento de la espalanza): el dedo del botón apunta
+		VirtualInput.look_vector += relative
 
-func _attack_button_id() -> int:
+## Dedo que mantiene pulsado el botón `key` (-1 si ninguno).
+func _button_id(key: String) -> int:
 	for i in BUTTONS.size():
-		if String(BUTTONS[i]["key"]) == "attack":
+		if String(BUTTONS[i]["key"]) == key:
 			return _btn_id[i]
 	return -1
 
@@ -444,6 +534,7 @@ func _release_all() -> void:
 	_joy_offset = Vector2.ZERO
 	VirtualInput.movement_vector = Vector2.ZERO
 	VirtualInput.is_jumping = false
+	VirtualInput.is_running = false
 	VirtualInput.is_attacking = false
 	VirtualInput.is_alt_attack = false
 	if is_instance_valid(_overlay):
@@ -498,6 +589,8 @@ func _edit_hit(pos: Vector2) -> String:
 	var best := ""
 	var best_d := INF
 	for i in BUTTONS.size():
+		if not _in_mode(String(BUTTONS[i]["key"])):
+			continue
 		var d := pos.distance_to(_btn_center[i])
 		if d <= _btn_radius[i] * 1.15 and d < best_d:
 			best = String(BUTTONS[i]["key"])
@@ -564,22 +657,21 @@ func _build_edit_panel() -> void:
 	_edit_layer = CanvasLayer.new()
 	_edit_layer.layer = 130
 	add_child(_edit_layer)
-	_edit_panel = PanelContainer.new()
+	_edit_panel = StoneUI.StonePanel.new(20.0)
 	_edit_panel.theme = RumbangStyle.get_theme()
 	_edit_layer.add_child(_edit_panel)
-	var margin := MarginContainer.new()
-	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 12)
-	_edit_panel.add_child(margin)
 	var box := VBoxContainer.new()
 	box.custom_minimum_size = Vector2(340, 0)
 	box.add_theme_constant_override("separation", 8)
-	margin.add_child(box)
+	_edit_panel.add_child(box)
 
+	box.add_child(StoneUI.Rail.new("CONTROLES TÁCTILES", 13, 240.0))
 	_edit_title = Label.new()
 	_edit_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_edit_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_edit_title.add_theme_color_override("font_color", RumbangStyle.NEON_CYAN)
+	_edit_title.add_theme_color_override("font_color", StoneUI.AMBER)
+	_edit_title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	_edit_title.add_theme_constant_override("outline_size", 4)
 	box.add_child(_edit_title)
 
 	var size_row := HBoxContainer.new()
@@ -596,6 +688,17 @@ func _build_edit_panel() -> void:
 	_edit_slider.step = 0.05
 	_edit_slider.value = 1.0
 	_edit_slider.value_changed.connect(_on_edit_scale)
+	var track := StyleBoxFlat.new()
+	track.bg_color = StoneUI.IRON_DARK
+	track.border_color = StoneUI.IRON
+	track.set_border_width_all(1)
+	track.content_margin_top = 3
+	track.content_margin_bottom = 3
+	var fill := track.duplicate() as StyleBoxFlat
+	fill.bg_color = StoneUI.AMBER.darkened(0.15)
+	_edit_slider.add_theme_stylebox_override("slider", track)
+	_edit_slider.add_theme_stylebox_override("grabber_area", fill)
+	_edit_slider.add_theme_stylebox_override("grabber_area_highlight", fill)
 	_edit_slider.drag_ended.connect(func(_changed: bool): SettingsManager.save_settings())
 	size_row.add_child(_edit_slider)
 	_edit_val = Label.new()
@@ -608,10 +711,12 @@ func _build_edit_panel() -> void:
 	_edit_visible = CheckButton.new()
 	_edit_visible.text = "Visible"
 	_edit_visible.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_edit_visible.add_theme_color_override("font_color", StoneUI.TEXT)
 	_edit_visible.toggled.connect(_on_edit_visible)
 	row1.add_child(_edit_visible)
 	var reset_one := Button.new()
 	reset_one.text = "Restablecer botón"
+	StoneUI.style_button(reset_one, 12)
 	reset_one.pressed.connect(_on_edit_reset_one)
 	row1.add_child(reset_one)
 
@@ -621,11 +726,13 @@ func _build_edit_panel() -> void:
 	var reset_all := Button.new()
 	reset_all.text = "Restablecer todo"
 	reset_all.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	StoneUI.style_button(reset_all, 12)
 	reset_all.pressed.connect(_on_edit_reset_all)
 	row2.add_child(reset_all)
 	var done := Button.new()
 	done.text = "Listo"
 	done.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	StoneUI.style_button(done, 12)
 	done.pressed.connect(end_edit)
 	row2.add_child(done)
 
@@ -641,6 +748,7 @@ func _refresh_edit_panel() -> void:
 	_edit_val.text = "×%.2f" % s
 	_edit_visible.set_pressed_no_signal(not (has and SettingsManager.touch_hidden.has(_edit_sel)))
 	_place_edit_panel()
+	_place_edit_panel.call_deferred()   # el título con autowrap cambia de alto al fotograma siguiente
 
 ## El panel se coloca en la mitad contraria a la del elemento seleccionado para no taparlo.
 func _place_edit_panel() -> void:

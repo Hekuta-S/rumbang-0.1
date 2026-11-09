@@ -30,6 +30,10 @@ const PROFILES := {
 	W.SPINNING_AXE:   {"color": Color(1.0, 0.75, 0.3),  "kind": "shard", "count": 12, "speed": 8.0,  "kb": 1.5, "shake": 0.3,  "stop": 0.05, "sfx": "impact_slash"},
 	W.ELEMENTS_CYCLE: {"color": Color(0.8, 0.95, 1.0),  "kind": "orb",   "count": 8,  "speed": 4.0,  "kb": 0.8, "shake": 0.1,  "stop": 0.02, "sfx": "impact_magic"},
 	W.ZOMBIE_ARM:     {"color": Color(0.8, 0.12, 0.15), "kind": "shard", "count": 12, "speed": 7.0,  "kb": 1.4, "shake": 0.3,  "stop": 0.05, "sfx": "impact_blunt"},
+	W.DAGGERS:        {"color": Color(0.95, 0.2, 0.25), "kind": "spark", "count": 8,  "speed": 11.0, "kb": 0.5, "shake": 0.12, "stop": 0.02, "sfx": "impact_slash"},
+	W.MACE:           {"color": Color(0.3, 1.0, 0.55),  "kind": "shard", "count": 18, "speed": 7.0,  "kb": 1.8, "shake": 0.45, "stop": 0.07, "sfx": "impact_blunt"},
+	W.SWORD:          {"color": Color(1.0, 0.9, 0.6),   "kind": "spark", "count": 12, "speed": 9.5,  "kb": 1.2, "shake": 0.25, "stop": 0.045, "sfx": "impact_slash"},
+	W.GREATSWORD:     {"color": Color(1.0, 0.85, 0.55), "kind": "spark", "count": 14, "speed": 9.0,  "kb": 1.4, "shake": 0.35, "stop": 0.06, "sfx": "impact_slash"},
 }
 
 const POOL_PER_KIND := 6

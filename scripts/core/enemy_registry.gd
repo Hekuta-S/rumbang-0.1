@@ -131,6 +131,9 @@ static func unregister(e: Object) -> void:
 		_enemies[idx] = last
 		_index[last] = idx
 	_index.erase(e)
+	# La rejilla de este tick aún lo contiene: se rehace en la próxima consulta (si no, un enemigo dado de
+	# baja y liberado en el mismo tick se leería ya liberado)
+	_grid_frame = -1
 
 static func all() -> Array:
 	return _enemies
@@ -143,3 +146,4 @@ static func clear() -> void:
 	_index.clear()
 	_grid.clear()
 	_grid_frame = -1
+	AttackTokens.clear()

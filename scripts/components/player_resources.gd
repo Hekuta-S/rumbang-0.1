@@ -7,6 +7,8 @@ extends Node
 ##  - BALAS: reserva por arma de fuego (escopeta, lanzallamas, bazuca, railgun). No se regeneran:
 ##    se recogen de los enemigos y se rellenan en parte al bajar de nivel.
 ## Todo el gasto pasa por spend() / spend_energy(): si no alcanza devuelve false y emite `denied`.
+## El equipo (PlayerStatBlock: max_energy, energy_regen, energy_cost, max_mana, mana_regen) sube los
+## máximos y la recarga y abarata la energía: usa energy_max() / mana_max(), no las constantes.
 
 signal changed
 signal denied(kind: int)
@@ -33,6 +35,10 @@ const TABLE := {
 	W.ENERGY_SWORD: {"kind": Kind.ENERGY, "cost": 12.0, "alt": 20.0},
 	W.SPINNING_AXE: {"kind": Kind.ENERGY, "cost": 18.0, "alt": 30.0},
 	W.ZOMBIE_ARM: {"kind": Kind.ENERGY, "cost": 16.0, "alt": 0.0},
+	W.DAGGERS: {"kind": Kind.ENERGY, "cost": 7.0, "alt": 24.0},           ## golpes baratos; la embestida
+	W.MACE: {"kind": Kind.ENERGY, "cost": 20.0, "alt": 40.0},             ## golpes caros; el mazazo al suelo
+	W.GREATSWORD: {"kind": Kind.ENERGY, "cost": 16.0, "alt": 0.0},      ## tres tajos pesados; sin especial
+	W.SWORD: {"kind": Kind.ENERGY, "cost": 10.0, "alt": 0.0},           ## cuatro golpes ligeros; sin especial
 	W.SERPENTS: {"kind": Kind.MANA, "cost": 14.0, "alt": 25.0},
 	W.DUSTS: {"kind": Kind.MANA, "cost": 10.0, "alt": 14.0},
 	W.ELEMENTS_CYCLE: {"kind": Kind.MANA, "cost": 8.0, "alt": 16.0},
@@ -61,19 +67,39 @@ func _ready() -> void:
 	for w in AMMO_MAX:
 		ammo[w] = AMMO_MAX[w]
 
+func _stats() -> PlayerStatBlock:
+	var p := get_parent()
+	return p.get("stat_block") as PlayerStatBlock if p else null
+
+## Energía máxima con el equipo.
+func energy_max() -> float:
+	var sb := _stats()
+	return ENERGY_MAX + (sb.energy_max_bonus() if sb else 0.0)
+
+func mana_max() -> float:
+	var sb := _stats()
+	return MANA_MAX + (sb.mana_max_bonus() if sb else 0.0)
+
 func _process(delta: float) -> void:
 	if not active:
 		return
 	var dirty := false
+	var sb := _stats()
+	var e_max := energy_max()
+	var m_max := mana_max()
+	if energy > e_max or mana > m_max:   # al quitarse equipo
+		energy = minf(energy, e_max)
+		mana = minf(mana, m_max)
+		dirty = true
 	if _energy_wait > 0.0:
 		_energy_wait -= delta
-	elif energy < ENERGY_MAX:
-		energy = minf(energy + ENERGY_REGEN * delta, ENERGY_MAX)
+	elif energy < e_max:
+		energy = minf(energy + ENERGY_REGEN * (sb.energy_regen_mult() if sb else 1.0) * delta, e_max)
 		dirty = true
 	if _mana_wait > 0.0:
 		_mana_wait -= delta
-	elif mana < MANA_MAX:
-		mana = minf(mana + MANA_REGEN * delta, MANA_MAX)
+	elif mana < m_max:
+		mana = minf(mana + MANA_REGEN * (sb.mana_regen_mult() if sb else 1.0) * delta, m_max)
 		dirty = true
 	if dirty:
 		changed.emit()
@@ -100,7 +126,9 @@ func can_spend(weapon: int, alt: bool = false) -> bool:
 	if cost <= 0.0:
 		return true
 	match kind_of(weapon):
-		Kind.ENERGY: return energy >= cost
+		Kind.ENERGY:
+			var sb := _stats()
+			return energy >= cost * (sb.energy_cost_mult() if sb else 1.0)
 		Kind.MANA: return mana >= cost
 		Kind.AMMO: return float(ammo.get(weapon, 0)) >= cost
 	return true
@@ -129,6 +157,9 @@ func spend(weapon: int, alt: bool = false) -> bool:
 func spend_energy(cost: float) -> bool:
 	if not active or cost <= 0.0:
 		return true
+	var sb := _stats()
+	if sb:
+		cost *= sb.energy_cost_mult()
 	if energy < cost:
 		denied.emit(Kind.ENERGY)
 		return false
@@ -150,8 +181,12 @@ func spend_mana(cost: float) -> bool:
 
 # ───────────────────────────── Recarga ─────────────────────────────
 
+func add_energy(amount: float) -> void:
+	energy = minf(energy + amount, energy_max())
+	changed.emit()
+
 func add_mana(amount: float) -> void:
-	mana = minf(mana + amount, MANA_MAX)
+	mana = minf(mana + amount, mana_max())
 	changed.emit()
 
 ## Suma `fraction` de la capacidad de cada arma de fuego que el jugador lleva. Devuelve cuántas balas entraron.
@@ -175,8 +210,8 @@ func has_any_ammo_weapon(owned_weapons: Array) -> bool:
 
 ## Al bajar de nivel: energía y maná llenos, y la mitad de la reserva de balas.
 func refresh_for_new_level() -> void:
-	energy = ENERGY_MAX
-	mana = MANA_MAX
+	energy = energy_max()
+	mana = mana_max()
 	for w in AMMO_MAX:
 		ammo[w] = mini(int(ammo.get(w, 0)) + int(ceil(AMMO_MAX[w] * 0.5)), int(AMMO_MAX[w]))
 	changed.emit()

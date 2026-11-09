@@ -58,6 +58,10 @@ enum WeaponType {
 	SPINNING_AXE = 12,
 	ELEMENTS_CYCLE = 13,
 	ZOMBIE_ARM = 14,
+	DAGGERS = 15,
+	MACE = 16,
+	GREATSWORD = 17,
+	SWORD = 18,
 }
 
 ## ---------------------------------------------------------------------------
@@ -85,7 +89,7 @@ static func _build_weapon_table() -> Dictionary:
 			.build(),
 			
 		WeaponType.SPEAR_LANCE: WeaponDirector.construct_melee(
-				WeaponBuilder.new(5, "Espalanza de Mikeura", "🔱", "melee"), 15.0, 0.50, 5.0, 80.0),
+				WeaponBuilder.new(5, "Espalanza de Mikeura", "🔱", "melee"), 12.0, 0.50, 5.0, 80.0),
 			
 		WeaponType.FLAME_THROWER: WeaponDirector.construct_melee(
 				WeaponBuilder.new(6, "Lanzallamas", "🔥", "melee"), 2.0, 0.20, 11.0, 35.0),
@@ -111,6 +115,21 @@ static func _build_weapon_table() -> Dictionary:
 			
 		WeaponType.ZOMBIE_ARM: WeaponDirector.construct_ranged(
 				WeaponBuilder.new(14, "Brazo Bumerán", "🧟", "ranged"), 18.0, 0.8, 20.0),
+
+		# Dagas: golpes flojos y muy rápidos; la maza, lentos y pesados (más aturdimiento).
+		WeaponType.DAGGERS: WeaponDirector.construct_melee(
+				WeaponBuilder.new(15, "Dagas Gemelas", "🔪", "melee"), 7.0, 0.30, 2.4, 70.0),
+
+		WeaponType.MACE: WeaponDirector.construct_melee(
+				WeaponBuilder.new(16, "Maza Rúnica", "🔨", "melee"), 26.0, 1.10, 3.6, 80.0),
+
+		# Espadón a dos manos: combo de tres tajos pesados; solo anda o corre (ver PlayerMovementController).
+		WeaponType.GREATSWORD: WeaponDirector.construct_melee(
+				WeaponBuilder.new(17, "Espadón", "⚔️", "melee"), 22.0, 0.70, 3.8, 80.0),
+
+		# Espada de una mano: combo de cuatro golpes más ligeros que el espadón; anda y corre como él.
+		WeaponType.SWORD: WeaponDirector.construct_melee(
+				WeaponBuilder.new(18, "Espada", "🗡️", "melee"), 15.0, 0.50, 3.0, 75.0),
 	}
 	return table
 ## ---------------------------------------------
@@ -170,6 +189,10 @@ static var weapon_names: Dictionary = {
 	WeaponType.SPINNING_AXE: "Hacha Giratoria",
 	WeaponType.ELEMENTS_CYCLE: "Ciclo Elemental",
 	WeaponType.ZOMBIE_ARM: "Brazo Bumerán",
+	WeaponType.DAGGERS: "Dagas Gemelas",
+	WeaponType.MACE: "Maza Rúnica",
+	WeaponType.GREATSWORD: "Espadón",
+	WeaponType.SWORD: "Espada",
 }
 
 ## Icono por arma (HUD / señales).
@@ -185,6 +208,10 @@ static var weapon_icons: Dictionary = {
 	WeaponType.SPINNING_AXE: "🪓",
 	WeaponType.ELEMENTS_CYCLE: "🔮",
 	WeaponType.ZOMBIE_ARM: "🧟",
+	WeaponType.DAGGERS: "🔪",
+	WeaponType.MACE: "🔨",
+	WeaponType.GREATSWORD: "⚔️",
+	WeaponType.SWORD: "🗡️",
 }
 
 ## Daño con Berserk aplicado según la ficha (mismos valores que los literales).

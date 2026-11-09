@@ -10,8 +10,9 @@ import bpy, math, os
 ROOT = r"C:/Users/cabeu/Downloads/rumbang-0.1-main/rumbang-0.1-main/"
 SRC = ROOT + "blender_sources/backup/mapa_old/"
 OUT = ROOT + "assets/models/mapa/"
-NAMES = ["goblin_hut", "goblin_totem", "goblin_palisade", "goblin_skull_pole", "goblin_campfire", "goblin_tent",
-         "mushroom", "cave_stalagmite"]
+# La choza y el tótem ya no salen de aquí: se hacen pieza a pieza en blender_sources/dungeon_assets.blend
+# (texto dungeon_structures.py) junto con su <nombre>_pieces.glb.
+NAMES = ["goblin_palisade", "goblin_skull_pole", "goblin_campfire", "goblin_tent", "mushroom", "cave_stalagmite"]
 BEVEL = 0.04           # m
 SPLIT_ANGLE = 62       # grados: por encima de esto la arista queda dura (las cajas de 90° siguen duras)
 

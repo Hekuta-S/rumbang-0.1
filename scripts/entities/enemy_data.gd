@@ -52,9 +52,8 @@ const SPAN_MID_DIST := 14.0
 const SPAN_FAR_DIST := 40.0
 const SPAN_NEAR_MIN := 3.0            ## por mucha multitud, a menos de esto se actualiza en cada tick (ataques)
 const SPAN_IDLE_DIST := 60.0          ## sin alertar y más lejos que esto: cada 8 ticks
-## Con mucha multitud las distancias de arriba se dividen por esto (lo fija EnemyManager cada tick):
-## solo los más cercanos se actualizan en cada tick; el resto, cada 2 o 4 (el dibujo interpola).
-static var crowd_scale: float = 1.0
+## Con mucha multitud las distancias de arriba se dividen por HiveMind.crowd_scale (lo fija la mente
+## colmena cada tick): solo los más cercanos se actualizan en cada tick; el resto, cada 2 o 4 (el dibujo interpola).
 ## Velocidad de supervivencia (GameData.SURVIVAL_ENEMY_SPEED_MULT), fijada al reactivarse: evita
 ## comparar el modo de juego en cada actualización.
 var _mode_speed_mult: float = 1.0
@@ -68,6 +67,15 @@ var _sep: Vector3 = Vector3.ZERO
 var _cached_ground_y: float = 0.0
 var ground_y: float = 0.0   ## altura del suelo bajo el enemigo (la mantiene EnemyMotion)
 var _last_dist: float = 0.0
+## Celda de densidad donde lo vio la mente colmena en su última foto (lo escribe HiveMind; -1 = fuera).
+var hive_cell: int = -1
+## Token de ataque cuerpo a cuerpo de la mente colmena (HiveMind.acquire_token) y espera para pedir otro.
+var has_token: bool = false
+var token_wait: float = 0.0
+## Sentido en el que rodea al jugador mientras espera turno (+1 / -1, fijo por enemigo).
+var orbit_sign: float = 1.0
+## Posición del jugador en esta actualización (la fija update(); la usa _move).
+var _player_pos: Vector3 = Vector3.ZERO
 
 # --- Dibujo (ver EnemyVisuals) ---
 var vat_key: String = ""
@@ -162,6 +170,10 @@ func reactivate(pos: Vector3) -> void:
 	knockback_velocity = Vector3.ZERO
 	velocity = Vector3.ZERO
 	_sep = Vector3.ZERO
+	hive_cell = -1                  # recién (re)activado: la foto de densidad aún no lo cuenta
+	has_token = false
+	token_wait = 0.0
+	orbit_sign = 1.0 if randf() < 0.5 else -1.0
 	_dot_pending = 0.0
 	_logic_timer = randf() * 0.2
 	tick_span = 1
@@ -201,6 +213,8 @@ func update(delta: float) -> void:
 
 	if attack_cooldown > 0.0:
 		attack_cooldown -= delta
+	if token_wait > 0.0:
+		token_wait -= delta
 	if slow_timer > 0.0:
 		slow_timer -= delta
 		if slow_timer <= 0.0:
@@ -211,7 +225,9 @@ func update(delta: float) -> void:
 		knockback_velocity = Vector3.ZERO
 	vat_flash = maxf(vat_flash - delta, 0.0)
 
-	var to_player: Vector3 = player.global_position - global_position
+	# Posición del jugador leída una vez por tick por la mente colmena (no un global_position por enemigo)
+	_player_pos = HiveMind.local_player_pos if player == HiveMind.local_player else player.global_position
+	var to_player: Vector3 = _player_pos - global_position
 	to_player.y = 0.0
 	var dist := to_player.length()
 	_last_dist = dist
@@ -219,23 +235,25 @@ func update(delta: float) -> void:
 	# Próxima frecuencia de actualización (lejos o sin alertar: menos veces)
 	if not is_alerted and dist > SPAN_IDLE_DIST:
 		tick_span = 8
-	elif not is_alerted or dist > SPAN_FAR_DIST / crowd_scale:
+	elif not is_alerted or dist > SPAN_FAR_DIST / HiveMind.crowd_scale:
 		tick_span = 4
-	elif dist > maxf(SPAN_MID_DIST / crowd_scale, SPAN_NEAR_MIN):
+	elif dist > maxf(SPAN_MID_DIST / HiveMind.crowd_scale, SPAN_NEAR_MIN):
 		tick_span = 2
 	else:
 		tick_span = 1
 
 	_logic_timer -= delta
 	if _logic_timer <= 0.0:
-		_logic_timer = (0.2 + randf() * 0.1) * crowd_scale
+		_logic_timer = (0.2 + randf() * 0.1) * HiveMind.crowd_scale
 		if not is_alerted:
 			if to_player.length_squared() <= detection_range * detection_range or hp < max_hp:
 				is_alerted = true
 		# Con mapa procedural la altura la mantiene EnemyMotion (ground_y); floor_y solo se usa como respaldo
 		if not EnemyMotion.available():
 			_cached_ground_y = EnemyManager.floor_y(global_position.x, global_position.z)
+		var ts := PerfProbe.begin()
 		_compute_separation()
+		PerfProbe.end("enemigos.separacion", ts)
 
 	if not is_alerted:
 		velocity = knockback_velocity
@@ -248,16 +266,20 @@ func update(delta: float) -> void:
 
 	var effective_speed := speed * slow_multiplier * _mode_speed_mult
 	var next_vel := Vector3.ZERO
+	var ta := PerfProbe.begin()
 	if behavior:
 		next_vel = behavior.process_ai(delta, to_player, dist, effective_speed)
+	PerfProbe.end("enemigos.ia", ta)
 	velocity = next_vel + knockback_velocity + _sep
+	var tm := PerfProbe.begin()
 	_move(delta)
+	PerfProbe.end("enemigos.movimiento", tm)
 	vat_walking = Vector2(velocity.x, velocity.z).length_squared() > 0.2
 
 func _move(delta: float) -> void:
 	velocity.y = 0.0
 	if EnemyMotion.available():
-		EnemyMotion.move(self, velocity, delta, player.global_position if player else global_position)
+		EnemyMotion.move(self, velocity, delta, _player_pos)
 	else:
 		global_position.x += velocity.x * delta
 		global_position.z += velocity.z * delta
@@ -268,7 +290,12 @@ func _compute_separation() -> void:
 	_sep = Vector3.ZERO
 	if not is_alerted:
 		return
-	var push := EnemyRegistry.separation_push(self, SEP_RADIUS)
+	# Mente colmena: empuje desde la densidad de las celdas vecinas (sin recorrer a los vecinos uno a uno)
+	var push: Vector3
+	if HiveMind.use_density:
+		push = HiveMind.separation_push(self, SEP_RADIUS)
+	else:
+		push = EnemyRegistry.separation_push(self, SEP_RADIUS)
 	if push.length_squared() > 0.0001:
 		_sep = push.limit_length(1.0) * SEP_STRENGTH
 

@@ -44,10 +44,11 @@ func _exists(sfx_name: String) -> bool:
 	return false
 
 ## Returns the cached AudioStream for a sfx name, or null if missing.
+## Un sonido que falta avisa una sola vez y se guarda como null (no se vuelve a buscar ni a cargar).
 func get_stream(sfx_name: String) -> AudioStream:
 	if _stream_cache.has(sfx_name):
 		return _stream_cache[sfx_name]
-	
+
 	var stream: AudioStream = null
 	if ResourceLoader.exists(SFX_DIR + sfx_name + ".wav"):
 		stream = load(SFX_DIR + sfx_name + ".wav")
@@ -56,11 +57,9 @@ func get_stream(sfx_name: String) -> AudioStream:
 	elif ResourceLoader.exists(SFX_DIR + sfx_name + ".ogg"):
 		stream = load(SFX_DIR + sfx_name + ".ogg")
 	else:
-		# Fallback in case it's packaged differently or exact path is needed
-		stream = load(SFX_DIR + sfx_name + ".wav")
+		push_warning("[AudioManager] Falta el sonido %s%s (.wav/.mp3/.ogg)" % [SFX_DIR, sfx_name])
 
-	if stream:
-		_stream_cache[sfx_name] = stream
+	_stream_cache[sfx_name] = stream
 	return stream
 
 ## Plays a sound in 2D (UI / global feedback).

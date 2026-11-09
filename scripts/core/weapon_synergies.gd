@@ -35,6 +35,10 @@ const TAGS := {
 	W.SPINNING_AXE: ["filo"],
 	W.ELEMENTS_CYCLE: ["arcano", "fuego"],
 	W.ZOMBIE_ARM: ["filo", "naturaleza"],
+	W.DAGGERS: ["filo"],
+	W.MACE: ["arcano"],
+	W.GREATSWORD: ["filo"],
+	W.SWORD: ["filo"],
 }
 
 ## [bono con 2 armas, bono extra con 3 o más]. "add" en todas las claves (cooldown multiplica).

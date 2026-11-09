@@ -92,7 +92,7 @@ func _on_disconnected(_reason: String) -> void:
 	# Se perdió la conexión (o el anfitrión cerró la partida): de vuelta al menú
 	if is_inside_tree():
 		get_tree().paused = false
-		get_tree().change_scene_to_file("res://scenes/ui/main_menu.tscn")
+		get_tree().change_scene_to_file("res://scenes/ui/dungeon_hub.tscn")
 
 func _on_peer_left(id: int) -> void:
 	if remotes.has(id):
@@ -126,8 +126,14 @@ func _local_state() -> Array:
 	var ac = player.get("animation_controller")
 	var firing: bool = ac != null and Time.get_ticks_msec() / 1000.0 < float(ac.held_fire_until)
 	var weapon: int = player.current_weapon() if player.has_method("current_weapon") else -1
+	var eq := player.get("equipment") as PlayerEquipment
+	var helmet := EquipmentDB.helmet_of(eq.get_item("casco")) if eq else ""
+	var chest := EquipmentDB.armor_of(eq.get_item("pechera")) if eq else ""
+	var legs := EquipmentDB.armor_of(eq.get_item("pantalones")) if eq else ""
 	return [player.global_position, player.mesh.rotation.y, player.velocity, player.is_on_floor(), weapon,
-		float(player.get("hp")), float(player.get("max_hp")), bool(player.get_meta("downed", false)), firing]
+		float(player.get("hp")), float(player.get("max_hp")), bool(player.get_meta("downed", false)), firing,
+		CharacterLookApplier.helmet_net_index(helmet), CharacterLookApplier.armor_net_index(chest),
+		CharacterLookApplier.armor_net_index(legs)]
 
 @rpc("any_peer", "reliable")
 func _recv_action(anim_name: String, from_time: float, speed: float) -> void:
@@ -449,7 +455,7 @@ func _game_over() -> void:
 	var tree := get_tree()
 	Net.leave("Fin de la partida")   # _on_disconnected ya vuelve al menú
 	if is_instance_valid(tree) and tree.current_scene and tree.current_scene.get_node_or_null("NetWorld") == self:
-		tree.change_scene_to_file("res://scenes/ui/main_menu.tscn")
+		tree.change_scene_to_file("res://scenes/ui/dungeon_hub.tscn")
 
 ## Al despejar una caverna todos los caídos reviven con media vida junto a un compañero.
 func _revive_downed() -> void:

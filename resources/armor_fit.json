@@ -1,0 +1,76 @@
+{
+ "pechera": {
+  "region": "torso",
+  "sx": 1.18,
+  "sd": 1.19,
+  "sh": 1.08,
+  "ox": 0.0,
+  "od": 0.0,
+  "oh": -0.3
+ },
+ "hombrera": {
+  "region": "joint",
+  "bone": "Arm",
+  "sx": 0.72,
+  "sd": 0.48,
+  "sh": 0.48,
+  "ox": 0.05,
+  "od": 0.0,
+  "oh": -0.21,
+  "roll": 0.0
+ },
+ "brazo": {
+  "region": "joint",
+  "bone": "ForeArm",
+  "t": 0.5,
+  "sx": 0.55,
+  "sd": 0.38,
+  "sh": 0.26,
+  "ox": 0.0,
+  "od": 0.0,
+  "oh": -0.13,
+  "roll": 0.0
+ },
+ "muslo": {
+  "region": "joint",
+  "bone": "UpLeg",
+  "tail": "Leg",
+  "t": 0.45,
+  "sx": 0.48,
+  "sd": 0.56,
+  "sh": 0.91,
+  "ox": 0.0,
+  "od": 0.07,
+  "oh": -0.455,
+  "roll": 0.0,
+  "pitch": 10.0
+ },
+ "rodilla": {
+  "region": "joint",
+  "bone": "Leg",
+  "tail": "Foot",
+  "t": 0.0,
+  "sx": 0.4,
+  "sd": 0.46,
+  "sh": 0.37,
+  "ox": 0.0,
+  "od": 0.06,
+  "oh": -0.185,
+  "roll": 0.0,
+  "pitch": 10.0
+ },
+ "espinilla": {
+  "region": "joint",
+  "bone": "Leg",
+  "tail": "Foot",
+  "t": 0.5,
+  "sx": 0.31,
+  "sd": 0.42,
+  "sh": 0.58,
+  "ox": 0.0,
+  "od": 0.02,
+  "oh": -0.29,
+  "roll": 0.0,
+  "pitch": 10.0
+ }
+}

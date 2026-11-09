@@ -1,0 +1,7 @@
+{
+ "anime": {"up": 0.24},
+ "estilo3": {"wide": 1.15, "roll": 8.0, "up": 0.18},
+ "estilo4": {"wide": 1.15, "scale": 1.1},
+ "estilo5": {"wide": 1.15},
+ "cuernos": {"yaw": 180.0, "up": 0.18}
+}
