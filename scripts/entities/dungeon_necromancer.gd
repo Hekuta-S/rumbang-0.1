@@ -102,14 +102,19 @@ func _init() -> void:
 	stagger_damage = 9999.0       # nunca se aturde de un golpe...
 	stagger_knock = 9999.0
 	armor = 9999.0                # ...ni se inmuta con los normales...
-	armor_break = 140.0           # ...pero 140 de daño seguido lo aturden
+	armor_break = 170.0           # ...pero 170 de daño seguido lo aturden
 	stagger_time = 2.0
 	windup_poise = 9999.0
-	knock_scale = 0.1
+	knock_scale = 0.05
 	telegraph_color = COLOR
-	sfx_pitch = 0.6
+	warn_sfx = "necro_warn"
+	swing_sfx = "impact_magic"
+	hurt_sfx = "necro_hurt"
+	die_sfx = "necro_die"
+	sfx_pitch = 1.0
 	attack_rest = PHASE_REST[0]
 	face_player_dist = 20.0
+	uses_attack_token = false     # a distancia / jefe: no consume ficha de ataque
 	stun_ratio = 0.25             # 150 de aturdimiento: hace falta castigarle y pararle varias veces
 	show_hp_bar = false           # su vida va en la barra de jefe
 	stun_parry = 0.2
@@ -231,7 +236,7 @@ func _summon() -> void:
 		z.global_position = Vector3(pos.x, global_position.y + 0.1, pos.z)
 		SpawnDissolve.play(z.get_model(), z, 0.8, telegraph_color, 1.2)
 		_summons.append(z)
-	AudioManager.play_at("goblin_die", global_position, 0.0, 0.5)
+	AudioManager.play_at("necro_summon", global_position, 0.0)
 
 func _die() -> void:
 	super()

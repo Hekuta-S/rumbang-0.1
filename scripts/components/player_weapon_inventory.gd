@@ -133,9 +133,30 @@ func get_weapon_ammo(w_type: int) -> int:
 		return weapon_ammo.get(w_type, weapon_mag_size[w_type])
 	return -1
 
+# --- PATRÓN ITERATOR — rol: ConcreteAggregate ---------------------------------
+# El inventario fabrica los iteradores; los clientes recorren las armas con ellos
+# en vez de tocar `weapon_slots` y hacer aritmética de índices.
+
+## Recorrido lineal de las armas equipadas (ranura 0 → n-1).
+func create_iterator() -> WeaponSlotIterator:
+	return LinearSlotIterator.new(weapon_slots)
+
+## Recorrido en anillo desde la ranura actual; step = +1 (siguiente) o -1 (anterior).
+func create_cyclic_iterator(step: int = 1) -> WeaponSlotIterator:
+	return CyclicSlotIterator.new(weapon_slots, current_slot, step)
+
+## Índice de la ranura a la que se cambia al pulsar "siguiente/anterior arma" (-1 si no hay armas).
+func next_slot_index(step: int) -> int:
+	var it := create_cyclic_iterator(step)
+	if not it.has_next():
+		return -1
+	it.next()
+	return it.current_index()
+# -----------------------------------------------------------------------------
+
 ## true si alguna de las armas que lleva usa balas (reserva de la mazmorra o cargador).
 func has_ammo_weapon() -> bool:
-	for wt in weapon_slots:
+	for wt in create_iterator():
 		if PlayerResources.AMMO_MAX.has(wt) or weapon_mag_size.get(wt, 0) > 0:
 			return true
 	return false
@@ -149,9 +170,9 @@ func select_slot(slot_idx: int) -> void:
 	emit_signal("weapon_changed", slot_idx, name_value)
 
 func cycle_slots(delta_idx: int) -> void:
-	if weapon_slots.is_empty():
-		return
-	select_slot((current_slot + delta_idx) % weapon_slots.size())
+	var target := next_slot_index(delta_idx)
+	if target >= 0:
+		select_slot(target)
 
 func add_weapon(w_type: int) -> bool:
 	if weapon_slots.size() >= MAX_WEAPON_SLOTS:
@@ -191,7 +212,7 @@ func advance_reload(delta: float) -> void:
 
 func get_weapons_list() -> Array:
 	var list: Array = []
-	for wt in weapon_slots:
+	for wt in create_iterator():
 		var info: Dictionary = {
 			"icon": WeaponData.weapon_icons.get(wt, "⚔️"),
 			"name": WeaponData.weapon_names.get(wt, "Arma"),

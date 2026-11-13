@@ -5,7 +5,13 @@ var look_vector: Vector2 = Vector2.ZERO
 var is_attacking: bool = false
 ## El arma actual se apunta con el botón de disparo: mantener = apuntar (arrastrando el dedo), soltar = disparar.
 var attack_aims: bool = false
+## Igual para el botón especial mientras se carga un tiro (lanzamiento de la espalanza).
+var alt_aims: bool = false
 var is_jumping: bool = false
+## Correr (solo en el salón).
+var is_running: bool = false
+## Interactuar con la estación cercana (solo en el salón).
+var just_pressed_interact: bool = false
 var is_alt_attack: bool = false
 var is_skill: bool = false
 var is_reloading: bool = false
@@ -17,6 +23,11 @@ var just_pressed_cycle_prev: bool = false
 var just_pressed_dodge: bool = false
 var just_pressed_parry: bool = false
 var just_pressed_target: bool = false
+## Arrastre del botón táctil de fijar: dirección en pantalla hacia la que cambiar de objetivo (ZERO = nada).
+## Lo consume TargetLockController en su paso de física.
+var target_switch_dir: Vector2 = Vector2.ZERO
+## Lo mantiene TargetLockController: ¿hay un objetivo fijado? (el botón táctil decide así si al soltar suelta).
+var target_locked: bool = false
 ## Lo activa la interfaz táctil: los toques emulan clic izquierdo y NO deben contar como ataque.
 var touch_ui_active: bool = false
 
@@ -33,4 +44,5 @@ func _clear_just_pressed() -> void:
 	just_pressed_dodge = false
 	just_pressed_parry = false
 	just_pressed_target = false
+	target_switch_dir = Vector2.ZERO
 

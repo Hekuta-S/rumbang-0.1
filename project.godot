@@ -16,7 +16,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 
 config/name="Rumbang"
 config/description="Roguelike 3D shooter and melee game in third person perspective built with Godot 4.3"
-run/main_scene="res://scenes/ui/main_menu.tscn"
+run/main_scene="res://scenes/ui/title_screen.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.png"
 config/windows_native_icon="res://icon.ico"
@@ -26,6 +26,7 @@ config/windows_native_icon="res://icon.ico"
 GameData="*res://scripts/core/game_data.gd"
 SaveManager="*res://scripts/core/save_manager.gd"
 AudioManager="*res://scripts/core/audio_manager.gd"
+MusicDirector="*res://scripts/core/music_director.gd"
 ItemDB="*res://scripts/core/item_db.gd"
 SceneLoader="*res://scripts/core/scene_loader.gd"
 Net="*res://scripts/net/net_manager.gd"
@@ -43,7 +44,7 @@ window/stretch/aspect="expand"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/godot_mcp_toolkit/plugin.cfg")
+enabled=PackedStringArray("res://addons/godot_mcp_toolkit/plugin.cfg", "res://addons/web_texture_limit/plugin.cfg")
 
 [gui]
 
@@ -100,6 +101,7 @@ activate_skill={
 [physics]
 
 common/physics_ticks_per_second=40
+3d/physics_engine="Jolt Physics"
 common/physics_interpolation=true
 
 [rendering]

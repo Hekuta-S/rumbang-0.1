@@ -14,7 +14,7 @@ var _t0 := 0
 func _ready() -> void:
 	print("--- TEST: PANTALLA DE CARGA DE MAZMORRA ---")
 	GameData.game_mode = "dungeon"
-	SceneLoader.next_scene_path = "res://scenes/core/main_dungeon.tscn"
+	SceneLoader.next_scene_path = OS.get_environment("LS_TARGET") if OS.get_environment("LS_TARGET") != "" else "res://scenes/core/main_dungeon.tscn"
 	_loading = (load("res://scenes/ui/loading_screen.tscn") as PackedScene).instantiate()
 	_t0 = Time.get_ticks_msec()
 	_start.call_deferred()
@@ -50,5 +50,16 @@ func _finish() -> void:
 	var secs := (Time.get_ticks_msec() - _t0) / 1000.0
 	print("carga completa en %.1f s; frame más largo %.0f ms (en '%s'); saltos de barra >25: %d" % [secs, _worst, _worst_at, _jumps])
 	assert(_jumps == 0, "La barra no da saltos grandes")
+	# La tapa de SceneLoader cubre el montaje de la escena y se quita sola cuando el mundo está listo
+	assert(SceneLoader.has_cover(), "La tapa sigue puesta al entrar la escena nueva")
+	var shot := OS.get_environment("LS_SHOT")
+	if shot != "":
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png(shot)
+	var t := Time.get_ticks_msec()
+	while SceneLoader.has_cover() and Time.get_ticks_msec() - t < 15000:
+		await get_tree().process_frame
+	assert(not SceneLoader.has_cover(), "La tapa se quita cuando la escena está lista")
+	print("tapa retirada a los %.1f s de entrar la escena" % ((Time.get_ticks_msec() - t) / 1000.0))
 	print("ALL LOADING CHECKS PASSED")
 	get_tree().quit(0)

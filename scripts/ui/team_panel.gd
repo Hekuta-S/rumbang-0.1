@@ -21,6 +21,9 @@ func _ready() -> void:
 	offset_left = -W - PAD * 2.0 - 20.0
 	offset_right = -20.0
 	offset_top = 140.0 if Quality.is_mobile() else 60.0
+	if GameData.game_mode == "dungeon":
+		# Arriba a la derecha va el minimapa (y el FPS bajo él): el equipo baja por debajo
+		offset_top = HudLayout.below_map_y(get_viewport_rect().size.x) + 26.0
 	visible = Net.is_online()
 
 func _process(_delta: float) -> void:

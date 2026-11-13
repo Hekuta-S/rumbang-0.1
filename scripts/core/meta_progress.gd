@@ -17,9 +17,24 @@ const ACHIEVEMENTS := {
 	"infinito": {"name": "Sin final", "desc": "Aguanta 3 minutos en el modo infinito",
 		"stat": "best_endless_s", "goal": 180, "reward": "+1 descartar por partida"},
 	"verdugo": {"name": "Verdugo", "desc": "Remata a 50 enemigos en la mazmorra",
-		"stat": "finishers", "goal": 50, "reward": "Empiezas la mazmorra con una runa"},
+		"stat": "finishers", "goal": 50, "reward": "Empiezas la mazmorra con un tomo"},
 	"retador": {"name": "Retador", "desc": "Supera 5 desafíos de la mazmorra",
 		"stat": "challenges_won", "goal": 5, "reward": "Forja desde el nivel 1"},
+	# Armas de supervivencia que empiezan bloqueadas (WEAPON_UNLOCKS): salen en las cartas al desbloquearlas.
+	"w_serpientes": {"name": "Domador", "desc": "Juega 2 partidas de supervivencia",
+		"stat": "survival_runs", "goal": 2, "reward": "Desbloquea: Serpientes", "weapon": WeaponData.WeaponType.SERPENTS},
+	"w_brazo": {"name": "Veterano", "desc": "Juega 5 partidas de supervivencia",
+		"stat": "survival_runs", "goal": 5, "reward": "Desbloquea: Brazo zombi", "weapon": WeaponData.WeaponType.ZOMBIE_ARM},
+	"w_polvos": {"name": "Alquimista", "desc": "Llega al nivel 10 en supervivencia",
+		"stat": "best_level", "goal": 10, "reward": "Desbloquea: Polvos", "weapon": WeaponData.WeaponType.DUSTS},
+	"w_esporas": {"name": "Micólogo", "desc": "Llega al nivel 15 en supervivencia",
+		"stat": "best_level", "goal": 15, "reward": "Desbloquea: Bazuca de esporas", "weapon": WeaponData.WeaponType.SPORE_BAZOOKA},
+	"w_elementos": {"name": "Elementalista", "desc": "Llega al nivel 20 en supervivencia",
+		"stat": "best_level", "goal": 20, "reward": "Desbloquea: Ciclo elemental", "weapon": WeaponData.WeaponType.ELEMENTS_CYCLE},
+	"w_espadon": {"name": "Matagigantes", "desc": "Vence al Nigromante en supervivencia",
+		"stat": "survival_boss_kills", "goal": 1, "reward": "Desbloquea: Espadón", "weapon": WeaponData.WeaponType.GREATSWORD},
+	"w_railgun": {"name": "Francotirador", "desc": "Llega al nivel 30 en supervivencia",
+		"stat": "best_level", "goal": 30, "reward": "Desbloquea: Cañón de riel", "weapon": WeaponData.WeaponType.RAILGUN},
 }
 const COLOR := Color(1.0, 0.84, 0.3)
 
@@ -60,6 +75,22 @@ static func evolution_known(weapon: int) -> bool:
 	return (SaveManager.meta.get("evolutions", []) as Array).has(weapon)
 
 ## Ventajas desbloqueadas que se usan al jugar.
+## Un arma sin logro asociado está siempre disponible; con logro, solo al cumplirlo.
+static func weapon_unlocked(weapon: int) -> bool:
+	for id in ACHIEVEMENTS:
+		var a: Dictionary = ACHIEVEMENTS[id]
+		if a.has("weapon") and int(a["weapon"]) == weapon:
+			return unlocked(id)
+	return true
+
+## Fin de una partida de supervivencia: cuenta la partida y el mejor nivel (una sola vez por partida).
+static func record_survival_run(level: int) -> void:
+	if RunStats.run_recorded:
+		return
+	RunStats.run_recorded = true
+	record_max("best_level", level)
+	record("survival_runs")
+
 static func bonus_rerolls() -> int:
 	return int(unlocked("evolucionista")) + int(unlocked("matanecros"))
 

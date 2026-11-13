@@ -68,7 +68,13 @@ const PROPS := {
 @export var cliff_height: float = 22.0
 @export var chunk_size: float = 80.0
 @export_range(0.0, 2.0, 0.05) var prop_density: float = 1.0
-@export var max_lights: int = 16
+@export var max_lights: int = 16                    ## luces que se crean como mucho
+## Luces encendidas a la vez como mucho: las más cercanas al jugador (dentro de la distancia de corte).
+@export var visible_lights: int = 16
+## Las luces son la iluminación principal (cueva cerrada): se encienden aunque la calidad las apague
+## (entonces con un tope más bajo, ver DungeonMap._place_torches).
+var lights_essential := false
+var light_scale := 1.0                ## multiplica la fuerza de todas las luces (de día, DayNightCycle las baja)
 @export var embers_enabled: bool = true
 
 var used_seed: int = 0
@@ -95,8 +101,11 @@ var _flicker_t: float = 0.0
 var _embers: Array[CPUParticles3D] = []
 var _cull_timer: float = 0.0
 ## Distancia (m) a la que se apagan luces y brasas lejanas (más corta en móvil).
-const LIGHT_CULL_DIST_PC := 55.0
-const LIGHT_CULL_DIST_MOBILE := 38.0
+const LIGHT_CULL_DIST_PC := 70.0
+const LIGHT_CULL_DIST_MOBILE := 45.0
+## Filtro opcional (DungeonFog): func(pos: Vector3, dist_sq: float) -> bool. Las luces que no pasan no gastan
+## cupo de `visible_lights` (p. ej. antorchas de salas vecinas tapadas por la roca o la niebla).
+var light_eligible: Callable
 var _mobile: bool = false
 
 func _ready() -> void:
@@ -106,7 +115,7 @@ func _ready() -> void:
 	if _mobile:
 		cell_size = maxf(cell_size, 2.5)
 		prop_density *= 0.55
-		max_lights = mini(max_lights, 6)
+		visible_lights = mini(visible_lights, 6)
 		embers_enabled = false
 	generate(map_seed)
 
@@ -381,14 +390,14 @@ func _place(kind: String, pos: Vector2, radius: float, yaw: float = -1.0, s: flo
 	_reserve(pos, radius)
 	_add(kind, pos, yaw, s, -0.04, collide, tilt)
 
-func _add_light(pos: Vector3, color: Color, energy: float, light_range: float) -> void:
+func _add_light(pos: Vector3, color: Color, energy: float, light_range: float, attenuation: float = 1.6) -> void:
 	if _lights.size() >= max_lights:
 		return
 	var l := OmniLight3D.new()
 	l.light_color = color
 	l.light_energy = energy
 	l.omni_range = light_range
-	l.omni_attenuation = 1.6
+	l.omni_attenuation = attenuation
 	l.shadow_enabled = false
 	l.position = pos
 	add_child(l)
@@ -694,17 +703,34 @@ func _flatten_mesh(src: Mesh) -> Mesh:
 		_prop_material.shader = PROP_SHADER
 	return flatten_with(src, _prop_material)
 
+## Clase de detalle de prop_detail según el nombre del material (pm_straw, g_hide...): 0 = la textura
+## del prop (madera o piedra), 1 piedra (también hueso y barro), 2 paja, 3 piel o cuerda, 4 corteza.
+static func detail_class(mat_name: String) -> int:
+	var n := mat_name.to_lower()
+	if "straw" in n or "thatch" in n:
+		return 2
+	if "hide" in n or "rope" in n or "leather" in n:
+		return 3
+	if "bark" in n:
+		return 4
+	if "stone" in n or "rock" in n or "bone" in n or "mud" in n:
+		return 1
+	return 0
+
 ## Igual que _flatten_mesh pero con el material que se pida (lo usa también DestructibleProp para
-## las piezas sueltas de los props rotos).
+## las piezas sueltas de los props rotos). Si la malla trae color de vértice (oclusión horneada en
+## Blender), multiplica al del material. La clase de detalle de cada material va en UV2.x.
 static func flatten_with(src: Mesh, material: Material) -> Mesh:
 	var verts := PackedVector3Array()
 	var norms := PackedVector3Array()
 	var cols := PackedColorArray()
+	var cls := PackedVector2Array()
 	var idx := PackedInt32Array()
 	for s in range(src.get_surface_count()):
 		var arr := src.surface_get_arrays(s)
 		var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 		var n = arr[Mesh.ARRAY_NORMAL]
+		var vc = arr[Mesh.ARRAY_COLOR]
 		var ix = arr[Mesh.ARRAY_INDEX]
 		var base := verts.size()
 		var color := Color(0.5, 0.5, 0.5, 0.0)
@@ -715,13 +741,20 @@ static func flatten_with(src: Mesh, material: Material) -> Mesh:
 			emissive = (m as BaseMaterial3D).emission_enabled
 		var lin := color.srgb_to_linear()
 		lin.a = 1.0 if emissive else 0.0
+		var c2 := Vector2(float(detail_class(m.resource_name if m else "")), 0.0)
 		verts.append_array(v)
 		if n != null:
 			norms.append_array(n)
 		else:
 			norms.resize(verts.size())
+		var ao: bool = vc != null and (vc as PackedColorArray).size() == v.size() and not emissive
 		for i in range(v.size()):
-			cols.append(lin)
+			if ao:
+				var vk: Color = vc[i]
+				cols.append(Color(lin.r * vk.r, lin.g * vk.g, lin.b * vk.b, lin.a))
+			else:
+				cols.append(lin)
+			cls.append(c2)
 		if ix != null:
 			for k in ix:
 				idx.append(base + int(k))
@@ -733,6 +766,7 @@ static func flatten_with(src: Mesh, material: Material) -> Mesh:
 	out[Mesh.ARRAY_VERTEX] = verts
 	out[Mesh.ARRAY_NORMAL] = norms
 	out[Mesh.ARRAY_COLOR] = cols
+	out[Mesh.ARRAY_TEX_UV2] = cls
 	out[Mesh.ARRAY_INDEX] = idx
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, out)
@@ -747,6 +781,10 @@ func _find_mesh_instance(n: Node) -> MeshInstance3D:
 		if r:
 			return r
 	return null
+
+## Lado de los trozos en que se agrupan las instancias de un tipo de prop.
+func _prop_chunk_size(_kind: String) -> float:
+	return chunk_size
 
 func _build_prop_nodes() -> void:
 	var container := Node3D.new()
@@ -764,9 +802,10 @@ func _build_prop_nodes() -> void:
 			continue
 		var xf: Transform3D = _mesh_xf[kind]
 		# Agrupar por chunk para que el culling de cámara funcione
+		var cs := _prop_chunk_size(kind)
 		var chunks: Dictionary = {}
 		for t in (_instances[kind] as Array):
-			var key := Vector2i(int(floor((t.origin.x + half_size) / chunk_size)), int(floor((t.origin.z + half_size) / chunk_size)))
+			var key := Vector2i(int(floor((t.origin.x + half_size) / cs)), int(floor((t.origin.z + half_size) / cs)))
 			if not chunks.has(key):
 				chunks[key] = []
 			(chunks[key] as Array).append(t)
@@ -820,7 +859,12 @@ func _process(delta: float) -> void:
 		if not is_instance_valid(l) or not l.visible:
 			continue
 		var f := 0.85 + 0.15 * sin(_flicker_t * 9.0 + float(i) * 1.7) + 0.08 * sin(_flicker_t * 23.0 + float(i) * 4.1)
-		l.light_energy = _light_base[i] * f
+		l.light_energy = _light_base[i] * f * light_scale
+
+## Recalcula ya qué luces van encendidas (p. ej. al cambiar de sala, sin esperar al siguiente tick).
+func refresh_lights() -> void:
+	_cull_timer = 0.4
+	_cull_lights_and_embers()
 
 ## Apaga luces y brasas lejos del jugador (cada 0,4 s): cada luz dinámica y cada sistema de partículas
 ## cuesta en cada frame aunque estén fuera de vista.
@@ -831,10 +875,23 @@ func _cull_lights_and_embers() -> void:
 	var limit: float = LIGHT_CULL_DIST_MOBILE if _mobile else LIGHT_CULL_DIST_PC
 	var limit_sq := limit * limit
 	var pp := player.global_position
-	var lights_on := Quality.lights_enabled()
+	var lights_on := Quality.lights_enabled() or lights_essential
+	# Encendidas: las `visible_lights` más cercanas dentro de la distancia de corte
+	var close: Array = []
 	for l in _lights:
 		if is_instance_valid(l):
-			l.visible = lights_on and l.global_position.distance_squared_to(pp) <= limit_sq
+			var d2 := l.global_position.distance_squared_to(pp)
+			if lights_on and d2 <= limit_sq and (not light_eligible.is_valid() or light_eligible.call(l.global_position, d2)):
+				close.append([d2, l])
+	if close.size() > visible_lights:
+		close.sort_custom(func(a, b): return a[0] < b[0])
+		close.resize(visible_lights)
+	var on := {}
+	for e in close:
+		on[e[1]] = true
+	for l in _lights:
+		if is_instance_valid(l):
+			l.visible = on.has(l)
 	for p in _embers:
 		if is_instance_valid(p):
 			var near := p.global_position.distance_squared_to(pp) <= limit_sq

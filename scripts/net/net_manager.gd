@@ -36,7 +36,7 @@ const WS_BUFFER := 1 << 20            ## bytes por sentido (las instantáneas de
 enum Mode { OFFLINE, HOST, CLIENT }
 
 var mode: int = Mode.OFFLINE
-var players: Dictionary = {}          ## peer_id -> {"name": String, "char": int}
+var players: Dictionary = {}          ## peer_id -> {"name": String, "char": int, "look": Dictionary (CharacterLook)}
 var player_name := "Jugador"
 var game_name := ""
 var level_seed := 0
@@ -113,6 +113,11 @@ func name_of(peer_id: int) -> String:
 func char_of(peer_id: int) -> int:
 	return int(players.get(peer_id, {}).get("char", 0))
 
+## Apariencia (CharacterLook.to_dict) de un jugador; vacía si no la mandó.
+func look_of(peer_id: int) -> Dictionary:
+	var l: Variant = players.get(peer_id, {}).get("look", {})
+	return l if l is Dictionary else {}
+
 # ───────────────────────────── Anfitrión / cliente ─────────────────────────────
 
 func host_game(p_game_name: String = "") -> int:
@@ -125,7 +130,7 @@ func host_game(p_game_name: String = "") -> int:
 	mode = Mode.HOST
 	game_name = p_game_name if p_game_name != "" else "Partida de %s" % player_name
 	in_game = false
-	players = {1: {"name": player_name, "char": GameData.selected_index}}
+	players = {1: {"name": player_name, "char": GameData.selected_index, "look": CharacterLook.current().to_dict()}}
 	_udp_out = PacketPeerUDP.new()
 	_udp_out.set_broadcast_enabled(true)
 	_announce_t = 0.0
@@ -250,7 +255,7 @@ func server_back_to_lobby() -> void:
 	get_tree().change_scene_to_file(SERVER_SCENE)
 
 func _on_connected_to_server() -> void:
-	_srv_register.rpc_id(1, player_name, GameData.selected_index)
+	_srv_register.rpc_id(1, player_name, GameData.selected_index, CharacterLook.current().to_dict())
 
 func _on_connection_failed() -> void:
 	leave()
@@ -262,7 +267,7 @@ func _on_server_disconnected() -> void:
 # ───────────────────────────── Sala ─────────────────────────────
 
 @rpc("any_peer", "reliable")
-func _srv_register(p_name: String, p_char: int) -> void:
+func _srv_register(p_name: String, p_char: int, p_look: Dictionary = {}) -> void:
 	if not is_host():
 		return
 	var sender := multiplayer.get_remote_sender_id()
@@ -271,7 +276,8 @@ func _srv_register(p_name: String, p_char: int) -> void:
 		multiplayer.multiplayer_peer.disconnect_peer(sender)
 		return
 	_join_seq += 1
-	players[sender] = {"name": p_name.substr(0, 16), "char": clampi(p_char, 0, GameData.CHARACTERS.size() - 1), "order": _join_seq}
+	players[sender] = {"name": p_name.substr(0, 16), "char": clampi(p_char, 0, GameData.CHARACTERS.size() - 1), "order": _join_seq,
+		"look": CharacterLook.from_dict(p_look).to_dict()}   # validada: no se reenvía nada raro
 	if dedicated:
 		print("[servidor] entra %s (%d/%d)" % [players[sender]["name"], players.size(), MAX_PLAYERS])
 	_sync_lobby.rpc(players, dedicated)

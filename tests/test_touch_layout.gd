@@ -4,6 +4,7 @@ extends Node
 
 func _ready() -> void:
 	print("--- TEST: EDITOR DE CONTROLES TACTILES ---")
+	GameData.game_mode = "dungeon"   # disposición completa (survival y salón limitan los botones)
 	SettingsManager.touch_custom = {}
 	SettingsManager.touch_hidden = []
 	var controls: Node = load("res://scripts/ui/mobile_controls.gd").new()

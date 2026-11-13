@@ -12,8 +12,9 @@ func apply_config() -> void:
 func get_model_paths() -> Dictionary:
 	return { "idle": "", "walk": "", "tex": "" }
 
+## Multiplica la velocidad del empujón (1 = normal; menos = más pesado)
 func get_knockback_resistance() -> float:
-	return 1.0
+	return 0.85
 
 func process_ai(delta: float, to_player: Vector3, dist: float, effective_speed: float) -> Vector3:
 	return Vector3.ZERO
@@ -37,6 +38,9 @@ static func try_global_shot() -> bool:
 
 
 class RangedGoblinBehavior extends EnemyBehavior:
+	func get_knockback_resistance() -> float:
+		return 0.8
+
 	func apply_config() -> void:
 		# Flyweight: estado intrínseco compartido por todos los enemigos de este tipo
 		EnemyTypeFlyweightFactory.get_flyweight(EnemyData.EnemyType.GOBLIN_RANGED).apply_to(enemy)
@@ -67,6 +71,9 @@ class RangedGoblinBehavior extends EnemyBehavior:
 
 
 class SniperGoblinBehavior extends EnemyBehavior:
+	func get_knockback_resistance() -> float:
+		return 0.75
+
 	func apply_config() -> void:
 		# Flyweight: estado intrínseco compartido por todos los enemigos de este tipo
 		EnemyTypeFlyweightFactory.get_flyweight(EnemyData.EnemyType.SNIPER_GOBLIN).apply_to(enemy)
@@ -98,6 +105,9 @@ class SniperGoblinBehavior extends EnemyBehavior:
 ## Mago de artillería: misma skin que el mago, ataca desde mucho más lejos con un proyectil en parábola
 ## que cae donde estaba el jugador al disparar (no lo persigue).
 class MortarGoblinBehavior extends EnemyBehavior:
+	func get_knockback_resistance() -> float:
+		return 0.6
+
 	func apply_config() -> void:
 		# Flyweight: estado intrínseco compartido por todos los enemigos de este tipo
 		EnemyTypeFlyweightFactory.get_flyweight(EnemyData.EnemyType.MORTAR_GOBLIN).apply_to(enemy)
@@ -128,8 +138,22 @@ class MortarGoblinBehavior extends EnemyBehavior:
 		return next_vel
 
 
+## Cuerpo a cuerpo con turnos de la mente colmena: dentro del anillo (attack_range + RING_GAP) solo se
+## acerca a golpear quien tiene token (HiveMind.acquire_token); los demás rodean al jugador a esa
+## distancia esperando su turno. Tras cada golpe el token se suelta para que rote.
 class MeleeGoblinBehavior extends EnemyBehavior:
+	const RING_GAP := 1.3            ## distancia extra sobre attack_range a la que esperan los que no tienen turno
+	const RELEASE_GAP := 3.0         ## si el jugador se aleja tanto del anillo, el token se suelta
+	const ORBIT_SPEED := 0.45        ## × velocidad, al rodear esperando turno
+
 	func process_ai(delta: float, to_player: Vector3, dist: float, effective_speed: float) -> Vector3:
+		var ring: float = enemy.attack_range + RING_GAP
+		if enemy.has_token and dist > ring + RELEASE_GAP:
+			HiveMind.release_token(enemy)
+		if dist <= ring and not HiveMind.acquire_token(enemy):
+			enemy.attack_windup = 0.0
+			return _wait_in_ring(to_player, dist, ring, effective_speed)
+
 		var next_vel = Vector3.ZERO
 		if dist > (enemy.attack_range - 0.2):
 			next_vel = to_player.normalized() * effective_speed
@@ -142,11 +166,25 @@ class MeleeGoblinBehavior extends EnemyBehavior:
 					enemy.attack_windup = 0.0
 					if enemy.player.has_method("take_damage"):
 						enemy.player.take_damage(enemy.damage)
+					# Turno cumplido: el token pasa a otro de la horda
+					HiveMind.release_token(enemy, HiveMind.TOKEN_RETRY)
 		else:
 			enemy.attack_windup = 0.0
 		return next_vel
 
+	## Sin turno: rodea al jugador manteniéndose en el anillo (se aparta si está más cerca).
+	func _wait_in_ring(to_player: Vector3, dist: float, ring: float, effective_speed: float) -> Vector3:
+		if dist < 0.01:
+			return Vector3.ZERO
+		var radial := to_player / dist                      # hacia el jugador
+		var tangent: Vector3 = Vector3(-radial.z, 0.0, radial.x) * float(enemy.orbit_sign)
+		var radial_err := clampf((dist - ring) / RING_GAP, -1.0, 1.0)   # <0: demasiado cerca -> se aparta
+		return (tangent * ORBIT_SPEED + radial * radial_err) * effective_speed
+
 class NormalGoblinBehavior extends MeleeGoblinBehavior:
+	func get_knockback_resistance() -> float:
+		return 0.85
+
 	func apply_config() -> void:
 		# Flyweight: estado intrínseco compartido por todos los enemigos de este tipo
 		EnemyTypeFlyweightFactory.get_flyweight(EnemyData.EnemyType.NORMAL_GOBLIN).apply_to(enemy)
@@ -171,9 +209,12 @@ class HeavyBruteBehavior extends MeleeGoblinBehavior:
 		}
 
 	func get_knockback_resistance() -> float:
-		return 0.3
+		return 0.2
 
 class ZombieGoblinBehavior extends MeleeGoblinBehavior:
+	func get_knockback_resistance() -> float:
+		return 0.6
+
 	func apply_config() -> void:
 		# Flyweight: estado intrínseco compartido por todos los enemigos de este tipo
 		EnemyTypeFlyweightFactory.get_flyweight(EnemyData.EnemyType.ZOMBIE_GOBLIN).apply_to(enemy)

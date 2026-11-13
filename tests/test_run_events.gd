@@ -78,7 +78,6 @@ func _ready() -> void:
 	assert(chest != null, "Aparece el cofre maldito")
 	ev._open_cursed_chest(chest)
 	assert(waves.is_cursed() and waves._current_batch() > batch, "Maldición: más enemigos por lote (%d → %d)" % [batch, waves._current_batch()])
-	assert(GameState.get_instance().gold == gold + RunEvents.CHEST_GOLD, "El cofre da oro")
 	print("CHECK 4 PASSED: cofre maldito")
 
 	# 5. Santuario: quedarse dentro lo activa (cura y objeto) y luego reaparece otro

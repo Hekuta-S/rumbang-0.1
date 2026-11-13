@@ -14,6 +14,9 @@ extends Node
 signal parried(attacker: Node3D)
 
 const WINDOW := 0.4
+## Espada de una mano: su fuerte es parar. Toda la guardia protege y el contraataque pega más.
+const SWORD_WINDOW := 0.6
+const SWORD_BONUS_MULT := 2.0
 const POSE_TIME := 0.6
 const COOLDOWN_OK := 0.5
 const COOLDOWN_FAIL := 2.5
@@ -96,7 +99,18 @@ func is_active() -> bool:
 
 ## Protegiendo ahora mismo (dentro de la ventana).
 func is_guarding() -> bool:
-	return _t >= 0.0 and _t <= WINDOW
+	return _t >= 0.0 and _t <= window()
+
+func _has_sword() -> bool:
+	return player != null and player.has_method("current_weapon") and player.current_weapon() == WeaponData.WeaponType.SWORD
+
+## Segundos de protección de la guardia con el arma en la mano.
+func window() -> float:
+	return SWORD_WINDOW if _has_sword() else WINDOW
+
+## Multiplicador del contraataque tras un parry con el arma en la mano.
+func bonus_mult() -> float:
+	return SWORD_BONUS_MULT if _has_sword() else BONUS_MULT
 
 func cooldown_left() -> float:
 	return _cooldown
@@ -122,6 +136,8 @@ func try_block_melee(attacker: Node3D) -> bool:
 	AudioManager.play("impact_blunt", -4.0, 1.4)
 	HitFeedback.freeze(0.09)
 	HitFeedback.shake(0.35)
+	HitFeedback.kick(player.global_position - attacker.global_position, 0.5)
+	HitFeedback.fov_punch(3.0)
 	var root := player.get_tree().current_scene
 	if root:
 		var at: Vector3 = player.global_position.lerp(attacker.global_position, 0.4) + Vector3(0, 1.1, 0)
@@ -152,7 +168,7 @@ func consume_bonus() -> float:
 	if _bonus_t <= 0.0:
 		return 1.0
 	_bonus_t = 0.0
-	return BONUS_MULT
+	return bonus_mult()
 
 func has_bonus() -> bool:
 	return _bonus_t > 0.0

@@ -72,6 +72,12 @@ func _ready() -> void:
 	_strategies[WeaponData.WeaponType.SPINNING_AXE] = WeaponStrategy.SpinningAxeStrategy.new(self)
 	_strategies[WeaponData.WeaponType.ELEMENTS_CYCLE] = WeaponStrategy.ElementsCycleStrategy.new(self)
 	_strategies[WeaponData.WeaponType.ZOMBIE_ARM] = WeaponStrategy.ZombieArmStrategy.new(self)
+	_strategies[WeaponData.WeaponType.DAGGERS] = WeaponStrategy.DaggersStrategy.new(self)
+	_strategies[WeaponData.WeaponType.MACE] = WeaponStrategy.MaceStrategy.new(self)
+	_strategies[WeaponData.WeaponType.GREATSWORD] = WeaponStrategy.GreatswordStrategy.new(self)
+	_strategies[WeaponData.WeaponType.SWORD] = WeaponStrategy.SwordStrategy.new(self)
+	_strategies[WeaponData.WeaponType.KATANA] = WeaponStrategy.KatanaStrategy.new(self)
+	_strategies[WeaponData.WeaponType.BOW] = WeaponStrategy.BowStrategy.new(self)
 
 
 const INPUT_BUFFER_TIME: float = 0.28
@@ -79,6 +85,11 @@ var _attack_buffer_timer: float = 0.0
 
 func _process(delta: float) -> void:
 	_update_spear_charge(delta)
+	var bow = _strategies.get(WeaponData.WeaponType.BOW)
+	if bow:
+		bow.update_charge(delta)
+		if bow.charge >= 0.0:
+			VirtualInput.alt_aims = true
 	if _attack_buffer_timer > 0.0:
 		_attack_buffer_timer -= delta
 		_try_consume_buffered_attack()
@@ -181,6 +192,8 @@ func release_spear_charge() -> void:
 		strategy.throw_spear_charged(power)
 
 func _update_spear_charge(delta: float) -> void:
+	# Táctil: mientras se carga, el dedo del botón especial mueve la mira (como el disparo de la bazuca)
+	VirtualInput.alt_aims = spear_charge >= 0.0
 	if spear_charge < 0.0:
 		return
 	if player.current_weapon() != WeaponData.WeaponType.SPEAR_LANCE:
@@ -190,6 +203,9 @@ func _update_spear_charge(delta: float) -> void:
 			player.weapon_visuals.set_spear_charge(0.0)
 		return
 	spear_charge += delta
+	var spear = _strategies.get(WeaponData.WeaponType.SPEAR_LANCE)
+	if spear:
+		spear.face_charge_aim()
 	var power := clampf(spear_charge / SPEAR_CHARGE_TIME, 0.0, 1.0)
 	if player.weapon_visuals:
 		player.weapon_visuals.set_spear_charge(power)
@@ -249,6 +265,41 @@ func spore_shotgun() -> bool:
 	var strategy = _strategies.get(WeaponData.WeaponType.SPORE_BAZOOKA)
 	return strategy != null and strategy.spore_shotgun()
 
+## Embestida de las dagas hacia la mira (click derecho). Cobra su recurso solo si sale.
+func dagger_dash() -> bool:
+	var strategy = _strategies.get(WeaponData.WeaponType.DAGGERS)
+	return strategy != null and strategy.dagger_dash()
+
+## Mazazo al suelo de la maza (click derecho, mazmorra). Cobra su recurso solo si sale.
+func mace_slam() -> bool:
+	var strategy = _strategies.get(WeaponData.WeaponType.MACE)
+	return strategy != null and strategy.mace_slam()
+
+## Tajo especial de la katana (click derecho, mazmorra). Cobra su recurso solo si sale.
+func katana_special() -> bool:
+	var strategy = _strategies.get(WeaponData.WeaponType.KATANA)
+	return strategy != null and strategy.katana_special()
+
+## Arco: el clic derecho mantenido tensa y al soltarlo sale la flecha cargada (BowStrategy).
+func start_bow_charge() -> bool:
+	var strategy = _strategies.get(WeaponData.WeaponType.BOW)
+	return strategy != null and strategy.start_charge()
+
+func release_bow_charge() -> void:
+	var strategy = _strategies.get(WeaponData.WeaponType.BOW)
+	if strategy:
+		strategy.release_charge()
+
+## ¿Está tensando el arco?
+func is_bow_charging() -> bool:
+	var strategy = _strategies.get(WeaponData.WeaponType.BOW)
+	return strategy != null and strategy.charge >= 0.0
+
+## Remate con el arco: flecha a quemarropa. Devuelve los s de juego hasta el impacto (-1 si no salió).
+func bow_finisher_shot(target: Node3D) -> float:
+	var strategy = _strategies.get(WeaponData.WeaponType.BOW)
+	return strategy.finisher_shot(target) if strategy else -1.0
+
 ## Mazmorra: tras cuatro golpes ligeros, el especial lanza el clavado con salto. Devuelve true si salió.
 func try_spear_slam() -> bool:
 	if GameData.game_mode != "dungeon" or player.current_weapon() != WeaponData.WeaponType.SPEAR_LANCE:
@@ -284,6 +335,10 @@ func get_soft_aim_direction(max_angle_deg: float = 60.0, max_dist: float = 8.0) 
 	var forward: Vector3 = -player.mesh.global_transform.basis.z.normalized() if (player and player.mesh) else Vector3.FORWARD
 	forward.y = 0.0
 	forward = forward.normalized()
+	# En la mazmorra el golpe sale hacia la crosshair; la ayuda solo engancha enemigos cerca de ella
+	if GameData.game_mode == "dungeon" and player:
+		forward = crosshair_flat_dir()
+		max_angle_deg = minf(max_angle_deg, CROSSHAIR_ASSIST_DEG)
 	
 	var best_dir := forward
 	var best_dot := cos(deg_to_rad(max_angle_deg))
@@ -312,9 +367,30 @@ func get_soft_aim_direction(max_angle_deg: float = 60.0, max_dist: float = 8.0) 
 const SPEAR_AIM_ANGLE_DEG := 35.0
 const SPEAR_AIM_RANGE := 5.5
 const SPEAR_AIM_MAX_HEIGHT := 2.2     ## desnivel máximo (m) para no enganchar a otra planta
+const ATTACK_FACE_HOLD_S := 0.4         ## supervivencia: s que mantiene la mira tras atacar antes de volver a girar al caminar
 const SPEAR_AIM_HOLD_S := 0.3         ## s que el movimiento no vuelve a girar al personaje
 
+const CROSSHAIR_ASSIST_DEG := 20.0    ## cono de ayuda alrededor de la crosshair (mazmorra)
+
+## Dirección horizontal desde el jugador hacia el punto de la crosshair (o el objetivo fijado).
+func crosshair_flat_dir() -> Vector3:
+	var aim_ctrl = player.get("camera_aim_controller") if player else null
+	if aim_ctrl and aim_ctrl.has_method("get_dungeon_aim"):
+		var d: Vector3 = aim_ctrl.get_dungeon_aim()["point"] - player.global_position
+		d.y = 0.0
+		if d.length_squared() < 0.25 and player.get("spring_arm"):
+			d = -player.spring_arm.global_transform.basis.z
+			d.y = 0.0
+		if d.length_squared() > 0.0001:
+			return d.normalized()
+	return _mesh_facing()
+
 func _flat_facing() -> Vector3:
+	if GameData.game_mode == "dungeon" and player != null and player.mesh != null:
+		return crosshair_flat_dir()
+	return _mesh_facing()
+
+func _mesh_facing() -> Vector3:
 	if player == null or player.mesh == null:
 		return Vector3.FORWARD
 	var f: Vector3 = -player.mesh.global_transform.basis.z
@@ -355,8 +431,13 @@ func aim_assist_enemy(max_angle_deg: float = SPEAR_AIM_ANGLE_DEG, max_dist: floa
 
 ## Gira al personaje hacia el enemigo enganchado (si lo hay) y lo devuelve.
 func face_aim_assist_enemy(max_angle_deg: float = SPEAR_AIM_ANGLE_DEG, max_dist: float = SPEAR_AIM_RANGE) -> Object:
+	if GameData.game_mode == "dungeon":
+		max_angle_deg = minf(max_angle_deg, CROSSHAIR_ASSIST_DEG)
 	var e = aim_assist_enemy(max_angle_deg, max_dist)
 	if e == null:
+		# Sin enemigo enganchado, el golpe sale igualmente hacia la crosshair
+		if GameData.game_mode == "dungeon" and player and player.mesh:
+			_face_dir(crosshair_flat_dir(), SPEAR_AIM_HOLD_S)
 		return null
 	var to: Vector3 = e.global_position - player.global_position
 	to.y = 0.0
@@ -392,13 +473,28 @@ func face_locked_target() -> bool:
 
 ## Mazmorra: orienta a Mikeura hacia el objetivo fijado o el enemigo más alineado.
 func _face_soft_aim() -> void:
-	if GameData.game_mode == "dungeon" and player and player.mesh:
+	if player == null or player.mesh == null:
+		return
+	if GameData.game_mode == "dungeon":
 		var aim_dir = get_soft_aim_direction()
 		if aim_dir.length_squared() > 0.01:
-			player.mesh.rotation.y = atan2(-aim_dir.x, -aim_dir.z)
+			_face_dir(aim_dir, SPEAR_AIM_HOLD_S)
+	elif player.get("spring_arm"):
+		# Supervivencia: el personaje camina libre, pero cada ataque sale hacia donde mira la camara
+		var f: Vector3 = -player.spring_arm.global_transform.basis.z
+		f.y = 0.0
+		if f.length_squared() > 0.01:
+			_face_dir(f.normalized(), ATTACK_FACE_HOLD_S)
+
+## Gira al personaje hacia `dir` y evita que el movimiento lo vuelva a girar durante `hold_s`.
+func _face_dir(dir: Vector3, hold_s: float) -> void:
+	player.mesh.rotation.y = atan2(-dir.x, -dir.z)
+	var mc = player.movement_controller
+	if mc:
+		mc.face_lock_until = maxf(mc.face_lock_until, Time.get_ticks_msec() / 1000.0 + hold_s)
 
 func buffer_attack() -> void:
-	if spear_charge >= 0.0: return
+	if spear_charge >= 0.0 or is_bow_charging(): return
 	_attack_buffer_timer = INPUT_BUFFER_TIME
 	_try_consume_buffered_attack()
 

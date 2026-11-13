@@ -68,8 +68,10 @@ static func play(root: Node3D, tween_owner: Node, duration: float = 1.4,
 			mat.set_shader_parameter("base_y", root.global_position.y)
 	, 1.0, 0.0, duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	tween.tween_callback(func() -> void:
-		for m in meshes:
-			if is_instance_valid(m):
+		for i in meshes.size():
+			var m := meshes[i]
+			# Si otro efecto cambió el material mientras tanto (p. ej. la disolución de muerte), se respeta
+			if is_instance_valid(m) and m.material_override == mats[i]:
 				m.material_override = originals[m]
 	)
 	return tween

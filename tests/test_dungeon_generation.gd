@@ -61,7 +61,9 @@ func _ready() -> void:
 	times.sort()
 	print("formas=", shapes, " tesoros=", treasures, "/", runs, " cajas de pared media=", boxes / runs)
 	print("tiempo de generación ms: mediana=%.1f max=%.1f" % [times[times.size() / 2], times[times.size() - 1]])
-	assert(times[times.size() / 2] < 120.0, "La generación es rápida (mediana %.1f ms)" % times[times.size() / 2])
+	# 200 ms (con Jolt, ~+32 ms de colisiones por nivel): la carcasa continua de la cueva (CaveShell, paredes + techo) cuesta ~50-60 ms; el nivel se
+	# genera con la pantalla en negro (DungeonEncounter: fundido + 0.5 s), así que no se nota al jugar.
+	assert(times[times.size() / 2] < 200.0, "La generación es rápida (mediana %.1f ms)" % times[times.size() / 2])
 	assert(shapes.size() >= 4, "Salen varias formas de caverna")
 	assert(treasures > 0, "Aparecen cámaras del tesoro")
 	print("ALL GENERATION CHECKS PASSED")

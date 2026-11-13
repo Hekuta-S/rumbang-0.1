@@ -32,12 +32,16 @@ var input_controller: Node
 var combat_controller: Node
 var inventory: Node
 var stat_block: PlayerStatBlock
+var equipment: PlayerEquipment      ## Casco, pechera, pantalones, talismanes y arma (solo mazmorra)
 
 var is_berserk: bool = false
 var berserk_timer: float = 0.0
 var is_riva_fast: bool = false ## Riva en modo ráfaga (Pies Humeantes): animación súper carrera + estela de humo
  ## Índice actual del elemento para el ataque de Saimon
 var skill_cd_timer: float = 0.0
+## Algo con interact() junto a lo que estás (la forja de Tatán): la tecla de habilidad (E / RB / botón
+## táctil) lo usa en vez de lanzar la habilidad. Lo pone y quita quien está cerca (DungeonShop).
+var interact_target: Node = null
 @export var skill_cooldown: float = 10.0
 
 var time_since_damage: float:
@@ -112,6 +116,8 @@ func get_weapon_modifiers(w_id: int) -> Dictionary:
 		var m: Dictionary = weapon_inventory.get_weapon_modifiers(w_id)
 		WeaponSynergies.apply(weapon_inventory, w_id, m)   # sinergias de etiqueta y evolución
 		DungeonRunes.apply(m)                              # runas de la mazmorra
+		DungeonRun.apply(w_id, m)                          # pergaminos de enfoque
+		_apply_weapon_item_mods(w_id, m)                   # modificador propio del arma equipada
 		return m
 	var lvl = get_weapon_level(w_id)
 	var data = get_weapon_data(w_id)
@@ -135,6 +141,17 @@ func get_weapon_modifiers(w_id: int) -> Dictionary:
 		else: mods.quantity_bonus += 1
 	if lvl >= 7: mods.size += 0.15
 	return mods
+
+## Mazmorra: suma el modificador de la pieza de esa arma (EquipmentDB.WEAPON_MODS) a `m`, en el sitio.
+func _apply_weapon_item_mods(w_id: int, m: Dictionary) -> void:
+	if equipment == null or GameData.game_mode != "dungeon" or not equipment.weapon_items.has(w_id):
+		return
+	var mods: Dictionary = EquipmentDB.wmod_of(equipment.weapon_items[w_id]).get("mods", {})
+	for k in mods:
+		if k == "cooldown":
+			m[k] = maxf(float(m.get(k, 1.0)) * float(mods[k]), WeaponUpgrades.MIN_COOLDOWN_MULT)
+		else:
+			m[k] = float(m.get(k, 0.0)) + float(mods[k])
 
 func _weapon_damage(weapon_type: int) -> float:
 	return _damage_chain(weapon_type, false).value()
@@ -221,6 +238,13 @@ func _ready() -> void:
 	inventory = InventoryComponent.new()
 	inventory.name = "InventoryComponent"
 	add_child(inventory)
+
+	# El equipo va antes que la stat block (que lo lee en su _ready)
+	if GameData.game_mode == "dungeon":
+		equipment = PlayerEquipment.new()
+		equipment.name = "PlayerEquipment"
+		equipment.player = self
+		add_child(equipment)
 
 	stat_block = PlayerStatBlock.new()
 	stat_block.name = "PlayerStatBlock"
@@ -321,11 +345,12 @@ func _ready() -> void:
 	if weapon_visuals and GameData.game_mode == "dungeon":
 		weapon_visuals.attach_spear_to_hand(animation_controller.model)
 		weapon_visuals.attach_axe_to_hand(animation_controller.model)
+		weapon_visuals.attach_melee_to_hands(animation_controller.model)
 	
 	weapon_inventory.weapon_slots.clear()
 	# Each character starts with their signature weapon.
-	var selected_char: Dictionary = GameData.get_selected()
-	var initial_weapons: Array = selected_char.get("initial_weapons", [WeaponData.WeaponType.SPEAR_LANCE])
+	# (en la mazmorra, el personaje personalizable lleva el arma elegida en el yunque del Salón)
+	var initial_weapons: Array = GameData.initial_weapons()
 	for w in initial_weapons:
 		weapon_inventory.weapon_slots.append(w)
 		
@@ -395,9 +420,11 @@ func select_slot(slot_idx: int) -> void:
 	
 
 func cycle_slots(delta_idx: int) -> void:
-	if not weapon_inventory or weapon_inventory.weapon_slots.is_empty():
+	if not weapon_inventory:
 		return
-	select_slot((weapon_inventory.current_slot + delta_idx) % weapon_inventory.weapon_slots.size())
+	var target: int = weapon_inventory.next_slot_index(delta_idx)
+	if target >= 0:
+		select_slot(target)
 
 func _input(event) -> void:
 	if camera_controller:
@@ -508,6 +535,18 @@ func update_weapon_visuals() -> void:
 	# Ningún modelo de arma es visible, solo el efecto/shader; excepción: la espalanza en la mano
 	if animation_controller:
 		animation_controller.set_held_weapon(current_weapon())
+	if weapon_visuals and current_weapon() == WeaponData.WeaponType.GREATSWORD:
+		weapon_visuals.set_greatsword_skin(greatsword_skin())
+	elif weapon_visuals and current_weapon() == WeaponData.WeaponType.SWORD:
+		weapon_visuals.set_sword_skin(sword_skin())
+	elif weapon_visuals and current_weapon() == WeaponData.WeaponType.KATANA:
+		weapon_visuals.set_katana_skin(0)
+	elif weapon_visuals and current_weapon() == WeaponData.WeaponType.BOW:
+		weapon_visuals.set_bow_skin(bow_skin())
+	elif weapon_visuals and current_weapon() == WeaponData.WeaponType.DAGGERS:
+		weapon_visuals.set_dagger_skin(dagger_skin())
+	elif weapon_visuals and current_weapon() == WeaponData.WeaponType.MACE:
+		weapon_visuals.set_mace_skin(mace_skin())
 	for wt in weapon_models:
 		var m: Node3D = weapon_models[wt]
 		if m != null and is_instance_valid(m):
@@ -524,6 +563,41 @@ func _is_hand_weapon_shown(wt: int, m: Node3D) -> bool:
 	if wt == WeaponData.WeaponType.SPINNING_AXE and combat_controller and combat_controller.is_axe_thrown:
 		return false
 	return m.has_meta("in_hand") and wt == current_weapon() and not (combat_controller and combat_controller.is_spear_thrown)
+
+## Cuál de los cuatro espadones (GreatswordModels) lleva: el del arma equipada si es un espadón, o el elegido.
+func greatsword_skin() -> int:
+	var item: Dictionary = equipment.get_item("arma") if equipment else {}
+	if not item.is_empty() and int(item.get("weapon", -1)) == WeaponData.WeaponType.GREATSWORD:
+		return int(item.get("skin", 0))
+	return GameData.greatsword_skin
+
+## Cuál de las cuatro espadas (SwordModels) lleva: el de la espada equipada, o el elegido.
+func sword_skin() -> int:
+	var item: Dictionary = equipment.get_item("arma") if equipment else {}
+	if not item.is_empty() and int(item.get("weapon", -1)) == WeaponData.WeaponType.SWORD:
+		return int(item.get("skin", 0))
+	return GameData.sword_skin
+
+## Cuál de los arcos (BowModels) lleva: el del arco equipado, o el elegido.
+func bow_skin() -> int:
+	var item: Dictionary = equipment.get_item("arma") if equipment else {}
+	if not item.is_empty() and int(item.get("weapon", -1)) == WeaponData.WeaponType.BOW:
+		return int(item.get("skin", 0))
+	return GameData.bow_skin
+
+## Cuál de las dagas (DaggerModels) lleva: el de la daga equipada, o el elegido.
+func dagger_skin() -> int:
+	var item: Dictionary = equipment.get_item("arma") if equipment else {}
+	if not item.is_empty() and int(item.get("weapon", -1)) == WeaponData.WeaponType.DAGGERS:
+		return int(item.get("skin", 0))
+	return GameData.dagger_skin
+
+## Cuál de las mazas (MaceModels) lleva: el de la maza equipada, o el elegido.
+func mace_skin() -> int:
+	var item: Dictionary = equipment.get_item("arma") if equipment else {}
+	if not item.is_empty() and int(item.get("weapon", -1)) == WeaponData.WeaponType.MACE:
+		return int(item.get("skin", 0))
+	return GameData.mace_skin
 
 func current_weapon() -> int:
 	if weapon_inventory:
@@ -562,6 +636,9 @@ func _emit_reload_state() -> void:
 
 ## Per-character special ability (E key): Berserk, o la habilidad de la pasiva si la tiene (Heckler).
 func activate_skill() -> void:
+	if is_instance_valid(interact_target) and interact_target.has_method("interact"):
+		interact_target.interact()
+		return
 	if skill_cd_timer > 0: return
 	skill_cd_timer = skill_cooldown
 	# Habilidad propia de la pasiva (p. ej. el teletransporte de Heckler)
@@ -644,9 +721,29 @@ func parry_bonus_mult() -> float:
 func take_damage(amount: float, direction: Vector3 = Vector3.ZERO) -> void:
 	if health_comp and health_comp.has_method("take_damage"):
 		var landed: bool = health_comp.invincibility_time <= 0.0
+		if not landed and movement_controller and movement_controller.try_perfect_dodge():
+			return
+		if landed and equipment and equipment.absorb_hit():
+			# Regla "vacio" (Coraza del Vacío): este golpe no hace daño
+			EquipmentPickup.toast(self, "ABSORBIDO", EquipmentDB.RULE_COLOR)
+			RunLog.proc("rule:vacio")
+			return
+		if landed and GameData.game_mode == "dungeon":
+			amount *= DungeonRun.incoming_mult()          # cofre maldito
+			if DungeonRun.second_wind_ready():
+				var hc: Node = health_comp
+				health_comp.damage_taking.connect(func(data): DungeonRun.try_second_wind(data, hc, self), CONNECT_ONE_SHOT)
 		health_comp.take_damage(amount)
 		if landed:
 			HitFeedback.on_player_hit(self, amount, direction)
+			notify_equipment("hurt")
+			if movement_controller:
+				movement_controller.note_combat()    # el espadón deja de correr al recibir un golpe
+
+## Evento para los efectos especiales del equipo de la mazmorra (PlayerEquipment.notify).
+func notify_equipment(event: String) -> void:
+	if equipment:
+		equipment.notify(event)
 
 ## Aplica veneno/sangrado/quemadura al jugador (ver StatusEffects).
 func apply_status(effect_id: String, dps: float, duration: float, source: Node = null,
@@ -848,9 +945,14 @@ func attack() -> void:
 func throw_spear() -> void:
 	combat_controller.throw_spear()
 
+## Armas cuyo especial cobra el recurso por su cuenta (PlayerCombatController).
+const SELF_PAID_SPECIALS := [WeaponData.WeaponType.SPEAR_LANCE, WeaponData.WeaponType.DAGGERS, WeaponData.WeaponType.MACE,
+	WeaponData.WeaponType.BOW]
+
 func _on_alt_attack_pressed() -> void:
-	# El especial de cada arma cuesta su recurso. La espalanza cobra el suyo dentro (clavado / carga).
-	if resources and current_weapon() != WeaponData.WeaponType.SPEAR_LANCE and not resources.spend(current_weapon(), true):
+	# El especial de cada arma cuesta su recurso. La espalanza, las dagas y la maza cobran el suyo dentro
+	# (solo si el especial sale: no en enfriamiento).
+	if resources and not SELF_PAID_SPECIALS.has(current_weapon()) and not resources.spend(current_weapon(), true):
 		return
 	if current_weapon() == WeaponData.WeaponType.DUSTS and GameData.game_mode == "dungeon":
 		combat_controller.dust_face()
@@ -860,6 +962,16 @@ func _on_alt_attack_pressed() -> void:
 		# Tras cuatro golpes ligeros: clavado con salto. Si no, lanzamiento cargado (con pose y aura)
 		if not combat_controller.try_spear_slam():
 			combat_controller.start_spear_charge()
+	elif current_weapon() == WeaponData.WeaponType.DAGGERS:
+		combat_controller.dagger_dash()
+	elif current_weapon() == WeaponData.WeaponType.MACE and GameData.game_mode == "dungeon":
+		combat_controller.mace_slam()
+	elif current_weapon() == WeaponData.WeaponType.KATANA and GameData.game_mode == "dungeon":
+		combat_controller.katana_special()
+	elif current_weapon() == WeaponData.WeaponType.BOW and GameData.game_mode == "dungeon":
+		combat_controller.start_bow_charge()     # tensar: al soltar sale la flecha cargada
+	elif current_weapon() == WeaponData.WeaponType.GREATSWORD or current_weapon() == WeaponData.WeaponType.SWORD:
+		pass    # el espadón y la espada no tienen especial: su fuerza es andar/correr y el ataque con carrerilla
 	elif current_weapon() == WeaponData.WeaponType.FLAME_THROWER and GameData.game_mode == "dungeon":
 		combat_controller.flame_blast()
 	elif current_weapon() == WeaponData.WeaponType.SPORE_BAZOOKA and GameData.game_mode == "dungeon":
@@ -874,6 +986,7 @@ func _on_alt_attack_pressed() -> void:
 ## Soltar el click derecho lanza la espalanza con la fuerza acumulada.
 func _on_alt_attack_released() -> void:
 	combat_controller.release_spear_charge()
+	combat_controller.release_bow_charge()
 
 func _on_toggle_mouse_capture() -> void:
 	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -908,6 +1021,18 @@ func play_spawn_scan() -> void:
 
 func _on_entity_died() -> void:
 	if is_playing_death_scan:
+		return
+	var gs := GameState.get_instance()
+	if GameData.game_mode == "survival" and gs.revives_left > 0 and not Net.is_online():
+		# Segunda vida (MetaShop): te levantas con la mitad de la vida, unos segundos invulnerable y sin enemigos encima
+		gs.revives_left -= 1
+		health_comp.hp = health_comp.max_hp * 0.5
+		health_comp.invincibility_time = 3.0
+		health_comp._emit_stats()
+		MapPickup.bomb_blast(global_position, 12.0)
+		NecroVFX.shockwave(get_parent(), global_position, 12.0, Color(1.0, 0.85, 0.3))
+		HitFeedback.shake(0.4)
+		AudioManager.play("level-up", -2.0, 0.8)
 		return
 	if Net.is_online():
 		# Multijugador: no hay fin de partida; pasa a espectador hasta que se despeje la caverna

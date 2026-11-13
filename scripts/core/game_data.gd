@@ -27,7 +27,7 @@ var cache_preloaded: Dictionary = {}
 ## Animaciones de cada personaje jugable (carpeta assets/models/<personaje>/).
 const ANIM_FILES := {
 	"joel": { "idle": "joel-idle.fbx", "walk": "joel-caminar.fbx", "run": "joel-corre.fbx", "jump": "joel-salto.fbx" },
-	"riva": { "idle": "riva-idle.fbx", "walk": "riva-caminar.fbx", "run": "riva-correr.fbx", "jump": "riva-salto.fbx", "fast": "riva-correr-rapido.fbx" },
+	"riva": { "idle": "riva-base.fbx", "walk": "riva-caminar.fbx", "run": "riva-correr.fbx", "jump": "riva-salto.fbx", "fast": "riva-correr-rapido.fbx", "strafe": "riva-caminar-lado.fbx" },
 	"bronch": { "idle": "bronch-idle.fbx", "walk": "bronch-caminar.fbx", "run": "bronch-correr.fbx", "jump": "bronch-saltar.fbx" },
 	"mikeura": { "idle": "mikeura_idle.fbx", "walk": "mikeura_caminar.fbx", "run": "mikeura-correr.fbx", "jump": "mikeura-saltar.fbx",
 		"shout": "mikeura_grito.fbx" },
@@ -48,7 +48,7 @@ func get_character_asset_paths(char_id: String) -> Array[String]:
 		out.append("res://assets/models/%s/%s" % [folder, files[key]])
 	out.append(get_texture_path(char_id))
 	# Animaciones de su arma inicial (por arma: WeaponAnimSets) y su modelo si es un arma sujeta
-	var initial: Array = get_selected().get("initial_weapons", [])
+	var initial: Array = initial_weapons()
 	if not initial.is_empty():
 		out.append_array(WeaponAnimSets.asset_paths(int(initial[0])))
 	return out
@@ -169,12 +169,12 @@ const CHARACTERS: Array = [
 		"portrait_label": "R",
 		"stats": {
 			"max_hp": 13.0,
-			"move_speed": 9.0,
+			"move_speed": 6.0,
 		},
-		"passive_name": "Pies Humeantes",
-		"passive_color": Color(1.0, 0.6, 0.15),
-		"passive_desc": "Mientras se mueve, la velocidad de Riva aumenta progresivamente. Al alcanzar su velocidad máxima entra en ráfaga: súper carrera con la animación riva-corre-rapido y deja una estela de humo abrasador que quema a los enemigos por segundo.",
-			"initial_weapons": [WeaponData.WeaponType.TRI_SHOTGUN],
+		"passive_name": "Sin pasiva",
+		"passive_color": Color(0.6, 0.6, 0.65),
+		"passive_desc": "El personaje personalizable no tiene pasiva: todo depende de su espalanza y de lo que encuentre.",
+		"initial_weapons": [WeaponData.WeaponType.SPEAR_LANCE],
 	},
 	{
 		"id": "garri",
@@ -210,9 +210,22 @@ const CHARACTERS: Array = [
 	},
 ]
 
-## Personajes jugables por ahora. El resto aparece en la selección como BLOQUEADO hasta que
-## implementemos el sistema de desbloqueos (logros/progreso). Añadir aquí los ids al desbloquearlos.
-const UNLOCKED_CHARACTERS: Array[String] = ["mikeura"]
+## Solo se juega con UN personaje: el personalizable (cuerpo base hecho a partir de Riva, ver CharacterLook).
+## El resto de fichas siguen aquí pero ocultas; añadir su id para volver a usarlas.
+const UNLOCKED_CHARACTERS: Array[String] = ["riva"]
+
+## Supervivencia se juega con Mikeura (la mazmorra, con el personaje personalizable de arriba).
+const SURVIVAL_UNLOCKED: Array[String] = ["mikeura"]
+
+func is_survival_unlocked(char_id: String) -> bool:
+	return SURVIVAL_UNLOCKED.has(char_id)
+
+## Índice en CHARACTERS del personaje de supervivencia.
+func survival_index() -> int:
+	for i in CHARACTERS.size():
+		if is_survival_unlocked(String(CHARACTERS[i].get("id", ""))):
+			return i
+	return 0
 
 func is_character_unlocked(char_id: String) -> bool:
 	return UNLOCKED_CHARACTERS.has(char_id)
@@ -237,7 +250,7 @@ const IDLE_MODELS := {
 	"bronch": "bronch/bronch-idle.fbx",
 	"tatan": "tatan/idle.fbx",
 	"joel": "joel/joel-idle.fbx",
-	"riva": "riva/riva-idle.fbx",
+	"riva": "riva/riva-base.fbx",
 	"garri": "garri/garri-idle.fbx",
 	"saimon": "saimon/saimon-idle.fbx",
 }
@@ -247,13 +260,97 @@ func get_idle_model_path(char_id: String) -> String:
 	return "" if rel == "" else "res://assets/models/" + rel
 
 func get_texture_path(char_id: String) -> String:
+	if char_id == CharacterLook.CHAR_ID:
+		return CharacterLookApplier.DETAIL_PATH   # el modelo base se colorea por materiales
 	var tex_id := "mikeura" if char_id == "heckler" else char_id
 	return "res://assets/textures/entities/%s/texture_%s.png" % [tex_id, tex_id]
 
+func _ready() -> void:
+	selected_index = custom_index()
+	load_armory()
+
+# ───────────── Yunque del salón: arma inicial de la mazmorra (personaje personalizable) ─────────────
+## Armas que se pueden equipar en el yunque del Salón (DungeonHub). La espalanza es la de siempre.
+const DUNGEON_WEAPONS: Array[int] = [WeaponData.WeaponType.SPEAR_LANCE, WeaponData.WeaponType.DAGGERS, WeaponData.WeaponType.MACE,
+	WeaponData.WeaponType.GREATSWORD, WeaponData.WeaponType.SWORD, WeaponData.WeaponType.BOW, WeaponData.WeaponType.KATANA]
+## Armas que por ahora no salen en supervivencia (sí en la mazmorra): dagas, maza, espadón,
+## espada y arco. La espalanza y el resto de armas siguen disponibles.
+const SURVIVAL_HIDDEN_WEAPONS: Array[int] = [WeaponData.WeaponType.DAGGERS, WeaponData.WeaponType.MACE,
+	WeaponData.WeaponType.GREATSWORD, WeaponData.WeaponType.SWORD, WeaponData.WeaponType.BOW, WeaponData.WeaponType.KATANA]
+
+## ¿Se puede ofrecer esta arma en la partida actual? En supervivencia se ocultan las de
+## SURVIVAL_HIDDEN_WEAPONS; en la mazmorra todas siguen disponibles.
+func weapon_available_in_mode(w: int) -> bool:
+	if game_mode == "dungeon":
+		return true
+	return not SURVIVAL_HIDDEN_WEAPONS.has(w)
+
+## Modelo de espadón (GreatswordModels) que lleva el yunque cuando no hay uno equipado con otro.
+var greatsword_skin: int = 0
+## Modelo de espada de una mano (SwordModels), igual que el del espadón.
+var sword_skin: int = 0
+## Modelo de arco (BowModels).
+var bow_skin: int = 0
+## Modelo de daga (DaggerModels) y de maza (MaceModels) que se muestran en el yunque y en la partida.
+var dagger_skin: int = 0
+var mace_skin: int = 0
+var armory_path := "user://armeria.cfg"
+var dungeon_weapon: int = WeaponData.WeaponType.SPEAR_LANCE
+
+func load_armory() -> void:
+	var cfg := ConfigFile.new()
+	dungeon_weapon = WeaponData.WeaponType.SPEAR_LANCE
+	if cfg.load(armory_path) == OK:
+		var w := int(cfg.get_value("mazmorra", "arma", dungeon_weapon))
+		if can_carry_into_dungeon(w):
+			dungeon_weapon = w
+
+## El yunque ofrece DUNGEON_WEAPONS, pero el arma que llevabas en la mano al acabar la última partida
+## (PlayerEquipment) puede ser cualquiera de las que salen en la mazmorra (EquipmentDB.WEAPONS).
+func can_carry_into_dungeon(w: int) -> bool:
+	return DUNGEON_WEAPONS.has(w) or EquipmentDB.WEAPONS.has(w)
+
+func set_dungeon_weapon(w: int) -> void:
+	if not can_carry_into_dungeon(w) or (w == dungeon_weapon and FileAccess.file_exists(armory_path)):
+		return
+	dungeon_weapon = w
+	var cfg := ConfigFile.new()
+	cfg.load(armory_path)
+	cfg.set_value("mazmorra", "arma", w)
+	cfg.save(armory_path)
+
+## Armas con las que empieza la partida: en la mazmorra el personaje personalizable lleva la del yunque;
+## en supervivencia cada personaje la suya de siempre.
+## Tomo con el que empieza cada personaje en supervivencia (nivel 1, rareza común; ver TomeDB).
+const START_TOMES := {
+	"riva": "poder", "mikeura": "armadura", "heckler": "zancada", "vangry": "regeneracion", "bronch": "area",
+	"tatan": "avaricia", "joel": "saber", "garri": "multiplicidad", "saimon": "celeridad",
+}
+
+func start_tome() -> String:
+	return String(START_TOMES.get(String(get_selected().get("id", "")), ""))
+
+func initial_weapons() -> Array:
+	var c := get_selected()
+	if game_mode == "dungeon" and String(c.get("id", "")) == CharacterLook.CHAR_ID:
+		return [dungeon_weapon]
+	return c.get("initial_weapons", [WeaponData.WeaponType.SPEAR_LANCE])
+
 func get_selected() -> Dictionary:
 	if selected_index >= 0 and selected_index < CHARACTERS.size():
-		return CHARACTERS[selected_index]
+		var c: Dictionary = CHARACTERS[selected_index]
+		if c.get("id", "") == CharacterLook.CHAR_ID:
+			c = c.duplicate()
+			c["name"] = CharacterLook.current().char_name   # el nombre lo pone el jugador
+		return c
 	return {}
+
+## Índice en CHARACTERS del personaje personalizable.
+func custom_index() -> int:
+	for i in CHARACTERS.size():
+		if CHARACTERS[i].get("id", "") == CharacterLook.CHAR_ID:
+			return i
+	return 0
 
 ## Applies the selected character's stats and passive to the player node.
 func apply_to_player(player: CharacterBody3D) -> void:
@@ -279,14 +376,21 @@ func apply_to_player(player: CharacterBody3D) -> void:
 			player.passive = PassiveBronch.new()
 			player.passive.apply_to_player(player)
 		"riva":
-			player.passive = PassiveRiva.new()
-			player.passive.apply_to_player(player)
+			# El personaje personalizable no tiene pasiva (Pies Humeantes queda en PassiveRiva, sin usar)
+			player.passive = null
 		"heckler":
 			player.passive = PassiveHeckler.new()
 			player.passive.apply_to_player(player)
 		"tatan":
 			# Tatan has no dedicated passive yet; fall through with no passive.
 			player.passive = null
+## Suelta lo retenido para la partida (modelos, clips y texturas de enemigos, jefes, mapa y armas). En móvil
+## se llama al volver al Salón: si no, esa memoria seguía ocupada en los menús hasta cerrar el juego.
+func release_run_cache() -> void:
+	cache_preloaded.clear()
+	cache_enemy_models.clear()
+	cache_enemy_textures.clear()
+
 func preload_assets() -> void:
 	var paths = preload_paths()
 	_preload_from(paths)

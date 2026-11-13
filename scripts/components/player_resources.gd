@@ -7,6 +7,8 @@ extends Node
 ##  - BALAS: reserva por arma de fuego (escopeta, lanzallamas, bazuca, railgun). No se regeneran:
 ##    se recogen de los enemigos y se rellenan en parte al bajar de nivel.
 ## Todo el gasto pasa por spend() / spend_energy(): si no alcanza devuelve false y emite `denied`.
+## El equipo (PlayerStatBlock: max_energy, energy_regen, energy_cost, max_mana, mana_regen) sube los
+## máximos y la recarga y abarata la energía: usa energy_max() / mana_max(), no las constantes.
 
 signal changed
 signal denied(kind: int)
@@ -15,24 +17,35 @@ enum Kind { NONE, ENERGY, MANA, AMMO }
 
 const W := WeaponData.WeaponType
 
-const ENERGY_MAX := 100.0
-const ENERGY_REGEN := 24.0           ## por segundo
-const ENERGY_DELAY := 0.65           ## pausa tras gastar antes de empezar a recuperar (s)
+const ENERGY_MAX := 75.0
+## Antes (24/s tras 0,65 s) la barra se llenaba entera entre dos combos y nunca obligaba a decidir: ahora una
+## ráfaga larga o dos esquivas seguidas se notan y hay que respirar entre peleas.
+const ENERGY_REGEN := 15.0           ## por segundo
+const ENERGY_DELAY := 1.0            ## pausa tras gastar antes de empezar a recuperar (s)
+## Agotado: si un gasto deja la energía por debajo de EXHAUST_BELOW, la pausa es más larga (castiga vaciarla).
+const EXHAUST_BELOW := 8.0
+const EXHAUST_DELAY := 1.8
 const MANA_MAX := 100.0
 const MANA_REGEN := 5.0
 const MANA_DELAY := 1.4
 
-const DODGE_COST := 22.0
-const JUMP_COST := 12.0
+const DODGE_COST := 25.0
+const JUMP_COST := 14.0
 const SLAM_COST := 40.0              ## clavado con salto de la espalanza
 const CHARGE_COST := 20.0            ## lanzamiento cargado de la espalanza
 
 ## Arma -> qué recurso gasta, coste del ataque normal y del especial (click derecho). 0 = gratis.
 const TABLE := {
-	W.SPEAR_LANCE: {"kind": Kind.ENERGY, "cost": 14.0, "alt": 0.0},      ## su especial se cobra aparte
+	W.SPEAR_LANCE: {"kind": Kind.ENERGY, "cost": 15.0, "alt": 0.0},      ## su especial se cobra aparte
 	W.ENERGY_SWORD: {"kind": Kind.ENERGY, "cost": 12.0, "alt": 20.0},
 	W.SPINNING_AXE: {"kind": Kind.ENERGY, "cost": 18.0, "alt": 30.0},
 	W.ZOMBIE_ARM: {"kind": Kind.ENERGY, "cost": 16.0, "alt": 0.0},
+	W.DAGGERS: {"kind": Kind.ENERGY, "cost": 8.0, "alt": 24.0},           ## golpes baratos; la embestida
+	W.MACE: {"kind": Kind.ENERGY, "cost": 24.0, "alt": 40.0},             ## golpes caros; el mazazo al suelo
+	W.GREATSWORD: {"kind": Kind.ENERGY, "cost": 19.0, "alt": 0.0},      ## tres tajos pesados; sin especial
+	W.SWORD: {"kind": Kind.ENERGY, "cost": 11.0, "alt": 0.0},           ## cuatro golpes ligeros; sin especial
+	W.KATANA: {"kind": Kind.ENERGY, "cost": 12.0, "alt": 30.0},         ## cuatro tajos y el tajo especial
+	W.BOW: {"kind": Kind.ENERGY, "cost": 6.0, "alt": 22.0},             ## flechas baratas; tensar el disparo cargado
 	W.SERPENTS: {"kind": Kind.MANA, "cost": 14.0, "alt": 25.0},
 	W.DUSTS: {"kind": Kind.MANA, "cost": 10.0, "alt": 14.0},
 	W.ELEMENTS_CYCLE: {"kind": Kind.MANA, "cost": 8.0, "alt": 16.0},
@@ -56,24 +69,48 @@ var ammo: Dictionary = {}            ## arma -> balas en reserva
 var _energy_wait := 0.0
 var _mana_wait := 0.0
 
+## ¿Agotado? (la última acción vació la barra y aún no ha empezado a recuperarse)
+func is_exhausted() -> bool:
+	return active and energy < EXHAUST_BELOW and _energy_wait > ENERGY_DELAY * 0.5
+
 func _ready() -> void:
 	active = GameData.game_mode == "dungeon"
 	for w in AMMO_MAX:
 		ammo[w] = AMMO_MAX[w]
 
+func _stats() -> PlayerStatBlock:
+	var p := get_parent()
+	return p.get("stat_block") as PlayerStatBlock if p else null
+
+## Energía máxima con el equipo.
+func energy_max() -> float:
+	var sb := _stats()
+	return ENERGY_MAX + (sb.energy_max_bonus() if sb else 0.0)
+
+func mana_max() -> float:
+	var sb := _stats()
+	return MANA_MAX + (sb.mana_max_bonus() if sb else 0.0)
+
 func _process(delta: float) -> void:
 	if not active:
 		return
 	var dirty := false
+	var sb := _stats()
+	var e_max := energy_max()
+	var m_max := mana_max()
+	if energy > e_max or mana > m_max:   # al quitarse equipo
+		energy = minf(energy, e_max)
+		mana = minf(mana, m_max)
+		dirty = true
 	if _energy_wait > 0.0:
 		_energy_wait -= delta
-	elif energy < ENERGY_MAX:
-		energy = minf(energy + ENERGY_REGEN * delta, ENERGY_MAX)
+	elif energy < e_max:
+		energy = minf(energy + ENERGY_REGEN * (sb.energy_regen_mult() if sb else 1.0) * delta, e_max)
 		dirty = true
 	if _mana_wait > 0.0:
 		_mana_wait -= delta
-	elif mana < MANA_MAX:
-		mana = minf(mana + MANA_REGEN * delta, MANA_MAX)
+	elif mana < m_max:
+		mana = minf(mana + MANA_REGEN * (sb.mana_regen_mult() if sb else 1.0) * delta, m_max)
 		dirty = true
 	if dirty:
 		changed.emit()
@@ -100,7 +137,9 @@ func can_spend(weapon: int, alt: bool = false) -> bool:
 	if cost <= 0.0:
 		return true
 	match kind_of(weapon):
-		Kind.ENERGY: return energy >= cost
+		Kind.ENERGY:
+			var sb := _stats()
+			return energy >= cost * (sb.energy_cost_mult() if sb else 1.0)
 		Kind.MANA: return mana >= cost
 		Kind.AMMO: return float(ammo.get(weapon, 0)) >= cost
 	return true
@@ -129,11 +168,14 @@ func spend(weapon: int, alt: bool = false) -> bool:
 func spend_energy(cost: float) -> bool:
 	if not active or cost <= 0.0:
 		return true
+	var sb := _stats()
+	if sb:
+		cost *= sb.energy_cost_mult()
 	if energy < cost:
 		denied.emit(Kind.ENERGY)
 		return false
 	energy -= cost
-	_energy_wait = ENERGY_DELAY
+	_energy_wait = EXHAUST_DELAY if energy < EXHAUST_BELOW else ENERGY_DELAY
 	changed.emit()
 	return true
 
@@ -150,8 +192,12 @@ func spend_mana(cost: float) -> bool:
 
 # ───────────────────────────── Recarga ─────────────────────────────
 
+func add_energy(amount: float) -> void:
+	energy = minf(energy + amount, energy_max())
+	changed.emit()
+
 func add_mana(amount: float) -> void:
-	mana = minf(mana + amount, MANA_MAX)
+	mana = minf(mana + amount, mana_max())
 	changed.emit()
 
 ## Suma `fraction` de la capacidad de cada arma de fuego que el jugador lleva. Devuelve cuántas balas entraron.
@@ -175,8 +221,8 @@ func has_any_ammo_weapon(owned_weapons: Array) -> bool:
 
 ## Al bajar de nivel: energía y maná llenos, y la mitad de la reserva de balas.
 func refresh_for_new_level() -> void:
-	energy = ENERGY_MAX
-	mana = MANA_MAX
+	energy = energy_max()
+	mana = mana_max()
 	for w in AMMO_MAX:
 		ammo[w] = mini(int(ammo.get(w, 0)) + int(ceil(AMMO_MAX[w] * 0.5)), int(AMMO_MAX[w]))
 	changed.emit()

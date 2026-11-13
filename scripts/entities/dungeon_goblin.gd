@@ -48,9 +48,25 @@ const TEXTURE := "res://assets/textures/enemigos/texture_normal_goblin.png"
 const TELEGRAPH_SHADER: Shader = preload("res://assets/shaders/enemy_telegraph.gdshader")
 const FloatingDamage = preload("res://scripts/objects/floating_damage.gd")
 const MODEL_HEIGHT := 1.35
+## Contraste con la cueva: los enemigos casi desaparecían contra la roca en penumbra. Un contorno de luz
+## (fresnel, aditivo y sin iluminar: se ve aunque no le llegue ninguna antorcha) recorta su silueta, y su
+## textura brilla un poco por sí sola (SELF_LIT) para que se lean los colores en la oscuridad.
+const RIM_COLOR := Color(1.0, 0.32, 0.22, 0.55)   ## a = fuerza del contorno
+const SELF_LIT := 0.32
+const FLASH_SHADER_CODE := """shader_type spatial;
+render_mode unshaded, blend_add, depth_draw_never;
+uniform vec4 flash_color : source_color = vec4(0.0);
+uniform vec4 rim_color : source_color = vec4(0.0);
+void fragment() {
+	float fres = 1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0);
+	float rim = fres * fres * (0.35 + 0.65 * fres);
+	ALBEDO = flash_color.rgb * flash_color.a + rim_color.rgb * rim_color.a * rim;
+}
+"""
 
 # ── Combate (valores iniciales) ──
-const HP_MULT := 2.0                  ## vida = vida del goblin normal de las hordas × HP_MULT
+const TOUGHNESS_HP := 1.6              ## dificultad global: más vida para todos los enemigos de mazmorra
+const HP_MULT := 2.0                 ## vida = vida del goblin normal de las hordas × HP_MULT
 const DETECT_RADIUS := 16.0
 ## Repertorio. Distancias en m, tiempos en s (ventana = segundos del clip de ataque).
 ##  range: [mín, máx] de distancia al jugador para elegirlo · shape: "cone" | "line"
@@ -74,10 +90,10 @@ const ATTACKS := {
 const LEAP_CONTACT := 1.1             ## radio de contacto de la embestida (m)
 const HURT_TIME := 0.35
 const STAGGER_TIME := 1.3
-const STAGGER_DAMAGE := 18.0          ## un golpe así (o empuje ≥ STAGGER_KNOCK) aturde
+const STAGGER_DAMAGE := 20.0          ## un golpe así (o empuje ≥ STAGGER_KNOCK) aturde
 const STAGGER_KNOCK := 10.0
 const ARMOR_DECAY := 6.0              ## daño acumulado contra la armadura que se olvida por segundo
-const WINDUP_POISE := 12.0            ## daño acumulado que interrumpe la anticipación
+const WINDUP_POISE := 18.0            ## daño acumulado que interrumpe la anticipación
 const TURN_SPEED := 9.0
 const WHISKER := 1.4                  ## alcance de los rayos que esquivan obstáculos (m)
 const STUCK_TIME := 0.35              ## sin avanzar este tiempo → paso lateral para soltarse
@@ -121,10 +137,17 @@ var hit_height := 1.4
 var max_hp := 40.0
 var hp := 40.0
 var speed := 4.5
+var _dot_id := ""                     ## estado del tick en curso (burn/poison/bleed), para DamageNumbers
+var _force_dot := false               ## StatusEffects lo activa mientras aplica un tick de daño con el tiempo
+var _chill_until_ms := 0              ## escarcha: hasta cuándo va lento
+var _chill_factor := 1.0
 var attack_range := 1.0
 var damage := 0.5
 var gold_reward := 8
 var base_color := Color.WHITE
+var elite := ""                       ## modificador de élite (DungeonElites.MODS) o "" si es normal
+var damage_mult := 1.0                ## multiplica el daño de sus ataques (élites, furia)
+var damage_taken_mult := 1.0          ## multiplica el daño que recibe (escudo del blindado)
 
 # ── Configuración por tipo (las subclases, como DungeonBrute, la cambian en _init) ──
 var attacks: Dictionary = ATTACKS
@@ -132,6 +155,7 @@ var clips: Dictionary = CLIPS
 var clip_fallbacks: Dictionary = {}   ## clip -> ruta alternativa si el FBX propio aún no existe
 var idle_model := IDLE_MODEL
 var texture := TEXTURE                ## "" = sin textura: se quedan los materiales del FBX
+var rim_color := RIM_COLOR             ## contorno de luz (ver RIM_COLOR); los élites/jefes pueden cambiarlo
 var model_height := MODEL_HEIGHT
 var enemy_type: int = EnemyData.EnemyType.NORMAL_GOBLIN
 var hp_mult := HP_MULT
@@ -142,10 +166,51 @@ var stagger_damage := STAGGER_DAMAGE
 var windup_poise := WINDUP_POISE
 ## Armadura: fuera de la anticipación, los golpes por debajo de este daño no lo interrumpen;
 ## se acumulan y, al llegar a `armor_break`, se aturde (0 = sin armadura)
-var armor := 0.0
-var armor_break := 0.0
+var armor := 9.0
+var armor_break := 26.0
+## Rebote: un golpe más flojo que la armadura (sin aturdir) solo quita esta fracción de vida. Así las armas
+## ligeras (dagas, espada, arco, lanza) sufren contra el bruto o la rata gorda y la maza/espadón brillan.
+## Los jefes usan armadura >= ARMOR_GLANCE_MAX como "nunca se inmuta": a ellos no les rebota nada.
+const ARMOR_GLANCE_MULT := 0.5
+const ARMOR_GLANCE_MAX := 1000.0
+## Solo los blindados de verdad (bruto, rata gorda) hacen rebotar: el resto tiene armadura de aguante,
+## que acumula los golpes flojos para aturdir pero deja entrar el daño entero.
+var glance_armor := false
+const SHIELD_ICON_SIZE := 0.34
+const SHIELD_ICON_TINT := Color(0.62, 0.8, 1.0)      ## acero azulado (armadura entera)
+const SHIELD_ICON_CRACK := Color(1.0, 0.42, 0.18)    ## naranja (armadura a punto de romperse)
+## Escudo sobre la cabeza (billboard): silueta con borde, se tiñe según el daño acumulado contra la armadura
+## (`crack`, 0..1) y destella al rebotar un golpe (`flash`).
+const SHIELD_ICON_SHADER := """
+shader_type spatial;
+render_mode unshaded, cull_disabled, shadows_disabled, depth_draw_never, depth_test_disabled;
+instance uniform float crack = 0.0;
+instance uniform float flash = 0.0;
+instance uniform vec3 tint = vec3(0.62, 0.8, 1.0);
+instance uniform vec3 crack_tint = vec3(1.0, 0.42, 0.18);
+void vertex() {
+	MODELVIEW_MATRIX = VIEW_MATRIX * mat4(INV_VIEW_MATRIX[0], INV_VIEW_MATRIX[1], INV_VIEW_MATRIX[2], MODEL_MATRIX[3]);
+}
+float shield(vec2 p) {
+	// p: x en -1..1, y de -1 (arriba) a 1 (abajo). Recto arriba, punta redondeada abajo.
+	float y = (p.y + 0.86) / 1.78;
+	if (y < 0.0 || y > 1.0) return 0.0;
+	float w = y < 0.4 ? 0.82 : 0.82 * sqrt(max(1.0 - pow((y - 0.4) / 0.6, 2.0), 0.0));
+	return step(abs(p.x), w);
+}
+void fragment() {
+	vec2 p = UV * 2.0 - 1.0;
+	if (shield(p) < 0.5) discard;
+	float inner = shield(p / 0.78);
+	vec3 face = mix(tint, crack_tint, clamp(crack, 0.0, 1.0));
+	face *= 0.8 + 0.35 * step(abs(p.x), 0.07);           // nervio central
+	face = mix(face, vec3(1.0), clamp(flash, 0.0, 1.0));
+	ALBEDO = inner > 0.5 ? face : vec3(0.05, 0.05, 0.07);
+	ALPHA = 0.95;
+}
+"""
 var sfx_pitch := 1.0
-var knock_scale := 1.0               ## cuánto le empujan los golpes (los pesados, menos)
+var knock_scale := 0.8               ## cuánto le empujan los golpes (los pesados, menos)
 var stagger_knock := STAGGER_KNOCK
 var _armor_dmg := 0.0
 var telegraph_color := Color(1.0, 0.12, 0.05)
@@ -160,7 +225,20 @@ const ATTACK_PACE := 1.25
 const RECOVER_PACE := 1.2
 const EXTRA_REST := 0.25              ## s de más entre un ataque y el siguiente
 var face_player_dist := 4.0           ## en APPROACH mira al jugador (y no al camino) por debajo de esto
-var stun_ratio := 0.45                ## tamaño de la barra de aturdimiento = vida máxima × esto
+## Fichas de ataque (ver AttackTokens): false = no consume ficha (a distancia y jefes siguen sus reglas)
+var uses_attack_token := true
+## Rodeo mientras espera ficha: banda de distancia al jugador (m) y velocidad relativa
+const WAIT_MIN := 3.4
+const WAIT_MAX := 5.6
+const WAIT_SPEED := 0.55
+const WAIT_SWITCH := 3.5              ## s medios entre cambios de sentido al rodear
+const TOKEN_RETRY := 0.15             ## s entre intentos de reservar ficha
+const TOKEN_PENALTY := 1.5            ## s sin reservar tras agotar la reserva sin atacar
+var _token_block_until := 0.0
+var _token_retry_at := 0.0
+var _wait_side := 1.0
+var _wait_t := 0.0
+var stun_ratio := 0.65                ## tamaño de la barra de aturdimiento = vida máxima × esto
 var show_hp_bar := true               ## barra de vida sobre la de aguante (los jefes ya tienen la suya en pantalla)
 var stun_parry := 0.4                 ## fracción de la barra que llena un parry
 var stunned_time := STUNNED_TIME
@@ -172,12 +250,18 @@ var _stun_idle := 0.0
 var _stun_bar: MeshInstance3D
 var _hp_bar: MeshInstance3D
 static var _stun_shader: Shader
+var _shield_icon: MeshInstance3D
+static var _shield_shader: Shader
+var _shield_flash := 0.0
+var _shield_sent := Vector2(-1.0, -1.0)   ## (crack, flash) enviados al shader
+var _last_glance_sfx := 0
 var _next_attack_at := 0.0
 var _atk_target := Vector3.ZERO       ## posición del jugador fijada para los ataques "at_target"
 
 var state: State = State.IDLE
 var player: CharacterBody3D
 var map: DungeonMap                   ## para navegar (campo de flujo); opcional
+var passive := false                  ## no ataca ni persigue (muñeco de práctica del tutorial)
 var _avoid_side := 1.0
 var _stuck_t := 0.0                   # tiempo seguido avanzando casi nada en APPROACH
 var _unstick_t := 0.0
@@ -191,6 +275,8 @@ var _atk_ready := {}                  # nombre -> instante (s) en que vuelve a e
 var _clock := 0.0
 var _poise := 0.0
 var _knock := Vector3.ZERO
+var _death_vy := 0.0                  ## impulso vertical pendiente al morir
+const DEATH_HOP := 3.2                ## m/s hacia arriba al morir (mazmorra)
 var _facing := Vector3.FORWARD
 var _model: Node3D
 var _anim: AnimationPlayer
@@ -200,6 +286,20 @@ var _flash := 0.0
 var _flash_color := Color.WHITE
 var _telegraph: MeshInstance3D
 var _last_hurt_sfx := 0
+
+# ── Coste por tick (ver bench_dungeon_enemies): resultados de rayos reutilizados unas décimas de segundo ──
+const SIGHT_INTERVAL := 0.15          ## s entre rayos de visión al jugador
+const NAV_INTERVAL := 0.1             ## s entre cálculos de dirección (campo de flujo + bigotes)
+var _sight := false
+var _sight_at := -1.0
+var _nav_cache := Vector3.ZERO
+var _nav_at := -1.0
+var _nav_sees := false
+var _wait_cache := Vector3.ZERO
+var _wait_at := -1.0
+var _flash_sent := Color(0, 0, 0, -1)   ## último destello enviado al material (no se reenvía si no cambia)
+var _hp_fill_sent := -1.0
+var _stun_fill_sent := -1.0
 
 # ── Red (ver NetWorld) ──
 var puppet := false                   ## en los clientes: copia visual del enemigo del anfitrión (sin IA)
@@ -213,9 +313,9 @@ func _ready() -> void:
 	EnemyTypeFlyweightFactory.get_flyweight(enemy_type).apply_to(self)
 	scale = Vector3.ONE           # el tamaño lo dan model_height y la cápsula, no la escala del cuerpo
 	speed *= speed_mult
-	max_hp *= hp_mult
+	max_hp *= hp_mult * TOUGHNESS_HP
 	hp = max_hp
-	collision_layer = 4          # capa de enemigos
+	collision_layer = 4         # capa de enemigos
 	collision_mask = 1 | 2       # mundo (paredes, props, rompibles) y jugador
 	add_to_group("enemies")
 	var col := CollisionShape3D.new()
@@ -228,6 +328,8 @@ func _ready() -> void:
 	_build_model()
 	_build_telegraph()
 	_build_stun_bar()
+	# Oculto por la niebla (otra sala): sin animar el esqueleto
+	visibility_changed.connect(func(): if _anim: _anim.active = is_visible_in_tree())
 	EnemyRegistry.register(self)
 	player = NetPlayers.nearest(global_position) as CharacterBody3D
 	_facing = -global_transform.basis.z
@@ -277,6 +379,42 @@ static func warm_models() -> Array:
 		g.free()
 	return models
 
+## Material con textura compartido por todos los enemigos que usan esa textura (un solo material = se
+## agrupan al dibujar). Emite un poco de su propia textura para no perderse en la penumbra.
+static func _textured_material(path: String, tex: Texture2D) -> StandardMaterial3D:
+	var mat: StandardMaterial3D = _tex_mats.get(path)
+	if mat == null:
+		mat = StandardMaterial3D.new()
+		mat.albedo_texture = tex
+		mat.emission_enabled = true
+		mat.emission = Color.WHITE
+		mat.emission_texture = tex
+		mat.emission_operator = BaseMaterial3D.EMISSION_OP_MULTIPLY   # color × textura (ADD lo lavaba a blanco)
+		mat.emission_energy_multiplier = SELF_LIT
+		_tex_mats[path] = mat
+	return mat
+
+## Enemigos con los colores del FBX (ratas, babosas): misma idea, copiando cada material con algo de
+## brillo propio (cacheado por material de origen para que todos compartan las copias).
+static func _lift_fbx_materials(m: MeshInstance3D) -> void:
+	if m.mesh == null:
+		return
+	for s in m.mesh.get_surface_count():
+		var src := m.get_active_material(s) as BaseMaterial3D
+		if src == null or src.emission_enabled:
+			continue
+		var key := "fbx:%d" % src.get_instance_id()
+		var mat: BaseMaterial3D = _tex_mats.get(key)
+		if mat == null:
+			mat = src.duplicate() as BaseMaterial3D
+			mat.emission_enabled = true
+			mat.emission = src.albedo_color
+			mat.emission_texture = src.albedo_texture
+			mat.emission_operator = BaseMaterial3D.EMISSION_OP_MULTIPLY
+			mat.emission_energy_multiplier = SELF_LIT
+			_tex_mats[key] = mat
+		m.set_surface_override_material(s, mat)
+
 func _build_model() -> void:
 	_model = (load(idle_model) as PackedScene).instantiate() as Node3D
 	add_child(_model)
@@ -285,15 +423,17 @@ func _build_model() -> void:
 		_meshes.append(m as MeshInstance3D)
 	_fit_model()
 	var tex := load(texture) as Texture2D if texture != "" else null   # "": colores del propio FBX
+	if _flash_shader == null:
+		_flash_shader = Shader.new()
+		_flash_shader.code = FLASH_SHADER_CODE
 	_flash_mat = ShaderMaterial.new()
-	var sh := Shader.new()
-	sh.code = "shader_type spatial;\nrender_mode unshaded, blend_add, depth_draw_never;\nuniform vec4 flash_color : source_color = vec4(0.0);\nvoid fragment() { ALBEDO = flash_color.rgb * flash_color.a; }"
-	_flash_mat.shader = sh
+	_flash_mat.shader = _flash_shader
+	_flash_mat.set_shader_parameter("rim_color", rim_color)
 	for m in _meshes:
 		if tex:
-			var mat := StandardMaterial3D.new()
-			mat.albedo_texture = tex
-			m.material_override = mat
+			m.material_override = _textured_material(texture, tex)
+		else:
+			_lift_fbx_materials(m)
 		m.material_overlay = _flash_mat
 	_anim = _model.find_children("*", "AnimationPlayer", true, false)[0] as AnimationPlayer
 	var lib := _anim.get_animation_library("")
@@ -432,6 +572,61 @@ func _place_target_telegraph() -> void:
 func _approach_dir(to_p: Vector3, _dist: float, sees: bool) -> Vector3:
 	return _nav_dir(to_p, sees)
 
+## ¿Puede este enemigo comprometerse a atacar? Reserva/conserva su ficha si está cerca del jugador.
+## false = debe esperar rodeando (sin ficha libre dentro de ENGAGE_DIST).
+func _token_gate(dist: float) -> bool:
+	if not uses_attack_token or puppet:
+		return true
+	if dist > AttackTokens.ENGAGE_DIST:
+		AttackTokens.release(self)
+		return true
+	if AttackTokens.has(self):
+		if AttackTokens.held_for(self) > AttackTokens.RESERVE_MAX:
+			# Lleva demasiado con la ficha sin atacar: la suelta para que otro la use
+			AttackTokens.release(self)
+			_token_block_until = _clock + TOKEN_PENALTY
+			return false
+		return true
+	if _clock < _token_block_until or _clock < _token_retry_at:
+		return false
+	if AttackTokens.try_acquire(self):
+		return true
+	_token_retry_at = _clock + TOKEN_RETRY
+	return false
+
+## Los ataques con proyectil (babosas, hechiceros) no necesitan ficha.
+func _token_exempt(attack: String) -> bool:
+	var a: Dictionary = attacks[attack]
+	return a.get("ranged", false) or int(a.get("orbs", 0)) > 0
+
+## Sin ficha: se mantiene entre WAIT_MIN y WAIT_MAX del jugador, rodeándole de lado y sin quedarse quieto.
+func _wait_dir(to_p: Vector3, dist: float, sees: bool, delta: float) -> Vector3:
+	if not sees or dist > WAIT_MAX:
+		return _nav_dir(to_p, sees) * (1.0 if dist > AttackTokens.ENGAGE_DIST else 0.8)
+	var n := to_p.normalized()
+	if dist < WAIT_MIN:
+		return _avoid(-n) * WAIT_SPEED
+	_wait_t -= delta
+	if _wait_t <= 0.0:
+		_wait_t = WAIT_SWITCH * randf_range(0.6, 1.4)
+		_wait_side = -_wait_side
+		_wait_at = -1.0
+	if _clock < _wait_at:
+		return _wait_cache
+	_wait_at = _clock + NAV_INTERVAL
+	var side := n.cross(Vector3.UP) * _wait_side
+	var origin := global_position + Vector3(0, 0.5, 0)
+	if not _clear_line(origin, origin + side * 1.2):
+		_wait_side = -_wait_side
+		side = -side
+	# Ligera tendencia a la banda media para no derivar hacia dentro o fuera
+	var mid := (WAIT_MIN + WAIT_MAX) * 0.5
+	_wait_cache = _avoid((side + n * clampf((dist - mid) * 0.3, -0.5, 0.5)).normalized()) * WAIT_SPEED
+	return _wait_cache
+
+func _exit_tree() -> void:
+	AttackTokens.release(self)
+
 func _play(clip: String, blend: float = 0.1) -> void:
 	if _anim and _anim.has_animation(clip):
 		_anim.play(clip, blend)
@@ -495,15 +690,66 @@ func stun_max() -> float:
 func stun_fraction() -> float:
 	return 1.0 if state == State.STUNNED else clampf(_stun / stun_max(), 0.0, 1.0)
 
+## ¿Tiene armadura de la que rebotan los golpes flojos? (no los jefes: su armadura solo impide que se inmuten)
+func has_glance_armor() -> bool:
+	return glance_armor and armor > 0.0 and armor < ARMOR_GLANCE_MAX
+
+func _build_shield_icon() -> void:
+	if _shield_shader == null:
+		_shield_shader = Shader.new()
+		_shield_shader.code = SHIELD_ICON_SHADER
+	var k := clampf(model_height / MODEL_HEIGHT, 1.0, 1.8)
+	var quad := QuadMesh.new()
+	quad.size = Vector2(SHIELD_ICON_SIZE, SHIELD_ICON_SIZE * 1.1) * k
+	var mat := ShaderMaterial.new()
+	mat.shader = _shield_shader
+	mat.render_priority = 2
+	quad.material = mat
+	_shield_icon = MeshInstance3D.new()
+	_shield_icon.name = "ArmorShield"
+	_shield_icon.mesh = quad
+	_shield_icon.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# Encima de la barra de vida
+	_shield_icon.position = Vector3(0, model_height + 0.35 + 0.14 * k + 0.32 * k, 0)
+	add_child(_shield_icon)
+	_shield_icon.set_instance_shader_parameter("tint", Vector3(SHIELD_ICON_TINT.r, SHIELD_ICON_TINT.g, SHIELD_ICON_TINT.b))
+	_shield_icon.set_instance_shader_parameter("crack_tint", Vector3(SHIELD_ICON_CRACK.r, SHIELD_ICON_CRACK.g, SHIELD_ICON_CRACK.b))
+
+## Escudo visible mientras tenga armadura entera (se oculta aturdido o muerto: ahí los golpes entran enteros).
+func _update_shield_icon() -> void:
+	if not has_glance_armor():
+		if _shield_icon:
+			_shield_icon.visible = false
+		return
+	if _shield_icon == null:
+		_build_shield_icon()
+	_shield_icon.visible = state != State.DEAD and state != State.STUNNED
+	if not _shield_icon.visible:
+		return
+	_shield_flash = maxf(_shield_flash - get_physics_process_delta_time() * 4.0, 0.0)
+	var crack := clampf(_armor_dmg / armor_break, 0.0, 1.0) if armor_break > 0.0 else 0.0
+	var v := Vector2(crack, _shield_flash)
+	if v.distance_to(_shield_sent) > 0.01:
+		_shield_sent = v
+		_shield_icon.set_instance_shader_parameter("crack", crack)
+		_shield_icon.set_instance_shader_parameter("flash", _shield_flash)
+
 func _update_stun_bar() -> void:
+	_update_shield_icon()
 	var f := stun_fraction()
 	_stun_bar.visible = f > 0.01 and state != State.DEAD
 	_hp_bar.visible = show_hp_bar and state != State.DEAD and (hp < max_hp or _stun_bar.visible)
+	# Los uniforms de instancia solo se reenvían cuando cambian de forma visible (antes, en cada tick)
 	if _hp_bar.visible:
-		_hp_bar.set_instance_shader_parameter("fill", clampf(hp / max_hp, 0.0, 1.0))
+		var hf := clampf(hp / max_hp, 0.0, 1.0)
+		if absf(hf - _hp_fill_sent) > 0.002:
+			_hp_fill_sent = hf
+			_hp_bar.set_instance_shader_parameter("fill", hf)
 	if _stun_bar.visible:
-		_stun_bar.set_instance_shader_parameter("fill", f)
-		_stun_bar.set_instance_shader_parameter("pulse", 0.5 + 0.5 * sin(_state_t * 12.0) if state == State.STUNNED else 0.0)
+		if absf(f - _stun_fill_sent) > 0.005 or state == State.STUNNED:
+			_stun_fill_sent = f
+			_stun_bar.set_instance_shader_parameter("fill", f)
+			_stun_bar.set_instance_shader_parameter("pulse", 0.5 + 0.5 * sin(_state_t * 12.0) if state == State.STUNNED else 0.0)
 
 ## Suma aturdimiento; true si la barra se llena y queda indefenso (STUNNED).
 func _add_stun(amount: float) -> bool:
@@ -520,9 +766,22 @@ func _add_stun(amount: float) -> bool:
 	HitFeedback.shake(0.3)
 	return true
 
+## Aturdimiento extra de armas contundentes (maza): `fraction` de la barra. En un cliente (copia) no hace
+## nada: el anfitrión lo suma al recibir el golpe reenviado.
+func add_stun_fraction(fraction: float) -> bool:
+	if puppet:
+		return false
+	return _add_stun(stun_max() * fraction)
+
 ## Se puede rematar ahora mismo (PlayerFinisherController).
 func can_be_finished() -> bool:
 	return state == State.STUNNED
+
+## Un remate va en camino: el aturdimiento dura al menos `seconds` más (si no, se despertaría a mitad del golpe y el
+## remate no entraría).
+func hold_stun(seconds: float) -> void:
+	if state == State.STUNNED and not puppet:
+		_state_t = minf(_state_t, maxf(stunned_time - seconds, 0.0))
 
 ## Lo que quita un remate: toda la vida, o un trozo a los jefes.
 func finisher_damage() -> float:
@@ -539,6 +798,7 @@ func receive_finisher(dir: Vector3) -> void:
 	if not can_be_finished():
 		return
 	_stun = 0.0
+	LootHits.on_finisher(self)
 	take_damage(dmg, dir)
 	if state == State.STUNNED:
 		# Sobrevive (jefe): cae de espaldas y se recupera enseguida
@@ -550,9 +810,17 @@ func receive_finisher(dir: Vector3) -> void:
 # ───────────────────────────── Estados ─────────────────────────────
 
 func _set_state(s: State) -> void:
+	if passive and (s == State.APPROACH or s == State.WINDUP):
+		s = State.IDLE
 	state = s
 	_state_t = 0.0
+	_nav_at = -1.0
+	_wait_at = -1.0
 	_telegraph.visible = false
+	if s != State.APPROACH and s != State.WINDUP and s != State.ATTACK:
+		AttackTokens.release(self)    # cualquier otro estado (RECOVER, aturdido, muerto...) suelta la ficha
+		if s == State.RECOVER and EnemyRegistry.count() > AttackTokens.max_tokens():
+			_token_block_until = _clock + AttackTokens.REST_AFTER_ATTACK   # que rote con los que esperan
 	# La anticipación dura ATTACK_PACE veces más: su clip va algo más lento para no quedarse congelado
 	if _anim:
 		_anim.speed_scale = 1.0 / ATTACK_PACE if s == State.WINDUP else 1.0
@@ -581,12 +849,16 @@ func _set_state(s: State) -> void:
 			_play("hurt", 0.03)
 			if _anim:
 				_anim.speed_scale = 0.5
+			if elite != "":
+				DungeonElites.on_stunned(self)
+			LootHits.on_stunned(self)
 		State.DEAD: _play("death", 0.05)
 
 func _physics_process(delta: float) -> void:
 	if puppet:
 		_puppet_process(delta)
 		return
+	var t_ai := PerfProbe.begin()
 	if Net.is_online():
 		# Con varios jugadores va a por el más cercano (cada 0,4 s, no en cada tick)
 		_retarget_t -= delta
@@ -605,6 +877,9 @@ func _physics_process(delta: float) -> void:
 		velocity.y -= GRAVITY * delta
 	else:
 		velocity.y = -1.0
+	if _death_vy > 0.0:               # saltito al morir (ver _die)
+		velocity.y = _death_vy
+		_death_vy = 0.0
 	var move := Vector3.ZERO
 	var to_p := Vector3.ZERO
 	var dist := INF
@@ -620,12 +895,15 @@ func _physics_process(delta: float) -> void:
 		State.APPROACH:
 			var sees := _sees_player()
 			# Ataques al alcance por distancia; los de línea (embestidas) piden línea de visión
+			var gated := _token_gate(dist)
 			var pick := _choose_attack(dist, sees) if _clock >= _next_attack_at else ""
+			if pick != "" and not gated and not _token_exempt(pick):
+				pick = ""             # sin ficha no entra en WINDUP (los ataques a distancia sí)
 			if pick != "":
 				_turn_towards(to_p, delta)
 				_start_attack(pick)
 			else:
-				var dir := _approach_dir(to_p, dist, sees)
+				var dir := _approach_dir(to_p, dist, sees) if gated else _wait_dir(to_p, dist, sees, delta)
 				# Atascado contra algo: paso lateral corto hacia el lado que rodeaba
 				if _unstick_t > 0.0:
 					_unstick_t -= delta
@@ -636,13 +914,14 @@ func _physics_process(delta: float) -> void:
 					if not _smash_blocking_prop():
 						_unstick_t = 0.45
 						_avoid_side = -_avoid_side
+						_nav_at = -1.0           # dirección nueva al salir del atasco
 						# Que el camino deje de pasar por donde se atascó
 						if map and not sees:
 							var path := map.flow_path(global_position, player.global_position, 1)
 							if not path.is_empty():
 								map.penalize_cell(path[0])
 				_turn_towards(to_p if sees and dist < face_player_dist else dir, delta)
-				move = dir * speed + EnemyRegistry.separation_push(self, 1.2) * 2.0
+				move = dir * speed * chill_mult() + EnemyRegistry.separation_push(self, 1.2) * 2.0
 		State.WINDUP:
 			var windup: float = float(_atk["windup"]) * windup_scale * ATTACK_PACE
 			if _state_t <= float(_atk["track"]):
@@ -700,7 +979,10 @@ func _physics_process(delta: float) -> void:
 	_knock = _knock.move_toward(Vector3.ZERO, 30.0 * delta)
 	velocity.x = move.x + _knock.x
 	velocity.z = move.z + _knock.z
+	PerfProbe.end("goblin.ia", t_ai)
+	var t_mv := PerfProbe.begin()
 	move_and_slide()
+	PerfProbe.end("goblin.move_and_slide", t_mv)
 	rotation.y = atan2(-_facing.x, -_facing.z)
 	var moved := Vector2(global_position.x - _last_pos.x, global_position.z - _last_pos.z).length()
 	_last_pos = global_position
@@ -761,11 +1043,17 @@ func _turn_towards(dir: Vector3, delta: float) -> void:
 ## Dirección de avance: si ve al jugador, en línea recta con "bigotes" que esquivan props;
 ## si no, sigue el campo de flujo del mapa (rodea paredes, túneles y props).
 func _nav_dir(to_p: Vector3, sees: bool) -> Vector3:
+	if _clock < _nav_at and sees == _nav_sees:
+		return _nav_cache
+	_nav_at = _clock + NAV_INTERVAL
+	_nav_sees = sees
 	# El rayo de visión puede colarse por una esquina o junta de pared: la línea recta
 	# también tiene que ser transitable en la rejilla
 	if map and (not sees or not map.segment_walkable(global_position, player.global_position, hit_radius)):
-		return _path_dir()   # ya comprueba que el cuerpo cabe hasta el punto elegido
-	return _avoid(to_p.normalized())
+		_nav_cache = _path_dir()   # ya comprueba que el cuerpo cabe hasta el punto elegido
+	else:
+		_nav_cache = _avoid(to_p.normalized())
+	return _nav_cache
 
 ## Apunta al punto más lejano del camino por el que cabe el cuerpo en línea recta.
 func _path_dir() -> Vector3:
@@ -808,12 +1096,16 @@ func _smash_blocking_prop() -> bool:
 		if prop:
 			var dir := prop.global_position - global_position
 			prop.take_damage(999.0, Vector3(dir.x, 0.0, dir.z).normalized())
-			AudioManager.play_at("goblin_swing", global_position, 0.0, randf_range(0.95, 1.05) * sfx_pitch)
+			AudioManager.play_at(swing_sfx, global_position, 0.0, randf_range(0.95, 1.05) * sfx_pitch)
 			return true
 	return false
 
 func _sees_player() -> bool:
-	return _clear_line(global_position + Vector3(0, 1.0, 0), player.global_position + Vector3(0, 1.0, 0))
+	if _clock < _sight_at:
+		return _sight
+	_sight_at = _clock + SIGHT_INTERVAL * randf_range(0.8, 1.2)   # desfasados: no todos lanzan el rayo a la vez
+	_sight = _clear_line(global_position + Vector3(0, 1.0, 0), player.global_position + Vector3(0, 1.0, 0))
+	return _sight
 
 ## true si no hay paredes ni props (capa 1) entre a y b.
 func _clear_line(a: Vector3, b: Vector3) -> bool:
@@ -850,8 +1142,11 @@ func _try_hit_player() -> void:
 	if guard_kind(_atk) == "parry" and player.has_method("try_parry_melee") and player.try_parry_melee(self):
 		_on_parried()
 		return
-	var dmg: float = _atk["damage"]
+	var dmg: float = float(_atk["damage"]) * damage_mult
+	RunLog.hit_by(self)
 	player.take_damage(dmg, to_p.normalized())
+	if elite != "":
+		DungeonElites.on_hit_player(self, dmg)
 	AudioManager.play_at("impact_blunt", player.global_position, -2.0, 0.8)
 	var root := get_tree().current_scene
 	if root:
@@ -865,13 +1160,34 @@ func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 		return
 	if state == State.DEAD:
 		return
+	# El aturdimiento y el tambaleo se calculan con el golpe entero: escudos y auras quitan vida, no aguante
+	var base := amount
+	var was_stunned := state == State.STUNNED
+	amount = LootHits.outgoing(self, amount)   # rasgos del equipo (condicionales, cadena)
+	var raw := amount
+	# Rebote en la armadura: golpe flojo, sin empuje fuerte, a un enemigo que no está aturdido
+	var glance := not _force_dot and not was_stunned and has_glance_armor() and raw < armor 		and knockback_dir.length() < stagger_knock
+	if glance:
+		amount *= ARMOR_GLANCE_MULT
+		_shield_flash = 1.0
+		var t := Time.get_ticks_msec()
+		if t - _last_glance_sfx > 90:
+			_last_glance_sfx = t
+			AudioManager.play_at("proj_hit_wall", global_position + Vector3(0, 1.0, 0), -3.0, randf_range(1.45, 1.65))
+	amount *= damage_taken_mult * DungeonElites.aura_mult(self)
 	hp -= amount
+	RunLog.add_damage(HitFeedback.weapon_tag, amount + minf(hp, 0.0))   # sin contar el exceso sobre la vida
+	if not _force_dot and not has_meta("_loot_fx"):
+		LootHits.after_hit.call_deferred(self, amount)
 	_flash_color = Color(1, 1, 1)
 	_flash = 1.0
-	var root := get_tree().current_scene
-	if root:
-		FloatingDamage.spawn(root, global_position + Vector3(0, 1.8, 0), amount, Color(1.0, 0.88, 0.22), amount >= stagger_damage)
 	var killed := hp <= 0.0
+	DamageNumbers.show(self, amount, DamageNumbers.classify(base, raw, amount, _force_dot, was_stunned, amount >= stagger_damage, killed), _dot_id)
+	ElementalHits.on_hit(self, amount)   # elemento del arma (fuego, selva, escarcha, sombra)
+	if _force_dot:                       # tick de quemadura/veneno: sin empuje, aturdimiento ni efectos de golpe
+		if killed:
+			_die()
+		return
 	var push := knockback_dir
 	push.y = 0.0
 	if push.length_squared() > 0.0001:
@@ -884,8 +1200,10 @@ func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 	if now - _last_hurt_sfx > 120:
 		_last_hurt_sfx = now
 		AudioManager.play_at(hurt_sfx, global_position, -4.0, randf_range(0.9, 1.15) * sfx_pitch)
-	var heavy := amount >= stagger_damage or knockback_dir.length() >= stagger_knock
-	var stun_gain := amount * (STUN_HEAVY_MULT if heavy else STUN_HIT_MULT) * DungeonRunes.stun_mult()
+	if elite != "":
+		DungeonElites.on_damaged(self)
+	var heavy := raw >= stagger_damage or knockback_dir.length() >= stagger_knock
+	var stun_gain := raw * (STUN_HEAVY_MULT if heavy else STUN_HIT_MULT) * DungeonRunes.stun_mult()
 	if state == State.RECOVER:
 		stun_gain *= STUN_PUNISH_MULT
 	if _add_stun(stun_gain):
@@ -905,14 +1223,25 @@ func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 			if heavy:
 				_armor_dmg = 0.0
 				_set_state(State.STAGGER)
-			elif armor > 0.0 and amount < armor:
-				# Armadura: aguanta el golpe sin inmutarse hasta que se acumula bastante daño
-				_armor_dmg += amount
+			elif armor > 0.0 and raw < armor:
+				# Armadura: aguanta el golpe sin inmutarse hasta que se acumula bastante daño (el golpe entero:
+				# el rebote ya quita vida a medias, no frena además la rotura)
+				_armor_dmg += raw
 				if armor_break > 0.0 and _armor_dmg >= armor_break:
 					_armor_dmg = 0.0
 					_set_state(State.STAGGER)
 			else:
 				_set_state(State.HURT)
+
+## Escarcha: el enemigo se mueve a `factor` de su velocidad durante `duration` s (la mayor lentitud manda).
+func apply_chill(factor: float, duration: float) -> void:
+	var now := Time.get_ticks_msec()
+	if now >= _chill_until_ms or factor < _chill_factor:
+		_chill_factor = factor
+	_chill_until_ms = maxi(_chill_until_ms, now + int(duration * 1000.0))
+
+func chill_mult() -> float:
+	return _chill_factor if Time.get_ticks_msec() < _chill_until_ms else 1.0
 
 func apply_knockback(v: Vector3) -> void:
 	if state == State.DEAD:
@@ -927,15 +1256,31 @@ func _die() -> void:
 	EnemyRegistry.unregister(self)
 	AudioManager.play_at(die_sfx, global_position, 0.0, randf_range(0.95, 1.05) * sfx_pitch)
 	died.emit(self)
+	# Mazmorra: salta un poco hacia atrás (el empuje del golpe ya lo desliza) y se disuelve
+	_death_vy = DEATH_HOP
+	var gone := HitFeedback.death_fx(_model, _meshes)
 	var tw := create_tween()
+	if gone > 0.0:
+		tw.tween_interval(gone)
+		tw.tween_callback(queue_free)
+		return
 	tw.tween_interval(1.6)
 	tw.tween_property(_model, "position:y", _model.position.y - 0.6, 0.8).set_ease(Tween.EASE_IN)
 	tw.parallel().tween_property(_model, "scale", _model.scale * 0.85, 0.8)
 	tw.tween_callback(queue_free)
 
+## Cambia el contorno de luz (élites: color de su modificador).
+func set_rim(c: Color) -> void:
+	rim_color = c
+	if _flash_mat:
+		_flash_mat.set_shader_parameter("rim_color", c)
+
 func _update_flash(delta: float) -> void:
 	_flash = move_toward(_flash, 0.0, delta * 5.0)
-	_flash_mat.set_shader_parameter("flash_color", Color(_flash_color.r, _flash_color.g, _flash_color.b, _flash))
+	var c := Color(_flash_color.r, _flash_color.g, _flash_color.b, _flash)
+	if c != _flash_sent:          # sin destello (casi siempre) no se toca el material
+		_flash_sent = c
+		_flash_mat.set_shader_parameter("flash_color", c)
 
 func is_dead() -> bool:
 	return state == State.DEAD

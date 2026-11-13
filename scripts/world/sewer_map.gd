@@ -183,6 +183,10 @@ func _far_from_centers(q: Vector2i) -> bool:
 
 # ───────────────────────────── Geometría ─────────────────────────────
 
+## Las cloacas siguen con muros de bloques sobre la rejilla: no hace falta suelo bajo ellos.
+func _floor_under_walls() -> bool:
+	return false
+
 func _floor_material() -> Material:
 	var mat := _brick_material()
 	mat.set_shader_parameter("floor_tiles", true)

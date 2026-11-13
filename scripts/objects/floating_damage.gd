@@ -42,14 +42,22 @@ static func spawn(parent: Node, world_pos: Vector3, amount: float, color: Color 
 		randf_range(-1.2, 1.2)
 	)
 	dmg_script.lifetime = 0.85 if is_crit else 0.7
-	
+	dmg_script._punch(is_crit)
+
 	return label
 
-func _ready() -> void:
-	scale = Vector3(0.3, 0.3, 0.3)
-	var tween = create_tween().set_parallel(true)
-	tween.tween_property(self, "scale", Vector3(1.25, 1.25, 1.25), 0.1).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tween.chain().tween_property(self, "scale", Vector3(1.0, 1.0, 1.0), 0.12)
+## Salto al aparecer. Va en spawn (no en _ready): las etiquetas salen de un pool y _ready solo corre una vez.
+## Los críticos crecen más y tardan un poco más en asentarse.
+func _punch(is_crit: bool) -> void:
+	var old = get_meta(&"_punch_tw") if has_meta(&"_punch_tw") else null
+	if old is Tween and (old as Tween).is_valid():
+		(old as Tween).kill()
+	scale = Vector3.ONE * 0.3
+	var peak := 1.6 if is_crit else 1.25
+	var tween := create_tween()
+	set_meta(&"_punch_tw", tween)
+	tween.tween_property(self, "scale", Vector3.ONE * peak, 0.09 if is_crit else 0.1).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(self, "scale", Vector3.ONE, 0.16 if is_crit else 0.12).set_trans(Tween.TRANS_SINE)
 
 func _process(delta: float) -> void:
 	time_alive += delta

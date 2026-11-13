@@ -21,20 +21,23 @@ var camera_pivot: Node3D
 
 ## Mazmorra: brazo con esfera de colisión (no atraviesa paredes), regreso suave tras chocar,
 ## zoom con la rueda y seguimiento del objetivo fijado (TargetLockController).
-## Estilo Deadlock: cámara pegada a la espalda y algo elevada, al hombro derecho, con campo de visión
-## amplio y el punto de mira libre en el centro de la pantalla.
-const DUNGEON_SPRING_LENGTH := 3.3
-const DUNGEON_MIN_LENGTH := 2.2
-const DUNGEON_MAX_LENGTH := 5.2
+## Estilo God of War (2018): cámara muy cerca, a la altura del hombro derecho, con campo de visión
+## cerrado; el personaje ocupa el tercio izquierdo y el punto de mira queda libre en el centro.
+const DUNGEON_SPRING_LENGTH := 1.9
+const DUNGEON_MIN_LENGTH := 1.4
+const DUNGEON_MAX_LENGTH := 3.8
 const DUNGEON_START_PITCH := -0.1    ## empieza mirando un poco hacia abajo (el horizonte queda sobre el crosshair)
-const FOV_BASE := 80.0
-const FOV_DODGE := 88.0              ## el campo de visión se abre un instante al rodar
+## Supervivencia: camara algo mas alta que la de la escena (inclinacion -20 grados y 5,2 m): mas vista del campo.
+const SURVIVAL_START_PITCH := -0.66
+const SURVIVAL_SPRING_LENGTH := 6.0
+const FOV_BASE := 64.0
+const FOV_DODGE := 72.0              ## el campo de visión se abre un instante al rodar
 const FOV_SPEED := 9.0
 const ARM_RETURN_SPEED := 5.0        ## lo rápido que se aleja de nuevo tras acercarse por una pared
 const LOCK_YAW_SPEED := 7.0
 const LOCK_PITCH := -0.28           ## inclinación a la que tiende la cámara con objetivo fijado
 ## Cámara al hombro: el personaje queda a la izquierda y el crosshair libre en el centro.
-const SHOULDER := Vector3(0.78, 0.5, 0.0)
+const SHOULDER := Vector3(0.62, 0.6, 0.0)
 const SHOULDER_MARGIN := 0.25       ## distancia mínima de la cámara a una pared lateral
 var _dungeon := false
 var _cam_len := -1.0
@@ -54,6 +57,11 @@ func _ready() -> void:
 	camera.position = camera_offset
 
 	_dungeon = GameData.game_mode == "dungeon"
+	if not _dungeon:
+		target_pitch = SURVIVAL_START_PITCH
+		spring_arm.rotation.x = target_pitch
+		target_spring_length = SURVIVAL_SPRING_LENGTH
+		spring_arm.spring_length = target_spring_length
 	if _dungeon:
 		var sphere := SphereShape3D.new()
 		sphere.radius = 0.25
@@ -119,14 +127,39 @@ func _physics_process(delta: float) -> void:
 			_cam_len = lerpf(_cam_len, hit, 1.0 - exp(-ARM_RETURN_SPEED * delta))
 		arm_pull = _cam_len - hit
 		_update_shoulder(delta)
-		var rolling: bool = player.movement_controller != null and player.movement_controller.is_dodging()
-		camera.fov = lerpf(camera.fov, FOV_DODGE if rolling else FOV_BASE, 1.0 - exp(-FOV_SPEED * delta))
+		var mc = player.movement_controller
+		var rolling: bool = mc != null and mc.is_dodging()
+		var sprinting: bool = mc != null and mc.has_method("gs_running") and mc.gs_running()
+		var fov_target := FOV_DODGE if rolling else (FOV_BASE + FOV_SPRINT_ADD if sprinting else FOV_BASE)
+		camera.fov = lerpf(camera.fov, fov_target, 1.0 - exp(-FOV_SPEED * delta))
+		_sprint_k = lerpf(_sprint_k, 1.0 if sprinting else 0.0, 1.0 - exp(-4.0 * delta))
+		HitFeedback.speed_lines(_sprint_k if _sprint_k > 0.02 else 0.0)
+		_update_lag(delta)
 
+	var cam_pos := camera_offset + _lag
 	if abs(camera_kick_z) > 0.001:
 		camera_kick_z = lerp(camera_kick_z, 0.0, delta * 14.0)
-		camera.position = camera_offset + Vector3(0.0, 0.0, camera_kick_z + arm_pull)
+		camera.position = cam_pos + Vector3(0.0, 0.0, camera_kick_z + arm_pull)
 	else:
-		camera.position = camera_offset + Vector3(0.0, 0.0, arm_pull)
+		camera.position = cam_pos + Vector3(0.0, 0.0, arm_pull)
+
+## Inercia de la cámara: se queda un poco atrás al arrancar o al moverse de lado y recupera al frenar
+## (da sensación de peso y velocidad sin perder el control: tope LAG_MAX).
+const LAG_PER_MS := 0.022           ## m de retraso por cada m/s de velocidad
+const LAG_MAX := 0.2
+const LAG_SPEED := 6.0
+const FOV_SPRINT_ADD := 5.0          ## grados que se abre la cámara al esprintar (espadón/espada)
+var _lag := Vector3.ZERO
+var _sprint_k := 0.0
+
+func _update_lag(delta: float) -> void:
+	var v: Vector3 = player.velocity
+	v.y = 0.0
+	var local := camera_pivot.global_basis.orthonormalized().inverse() * v
+	var want := Vector3(-local.x, 0.0, -local.z) * LAG_PER_MS
+	want.z = maxf(want.z, 0.0) * 0.6   # hacia delante se aleja un poco; hacia atrás no se acerca (la pared)
+	want = want.limit_length(LAG_MAX)
+	_lag = _lag.lerp(want, 1.0 - exp(-LAG_SPEED * delta))
 
 func apply_camera_recoil(pitch_amount: float, yaw_amount: float, kick_z: float = 0.08) -> void:
 	target_pitch = clamp(target_pitch + pitch_amount, deg_to_rad(-65.0), deg_to_rad(45.0))

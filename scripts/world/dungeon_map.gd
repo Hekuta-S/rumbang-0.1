@@ -11,8 +11,8 @@ extends ProceduralMap
 ##  - Suelo de tierra y paredes de roca (MultiMesh) con texturas horneadas en Blender (roca, tierra,
 ##    madera y piedra en assets/textures/dungeon, de blender_sources/dungeon_assets.blend) proyectadas
 ##    por coordenadas del mundo (shaders cave_floor / cave_rock) y teñidas con la paleta del nivel.
-##    Las paredes son 3 variantes de bloque de roca (cave_rock_*.glb) repartidas en trozos de
-##    WALL_CHUNK m (la cámara descarta los que no ve). Colisión con cajas fusionadas por filas.
+##    Paredes y techo son una carcasa continua (CaveShell) con el relieve de un escaneo de cueva,
+##    en trozos de WALL_CHUNK m (la cámara descarta los que no ve). Colisión con cajas fusionadas por filas.
 ##  - Props con detalle de madera o piedra (shader prop_detail, ver STONE_PROPS).
 ##  - Temas por caverna: campamento (chozas, tiendas, fogata), almacén (barriles y
 ##    cajas destruibles, empalizadas) o santuario (tótem y postes de calaveras).
@@ -50,7 +50,8 @@ const TEX_DIR := "res://assets/textures/dungeon/"
 const ROCK_SHADER: Shader = preload("res://assets/shaders/cave_rock.gdshader")
 const FLOOR_SHADER: Shader = preload("res://assets/shaders/cave_floor.gdshader")
 const DETAIL_SHADER: Shader = preload("res://assets/shaders/prop_detail.gdshader")
-const ROCK_MESHES := ["cave_rock_a", "cave_rock_b", "cave_rock_c"]
+## Textura estilizada de la roca, sacada del escaneo de la gruta (tools/make_cave_scan_texture.py)
+const ROCK_TEX := "cave_scan"
 const WALL_CHUNK := 48.0              ## lado de cada trozo de pared (m)
 ## Props con detalle de piedra (el resto, madera)
 const STONE_PROPS := ["rock_a", "rock_b", "stalagmite", "altar", "pillar", "wall", "grave_a", "grave_b",
@@ -61,6 +62,59 @@ const FLAME_SHADER: Shader = preload("res://assets/shaders/fire_flame.gdshader")
 static var _detail_mats: Dictionary = {}   # "wood" | "stone" | "fire" -> ShaderMaterial compartido
 static var _flame_noise: NoiseTexture2D
 const SHRINE_TOTEM_SOULS := 5         ## el tótem grande del santuario suelta más
+# ── Iluminación de la cueva (antorchas de pared y braseros de pilar; tools/blender_cave_torches.py) ──
+## Props con su propio material texturizado (no pasan por prop_flat / prop_detail)
+const TEXTURED_PROPS := ["torch_wall", "brazier_pillar", "mush_big", "mush_small", "mush_cups",
+	"stalactite_a", "stalactite_b", "stalactite_c", "stalagmite_d", "cave_pillar", "cave_rock_01", "cave_rock_04",
+	"cave_cliff_a", "cave_cliff_b", "cave_cliff_c", "cave_cliff_d"]
+## Piezas del pack de cueva (tools/blender_cave_pack.py) que llevan el material de roca de las paredes
+const PACK_ROCK := ["stalactite_a", "stalactite_b", "stalactite_c", "stalagmite_d", "cave_pillar", "cave_rock_01",
+	"cave_rock_04", "cave_cliff_a", "cave_cliff_b", "cave_cliff_c", "cave_cliff_d"]
+const STALACTITES := {"stalactite_a": 2.56, "stalactite_b": 2.55, "stalactite_c": 4.63}   ## kind -> largo (m)
+const CLIFFS := ["cave_cliff_a", "cave_cliff_b", "cave_cliff_c", "cave_cliff_d"]
+const STALACTITE_CLEAR := 3.4          ## altura mínima de la punta de una estalactita sobre el suelo
+const PILLAR_H := 4.06                 ## alto de cave_pillar a escala 1
+static var _pack_mat: ShaderMaterial
+const CAVE_PROPS := {
+	"torch_wall":     {"file": "torch_wall",     "shape": "",    "size": Vector3.ZERO,            "scale": Vector2(1.0, 1.0)},
+	"brazier_pillar": {"file": "brazier_pillar", "shape": "cyl", "size": Vector3(0.45, 1.6, 0.0), "scale": Vector2(1.0, 1.0)},
+	# Hongos (tools/blender_cave_mushrooms.py), con el shader mushroom_glow
+	"mush_big":   {"file": "mushroom_big",   "shape": "cyl", "size": Vector3(0.2, 1.5, 0.0), "scale": Vector2(0.8, 1.5)},
+	"mush_small": {"file": "mushroom_small", "shape": "",    "size": Vector3.ZERO,          "scale": Vector2(0.7, 1.4)},
+	"mush_cups":  {"file": "mushroom_cups",  "shape": "",    "size": Vector3.ZERO,          "scale": Vector2(0.8, 1.6)},
+	# Pack de cueva (placeholder): estalactitas colgadas (origen en la base, cuelgan hacia -Y), columnas, rocas...
+	"stalactite_a": {"file": "cave_stalactite_a", "shape": "",    "size": Vector3.ZERO,             "scale": Vector2(0.6, 1.2)},
+	"stalactite_b": {"file": "cave_stalactite_b", "shape": "",    "size": Vector3.ZERO,             "scale": Vector2(0.6, 1.2)},
+	"stalactite_c": {"file": "cave_stalactite_c", "shape": "",    "size": Vector3.ZERO,             "scale": Vector2(0.6, 1.2)},
+	"stalagmite_d": {"file": "cave_stalagmite_d", "shape": "cyl", "size": Vector3(1.4, 10.0, 0.0),  "scale": Vector2(0.25, 0.48)},
+	"cave_pillar":  {"file": "cave_pillar",       "shape": "cyl", "size": Vector3(0.95, 4.0, 0.0),  "scale": Vector2(1.0, 1.0)},
+	"cave_rock_01": {"file": "cave_rock_01",      "shape": "cyl", "size": Vector3(0.95, 1.4, 0.0),  "scale": Vector2(0.6, 1.1)},
+	"cave_rock_04": {"file": "cave_rock_04",      "shape": "cyl", "size": Vector3(0.7, 1.3, 0.0),   "scale": Vector2(0.6, 1.1)},
+	"cave_cliff_a": {"file": "cave_cliff_a",      "shape": "",    "size": Vector3.ZERO,             "scale": Vector2(0.9, 1.4)},
+	"cave_cliff_b": {"file": "cave_cliff_b",      "shape": "",    "size": Vector3.ZERO,             "scale": Vector2(0.9, 1.4)},
+	"cave_cliff_c": {"file": "cave_cliff_c",      "shape": "",    "size": Vector3.ZERO,             "scale": Vector2(0.9, 1.4)},
+	"cave_cliff_d": {"file": "cave_cliff_d",      "shape": "",    "size": Vector3.ZERO,             "scale": Vector2(0.9, 1.4)},
+}
+const MUSH_SHADER: Shader = preload("res://assets/shaders/mushroom_glow.gdshader")
+const MUSH_TEX_DIR := "res://assets/textures/mushrooms/"
+static var _mush_mat: ShaderMaterial    # compartido por las tres piezas; su color de brillo cambia con el nivel
+const TORCH_FLAME := Vector3(0.0, 0.33, 0.36)    ## base de la llama en el modelo torch_wall (frente = +Z)
+const PILLAR_FLAME := Vector3(0.0, 1.46, 0.0)    ## base de la llama en el cuenco del brasero
+const TORCH_COLOR := Color(1.0, 0.58, 0.26)      ## mismo tono que las antorchas del salón del rey
+const TORCH_SPACING := 17.0                      ## separación mínima entre antorchas de pared en cavernas (m)
+const TUNNEL_TORCH_SPACING := 18.0               ## ... y en los túneles
+const CAVE_LIGHTS := 160                         ## luces que se pueden crear (se encienden las más cercanas)
+const CAVE_VISIBLE_LIGHTS := 32                  ## calidad media/alta (DungeonFog solo deja competir las de la sala)
+const CAVE_VISIBLE_LIGHTS_LOW := 18
+const BAKED_GAIN_MOBILE := 0.45                  ## luz de antorchas horneada en el color de vértice (solo móvil)
+const CAVE_VISIBLE_LIGHTS_MOBILE := 6            ## renderer Mobile: 8 omni por malla como mucho; el resto de antorchas va horneado (BAKED_GAIN_MOBILE)
+## Trozos de 24 m para carcasa y props en la cueva iluminada (PC): el renderizador Mobile aplica como mucho
+## 8 luces omni por malla/MultiMesh, y con trozos grandes no son las antorchas cercanas.
+const LIT_CHUNK := 24.0
+## Pinturas rupestres (tools/make_rock_art.py), proyectadas con Decal sobre las paredes de la carcasa
+const ROCK_ART := ["res://assets/textures/rock_art/rock_art_a.png", "res://assets/textures/rock_art/rock_art_b.png",
+	"res://assets/textures/rock_art/rock_art_c.png"]
+const ROCK_ART_MAX := 4
 
 ## Amplitud del ruido que deforma el borde de las cavernas (en radios de la elipse).
 var edge_noise_amp := 0.28
@@ -82,6 +136,16 @@ func palette() -> Dictionary:
 @export var slot_limit: int = 2       ## huecos válidos: -slot_limit..slot_limit
 @export var room_radius: Vector2i = Vector2i(7, 10)   ## radio de la elipse principal (celdas)
 @export var grass_per_room: int = 140
+
+## Anclajes de pared de la carcasa (CaveShell.anchors) para las antorchas; vacío = sin antorchas (cloacas).
+var _torch_anchors: Array = []
+var _shell_mat: ShaderMaterial           ## material de la carcasa (para activar la luz horneada)
+var _bake_sources: Array = []            ## [pos, energía, alcance, atenuación] de antorchas y braseros
+var _cave_shell: CaveShell            # la carcasa de este mapa (alturas del techo para las estalactitas)
+var _cliff_spots := {}                # celda de 8 m -> [posiciones de acantilados] (sin antorchas encima)
+var _torch_spots := {}                # celda de 8 m -> [posiciones de antorchas de pared]
+## Por anclaje de pared: caverna a la que mira (-1 = ninguna), túnel (-2) o nada delante (-3). Ver _anchor_rooms.
+var _anchor_room := PackedInt32Array()
 
 ## Cavernas: [{slot, center: Vector3, half: Vector2 (m, caja envolvente), type, theme, cells: Array[Vector2i]}]
 var rooms: Array = []
@@ -115,6 +179,12 @@ func generate(p_seed: int = 0) -> void:
 	_grass.clear()
 	_breakables.clear()
 	_crystals.clear()
+	_torch_anchors.clear()
+	_bake_sources.clear()
+	_cave_shell = null
+	_cliff_spots.clear()
+	_torch_spots.clear()
+	_anchor_room.clear()
 	# Navegación del mapa anterior
 	_flow_cache.clear()
 	_flow_order.clear()
@@ -138,6 +208,12 @@ func generate(p_seed: int = 0) -> void:
 	_build_walls()
 	for i in rooms.size():
 		_decorate_room(i)
+	_place_cliffs()
+	_place_torches()
+	_place_rock_art()
+	_place_mushrooms()
+	_place_cave_decor()
+	_build_single_props()
 	_build_prop_nodes()
 	_build_grass()
 	_build_crystals()
@@ -145,7 +221,7 @@ func generate(p_seed: int = 0) -> void:
 	_build_extra()
 	generated.emit(used_seed)
 	print("[DungeonMap] semilla=", used_seed, " cavernas=", rooms.size(), " celdas=", _cells.size(),
-		" props=", _count_instances(), " rompibles=", destructibles.size())
+		" props=", _count_instances(), " rompibles=", destructibles.size(), " luces=", _lights.size())
 
 func get_height_at(_x: float, _z: float) -> float:
 	return 0.0
@@ -592,14 +668,17 @@ func _build_floor() -> void:
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.use_colors = true
 	mm.mesh = plane
-	mm.instance_count = _cells.size()
+	# También bajo el primer anillo de roca: el relieve de la pared puede retirarse hacia ella y no debe
+	# verse el vacío al pie
+	var under: Array = _walls.keys() if _floor_under_walls() else []
+	mm.instance_count = _cells.size() + under.size()
 	var i := 0
 	var lo := Vector2(INF, INF)
 	var hi := Vector2(-INF, -INF)
-	for c in _cells:
+	for c in _cells.keys() + under:
 		var p := _cell_pos(c)
 		mm.set_instance_transform(i, Transform3D(Basis(), p))
-		mm.set_instance_color(i, _floor_color(c))
+		mm.set_instance_color(i, _floor_color(c) if _cells.has(c) else (palette()["dirt"] as Color) * 0.6)
 		lo = Vector2(minf(lo.x, p.x), minf(lo.y, p.z))
 		hi = Vector2(maxf(hi.x, p.x), maxf(hi.y, p.z))
 		i += 1
@@ -621,6 +700,10 @@ func _build_floor() -> void:
 	body.add_child(cs)
 	add_child(body)
 
+## Suelo también bajo el primer anillo de roca (la carcasa de la cueva puede retirarse hacia él).
+func _floor_under_walls() -> bool:
+	return true
+
 func _floor_material() -> Material:
 	var mat := ShaderMaterial.new()
 	mat.shader = FLOOR_SHADER
@@ -639,6 +722,10 @@ static func detail_material(kind: String) -> ShaderMaterial:
 		mat.set_shader_parameter("detail_tex", load(TEX_DIR + tex + "_albedo.png"))
 		mat.set_shader_parameter("detail_normal", load(TEX_DIR + tex + "_normal.png"))
 		mat.set_shader_parameter("tile_m", 1.4 if tex == "stone" else 0.9)
+		# Texturas por pieza (clase de detalle, ver ProceduralMap.detail_class): piedra, paja, piel, corteza
+		for t in ["stone", "straw", "hide", "bark"]:
+			mat.set_shader_parameter(t + "_tex", load(TEX_DIR + t + "_albedo.png"))
+			mat.set_shader_parameter(t + "_normal", load(TEX_DIR + t + "_normal.png"))
 		mat.set_shader_parameter("roughness_value", 0.9 if tex == "stone" else 0.8)
 		mat.set_shader_parameter("use_normal_map", Quality.level() != Quality.Level.LOW)
 		mat.set_shader_parameter("hide_emissive", key == "fire")
@@ -673,12 +760,348 @@ func _add_flame(base: Vector3, height: float) -> void:
 	add_child(mi)
 
 ## Las mallas de los props llevan el material de detalle en vez del plano (prop_flat).
+func _prop_chunk_size(kind: String) -> float:
+	return LIT_CHUNK if (_cave_shell != null and not _mobile) else super(kind)
+
+func _prop_def(kind: String) -> Dictionary:
+	return CAVE_PROPS[kind] if CAVE_PROPS.has(kind) else super(kind)
+
 func _load_kind(kind: String) -> Mesh:
+	if kind in TEXTURED_PROPS:
+		return _load_textured(kind)
 	var fresh := not _mesh_cache.has(kind)
 	var mesh := super(kind)
 	if fresh and mesh != null:
 		mesh.surface_set_material(0, detail_material(kind))
 	return mesh
+
+## Malla de un prop con sus materiales del .glb (texturas), sin aplanar.
+func _load_textured(kind: String) -> Mesh:
+	if _mesh_cache.has(kind):
+		return _mesh_cache[kind]
+	var path: String = PROP_DIR + String(_prop_def(kind)["file"]) + ".glb"
+	var mesh: Mesh = null
+	var xf := Transform3D.IDENTITY
+	if ResourceLoader.exists(path):
+		var root := (load(path) as PackedScene).instantiate()
+		var found := _find_mesh_instance(root)
+		if found:
+			mesh = found.mesh
+			var n: Node = found
+			while n and n != root:
+				xf = (n as Node3D).transform * xf
+				n = n.get_parent()
+		root.free()
+	if mesh != null and kind.begins_with("mush_"):
+		mesh.surface_set_material(0, mushroom_material())
+	elif mesh != null and kind in PACK_ROCK:
+		mesh.surface_set_material(0, pack_rock_material())
+	_mesh_cache[kind] = mesh
+	_mesh_xf[kind] = xf
+	return mesh
+
+## Material de los hongos (uno para todos): textura sin el logo, normal y máscara de las manchas que brillan.
+static func mushroom_material() -> ShaderMaterial:
+	if _mush_mat == null:
+		_mush_mat = ShaderMaterial.new()
+		_mush_mat.shader = MUSH_SHADER
+		_mush_mat.set_shader_parameter("albedo_tex", load(MUSH_TEX_DIR + "mushroom_albedo.png"))
+		_mush_mat.set_shader_parameter("normal_tex", load(MUSH_TEX_DIR + "hongo_normal.png"))
+		_mush_mat.set_shader_parameter("glow_tex", load(MUSH_TEX_DIR + "mushroom_glow.png"))
+		_mush_mat.set_shader_parameter("use_normal_map", Quality.level() != Quality.Level.LOW)
+	return _mush_mat
+
+## Material de roca de las piezas del pack: el de las paredes (textura de la gruta en triplanar) con el
+## color de roca del nivel como tinte (sus MultiMesh no llevan color por instancia).
+static func pack_rock_material() -> ShaderMaterial:
+	if _pack_mat == null:
+		_pack_mat = ShaderMaterial.new()
+		_pack_mat.shader = ROCK_SHADER
+		_pack_mat.set_shader_parameter("albedo_tex", load(TEX_DIR + ROCK_TEX + "_albedo.png"))
+		_pack_mat.set_shader_parameter("normal_tex", load(TEX_DIR + ROCK_TEX + "_normal.png"))
+		_pack_mat.set_shader_parameter("tile_m", 4.0)
+		_pack_mat.set_shader_parameter("tint_gain", 2.8)     # algo más claras que la pared: que no queden en silueta negra
+		_pack_mat.set_shader_parameter("top_light_h", 1000.0)
+		_pack_mat.set_shader_parameter("use_vertex_color", false)
+		_pack_mat.set_shader_parameter("base_dark_h", 0.3)   # rocas y columnas: pie oscuro corto
+		_pack_mat.set_shader_parameter("use_normal_map", Quality.level() != Quality.Level.LOW)
+	return _pack_mat
+
+## Acantilados del pack delante de la pared (hasta 3 por caverna): rompen la silueta lisa de la carcasa.
+## Van antes de las antorchas, que no se ponen encima de ellos.
+func _place_cliffs() -> void:
+	if _torch_anchors.is_empty():
+		return
+	_anchor_rooms()
+	var per_room := {}
+	var full := 0                          # cavernas que ya tienen sus 3
+	var n := _torch_anchors.size()
+	var offset := _rng.randi() % maxi(1, n)
+	for j in n:
+		if full >= rooms.size():
+			break
+		var idx := (j * 7 + offset) % n                         # recorrido salteado: no todos juntos
+		var room: int = _anchor_room[idx]
+		if room < 0 or int(per_room.get(room, 0)) >= 3:
+			continue
+		var a: Array = _torch_anchors[idx]
+		var p: Vector3 = a[0]
+		var inward: Vector2 = a[1]
+		if _near_taken(_cliff_spots, p, 9.0):
+			continue
+		per_room[room] = int(per_room.get(room, 0)) + 1
+		if per_room[room] == 3:
+			full += 1
+		_mark_taken(_cliff_spots, p)
+		var at := Vector2(p.x, p.z) - inward * 0.5                 # medio metro dentro de la roca
+		_add(CLIFFS[_rng.randi() % CLIFFS.size()], at, fposmod(atan2(inward.x, inward.y), TAU), -1.0, -0.2, false)
+
+## Una vez por mapa: qué hay delante de cada anclaje de pared (caverna, túnel o nada).
+func _anchor_rooms() -> void:
+	_anchor_room.resize(_torch_anchors.size())
+	for idx in _torch_anchors.size():
+		var a: Array = _torch_anchors[idx]
+		var p: Vector3 = a[0]
+		var inward: Vector2 = a[1]
+		var front := world_to_cell(p + Vector3(inward.x, 0.0, inward.y) * 1.5)
+		if not _cells.has(front):
+			_anchor_room[idx] = -3
+		elif _cells[front] == CORRIDOR:
+			_anchor_room[idx] = -2
+		else:
+			_anchor_room[idx] = int(_owner.get(front, -1))
+
+## Resto de la decoración del pack: estalactitas colgando del techo (la punta nunca baja de
+## STALACTITE_CLEAR), columnas de suelo a techo donde el techo es bajo y rocas sueltas.
+func _place_cave_decor() -> void:
+	if _cave_shell == null:
+		return
+	pack_rock_material().set_shader_parameter("tint", palette()["rock"])
+	var floor_cells: Array = _cells.keys()
+	var count := floor_cells.size() / 28
+	var kinds: Array = STALACTITES.keys()
+	for k in count:
+		var c: Vector2i = floor_cells[_rng.randi() % floor_cells.size()]
+		var p := Vector2(c.x * CELL, c.y * CELL) + Vector2(_rng.randf_range(-0.9, 0.9), _rng.randf_range(-0.9, 0.9))
+		var ceil_h := _cave_shell.ceiling_at(p.x, p.y)
+		var kind: String = kinds[_rng.randi() % kinds.size()]
+		var s := minf(_rng.randf_range(0.6, 1.2), (ceil_h - STALACTITE_CLEAR) / float(STALACTITES[kind]))
+		if s < 0.35:
+			continue
+		_add(kind, p, -1.0, s, ceil_h + 0.35, false)
+	for i in rooms.size():
+		var r: Dictionary = rooms[i]
+		# columna de suelo a techo (solo donde el techo es bajo, para que no salga demasiado gorda)
+		for attempt in 2:
+			var p := _spot(r, 2.0, 2, 4)
+			if p == Vector2.INF:
+				continue
+			var ceil_h := _cave_shell.ceiling_at(p.x, p.y)
+			var s := (ceil_h + 0.3) / PILLAR_H
+			if s > 1.75:
+				continue
+			_place("cave_pillar", p, 1.6 * s, -1.0, s)
+			break
+		for k in _rng.randi_range(3, 5):
+			_try_place(r, "cave_rock_01" if _rng.randf() < 0.5 else "cave_rock_04", 1.1, 1, 3)
+
+## En la cueva (PC) las piezas del pack van como mallas sueltas y no en MultiMesh: el renderizador Mobile
+## reparte como mucho 8 luces omni por instancia de malla, y en un MultiMesh con muchas piezas no son las
+## antorchas de al lado (salían negras). Son ~150 piezas, con corte por distancia.
+func _build_single_props() -> void:
+	if _cave_shell == null or _mobile:
+		return
+	var holder := Node3D.new()
+	holder.name = "PackProps"
+	add_child(holder)
+	for kind in PACK_ROCK:
+		if not _instances.has(kind):
+			continue
+		var mesh := _load_kind(kind)
+		if mesh != null:
+			var xf: Transform3D = _mesh_xf[kind]
+			for t in (_instances[kind] as Array):
+				var mi := MeshInstance3D.new()
+				mi.mesh = mesh
+				mi.transform = (t as Transform3D) * xf
+				mi.visibility_range_end = 60.0
+				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				mi.name = kind
+				holder.add_child(mi, true)
+		_instances.erase(kind)              # la colisión (_collide) sigue igual
+
+## Pinturas rupestres: como mucho ROCK_ART_MAX por mapa, primero en la caverna final y la del tesoro, en
+## una pared con una antorcha a 3-7 m (que se vean) y sin acantilado delante. Decal que solo pinta la pared.
+func _place_rock_art() -> void:
+	if _torch_anchors.is_empty():
+		return
+	var holder := Node3D.new()
+	holder.name = "RockArt"
+	add_child(holder)
+	var order: Array = []
+	for i in rooms.size():
+		if rooms[i]["type"] in ["end", "treasure"]:
+			order.push_front(i)
+		elif rooms[i]["type"] != "start" and _rng.randf() < 0.4:
+			order.append(i)
+	var by_room := {}                      # caverna -> [índices de anclaje]
+	for idx in _anchor_room.size():
+		if _anchor_room[idx] >= 0:
+			if not by_room.has(_anchor_room[idx]):
+				by_room[_anchor_room[idx]] = []
+			(by_room[_anchor_room[idx]] as Array).append(idx)
+	for i in order:
+		if holder.get_child_count() >= ROCK_ART_MAX:
+			break
+		var list: Array = by_room.get(i, [])
+		var n := list.size()
+		var offset := _rng.randi() % maxi(1, n)
+		for j in n:
+			var a: Array = _torch_anchors[list[(j + offset) % n]]
+			var p: Vector3 = a[0]
+			var inward: Vector2 = a[1]
+			if _near_taken(_cliff_spots, p, 3.5) or _near_taken(_torch_spots, p, 2.5) or not _near_taken(_torch_spots, p, 7.0):
+				continue
+			var up := Vector3(inward.x, 0.0, inward.y)               # el Decal proyecta hacia su -Y: dentro de la pared
+			var side := Vector3(-up.z, 0.0, up.x)
+			var d := Decal.new()
+			d.texture_albedo = load(ROCK_ART[_rng.randi() % ROCK_ART.size()])
+			d.size = Vector3(2.4, 2.4, 2.4)
+			d.cull_mask = CaveShell.WALL_DECAL_LAYER
+			d.normal_fade = 0.35
+			d.distance_fade_enabled = true
+			d.distance_fade_begin = 35.0
+			d.distance_fade_length = 10.0
+			# (girado 180° sobre su eje: si no, la imagen sale cabeza abajo)
+			d.transform = Transform3D(Basis(-side, up, -side.cross(up)), p + Vector3(0.0, 0.3, 0.0))
+			holder.add_child(d)
+			break
+
+## Grupos de hongos que brillan: unos cuantos por caverna, pegados a la pared, y algunos pequeños en los
+## túneles. Los grupos con hongo grande llevan una luz tenue del color de los cristales del nivel.
+func _place_mushrooms() -> void:
+	if _torch_anchors.is_empty():
+		return
+	var glow: Color = palette()["crystal"]
+	mushroom_material().set_shader_parameter("glow_color", Vector3(glow.r, glow.g, glow.b))
+	for r in rooms:
+		var clusters := clampi((r["cells"] as Array).size() / 70, 3, 6)
+		for k in clusters:
+			var c := _spot(r, 2.0, 1, 3)
+			if c != Vector2.INF:
+				_mushroom_cluster(c, _rng.randf() < 0.6, glow)
+	var tunnel_cells: Array[Vector2i] = []
+	for c in _cells:
+		if _cells[c] == CORRIDOR and _wall_dist.get(c, 0) == 1:
+			tunnel_cells.append(c)
+	for k in tunnel_cells.size() / 30:
+		var c: Vector2i = tunnel_cells[_rng.randi() % tunnel_cells.size()]
+		var p := Vector2(c.x * CELL, c.y * CELL)
+		if not _occupied(p, 1.2):
+			_mushroom_cluster(p, false, glow)
+
+func _mushroom_cluster(center: Vector2, with_big: bool, glow: Color) -> void:
+	_reserve(center, 1.6 if with_big else 1.0)
+	if with_big:
+		_add("mush_big", center, -1.0, -1.0, 0.0, true)
+		_add_light(Vector3(center.x, 1.3, center.y), glow, 0.9, 5.0, 1.3)
+	var smalls := _rng.randi_range(1, 3)
+	var cups := _rng.randi_range(1, 2)
+	for j in smalls + cups:
+		var a := _rng.randf() * TAU
+		var p := center + Vector2(cos(a), sin(a)) * _rng.randf_range(0.6 if with_big else 0.2, 1.6)
+		if not _cells.has(world_to_cell(Vector3(p.x, 0.0, p.y))):
+			continue
+		_add("mush_small" if j < smalls else "mush_cups", p, -1.0, -1.0, 0.0, false)
+
+## Antorchas de pared repartidas por las cavernas (cada TORCH_SPACING m) y túneles (TUNNEL_TORCH_SPACING),
+## y un par de braseros de pilar en cada boca de túnel. Cada una con su llama y su luz (ver _add_light:
+## se crean todas y se encienden las más cercanas). Va después de decorar: no cambia el resto del mapa.
+func _place_torches() -> void:
+	if _torch_anchors.is_empty():
+		return
+	max_lights = maxi(max_lights, CAVE_LIGHTS)
+	lights_essential = true
+	# Cueva cerrada: la luz direccional de la escena (relleno de 0.12) no aporta y en calidad alta dibuja
+	# toda la cueva en su mapa de sombras. Se oculta (el nodo sigue: otros scripts lo buscan).
+	var sun := get_parent().get_node_or_null("DirectionalLight3D") as DirectionalLight3D if get_parent() else null
+	if sun:
+		sun.visible = false
+	visible_lights = CAVE_VISIBLE_LIGHTS_MOBILE if _mobile else (CAVE_VISIBLE_LIGHTS if Quality.lights_enabled() else CAVE_VISIBLE_LIGHTS_LOW)
+	var taken := {}                       # celda de 8 m -> [posiciones de antorchas]
+	var braziers := {}                    # ídem, braseros (sin antorchas de pared encima)
+	# Primero los braseros de las bocas de túnel, luego las antorchas de pared
+	for i in rooms.size():
+		var center := Vector2(room_center(i).x, room_center(i).z)
+		for group in room_mouths(i):
+			var m := Vector3.ZERO
+			for q in group:
+				m += q
+			m /= float((group as Array).size())
+			var mouth := Vector2(m.x, m.z)
+			var into_room := (center - mouth).normalized()
+			var side := into_room.orthogonal()
+			for sgn in [-1.0, 1.0]:
+				var pos: Vector2 = mouth + into_room * 3.0 + side * sgn * (TUNNEL_R * CELL + 1.6)
+				var c := world_to_cell(Vector3(pos.x, 0.0, pos.y))
+				if _wall_dist.get(c, 0) < 1 or _occupied(pos, 0.9):
+					continue
+				_place("brazier_pillar", pos, 0.9, fposmod(atan2(into_room.x, into_room.y), TAU), 1.0)
+				var top := Vector3(pos.x, 0.0, pos.y) + PILLAR_FLAME
+				_add_flame(top, 0.7)
+				# un poco hacia la caverna: ilumina también el fuste del pilar, no solo desde arriba
+				_add_light(top + Vector3(into_room.x * 0.7, 0.3, into_room.y * 0.7), TORCH_COLOR, 2.6, 10.0, 1.3)
+				_bake_sources.append([top, 2.6, 10.0, 1.3])
+				_mark_taken(braziers, top)
+				if embers_enabled:
+					_add_embers(top)
+	var offset := _rng.randi() % maxi(1, _torch_anchors.size())   # que no empiecen siempre en el mismo sitio
+	var last := Vector3(INF, INF, INF)
+	for j in _torch_anchors.size():
+		var idx := (j + offset) % _torch_anchors.size()
+		if _anchor_room[idx] == -3:
+			continue                      # pared que da a un saliente o a una columna estrecha
+		var a: Array = _torch_anchors[idx]
+		var p: Vector3 = a[0]
+		var inward: Vector2 = a[1]
+		var tunnel: bool = _anchor_room[idx] == -2
+		var spacing := TUNNEL_TORCH_SPACING if tunnel else TORCH_SPACING
+		# atajo: los anclajes van seguidos por la pared; casi todos caen cerca de la última antorcha
+		if p.distance_squared_to(last) < spacing * spacing:
+			continue
+		if _near_taken(taken, p, spacing) or _near_taken(braziers, p, 5.0) or _near_taken(_cliff_spots, p, 3.0):
+			continue
+		last = p
+		_mark_taken(taken, p)
+		_mark_taken(_torch_spots, p)
+		var yaw := atan2(inward.x, inward.y)
+		var basis := Basis(Vector3.UP, yaw)
+		var at := p + Vector3(inward.x, 0.0, inward.y) * 0.03
+		_add("torch_wall", Vector2(at.x, at.z), fposmod(yaw, TAU), 1.0, at.y, false)
+		var flame := at + basis * TORCH_FLAME
+		_add_flame(flame, 0.5)
+		_add_light(flame + Vector3(inward.x, 0.6, inward.y) * 0.3, TORCH_COLOR, 2.2, 9.0, 1.3)
+		_bake_sources.append([flame + Vector3(inward.x, 0.6, inward.y) * 0.3, 2.2, 9.0, 1.3])
+	# Móvil: solo se encienden 8 luces; el resto de antorchas llega como luz horneada en las paredes y el techo
+	if _mobile and _cave_shell != null and _shell_mat != null:
+		_cave_shell.bake_light(_bake_sources)
+		_shell_mat.set_shader_parameter("baked_gain", BAKED_GAIN_MOBILE)
+
+func _near_taken(taken: Dictionary, p: Vector3, spacing: float) -> bool:
+	var k := Vector2i(floori(p.x / 8.0), floori(p.z / 8.0))
+	var r := ceili(spacing / 8.0)
+	for dx in range(-r, r + 1):
+		for dz in range(-r, r + 1):
+			for q in taken.get(k + Vector2i(dx, dz), []):
+				if (q as Vector3).distance_to(p) < spacing:
+					return true
+	return false
+
+func _mark_taken(taken: Dictionary, p: Vector3) -> void:
+	var k := Vector2i(floori(p.x / 8.0), floori(p.z / 8.0))
+	if not taken.has(k):
+		taken[k] = []
+	(taken[k] as Array).append(p)
 
 ## Color de la celda de suelo `c`: tierra con manchas de musgo cerca de las paredes.
 func _floor_color(c: Vector2i) -> Color:
@@ -693,71 +1116,33 @@ func _build_walls() -> void:
 	_build_wall_visuals()
 	_build_wall_colliders()
 
-## Bloques de roca girados y escalados al azar: pared de cueva sin rejilla visible.
+## Paredes y techo: una carcasa continua (CaveShell) con el relieve del escaneo de la Gruta do Janelão,
+## texturizada en triplanar con cave_rock (textura estilizada del mismo escaneo).
 func _build_wall_visuals() -> void:
-	var meshes: Array[Mesh] = []
-	for f in ROCK_MESHES:
-		var m := _rock_mesh(f)
-		if m != null:
-			meshes.append(m)
-	if meshes.is_empty():
-		var box := BoxMesh.new()          # respaldo si los .glb aún no están importados
-		box.size = Vector3(CELL, 1.0, CELL)
-		meshes.append(box)
+	var low_q := Quality.level() == Quality.Level.LOW
 	var mat := ShaderMaterial.new()
 	mat.shader = ROCK_SHADER
-	mat.set_shader_parameter("albedo_tex", load(TEX_DIR + "rock_albedo.png"))
-	mat.set_shader_parameter("normal_tex", load(TEX_DIR + "rock_normal.png"))
-	mat.set_shader_parameter("use_normal_map", Quality.level() != Quality.Level.LOW)
-	var all: Array = []
-	for c in _walls:
-		all.append([c, _rng.randf_range(WALL_H * 0.8, WALL_H * 1.3), 1.25])
-	for c in _outer:
-		all.append([c, _rng.randf_range(WALL_H * 1.3, WALL_H * 2.0), 1.4])
-	# trozo espacial + variante -> [[Transform3D, Color]]. La variante sale de la celda (no del rng:
-	# así el resto del mapa se genera igual que antes con la misma semilla).
-	var groups: Dictionary = {}
-	for i in all.size():
-		var c: Vector2i = all[i][0]
-		var h: float = all[i][1]
-		var s: float = all[i][2] * _rng.randf_range(0.9, 1.15)
-		var basis := Basis.from_euler(Vector3(_rng.randf_range(-0.12, 0.12), _rng.randf() * TAU, _rng.randf_range(-0.12, 0.12)))
-		basis = basis.scaled_local(Vector3(s, h, s))
-		var pos := _cell_pos(c) + Vector3(0.0, h * 0.5 - 0.2, 0.0)
-		var v := _rng.randf_range(0.7, 1.0)
-		var key := Vector3i(int(floor(pos.x / WALL_CHUNK)), int(floor(pos.z / WALL_CHUNK)), absi(hash(c)) % meshes.size())
-		if not groups.has(key):
-			groups[key] = []
-		(groups[key] as Array).append([Transform3D(basis, pos), (palette()["rock"] as Color) * v])
-	var holder := Node3D.new()
-	holder.name = "Walls"
-	add_child(holder)
-	for key in groups:
-		var list: Array = groups[key]
-		var mm := MultiMesh.new()
-		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.use_colors = true
-		mm.mesh = meshes[key.z]
-		mm.instance_count = list.size()
-		for i in list.size():
-			mm.set_instance_transform(i, list[i][0])
-			mm.set_instance_color(i, list[i][1])
-		var mmi := MultiMeshInstance3D.new()
-		mmi.multimesh = mm
-		mmi.material_override = mat
-		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if _mobile else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-		holder.add_child(mmi)
-
-## Malla de un bloque de roca (cave_rock_*.glb), o null si no está.
-func _rock_mesh(file: String) -> Mesh:
-	var path := PROP_DIR + file + ".glb"
-	if not ResourceLoader.exists(path):
-		return null
-	var root := (load(path) as PackedScene).instantiate()
-	var mi := _find_mesh_instance(root)
-	var mesh: Mesh = mi.mesh if mi else null
-	root.free()
-	return mesh
+	mat.set_shader_parameter("albedo_tex", load(TEX_DIR + ROCK_TEX + "_albedo.png"))
+	mat.set_shader_parameter("normal_tex", load(TEX_DIR + ROCK_TEX + "_normal.png"))
+	mat.set_shader_parameter("tile_m", 5.0)
+	mat.set_shader_parameter("tint_gain", 2.2)
+	mat.set_shader_parameter("top_light_h", 1000.0)      # sin cresta clara: la parte alta la oscurece el color
+	mat.set_shader_parameter("use_normal_map", not low_q)
+	# Anti-repetición = 3 lecturas más por píxel en toda la pared y el techo: no en móvil
+	mat.set_shader_parameter("break_tiling", not low_q and not _mobile)
+	_shell_mat = mat
+	var shell := CaveShell.new()
+	shell.cell = CELL
+	shell.chunk = WALL_CHUNK if _mobile else LIT_CHUNK
+	shell.rock_color = palette()["rock"]
+	if low_q or _mobile:
+		shell.spacing = 1.7
+		shell.rings = 7
+	shell.setup(_cells, _walls, _wall_dist, used_seed)
+	shell.compute()
+	add_child(shell.make_nodes(mat, not _mobile))
+	_torch_anchors = shell.anchors
+	_cave_shell = shell
 
 ## Colisión: fusiona celdas consecutivas de cada fila en una sola caja.
 func _build_wall_colliders() -> void:
@@ -918,7 +1303,7 @@ func _decorate_room(i: int) -> void:
 
 	# Estalagmitas pegadas a la pared: cierran la silueta de la cueva
 	for k in _rng.randi_range(6, 10):
-		_try_place(r, "stalagmite", 1.0, 1, 2)
+		_try_place(r, "stalagmite" if _torch_anchors.is_empty() else "stalagmite_d", 1.0, 1, 2)
 	# Detalle suelto: huesos, hongos, rocas pequeñas
 	var detail: Array = ["mushroom", "mushroom", "rock_a"]
 	for b in int(palette()["bones"]):
@@ -928,6 +1313,8 @@ func _decorate_room(i: int) -> void:
 		if p == Vector2.INF:
 			continue
 		var kind: String = detail[_rng.randi() % detail.size()]
+		if kind == "mushroom" and not _torch_anchors.is_empty():
+			continue                      # en la cueva cerrada van los hongos que brillan (_place_mushrooms)
 		var s := 0.45 if kind == "rock_a" else -1.0
 		_place(kind, p, 0.8, -1.0, s, kind == "rock_a")
 	_scatter_grass(r)

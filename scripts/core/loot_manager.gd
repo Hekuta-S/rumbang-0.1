@@ -54,7 +54,7 @@ func spawn_item_pickup() -> void:
 ## suma al orbe más reciente en vez de crear otro nodo con partículas.
 var _xp_orbs: Array[XPOrb] = []
 
-func spawn_xp_orb(pos: Vector3) -> void:
+func spawn_xp_orb(pos: Vector3, xp: float = 1.0) -> void:
 	if not xp_orb_scene:
 		return
 	var cap := Quality.xp_orbs_max()
@@ -63,10 +63,11 @@ func spawn_xp_orb(pos: Vector3) -> void:
 		_xp_orbs = _xp_orbs.filter(func(o): return is_instance_valid(o))
 	if _xp_orbs.size() >= cap:
 		var last: XPOrb = _xp_orbs[_xp_orbs.size() - 1]
-		last.xp_amount += 1.0
+		last.add_xp(xp)    # fusión: la última gema absorbe la nueva y crece
 		return
 	var orb = xp_orb_scene.instantiate()
 	orb.position = pos + Vector3(0, 0.5, 0)
+	orb.xp_amount = xp
 	get_parent().add_child(orb)
 	_xp_orbs.append(orb)
 

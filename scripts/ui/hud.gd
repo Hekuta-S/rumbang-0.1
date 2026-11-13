@@ -7,7 +7,9 @@ signal restart_pressed
 
 
 @onready var floor_label: Label = $Control/TopRight/FloorPanel/Margin/FloorLabel
-@onready var gold_label: Label = $Control/TopRight/GoldPanel/Margin/GoldLabel
+@onready var gold_label: Label = $Control/VitalsRow/GoldPanel/Margin/GoldLabel
+## Fila bajo el bloque de vida: oro a la izquierda y botón de pausa a la derecha (ver HudLayout)
+@onready var vitals_row: HBoxContainer = $Control/VitalsRow
 @onready var time_label: Label = $Control/TimeLabel
 
 @onready var crosshair: Control = $Control/Crosshair
@@ -34,29 +36,53 @@ var weapon_textures: Dictionary = {
 	"Lanzallamas": preload("res://assets/ui/ingame_hub/armas/lanzallamas.png"),
 	"Cañón Railgun": preload("res://assets/ui/ingame_hub/armas/magia-saimon.png"),
 	"Rifle de Plasma": preload("res://assets/ui/ingame_hub/armas/pistola.png"),
-	"Polvos Alquímicos": preload("res://assets/ui/ingame_hub/armas/polvos.png")
+	"Polvos Alquímicos": preload("res://assets/ui/ingame_hub/armas/polvos.png"),
+	"Dagas Gemelas": preload("res://assets/ui/ingame_hub/armas/dagas.png"),
+	"Maza Rúnica": preload("res://assets/ui/ingame_hub/armas/maza.png")
 }
 @onready var stats_panel: Control = $Control/StatsPanel
 var _last_stats: Array = []
 ## Panel de vida (abajo a la izquierda); sustituye a las barras verticales de StatsPanel
 var vitals: VitalsPanel
+var resource_bars: ResourceBars
+## Escritorio: vida y recursos en vertical, flotando junto al personaje
+var floating_vitals: FloatingVitals
+var minimap: Minimap
+var pause_button: Button
+var _mobile := false
 
 func _ready() -> void:
 	# Ya no hay pisos: se oculta el panel de nivel (el cronómetro es la referencia)
 	if floor_label:
 		floor_label.get_parent().get_parent().visible = false
 	_create_fps_label()
+	# Supervivencia: sin crosshair (el personaje se mueve libre y los ataques salen hacia la camara)
+	if GameData.game_mode != "dungeon" and crosshair:
+		crosshair.visible = false
 	vitals = VitalsPanel.new()
 	vitals.name = "VitalsPanel"
 	$Control.add_child(vitals)
-	var bars := ResourceBars.new()
-	bars.name = "ResourceBars"
-	$Control.add_child(bars)
-	if Quality.is_mobile():
-		_create_pause_button()
-	var minimap := Minimap.new()
+	resource_bars = ResourceBars.new()
+	resource_bars.name = "ResourceBars"
+	$Control.add_child(resource_bars)
+	resource_bars.layout_changed.connect(_layout_row)
+	floating_vitals = FloatingVitals.new()
+	floating_vitals.name = "FloatingVitals"
+	floating_vitals.setup(vitals, resource_bars)
+	floating_vitals.visible = not Quality.is_mobile()
+	$Control.add_child(floating_vitals)
+	if GameData.game_mode == "dungeon":
+		var combo := ComboCounter.new()
+		combo.name = "ComboCounter"
+		$Control.add_child(combo)
+	_create_pause_button()
+	minimap = Minimap.new()
 	minimap.name = "Minimap"
 	$Control.add_child(minimap)
+	_mobile = Quality.is_mobile()
+	_layout_row()
+	_layout_fps()
+	get_viewport().size_changed.connect(_layout_fps)
 	if Net.is_online():
 		var team := TeamPanel.new()
 		team.name = "TeamPanel"
@@ -70,7 +96,41 @@ func _ready() -> void:
 	if time_label:
 		RumbangStyle.style_title(time_label, 20)
 
+var combat_label: Label
+var _dps_samples: Array = []      ## [tiempo, daño total] de los últimos DPS_WINDOW s
+var _combat_t := 0.0
+const DPS_WINDOW := 5.0
+
+## Supervivencia: bajas y daño por segundo (media de los últimos DPS_WINDOW s) bajo el FPS.
+func _update_combat_label(delta: float) -> void:
+	if GameData.game_mode == "dungeon":
+		return
+	_combat_t += delta
+	if combat_label == null:
+		combat_label = Label.new()
+		combat_label.add_theme_font_size_override("font_size", 12)
+		combat_label.add_theme_color_override("font_color", Color(1.0, 0.84, 0.3, 0.9))
+		combat_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+		combat_label.add_theme_constant_override("outline_size", 4)
+		combat_label.anchor_left = 1.0
+		combat_label.anchor_right = 1.0
+		combat_label.offset_left = -220
+		combat_label.offset_right = -20
+		combat_label.offset_top = 50     # bajo el FPS, sin solaparse
+		combat_label.offset_bottom = 96
+		combat_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		combat_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		$Control.add_child(combat_label)
+	var total := RunStats.total_damage()
+	_dps_samples.append([_combat_t, total])
+	while _dps_samples.size() > 1 and _combat_t - float(_dps_samples[0][0]) > DPS_WINDOW:
+		_dps_samples.remove_at(0)
+	var first: Array = _dps_samples[0]
+	var span := maxf(_combat_t - float(first[0]), 0.001)
+	combat_label.text = "BAJAS %d\nDPS %d" % [RunStats.kills, int((total - float(first[1])) / span)]
+
 func _process(delta: float) -> void:
+	_update_combat_label(delta)
 	if is_instance_valid(fps_label):
 		fps_label.text = "FPS: %d" % Engine.get_frames_per_second()
 	if GameData.game_mode == "dungeon" and stats_panel and stats_panel.visible:
@@ -105,25 +165,63 @@ func _follow_player_with_stats(delta: float) -> void:
 	var want := _stats_base_x + dx
 	stats_panel.position.x = lerpf(stats_panel.position.x, want, 1.0 - exp(-18.0 * delta))
 
-## Botón de pausa táctil (arriba a la derecha): abre el menú de pausa, que en el móvil no tiene tecla Esc.
+## Botón de pausa (en la fila de oro, a su derecha), en las dos plataformas: en el móvil no hay tecla Esc.
 func _create_pause_button() -> void:
 	var b := Button.new()
 	b.name = "PauseButton"
 	b.text = "II"
 	b.focus_mode = Control.FOCUS_NONE
-	b.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	b.offset_left = -92.0
-	b.offset_right = -20.0
-	b.offset_top = 58.0
-	b.offset_bottom = 130.0
-	b.add_theme_font_size_override("font_size", 28)
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	b.theme = RumbangStyle.get_theme()
 	b.modulate.a = 0.85
 	b.pressed.connect(func():
 		var pm := get_tree().root.find_child("PauseMenu", true, false)
 		if pm and pm.has_method("open_menu") and not pm.visible:
 			pm.open_menu())
-	$Control.add_child(b)
+	vitals_row.add_child(b)
+	pause_button = b
+
+## Recoloca todo el bloque de la izquierda y el mapa para una plataforma (lo usa la prueba de disposición).
+func apply_layout(mobile: bool) -> void:
+	_mobile = mobile
+	vitals.apply_layout(mobile)
+	resource_bars.apply_layout(mobile)   # emite layout_changed: recoloca la fila
+	floating_vitals.visible = not mobile
+	minimap.apply_layout(mobile)
+	_layout_row()
+	_layout_fps()
+
+## Fila de oro + pausa bajo el bloque de vida. En escritorio no se mueve (las barras de recursos tienen el
+## borde inferior fijo); en móvil baja o sube con la barra de balas.
+func _layout_row() -> void:
+	if vitals_row == null or not is_instance_valid(resource_bars):
+		return
+	var side := HudLayout.pause_side(_mobile)
+	if pause_button:
+		pause_button.custom_minimum_size = Vector2(side, side)
+		pause_button.add_theme_font_size_override("font_size", 28 if _mobile else 22)
+	var h := maxf(HudLayout.ROW_H, side)
+	vitals_row.offset_left = HudLayout.MARGIN
+	vitals_row.offset_right = HudLayout.MARGIN + HudLayout.VITALS_PANEL_W
+	if _mobile:
+		vitals_row.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		vitals_row.offset_top = HudLayout.row_top_mobile(resource_bars.used_height())
+	else:
+		vitals_row.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+		vitals_row.offset_top = HudLayout.row_top_desktop()
+	vitals_row.offset_bottom = vitals_row.offset_top + h
+
+## FPS: en la mazmorra, bajo el minimapa (arriba a la derecha); en supervivencia, en la esquina.
+func _layout_fps() -> void:
+	if not is_instance_valid(fps_label):
+		return
+	var top := 20.0
+	if GameData.game_mode == "dungeon":
+		top = HudLayout.below_map_y(get_viewport().get_visible_rect().size.x)
+	fps_label.offset_right = -HudLayout.MAP_MARGIN
+	fps_label.offset_left = fps_label.offset_right - 130.0
+	fps_label.offset_top = top
+	fps_label.offset_bottom = top + 20.0
 
 func _create_fps_label() -> void:
 	fps_label = Label.new()
@@ -179,10 +277,20 @@ func update_stats(hp: float, max_hp: float) -> void:
 		hp_label.text = str(int(ceil(hp)))
 
 
+var _xp_glow_tw: Tween
+
 func update_xp(_level: int, current_xp: float, required_xp: float) -> void:
 	if xp_bar:
+		var gained := current_xp > xp_bar.value
 		xp_bar.max_value = required_xp
 		xp_bar.value = current_xp
+		# Brillo al ganar XP (un tween a la vez: con muchas gemas seguidas se queda encendida)
+		if gained:
+			if _xp_glow_tw and _xp_glow_tw.is_valid():
+				_xp_glow_tw.kill()
+			xp_bar.modulate = Color(1.5, 1.5, 1.8)
+			_xp_glow_tw = xp_bar.create_tween()
+			_xp_glow_tw.tween_property(xp_bar, "modulate", Color.WHITE, 0.25)
 
 
 
@@ -266,9 +374,20 @@ func play_level_up_confetti() -> void:
 	cleanup.tween_interval(2.7)
 	cleanup.tween_callback(overlay.queue_free)
 
+var _shown_gold := -1
+
 func update_gold(gold: int) -> void:
 	if gold_label:
 		gold_label.text = "🪙 " + str(gold)
+		# Sube el oro: el contador da un salto y brilla
+		if _shown_gold >= 0 and gold > _shown_gold:
+			gold_label.pivot_offset = gold_label.size * 0.5
+			var tw := gold_label.create_tween().set_ignore_time_scale(true)
+			gold_label.scale = Vector2.ONE * 1.3
+			gold_label.modulate = Color(1.6, 1.4, 0.6)
+			tw.tween_property(gold_label, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+			tw.parallel().tween_property(gold_label, "modulate", Color.WHITE, 0.3)
+		_shown_gold = gold
 
 func show_game_over() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -333,6 +452,9 @@ func _reveal_end_screen(screen: Control) -> void:
 		stats.text = "TIEMPO %s     ORO %d" % [time_label.text if time_label else "--:--", gs.gold]
 	screen.visible = true
 	screen.modulate.a = 0.0
+	var fb := screen.find_children("*", "Button", true, false)
+	if not fb.is_empty():
+		(fb[0] as Button).grab_focus.call_deferred()
 	var panel := screen.get_node_or_null("EndPanel") as Control
 	var tw := screen.create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 	tw.tween_property(screen, "modulate:a", 1.0, 0.45)

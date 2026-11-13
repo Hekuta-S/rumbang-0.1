@@ -31,11 +31,12 @@ func _init() -> void:
 	hit_height = 0.95
 	hurt_time = 0.35
 	stagger_time = 1.2
-	stagger_damage = 24.0
-	windup_poise = 14.0
-	armor = 8.0
-	armor_break = 30.0
-	knock_scale = 0.6
+	stagger_damage = 27.0
+	windup_poise = 20.0
+	armor = 11.0
+	armor_break = 38.0
+	glance_armor = true
+	knock_scale = 0.45
 	sfx_pitch = 0.62
 	attack_rest = 0.6
 	face_player_dist = 5.0

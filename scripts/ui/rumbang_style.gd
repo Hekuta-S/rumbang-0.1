@@ -89,6 +89,7 @@ static func _style_button(b: Button, border: Color) -> void:
 	b.add_theme_stylebox_override("pressed", button_style(BTN_PRESS, NEON_MAGENTA))
 	b.add_theme_stylebox_override("disabled", button_style(BTN_BG, BTN_BORDER))
 	b.add_theme_stylebox_override("focus", button_style(Color(0, 0, 0, 0), NEON_CYAN))
+	UiJuice.hover_pop(b)   # crece al pasar por encima, se hunde al pulsar
 
 ## Título con brillo neón (contorno de color y sombra).
 static func style_title(l: Label, size: int = 26, color: Color = TITLE, glow: Color = NEON_MAGENTA) -> void:

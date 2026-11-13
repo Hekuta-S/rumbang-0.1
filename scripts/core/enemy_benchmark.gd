@@ -99,7 +99,7 @@ func _report() -> void:
 		var per_tick := 0.0
 		for e in EnemyManager.instance._active:
 			per_tick += 1.0 / float(maxi(e.tick_span, 1))
-		print("[PERF] actualizados/tick=%.0f multitud=%.2f | %s" % [per_tick, EnemyData.crowd_scale, PerfProbe.report()])
+		print("[PERF] actualizados/tick=%.0f multitud=%.2f | %s" % [per_tick, HiveMind.crowd_scale, PerfProbe.report()])
 	_fps_samples.append(fps)
 	_phys_samples.append(phys)
 	_draw_samples.append(draws)

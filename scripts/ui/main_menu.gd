@@ -34,10 +34,43 @@ var upgrades_panel: ColorRect
 var lbl_gold: Label
 var upgrades_container: VBoxContainer
 
+## Incrustado en el Salón (DungeonHub): sin fondo ni columna de botones, solo los paneles de mejoras y
+## logros y los ajustes, que se abren con open_panel(); al cerrarlos avisa con panel_closed.
+var embedded := false
+signal panel_closed
+
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	theme = Style.get_theme()
+	if embedded:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		center_container = Control.new()   # los paneles la muestran al volver; aquí no se ve
+		center_container.visible = false
+		add_child(center_container)
+		_play_menu = PanelContainer.new()
+		_play_menu.visible = false
+		add_child(_play_menu)
+		_build_upgrades_panel()
+		_build_codex_panel()
+		return
 	_build_ui()
+
+## "mejoras", "logros" o "ajustes" (solo en modo incrustado).
+func open_panel(kind: String) -> void:
+	match kind:
+		"mejoras":
+			_on_upgrades_menu()
+		"logros":
+			_on_codex_menu()
+		"ajustes":
+			_on_options_menu()
+
+func _panel_back(panel: Control) -> void:
+	panel.hide()
+	if embedded:
+		panel_closed.emit()
+	else:
+		center_container.show()
 
 func _build_ui() -> void:
 	_build_background()
@@ -175,12 +208,11 @@ func _build_play_menu() -> void:
 	hint.custom_minimum_size = Vector2(330, 34)
 	hint.add_theme_font_size_override("font_size", 11)
 	hint.add_theme_color_override("font_color", C_TEXT_DIM)
-	var modes := []
-	# Un botón de mazmorra por mundo (WorldDefs)
-	for id in WorldDefs.ORDER:
-		var w: Dictionary = WorldDefs.get_def(id)
-		modes.append(["  MAZMORRA: %s" % str(w["name"]).to_upper(), "%s Combate a mano, nivel a nivel." % w["subtitle"],
-			_on_play_dungeon.bind(id)])
+	# Las mazmorras tienen su propio menú: el Salón de la Invocación (DungeonHub), con su intro
+	var modes := [
+		["  MAZMORRAS", "El rey y su mago te invocan a su mundo: cavernas, cloacas y jefes, a mano y nivel a nivel.",
+			_on_dungeon_hub],
+	]
 	modes += [
 		["  SUPERVIVENCIA", "Hordas sin fin en campo abierto: aguanta todo lo que puedas.", _on_play],
 		["  MULTIJUGADOR", "Mazmorra cooperativa en tu wifi u online, hasta 4 jugadores.", func(): get_tree().change_scene_to_file("res://scenes/ui/lobby_menu.tscn")],
@@ -194,6 +226,25 @@ func _build_play_menu() -> void:
 		b.focus_entered.connect(func(): hint.text = desc)
 		box.add_child(b)
 	box.add_child(hint)
+	# Supervivencia: dificultad (se desbloquea venciendo al Nigromante) y reto
+	var diff_btn := _make_button("", C_BTN_BORDER)
+	diff_btn.custom_minimum_size = Vector2(330, 38)
+	var chal_btn := _make_button("", C_BTN_BORDER)
+	chal_btn.custom_minimum_size = Vector2(330, 38)
+	var refresh_mods := func():
+		diff_btn.text = "  DIFICULTAD: %s" % RunModifiers.difficulty_name()
+		var c: Dictionary = RunModifiers.CHALLENGES[RunModifiers.challenge()]
+		chal_btn.text = "  RETO: %s" % c["name"]
+		hint.text = "Supervivencia. Oro x%s por dificultad y reto. %s" % [str(snappedf(RunModifiers.DIFFICULTIES[RunModifiers.difficulty()]["gold"] * c["gold"], 0.01)), c["desc"]]
+	diff_btn.pressed.connect(func():
+		RunModifiers.cycle_difficulty()
+		refresh_mods.call())
+	chal_btn.pressed.connect(func():
+		RunModifiers.cycle_challenge()
+		refresh_mods.call())
+	refresh_mods.call()
+	box.add_child(diff_btn)
+	box.add_child(chal_btn)
 	var back := _make_button("  VOLVER", C_BTN_BORDER)
 	back.custom_minimum_size = Vector2(330, 42)
 	back.pressed.connect(_toggle_play_menu)
@@ -291,7 +342,7 @@ func _build_upgrades_panel() -> void:
 	vbox.add_child(header)
 	
 	var title := Label.new()
-	title.text = "MEJORAS DE ARMAS"
+	title.text = "MEJORAS PERMANENTES"
 	title.add_theme_font_size_override("font_size", 32)
 	title.add_theme_color_override("font_color", C_TITLE)
 	header.add_child(title)
@@ -307,10 +358,7 @@ func _build_upgrades_panel() -> void:
 	
 	var btn_back := _make_button("VOLVER", C_BTN_BORDER)
 	btn_back.custom_minimum_size = Vector2(150, 40)
-	btn_back.pressed.connect(func():
-		upgrades_panel.hide()
-		center_container.show()
-	)
+	btn_back.pressed.connect(func(): _panel_back(upgrades_panel))
 	header.add_child(btn_back)
 	
 	var scroll := ScrollContainer.new()
@@ -324,13 +372,12 @@ func _build_upgrades_panel() -> void:
 
 func _refresh_upgrades() -> void:
 	lbl_gold.text = "Oro: " + str(SaveManager.get_total_gold())
-	
 	for child in upgrades_container.get_children():
 		child.queue_free()
-		
-	for w in weapons:
-		var panel = PanelContainer.new()
-		var style = StyleBoxFlat.new()
+	for id in MetaShop.ITEMS:
+		var def: Dictionary = MetaShop.ITEMS[id]
+		var panel := PanelContainer.new()
+		var style := StyleBoxFlat.new()
 		style.bg_color = C_BTN_BG
 		style.border_width_bottom = 2
 		style.border_color = C_BTN_BORDER
@@ -340,48 +387,41 @@ func _refresh_upgrades() -> void:
 		style.content_margin_bottom = 10
 		panel.add_theme_stylebox_override("panel", style)
 		upgrades_container.add_child(panel)
-		
-		var hbox = HBoxContainer.new()
+		var hbox := HBoxContainer.new()
 		panel.add_child(hbox)
-		
-		var name_lbl = Label.new()
-		name_lbl.text = w["name"]
-		name_lbl.custom_minimum_size = Vector2(250, 0)
-		name_lbl.add_theme_font_size_override("font_size", 18)
-		hbox.add_child(name_lbl)
-		
-		var spacer = Control.new()
+		var name_box := VBoxContainer.new()
+		name_box.custom_minimum_size = Vector2(330, 0)
+		hbox.add_child(name_box)
+		var name_lbl := Label.new()
+		name_lbl.text = String(def["name"]).to_upper()
+		name_lbl.add_theme_font_size_override("font_size", 16)
+		name_box.add_child(name_lbl)
+		var desc_lbl := Label.new()
+		desc_lbl.text = String(def["desc"])
+		desc_lbl.add_theme_font_size_override("font_size", 11)
+		desc_lbl.add_theme_color_override("font_color", C_TEXT_DIM)
+		name_box.add_child(desc_lbl)
+		var spacer := Control.new()
 		spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		hbox.add_child(spacer)
-		
-		var lvl = SaveManager.get_upgrade(w["id"])
-		
-		# Draw 5 blocks
-		for i in range(5):
-			var block = ColorRect.new()
-			block.custom_minimum_size = Vector2(20, 20)
+		var lvl := MetaShop.level(id)
+		var maxl := MetaShop.max_level(id)
+		for i in range(maxl):
+			var block := ColorRect.new()
+			block.custom_minimum_size = Vector2(14, 20)
 			block.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-			if i < lvl:
-				block.color = C_ACCENT
-			else:
-				block.color = C_BTN_BORDER
+			block.color = C_ACCENT if i < lvl else C_BTN_BORDER
 			hbox.add_child(block)
-			
-		var spacer2 = Control.new()
+		var spacer2 := Control.new()
 		spacer2.custom_minimum_size = Vector2(20, 0)
 		hbox.add_child(spacer2)
-			
-		var cost = 500
-		var btn_buy = _make_button("+" if lvl < 5 else "MAX", C_ACCENT if lvl < 5 else C_BTN_BORDER)
-		btn_buy.custom_minimum_size = Vector2(100, 40)
-		if lvl >= 5:
-			btn_buy.disabled = true
-		else:
-			btn_buy.text = str(cost) + "G"
-			btn_buy.pressed.connect(func():
-				if SaveManager.buy_upgrade(w["id"], cost):
-					_refresh_upgrades()
-			)
+		var cost := MetaShop.cost(id)
+		var btn_buy := _make_button("MAX" if cost < 0 else "%dG" % cost, C_ACCENT if cost > 0 else C_BTN_BORDER)
+		btn_buy.custom_minimum_size = Vector2(120, 40)
+		btn_buy.disabled = cost < 0 or not MetaShop.can_buy(id)
+		btn_buy.pressed.connect(func():
+			if MetaShop.buy(id):
+				_refresh_upgrades())
 		hbox.add_child(btn_buy)
 
 func _make_button(txt: String, border_col: Color) -> Button:
@@ -392,7 +432,12 @@ func _btn_style(bg: Color, border: Color, radius: int) -> StyleBoxFlat:
 
 func _on_play() -> void:
 	GameData.game_mode = "survival"
-	SceneLoader.load_scene("res://scenes/ui/character_select.tscn")
+	GameData.selected_index = GameData.survival_index()
+	SceneLoader.load_scene("res://scenes/core/main_procedural.tscn")
+
+func _on_dungeon_hub() -> void:
+	GameData.game_mode = "dungeon"
+	SceneLoader.load_scene("res://scenes/ui/dungeon_hub.tscn")
 
 func _on_play_dungeon(world: String = WorldDefs.DEFAULT) -> void:
 	GameData.game_mode = "dungeon"
@@ -449,10 +494,7 @@ func _build_codex_panel() -> void:
 	header.add_child(spacer)
 	var btn_back := _make_button("VOLVER", C_BTN_BORDER)
 	btn_back.custom_minimum_size = Vector2(150, 40)
-	btn_back.pressed.connect(func():
-		codex_panel.hide()
-		center_container.show()
-	)
+	btn_back.pressed.connect(func(): _panel_back(codex_panel))
 	header.add_child(btn_back)
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -485,7 +527,7 @@ func _refresh_codex() -> void:
 			_codex_line("%s  =  %s + %s" % [e["name"], weapon, WeaponSynergies.catalyst_name(w)], 15, MetaProgress.COLOR)
 			_codex_line("      %s" % e["desc"], 12, C_TEXT_DIM)
 		else:
-			_codex_line("???  =  %s + ???" % weapon, 15, C_TEXT_DIM)
+			_codex_line("???  =  %s + %s" % [weapon, WeaponSynergies.catalyst_name(w)], 15, C_TEXT_DIM)
 
 func _codex_line(text: String, size: int, color: Color) -> void:
 	var l := Label.new()
@@ -499,3 +541,5 @@ func _on_options_menu() -> void:
 	var SettingsMenu = load("res://scripts/ui/settings_menu.gd")
 	var sm = SettingsMenu.new()
 	add_child(sm)
+	if embedded:
+		sm.tree_exited.connect(func(): panel_closed.emit())

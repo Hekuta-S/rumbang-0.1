@@ -15,8 +15,12 @@ const LIFETIME := 25.0
 var kind: int = Kind.AMMO
 var _player: Node3D
 var _magnet := false
+var _magnet_t := 0.0
 var _age := 0.0
 var _mesh: MeshInstance3D
+var _vel := Vector3.ZERO        ## salida en abanico al soltarse (RewardJuice)
+var _rest_y := 0.0
+const POP_TIME := 0.5           ## s de vuelo/rebote antes de que el imán pueda engancharlo
 
 static func spawn(parent: Node, pos: Vector3, p_kind: int) -> ResourcePickup:
 	var p := ResourcePickup.new()
@@ -25,6 +29,8 @@ static func spawn(parent: Node, pos: Vector3, p_kind: int) -> ResourcePickup:
 	p.collision_mask = 2                  ## el jugador
 	parent.add_child(p)
 	p.global_position = pos + Vector3(0, 0.5, 0)
+	p._rest_y = p.global_position.y
+	p._vel = RewardJuice.pop_velocity()
 	return p
 
 func _ready() -> void:
@@ -64,6 +70,9 @@ func _physics_process(delta: float) -> void:
 		return
 	_mesh.rotation.y += delta * 2.5
 	_mesh.position.y = 0.08 * sin(_age * 4.0)
+	if _age < POP_TIME or not RewardJuice.settled(self, _vel, _rest_y):
+		_vel = RewardJuice.bounce(self, _vel, _rest_y, delta)
+		return
 	if not is_instance_valid(_player):
 		_player = get_tree().get_first_node_in_group("player")
 		if _player == null:
@@ -72,7 +81,8 @@ func _physics_process(delta: float) -> void:
 	if not _magnet and to_p.length() < MAGNET_RADIUS:
 		_magnet = true
 	if _magnet:
-		global_position += to_p.normalized() * SPEED * delta
+		_magnet_t += delta
+		global_position += to_p.normalized() * minf(RewardJuice.magnet_speed(SPEED, _magnet_t) * delta, to_p.length())
 		if to_p.length() < 0.7:
 			_collect(_player)
 
@@ -89,5 +99,6 @@ func _collect(player: Node) -> void:
 		res.add_ammo_fraction(AMMO_FRACTION, owned)
 	else:
 		res.add_mana(MANA_AMOUNT)
-	AudioManager.play("ui_click", -12.0, 1.6)
+	var color := Color(1.0, 0.75, 0.2) if kind == Kind.AMMO else Color(0.4, 0.55, 1.0)
+	RewardJuice.collect(get_parent(), global_position, color, "ui_click", -12.0, 1.4)
 	queue_free()

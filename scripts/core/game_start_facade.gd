@@ -7,7 +7,7 @@ class_name GameStartFacade
 ## esta fachada en lugar de orquestar 4+ subsistemas directamente.
 
 signal restart_pressed
-signal enemy_died(pos: Vector3, gold_val: int)
+signal enemy_died(pos: Vector3, gold_val: int, xp: float)
 signal boss_died(pos: Vector3, gold_val: int)
 
 var ui_manager: UIManager
@@ -18,7 +18,6 @@ var loot_manager: LootManager
 var _player: Node3D
 var _hud: Node
 var _scene_root: Node3D
-var _cover: CanvasLayer
 
 # ─────────────────────────────────────────────────────────
 #  Interfaz pública (lo único que Main necesita conocer)
@@ -53,9 +52,26 @@ func start_game() -> void:
 		wave_manager.start_run(_player)
 		loot_manager.spawn_weapon_pickup()
 		loot_manager.spawn_item_pickup()
+		_setup_day_night()
 	else:
 		_setup_dungeon_encounter()
 	_reveal_world()
+
+## Supervivencia: empieza de día y se oscurece hasta la noche del jefe (DayNightCycle).
+## Se crea una vez por escena; la fase sale del tiempo de partida, así que al reiniciar vuelve a ser de día.
+func _setup_day_night() -> void:
+	var map = _scene_root.get_node_or_null("ProceduralMap")
+	if map == null or map is DungeonMap:
+		return
+	var cycle := _scene_root.get_node_or_null("DayNightCycle") as DayNightCycle
+	if cycle == null:
+		cycle = DayNightCycle.new()
+		cycle.name = "DayNightCycle"
+		_scene_root.add_child(cycle)
+		cycle.setup(_scene_root.get_node_or_null("WorldEnvironment") as WorldEnvironment,
+			_scene_root.get_node_or_null("DirectionalLight3D") as DirectionalLight3D, map)
+	else:
+		cycle.apply(0.0)
 
 ## Primer encuentro de la mazmorra: un goblin en la caverna arena (DungeonEncounter).
 func _setup_dungeon_encounter() -> void:
@@ -69,6 +85,18 @@ func _setup_dungeon_encounter() -> void:
 	enc.name = "DungeonEncounter"
 	_scene_root.add_child(enc)
 	enc.setup(map, _player)
+	# Niebla entre salas: tapa la vista hacia la sala vecina y deja de dibujar lo que queda detrás
+	var old_fog := _scene_root.get_node_or_null("DungeonFog")
+	if old_fog:
+		old_fog.queue_free()
+	var fog: Node = preload("res://scripts/world/dungeon_fog.gd").new()
+	fog.name = "DungeonFog"
+	_scene_root.add_child(fog)
+	fog.setup(map, _player)
+	# Tira del equipo en el HUD (una sola vez por escena)
+	var eq = _player.get("equipment")
+	if eq and _scene_root.get_node_or_null("EquipmentHud") == null:
+		EquipmentHud.attach(_scene_root, eq)
 	if Net.is_online():
 		var old_nw := _scene_root.get_node_or_null("NetWorld")
 		if old_nw:
@@ -78,23 +106,13 @@ func _setup_dungeon_encounter() -> void:
 		nw.setup(_player, enc)
 		_player.global_position += enc._slot_offset()
 
-## Tapa negra mientras se genera el mundo: evita ver la escena vacía y que la
-## música/el jugador aparezcan antes que el entorno.
+## Tapa mientras se genera el mundo: evita ver la escena vacía y que la música/el jugador aparezcan antes
+## que el entorno. Es la de SceneLoader: viniendo de la pantalla de carga ya está puesta (misma imagen, sin
+## salto); al abrir la escena directamente o reintentar, se pone aquí.
 func _setup_cover() -> void:
-	_cover = CanvasLayer.new()
-	_cover.layer = 100
-	var rect := ColorRect.new()
-	rect.color = Color.BLACK
-	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
-	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_cover.add_child(rect)
-	var lbl := Label.new()
-	lbl.text = "Generando mundo..."
-	lbl.set_anchors_preset(Control.PRESET_CENTER)
-	lbl.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	lbl.add_theme_font_size_override("font_size", 20)
-	_cover.add_child(lbl)
-	add_child(_cover)
+	if not SceneLoader.has_cover():
+		SceneLoader.hold_cover("Generando mundo...")
+	SceneLoader.claim_cover()
 
 ## Quita la tapa, arranca la música y materializa al jugador ya sobre el piso.
 func _reveal_world() -> void:
@@ -106,13 +124,7 @@ func _reveal_world() -> void:
 	await _scene_root.get_tree().process_frame
 	if is_instance_valid(_player) and _player.has_method("play_spawn_scan"):
 		_player.play_spawn_scan()
-	if is_instance_valid(_cover):
-		var c := _cover
-		_cover = null
-		var tw := create_tween()
-		tw.tween_property(c.get_child(0), "color:a", 0.0, 0.5)
-		tw.parallel().tween_property(c.get_child(1), "modulate:a", 0.0, 0.3)
-		tw.tween_callback(c.queue_free)
+	SceneLoader.release_cover(0.5)
 
 ## Calienta shaders pesados de efectos para evitar tirones de compilación en el primer disparo.
 func _prewarm_effects() -> void:
@@ -133,8 +145,8 @@ func spawn_debug_orbs() -> void:
 	loot_manager.spawn_debug_orbs()
 
 ## Spawn de XP al morir un enemigo.
-func spawn_xp_orb(pos: Vector3) -> void:
-	loot_manager.spawn_xp_orb(pos)
+func spawn_xp_orb(pos: Vector3, xp: float = 1.0) -> void:
+	loot_manager.spawn_xp_orb(pos, xp)
 
 ## Muestra pantalla de victoria.
 func show_victory() -> void:
@@ -167,9 +179,12 @@ func _setup_platform(scene_root: Node3D) -> void:
 	if scene_root.has_node("WorldEnvironment") and scene_root.get_node("WorldEnvironment").environment:
 		var env: Environment = scene_root.get_node("WorldEnvironment").environment
 		var fog_was_on := env.fog_enabled
+		var fog_density := env.fog_density
 		platform_factory.configure_environment(env)
 		if has_procedural_map:
+			# La densidad también es de la escena (cuevas 0.012, cloacas 0.026): el 0.015 del móvil la pisaba
 			env.fog_enabled = fog_was_on
+			env.fog_density = fog_density
 
 	platform_factory.configure_viewport(scene_root.get_viewport())
 
@@ -194,7 +209,7 @@ func _setup_wave_manager() -> void:
 	wave_manager = WaveManager.new()
 	wave_manager.name = "WaveManager"
 	_scene_root.add_child(wave_manager)
-	wave_manager.enemy_died.connect(func(pos, gold_val): enemy_died.emit(pos, gold_val))
+	wave_manager.enemy_died.connect(func(pos, gold_val, xp): enemy_died.emit(pos, gold_val, xp))
 	wave_manager.boss_died.connect(func(pos, gold_val): boss_died.emit(pos, gold_val))
 
 func _setup_performance_governor() -> void:
@@ -228,6 +243,19 @@ func _apply_character_data() -> void:
 	if winv and winv.has_method("reset_progress"):
 		winv.reset_progress()
 	GameData.apply_to_player(_player)
+	MetaShop.apply_run_start(_player)
+	# Mazmorra: mochila vacía, vuelve lo equipado y su vida máxima se suma a la del personaje
+	var eq = _player.get("equipment")
+	if eq:
+		eq.start_run()
+	var sb = _player.get("stat_block")
+	if sb and sb.has_method("rebase_equipment_hp"):
+		sb.rebase_equipment_hp()
+	# La partida empieza con la energía y el maná llenos (con el máximo que da el equipo)
+	var res = _player.get("resources")
+	if eq and res and res.has_method("energy_max"):
+		res.energy = res.energy_max()
+		res.mana = res.mana_max()
 
 func _reset_player_position_and_stats() -> void:
 	var start_x = 0.0

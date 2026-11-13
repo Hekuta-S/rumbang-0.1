@@ -7,10 +7,60 @@ extends Area3D
 
 var target: Node3D = null
 var _magnetized: bool = false
+var _magnet_t := 0.0                 ## s desde que el imán la enganchó (acelera, RewardJuice.magnet_speed)
+var _pop_vel := Vector3.ZERO         ## salto al soltarse (RewardJuice.pop_velocity)
+var _pop_t := 0.0
+var _rest_y := 0.0
+const POP_TIME := 0.4
+var _tier: int = -1
+var _particles: CPUParticles3D = null
+var _sprite: Sprite3D = null
+
+## Imán del mapa: la gema vuela hacia `who` sin importar la distancia.
+func pull_to(who: Node3D, pull_speed: float = 30.0) -> void:
+	target = who
+	_magnetized = true
+	speed = pull_speed
+
+## Suma XP a una gema ya existente (fusión por el tope de gemas): crece y cambia de color con el tier.
+func add_xp(amount: float) -> void:
+	xp_amount += amount
+	_apply_tier()
+
+## Color y tamaño según el valor de la gema (XpCurve.gem_tier): azul 1 · verde 5 · roja 25 · dorada 100.
+func _apply_tier() -> void:
+	var t := XpCurve.gem_tier(xp_amount)
+	if t == _tier:
+		return
+	_tier = t
+	scale = Vector3.ONE * float(XpCurve.TIER_SCALES[t])
+	var col: Color = XpCurve.TIER_COLORS[t]
+	if _particles:
+		_particles.material_override = _tier_material(t)
+	if _sprite:
+		_sprite.modulate = col
+
+static var _tier_mats: Array = []
+
+static func _tier_material(t: int) -> StandardMaterial3D:
+	_ensure_shared()
+	if _tier_mats.is_empty():
+		for i in range(XpCurve.TIER_COLORS.size()):
+			var m: StandardMaterial3D = _shared_mat.duplicate()
+			var c: Color = XpCurve.TIER_COLORS[i]
+			m.albedo_color = Color(c.r, c.g, c.b, 0.8)
+			m.emission = c
+			_tier_mats.append(m)
+	return _tier_mats[t]
 
 func _ready() -> void:
+	add_to_group("xp_orbs")
 	body_entered.connect(_on_body_entered)
 	_setup_particles()
+	# Sale con un saltito y rebota antes de quedarse quieta
+	_rest_y = global_position.y
+	_pop_vel = RewardJuice.pop_velocity(3.0, 4.2, 1.4)
+	_pop_t = POP_TIME
 
 ## Recursos compartidos por todos los orbes (antes cada orbe creaba su malla, material y gradiente).
 static var _shared_mesh: SphereMesh = null
@@ -63,10 +113,12 @@ func _setup_sprite_2d() -> void:
 	sprite.pixel_size = 0.015
 	sprite.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(sprite)
+	_sprite = sprite
 
 func _setup_particles() -> void:
 	if Quality.level() == Quality.Level.LOW:
 		_setup_sprite_2d()
+		_apply_tier()
 		return
 	_ensure_shared()
 	var particles = CPUParticles3D.new()
@@ -82,15 +134,21 @@ func _setup_particles() -> void:
 	particles.scale_amount_max = 0.35
 	particles.mesh = _shared_mesh
 	particles.material_override = _shared_mat
+	_particles = particles
 	particles.color_ramp = _shared_ramp
 	particles.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(particles)
+	_apply_tier()
 
 ## Jugador cacheado y comprobación de atracción espaciada (cada ~0.1 s en vez de cada frame).
 var _player: Node3D = null
 var _check_timer: float = randf() * 0.1
 
 func _physics_process(delta: float) -> void:
+	if not _magnetized and (_pop_t > 0.0 or not RewardJuice.settled(self, _pop_vel, _rest_y)):
+		_pop_t -= delta
+		_pop_vel = RewardJuice.bounce(self, _pop_vel, _rest_y, delta)
+		return
 	if not _magnetized:
 		_check_timer -= delta
 		if _check_timer > 0.0:
@@ -109,8 +167,9 @@ func _physics_process(delta: float) -> void:
 		return
 
 	if is_instance_valid(target):
-		var dir = (target.global_position - global_position).normalized()
-		global_position += dir * speed * delta
+		var to: Vector3 = target.global_position - global_position
+		_magnet_t += delta
+		global_position += to.normalized() * minf(RewardJuice.magnet_speed(speed, _magnet_t) * delta, to.length())
 
 		if global_position.distance_to(target.global_position) < 1.0:
 			_on_body_entered(target)
@@ -121,6 +180,7 @@ func _on_body_entered(body: Node3D) -> void:
 		var exp_comp = body.get_node_or_null("ExperienceComponent")
 		if exp_comp and exp_comp.has_method("gain_experience"):
 			exp_comp.gain_experience(xp_amount)
+			_collect_fx()
 			queue_free()
 		else:
 			var stats = body.get_node_or_null("StatsComponent")
@@ -128,4 +188,10 @@ func _on_body_entered(body: Node3D) -> void:
 				stats = body.get("stats")
 			if stats and stats.has_method("gain_experience"):
 				stats.gain_experience(xp_amount)
+				_collect_fx()
 				queue_free()
+
+## Tintineo con escalera de tono (las gemas grandes suenan más graves) y chispa del color del tier.
+func _collect_fx() -> void:
+	var t := maxi(_tier, 0)
+	RewardJuice.collect(get_parent(), global_position, XpCurve.TIER_COLORS[t], "pickup", -13.0 + 2.0 * t, 1.25 - 0.1 * t)

@@ -86,6 +86,76 @@ func _ready() -> void:
 	assert(lock.has_target(), "Una pulsación de FIJ fija al enemigo (y no lo suelta al instante)")
 	print("CHECK 4 PASSED: FIJ fija una vez")
 
+	# 4c. Mantener FIJ y deslizar cambia al enemigo de ese lado (como el stick derecho); tocar sin
+	# arrastrar con un objetivo fijado lo suelta.
+	var tgt_i: int = controls.BUTTONS.find_custom(func(b): return b["key"] == "target")
+	var cam := get_viewport().get_camera_3d()
+	var right: Vector3 = cam.global_transform.basis.x
+	right.y = 0.0
+	right = right.normalized()
+	lock._set_target(g)
+	var g_r: Node3D = _enc.spawn_brute()
+	g_r.global_position = g.global_position + right * 4.0
+	var g_l: Node3D = _enc.spawn_brute()
+	g_l.global_position = g.global_position - right * 4.0
+	await _wait(0.6)
+	lock._set_target(g)
+	await get_tree().physics_frame
+	var c0: Vector2 = controls._btn_center[tgt_i]
+	controls._on_press(9, c0, true)
+	for i in 4:
+		controls._on_drag(9, c0 + Vector2(20 * (i + 1), 0), Vector2(20, 0))
+	for i in 4:
+		await get_tree().physics_frame
+	assert(g_r != g and g_l != g and g_r != g_l, "Tres enemigos distintos")
+	assert(lock.target == g_r, "Deslizar a la derecha cambia al goblin de la derecha (objetivo: %s)" % lock.target)
+	controls._on_press(9, c0 + Vector2(80, 0), false)
+	for i in 4:
+		await get_tree().physics_frame
+	assert(lock.target == g_r, "Soltar tras cambiar no suelta el objetivo")
+	controls._on_press(9, c0, true)
+	for i in 4:
+		controls._on_drag(9, c0 - Vector2(20 * (i + 1), 0), Vector2(-20, 0))
+	for i in 4:
+		await get_tree().physics_frame
+	controls._on_press(9, c0 - Vector2(80, 0), false)
+	assert(lock.target == g, "Deslizar a la izquierda vuelve al del centro")
+	controls._on_press(9, c0, true)
+	controls._on_press(9, c0, false)
+	for i in 4:
+		await get_tree().physics_frame
+	assert(not lock.has_target(), "Tocar FIJ sin arrastrar suelta el objetivo")
+	g_r.queue_free()
+	g_l.queue_free()
+	await _wait(0.2)
+	print("CHECK 4c PASSED: deslizar FIJ cambia de objetivo por dirección")
+
+	# 4b. Teclado: C fija y suelta; Tab ya no fija sino que abre/cierra el menú de pausa
+	var key := func(code: Key) -> void:
+		var ev := InputEventKey.new()
+		ev.keycode = code
+		ev.physical_keycode = code
+		ev.pressed = true
+		Input.parse_input_event(ev)
+		await get_tree().process_frame
+		ev = ev.duplicate()
+		ev.pressed = false
+		Input.parse_input_event(ev)
+		await get_tree().process_frame
+	lock._set_target(null)
+	await key.call(KEY_C)
+	assert(lock.has_target(), "C fija al enemigo")
+	await key.call(KEY_C)
+	assert(not lock.has_target(), "C vuelve a soltarlo")
+	var pm = get_tree().current_scene.find_child("PauseMenu", true, false)
+	assert(pm != null and not pm.visible, "Menú de pausa cerrado al empezar")
+	await key.call(KEY_TAB)
+	assert(pm.visible and not lock.has_target(), "Tab abre el menú y no fija objetivo")
+	assert(is_instance_valid(pm._equip_panel) and not pm.get_node("Control/Row").visible, "Tab abre directo la pantalla de equipo")
+	await key.call(KEY_TAB)
+	assert(not pm.visible and not get_tree().paused and not is_instance_valid(pm._equip_panel), "Tab cierra todo y reanuda")
+	print("CHECK 4b PASSED: C fija objetivo, Tab abre y cierra la pantalla de equipo")
+
 	# 5. Los polvos de Tatan y la escopeta de Riva también se apuntan; la espalanza no
 	var ic = _player.input_controller
 	for w in [W.DUSTS, W.TRI_SHOTGUN, W.SPORE_BAZOOKA]:

@@ -10,6 +10,8 @@ var hit_enemies: Array = []
 ## Quién golpea y con qué arma (para robo de vida y similares). -1 = sin origen.
 var source_weapon: int = -1
 var source_player: Node = null
+## Fracción extra de la barra de aturdimiento que llena cada golpe (maza). 0 = solo la del daño.
+var stun_fraction: float = 0.0
 
 func setup(dmg: float, duration: float = 0.1, kb_force: float = 14.0, dir: Vector3 = Vector3.ZERO):
 	damage = dmg
@@ -52,6 +54,8 @@ func _on_body_entered(body):
 			kb_dir = kb_dir.normalized()
 			HitFeedback.weapon_tag = source_weapon
 			body.take_damage(damage, kb_dir * knockback_force)
+			if stun_fraction > 0.0 and body.has_method("add_stun_fraction"):
+				body.add_stun_fraction(stun_fraction)
 			if source_weapon >= 0 and is_instance_valid(source_player) and source_player.has_method("on_damage_dealt"):
 				source_player.on_damage_dealt(damage, source_weapon)
 

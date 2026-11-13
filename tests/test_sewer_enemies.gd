@@ -49,17 +49,21 @@ func _ready() -> void:
 	await get_tree().physics_frame
 	print("CHECK 1 PASSED: vida, velocidad, clips, sonidos y tipo de red de ratas, babosas y Rey Rata")
 
-	# 2. Grupos: enjambres de ratas, babosa garantizada y tope de enemigos por caverna
+	# 2. Grupos: enjambres de ratas, receta de encuentro (WorldDefs "recipes") y tope de enemigos por caverna
 	var sizes := {}
 	var max_size := 0
 	var rats := 0
 	var total := 0
 	for i in 300:
 		var n: int = [4, 5, 6, 10][i % 4]
-		var kinds: Array = enc._kinds_for(room + 1 if room + 1 < enc.map.rooms.size() else 0, n)
+		var r_idx: int = room + 1 if room + 1 < enc.map.rooms.size() else 0
+		var kinds: Array = enc._kinds_for(r_idx, n)
 		max_size = maxi(max_size, kinds.size())
 		sizes[n] = sizes.get(n, 0) + kinds.size()
-		assert(kinds.has("slug"), "Un grupo de %d debe llevar babosa" % n)
+		var rid: String = enc.room_recipe[r_idx]
+		var recipe: Dictionary = (WorldDefs.WORLDS["sewers"]["recipes"] as Array).filter(func(x): return x["id"] == rid)[0]
+		for fk in recipe["fixed"]:
+			assert(kinds.count(fk) >= mini(int(recipe["fixed"][fk]), n), "Un grupo %s de %d debe llevar %s" % [rid, n, fk])
 		for k in kinds:
 			assert(k in ["rat", "rat_big", "slug", "slug_red"], "En las cloacas solo hay ratas y babosas (salió %s)" % k)
 			rats += 1 if k == "rat" else 0

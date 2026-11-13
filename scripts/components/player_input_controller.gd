@@ -36,13 +36,14 @@ func _mouse_attack() -> bool:
 	return Input.is_action_pressed("attack") and not VirtualInput.touch_ui_active
 
 func _physics_process(_delta: float) -> void:
-	if Input.is_action_just_pressed("switch_weapon") or joy_just_pressed(JOY_BUTTON_RIGHT_SHOULDER) or VirtualInput.just_pressed_cycle_next:
+	if Input.is_action_just_pressed("switch_weapon") or joy_just_pressed(JOY_BUTTON_Y) or VirtualInput.just_pressed_cycle_next:
 		emit_signal("weapon_cycle", 1)
 		
-	if joy_just_pressed(JOY_BUTTON_LEFT_SHOULDER) or VirtualInput.just_pressed_cycle_prev:
+	# L1 del mando fija objetivo (TargetLockController); el arma anterior queda solo para el botón táctil
+	if VirtualInput.just_pressed_cycle_prev:
 		emit_signal("weapon_cycle", -1)
 
-	if Input.is_action_just_pressed("activate_skill") or joy_just_pressed(JOY_BUTTON_Y) or VirtualInput.just_pressed_skill:
+	if Input.is_action_just_pressed("activate_skill") or joy_just_pressed(JOY_BUTTON_RIGHT_SHOULDER) or VirtualInput.just_pressed_skill:
 		emit_signal("skill_pressed")
 
 	var shift_pressed = Input.is_physical_key_pressed(KEY_SHIFT) or Input.is_key_pressed(KEY_SHIFT)

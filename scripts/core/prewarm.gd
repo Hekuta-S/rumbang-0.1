@@ -12,6 +12,21 @@ const SHADERS: Array[String] = [
 	"res://assets/shaders/spear_slash.gdshader",
 	"res://assets/shaders/sword_slash.gdshader",
 	"res://assets/shaders/spirit.gdshader",
+	"res://assets/shaders/hit_mark.gdshader",
+	"res://assets/shaders/enemy_dissolve.gdshader",
+	"res://assets/shaders/afterimage.gdshader",
+	# Efectos de armas, aparición y avisos de enemigos: antes se compilaban en su primer uso, en pleno combate
+	"res://assets/shaders/blade_trail.gdshader",
+	"res://assets/shaders/slash_2_optimized.gdshader",
+	"res://assets/shaders/spear_aura.gdshader",
+	"res://assets/shaders/spear_thrust.gdshader",
+	"res://assets/shaders/shotgun_distortion.gdshader",
+	"res://assets/shaders/fire_flame.gdshader",
+	"res://assets/shaders/dissolve_spawn.gdshader",
+	"res://assets/shaders/depth_scan_spawn.gdshader",
+	"res://assets/shaders/enemy_telegraph.gdshader",
+	"res://assets/shaders/obsidian_cracks.gdshader",
+	"res://assets/shaders/fog_gate.gdshader",
 ]
 
 static var _done := false

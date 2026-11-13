@@ -11,6 +11,7 @@ static var elites: int = 0
 static var events: int = 0
 static var shrines: int = 0
 static var boss_killed := false
+static var run_recorded := false              ## MetaProgress.record_survival_run ya contó esta partida
 static var endless_from: float = -1.0          ## segundo en que empezó el modo infinito (-1: no)
 
 static func reset() -> void:
@@ -20,7 +21,14 @@ static func reset() -> void:
 	events = 0
 	shrines = 0
 	boss_killed = false
+	run_recorded = false
 	endless_from = -1.0
+
+static func total_damage() -> float:
+	var t := 0.0
+	for w in damage_by_weapon:
+		t += float(damage_by_weapon[w])
+	return t
 
 static func add_damage(weapon: int, amount: float) -> void:
 	if amount > 0.0:

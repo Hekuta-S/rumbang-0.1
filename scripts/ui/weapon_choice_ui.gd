@@ -6,9 +6,17 @@ extends CanvasLayer
 
 signal chosen(weapon_type: int)
 
+## `chosen` emite SKIP cuando el jugador prefiere quedarse con sus armas.
+const SKIP := -1
+
 const Style := preload("res://scripts/ui/rumbang_style.gd")
 const DESCRIPTIONS := {
-	WeaponData.WeaponType.SPEAR_LANCE: "Combo de tres golpes cuerpo a cuerpo. Click derecho: carga un lanzamiento.",
+	WeaponData.WeaponType.SPEAR_LANCE: "Combo de tres golpes cuerpo a cuerpo. Click derecho: carga un lanzamiento hacia la mira.",
+	WeaponData.WeaponType.DAGGERS: "Dos dagas: cortes muy rápidos y flojos. Click derecho: embestida que atraviesa a los enemigos.",
+	WeaponData.WeaponType.MACE: "Maza enorme a dos manos: golpes lentos y brutales que aturden. Click derecho: salto y mazazo al suelo con onda expansiva.",
+	WeaponData.WeaponType.GREATSWORD: "Espadón a dos manos: tres tajos pesados encadenados. Se anda despacio y se corre tras un rato sin combatir: el ataque al correr embiste.",
+	WeaponData.WeaponType.BOW: "Arco: flechas rápidas a distancia (la tercera seguida sale triple). Mantén el clic derecho para tensar: la flecha cargada atraviesa enemigos y, a tope, los aturde.",
+	WeaponData.WeaponType.SWORD: "Espada de una mano: combo de cuatro golpes rápidos. Como el espadón, se anda y se corre tras un rato sin combatir, y el ataque al correr embiste.",
 	WeaponData.WeaponType.FLAME_THROWER: "Chorro de fuego continuo. Click derecho: explosión que empuja a todos (y a ti).",
 	WeaponData.WeaponType.SPORE_BAZOOKA: "Proyectil de esporas que estalla en una nube corrosiva. Click derecho: perdigonazo.",
 	WeaponData.WeaponType.TRI_SHOTGUN: "Escopetazo en cono a corta distancia. Click derecho: ráfaga de cuatro disparos.",
@@ -21,6 +29,11 @@ const ICONS := {
 	WeaponData.WeaponType.SPORE_BAZOOKA: "res://assets/ui/ingame_hub/armas/bazoka_esporas.png",
 	WeaponData.WeaponType.TRI_SHOTGUN: "res://assets/ui/ingame_hub/armas/escopeta.png",
 	WeaponData.WeaponType.DUSTS: "res://assets/ui/ingame_hub/armas/polvos.png",
+	WeaponData.WeaponType.DAGGERS: "res://assets/ui/ingame_hub/armas/dagas.png",
+	WeaponData.WeaponType.MACE: "res://assets/ui/ingame_hub/armas/maza.png",
+	WeaponData.WeaponType.GREATSWORD: "res://assets/ui/ingame_hub/armas/espadon.png",
+	WeaponData.WeaponType.SWORD: "res://assets/ui/ingame_hub/armas/espada.png",
+	WeaponData.WeaponType.BOW: "res://assets/ui/ingame_hub/armas/arco.png",
 }
 
 var _options: Array = []
@@ -75,15 +88,25 @@ func _build(level: int) -> void:
 		var b := _card(int(_options[i]), i + 1)
 		row.add_child(b)
 		NeonFrame.attach(b, Style.NEON_CYAN if i == 0 else Style.NEON_MAGENTA)
-		# Entrada: las cartas suben y aparecen una tras otra
-		b.modulate.a = 0.0
-		var tw := b.create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
-		tw.tween_interval(0.08 + 0.12 * i)
-		tw.tween_property(b, "modulate:a", 1.0, 0.25)
 		if first == null:
 			first = b
+	# Entrada: las cartas aparecen una tras otra con rebote (UiJuice)
+	UiJuice.deal_in(row.get_children(), 0.12)
+	# Saltar: quedarse con las armas actuales sin reemplazar nada
+	var skip := Button.new()
+	skip.text = "PASAR · CONSERVAR MIS ARMAS  (Esc / B)"
+	skip.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	skip.pressed.connect(_pick.bind(SKIP))
+	vbox.add_child(skip)
 	var hint := Label.new()
 	hint.text = ("Clic o teclas 1 - %d" % _options.size()) if _options.size() > 2 else "Clic o teclas 1 / 2"
+	var inv = null
+	var pl := get_tree().get_first_node_in_group("player")
+	if pl:
+		inv = pl.get("weapon_inventory")
+	if inv and inv.weapon_slots.size() >= inv.MAX_WEAPON_SLOTS and not inv.weapon_slots.is_empty():
+		var cur := int(inv.weapon_slots[inv.current_slot])
+		hint.text += "\nArmas llenas: la nueva reemplaza a %s (la de tu mano)" % str(WeaponData.weapon_names.get(cur, "Arma"))
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.add_theme_font_size_override("font_size", 12)
 	hint.modulate = Color(1, 1, 1, 0.6)
@@ -148,6 +171,10 @@ func _card(weapon_type: int, number: int) -> Button:
 	return b
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel"):
+		_pick(SKIP)
+		get_viewport().set_input_as_handled()
+		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		var i: int = event.keycode - KEY_1
 		if i >= 0 and i < _options.size():

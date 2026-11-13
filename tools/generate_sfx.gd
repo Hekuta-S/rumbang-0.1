@@ -2,13 +2,17 @@ extends SceneTree
 
 ## generate_sfx.gd — One-shot tool: synthesizes placeholder SFX as 16-bit
 ## PCM WAV files into res://assets/sfx/. Run with:
-##   godot --headless --path . --script res://tools/generate_sfx.gd
+##   godot --headless --path . --script res://tools/generate_sfx.gd [-- nombre1 nombre2 ...]
 ## then re-import the project once (godot --headless --path . --import).
+## Con nombres tras "--" solo escribe esos (sin pisar los demás, que pueden venir de otros generadores).
 
 const SAMPLE_RATE: int = 22050
 const SFX_DIR := "res://assets/sfx"
 
+var _only := PackedStringArray()
+
 func _initialize() -> void:
+	_only = OS.get_cmdline_user_args()
 	randomize()
 	var root := DirAccess.open("res://")
 	if root:
@@ -113,6 +117,8 @@ func _put_chars(data: PackedByteArray, offset: int, text: String) -> void:
 		data[offset + i] = text.unicode_at(i)
 
 func _write_wav(name: String, samples: PackedFloat32Array) -> void:
+	if not _only.is_empty() and not _only.has(name):
+		return
 	var num_samples := samples.size()
 	var data := PackedByteArray()
 	data.resize(44 + num_samples * 2)

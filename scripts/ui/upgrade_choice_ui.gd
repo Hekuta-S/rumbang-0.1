@@ -5,6 +5,7 @@ extends CanvasLayer
 ##  - "new_weapon"  : arma nueva (si queda hueco en los 4 slots)
 ##  - "weapon_stat" : mejora ESPECÍFICA de un arma equipada (WeaponUpgrades); id = "arma:mejora"
 ##  - "upgrade"     : mejora genérica para armas que aún no tienen mejoras propias
+##  - "tome"        : tomo pasivo (TomeDB) con rareza propia (choice["rarity"]); 4 huecos de tomo
 ## Cada carta muestra las etiquetas del arma y, si es nueva, qué sinergia activaría. Debajo:
 ##  🎲 volver a tirar · 🔒 bloquear (la carta vuelve en la siguiente subida) · ✖ descartar (no vuelve
 ##  en la partida). Los usos y lo bloqueado/descartado viven en GameState (se reinician por partida).
@@ -79,7 +80,9 @@ static func build_choices(player: Node, banned: Array = [], locked: Dictionary =
 	if equipped.size() < MAX_SLOTS:
 		var fresh: Array = []
 		for w in WeaponData.WeaponType.values():
-			if not equipped.has(w) and not banned.has(choice_key({"type": "new_weapon", "weapon": w})):
+			if not equipped.has(w) and MetaProgress.weapon_unlocked(w) \
+					and GameData.weapon_available_in_mode(w) \
+					and not banned.has(choice_key({"type": "new_weapon", "weapon": w})):
 				fresh.append(w)
 		fresh.shuffle()
 		# Hasta 2 armas nuevas como candidatas (no inundar el sorteo)
@@ -87,8 +90,29 @@ static func build_choices(player: Node, banned: Array = [], locked: Dictionary =
 			candidates.append({"type": "new_weapon", "weapon": w})
 		# La bloqueada puede ser un arma nueva que el sorteo no sacó
 		if not locked.is_empty() and locked["type"] == "new_weapon" and not equipped.has(locked["weapon"]) \
+				and GameData.weapon_available_in_mode(int(locked["weapon"])) \
 				and not candidates.any(func(c): return choice_key(c) == choice_key(locked)):
 			candidates.append(locked.duplicate())
+
+	# Tomos: hasta 2 nuevos (si queda hueco) y los que ya tienes y no están al máximo
+	var luck := 0.0
+	var sb = player.get("stat_block")
+	if sb != null:
+		luck = sb.luck()
+	var fresh_tomes: Array = []
+	for id in TomeDB.ids():
+		if not TomeDB.can_take(id):
+			continue
+		if TomeDB.level(id) > 0:
+			candidates.append({"type": "tome", "weapon": -1, "upgrade_id": id, "rarity": TomeDB.roll_rarity(luck)})
+		else:
+			fresh_tomes.append(id)
+	fresh_tomes.shuffle()
+	for id in fresh_tomes.slice(0, 2):
+		candidates.append({"type": "tome", "weapon": -1, "upgrade_id": id, "rarity": TomeDB.roll_rarity(luck)})
+	# La bloqueada puede ser un tomo que el sorteo no sacó
+	if not locked.is_empty() and locked["type"] == "tome" and TomeDB.can_take(String(locked["upgrade_id"])) 			and not candidates.any(func(c): return choice_key(c) == choice_key(locked)):
+		candidates.append(locked.duplicate())
 
 	candidates = candidates.filter(func(c): return not banned.has(choice_key(c)))
 	candidates.shuffle()
@@ -118,6 +142,15 @@ static func build_choices(player: Node, banned: Array = [], locked: Dictionary =
 
 ## Texto de una carta (público para pruebas/HUD).
 static func card_text(choice: Dictionary, inv: Node) -> String:
+	if choice["type"] == "tome":
+		var id: String = choice["upgrade_id"]
+		var r: int = int(choice.get("rarity", 0))
+		return "%s
+
+%s
+Nivel %d → %d / %d
+
+%s" % [TomeDB.RARITY_NAME[r], TomeDB.tome_name(id), TomeDB.level(id), TomeDB.level(id) + 1, TomeDB.MAX_LEVEL, TomeDB.describe(id, r)]
 	var w: int = choice["weapon"]
 	var data := WeaponData.get_weapon_data(w)
 	var head: String = "%s %s" % [data.icon, WeaponSynergies.weapon_name(inv, w)]
@@ -153,13 +186,26 @@ func _refresh() -> void:
 		child.queue_free()
 	var gs := GameState.get_instance()
 	var inv = _player.get("weapon_inventory")
+	var cols: Array = []
 	for choice in _choices:
-		container.add_child(_make_column(choice, inv, gs))
+		var col := _make_column(choice, inv, gs)
+		container.add_child(col)
+		cols.append(col)
+	UiJuice.deal_in(cols, 0.09)
+	for b in container.find_children("*", "Button", true, false):
+		if not (b as Button).disabled:
+			(b as Button).grab_focus.call_deferred()
+			break
 	var syn: Array = WeaponSynergies.active(inv.weapon_slots) if inv else []
 	if syn.is_empty():
 		_synergy_lbl.text = "Sinergias: junta 2 armas con la misma etiqueta"
 	else:
 		_synergy_lbl.text = "Sinergias: " + "   ".join(syn.map(func(s): return WeaponSynergies.describe(s)))
+	var tomes: Array = []
+	for id in TomeDB.owned():
+		tomes.append("%s%d" % [TomeDB.TOMES[id]["icon"], TomeDB.level(id)])
+	_synergy_lbl.text += "
+Tomos %d/%d: %s" % [TomeDB.owned().size(), TomeDB.SLOTS, "  ".join(tomes) if not tomes.is_empty() else "-"]
 	_reroll_btn.text = "🎲 VOLVER A TIRAR (%d)" % gs.card_rerolls
 	_reroll_btn.disabled = gs.card_rerolls <= 0
 
@@ -195,6 +241,8 @@ func _make_column(choice: Dictionary, inv: Node, gs: GameState) -> Control:
 ## Carta con jerarquía visual: arma (tenue), mejora (título), pips de nivel, texto y etiquetas.
 func _make_card(choice: Dictionary, inv: Node) -> Button:
 	var Style := preload("res://scripts/ui/rumbang_style.gd")
+	if choice["type"] == "tome":
+		return _make_tome_card(choice, Style)
 	var w: int = choice["weapon"]
 	var data := WeaponData.get_weapon_data(w)
 
@@ -248,6 +296,40 @@ func _make_card(choice: Dictionary, inv: Node) -> Button:
 	if choice["type"] != "evolution" and WeaponSynergies.EVOLUTIONS.has(w) and not WeaponSynergies.is_evolved(inv, w) \
 			and inv.get_weapon_level(w) >= WeaponSynergies.EVOLVE_LEVEL - 3:
 		vb.add_child(_card_label("Evoluciona con: %s" % WeaponSynergies.catalyst_name(w), 9, Color(EVOLUTION_COLOR, 0.8)))
+	return btn
+
+## Carta de tomo: borde y título del color de su rareza, pips de nivel y las armas que evoluciona.
+func _make_tome_card(choice: Dictionary, Style) -> Button:
+	var id: String = choice["upgrade_id"]
+	var r: int = int(choice.get("rarity", 0))
+	var col: Color = TomeDB.RARITY_COLOR[r]
+	var def: Dictionary = TomeDB.TOMES[id]
+	var btn := Button.new()
+	btn.custom_minimum_size = Vector2(210, 250)
+	btn.set_meta("choice", choice)
+	btn.set_meta("text_summary", card_text(choice, null))
+	btn.tooltip_text = card_text(choice, null)
+	for state in ["normal", "hover", "pressed", "focus"]:
+		btn.add_theme_stylebox_override(state, Style.button_style(Color(col.r * 0.12, col.g * 0.12, col.b * 0.12), col, 3 if r > 0 else 2, 3))
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for side in ["left", "right", "top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 14)
+	btn.add_child(margin)
+	var vb := VBoxContainer.new()
+	vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vb.add_theme_constant_override("separation", 9)
+	margin.add_child(vb)
+	vb.add_child(_card_label("TOMO · " + TomeDB.RARITY_NAME_ASCII[r], 11, col))
+	vb.add_child(_card_label(String(def["name"]).replace("Tomo de ", "").to_upper(), 15, Style.TITLE))
+	vb.add_child(_card_pips(TomeDB.level(id), TomeDB.MAX_LEVEL, Style))
+	vb.add_child(_card_label("Nivel %d" % (TomeDB.level(id) + 1), 11, Style.ACCENT))
+	vb.add_child(_card_label(TomeDB.describe(id, r), 12, Style.TEXT))
+	var ws: Array = TomeDB.weapons_for(id)
+	if not ws.is_empty():
+		var names: Array = ws.map(func(w): return String(WeaponData.weapon_names.get(w, "?")))
+		vb.add_child(_card_label("Evoluciona: " + ", ".join(names), 9, Color(EVOLUTION_COLOR, 0.8)))
 	return btn
 
 func _card_label(text: String, font_size: int, color: Color) -> Label:
@@ -322,6 +404,8 @@ func _on_card_pressed(choice: Dictionary) -> void:
 			_on_choice_selected("new_weapon", str(choice["weapon"]))
 		"evolution":
 			_on_choice_selected("evolution", str(choice["weapon"]))
+		"tome":
+			_on_choice_selected("tome", "%s:%d" % [choice["upgrade_id"], int(choice.get("rarity", 0))])
 		_:
 			_on_choice_selected("upgrade", str(choice["weapon"]))
 

@@ -45,6 +45,8 @@ func present_choices():
 	get_tree().paused = true
 	visible = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	btn1.grab_focus.call_deferred()
+	UiJuice.deal_in($Control/HBoxContainer.get_children(), 0.1)
 
 func _select_item(id: String):
 	item_selected.emit(id)
