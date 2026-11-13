@@ -12,7 +12,7 @@ var hp: float
 
 var level: int = 1
 var experience: float = 0.0
-var experience_required: float = 10.0
+var experience_required: float = XpCurve.required(1)
 
 var time_since_damage: float = 0.0
 var invincibility_time: float = 0.0
@@ -67,7 +67,7 @@ func gain_experience(amount: float) -> void:
 	while experience >= experience_required:
 		experience -= experience_required
 		level += 1
-		experience_required *= 1.5 # Incremental difficulty, this can be customized
+		experience_required = XpCurve.required(level)
 		emit_signal("leveled_up", level)
 		emit_signal("experience_gained", 0, experience, experience_required)
 

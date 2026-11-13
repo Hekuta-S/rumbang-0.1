@@ -45,9 +45,11 @@ func _init() -> void:
 	hit_height = 0.6
 	hurt_time = 0.25
 	stagger_time = 0.9
-	stagger_damage = 10.0
-	windup_poise = 3.0
-	knock_scale = 1.5
+	stagger_damage = 13.0
+	armor = 5.0
+	armor_break = 18.0
+	windup_poise = 5.0
+	knock_scale = 1.2
 	warn_sfx = "rat_squeak"
 	swing_sfx = "rat_bite"
 	hurt_sfx = "rat_hurt"

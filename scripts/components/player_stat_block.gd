@@ -28,6 +28,8 @@ extends Node
 ##   energy_cost       fracción de energía ahorrada en cada gasto (tope 50 %)
 ##   max_mana          +maná máximo
 ##   mana_regen        +fracción de recarga de maná
+##   luck              +fracción de suerte (rareza de cartas, TomeDB)
+##   xp                +fracción de XP de gemas (TomeDB)
 ## En la MAZMORRA no cuentan el tamaño de ataque ni los golpes/proyectiles extra (DUNGEON_IGNORED).
 
 signal stats_recalculated
@@ -81,7 +83,9 @@ func _total(stat: String) -> float:
 		t += _inventory.get_stat_addition(stat, 0.0)
 	if _equipment:
 		t += _equipment.get_stat_addition(stat)
-	return t
+	if GameData.game_mode != "dungeon":
+		t += TomeDB.stat_total(stat) + MetaShop.stat_total(stat)
+	return t + DungeonRun.focus_stat(stat)
 
 ## Tras fijar la vida base del personaje (GameData.apply_to_player) se vuelve a sumar la del equipo.
 func rebase_equipment_hp() -> void:
@@ -139,8 +143,28 @@ func hp_regen() -> float:
 func magnet_bonus() -> float:
 	return maxf(_total("magnet"), 0.0)
 
+## Suerte (tomo): desplaza el sorteo de rareza de las cartas.
+func luck() -> float:
+	return maxf(_total("luck"), 0.0)
+
+## Multiplicador de XP de las gemas (tomo de Saber).
+func xp_mult() -> float:
+	return (1.0 + maxf(_total("xp"), 0.0)) * RunModifiers.xp_mult()
+
+## Coge una carta de tomo: sube su nivel, cura/sube la vida si es de Vitalidad y recalcula.
+func add_tome(id: String, rarity: int) -> void:
+	TomeDB.add(id, rarity)
+	var gain := TomeDB.hp_gain(id, rarity)
+	if gain > 0.0 and _player:
+		_player.max_hp += gain
+		_player.hp = minf(_player.max_hp, _player.hp + gain)
+		var hc: Node = _player.get("health_comp")
+		if hc and hc.has_method("_emit_stats"):
+			hc._emit_stats()
+	_recalculate()
+
 func gold_mult() -> float:
-	return 1.0 + maxf(_total("gold"), 0.0)
+	return (1.0 + maxf(_total("gold"), 0.0)) * RunModifiers.gold_mult()
 
 # ───────────────────────────── Recursos (mazmorra) ─────────────────────────────
 
@@ -187,7 +211,7 @@ func _recalculate() -> void:
 func _apply_equipment_hp() -> void:
 	if _equipment == null or _player == null or _player.get("health_comp") == null:
 		return
-	var want := maxf(_equipment.get_stat_addition("max_hp"), 0.0)
+	var want := maxf(_equipment.get_stat_addition("max_hp") + DungeonRun.focus_stat("max_hp"), 0.0)
 	var delta := want - _equip_hp_applied
 	if is_zero_approx(delta):
 		return

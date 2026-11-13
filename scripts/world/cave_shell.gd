@@ -59,6 +59,8 @@ class Part:
 var _wall_meshes: Array[ArrayMesh] = []   # resultado de compute(): un trozo de pared por malla
 var _roof_meshes: Array[ArrayMesh] = []   # resultado de compute(): el techo en trozos
 var _roof_faces := PackedVector3Array()    # resultado de compute(): colisión gruesa del techo
+var _wall_parts: Array[Part] = []          # datos de cada trozo (para hornear luz sin recalcular)
+var _roof_parts: Array[Part] = []
 
 ## Datos de entrada (solo se leen).
 func setup(cells: Dictionary, walls: Dictionary, wall_dist: Dictionary, p_seed: int) -> void:
@@ -76,15 +78,81 @@ func compute() -> void:
 	anchors.clear()
 	var chunks := _build_walls()
 	_wall_meshes.clear()
+	_wall_parts.clear()
+	_roof_parts.clear()
 	for key in chunks:
 		var part: Part = chunks[key]
+		_wall_parts.append(part)
 		_wall_meshes.append(_array_mesh({"v": part.v, "n": part.n, "c": part.c, "i": part.i}))
 	_roof_meshes.clear()
 	var roof := _build_ceiling()
 	for key in roof:
 		var part: Part = roof[key]
+		_roof_parts.append(part)
 		_roof_meshes.append(_array_mesh({"v": part.v, "n": part.n, "c": part.c, "i": part.i}))
 	_roof_faces = _ceiling_collision()
+
+## Hornea en el canal alfa del color de vértice la luz de las fuentes dadas (antorchas, braseros): así las
+## paredes y el techo lejos de las `visible_lights` encendidas siguen teniendo luz cálida sin una luz dinámica
+## más (el shader cave_rock la suma como emisión si `baked_gain` > 0). `sources`: [[Vector3 pos, float
+## energía, float alcance, float atenuación]]. Se reparten en una rejilla para no recorrerlas todas por vértice.
+func bake_light(sources: Array) -> void:
+	if sources.is_empty():
+		return
+	var cell_sz := 1.0
+	for src in sources:
+		cell_sz = maxf(cell_sz, float(src[2]))
+	var inv := 1.0 / cell_sz
+	var grid := {}                  # celda -> fuentes que caen en ella
+	for src in sources:
+		var p: Vector3 = src[0]
+		var k := Vector2i(floori(p.x * inv), floori(p.z * inv))
+		if not grid.has(k):
+			grid[k] = []
+		(grid[k] as Array).append(src)
+	var cands := {}                 # celda -> fuentes de su vecindad 3x3, planas (x, y, z, energía, alcance², atenuación, 1/alcance)
+	var meshes: Array = _wall_meshes + _roof_meshes
+	var parts: Array = _wall_parts + _roof_parts
+	for m in parts.size():
+		var part: Part = parts[m]
+		var vs := part.v
+		var ns := part.n
+		var cs := part.c
+		var last_key := Vector2i(1 << 30, 0)
+		var flat := PackedFloat32Array()
+		for vi in vs.size():
+			var pos := vs[vi]
+			var k0 := Vector2i(floori(pos.x * inv), floori(pos.z * inv))
+			if k0 != last_key:
+				last_key = k0
+				if not cands.has(k0):
+					var f := PackedFloat32Array()
+					for dx in range(-1, 2):
+						for dz in range(-1, 2):
+							for src in grid.get(k0 + Vector2i(dx, dz), []):
+								var sp: Vector3 = src[0]
+								f.append_array([sp.x, sp.y, sp.z, src[1], float(src[2]) * float(src[2]), src[3], 1.0 / float(src[2])])
+					cands[k0] = f
+				flat = cands[k0]
+			var nrm := ns[vi]
+			var sum := 0.0
+			for o in range(0, flat.size(), 7):
+				var tx := flat[o] - pos.x
+				var ty := flat[o + 1] - pos.y
+				var tz := flat[o + 2] - pos.z
+				var d2 := tx * tx + ty * ty + tz * tz
+				if d2 >= flat[o + 4] or d2 < 0.000001:
+					continue
+				var d := sqrt(d2)
+				var facing := clampf(0.35 + 0.65 * (nrm.x * tx + nrm.y * ty + nrm.z * tz) / d, 0.0, 1.0)
+				sum += flat[o + 3] * pow(1.0 - d * flat[o + 6], flat[o + 5]) * facing
+			var col := cs[vi]
+			col.a = clampf(sum * 0.5, 0.0, 1.0)
+			cs[vi] = col
+		part.c = cs
+		var mesh: ArrayMesh = meshes[m]
+		mesh.clear_surfaces()
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, _arrays(part))
 
 ## Crea el nodo "Walls" con los trozos de pared, el techo y la colisión del techo.
 func make_nodes(material: Material, shadows: bool) -> Node3D:
@@ -480,6 +548,15 @@ func _ceiling_collision() -> PackedVector3Array:
 			p.append(Vector3((corner.x - 0.5) * cell, h - 0.5, (corner.y - 0.5) * cell))
 		faces.append_array([p[0], p[1], p[2], p[0], p[2], p[3]])
 	return faces
+
+func _arrays(part: Part) -> Array:
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = part.v
+	arrays[Mesh.ARRAY_NORMAL] = part.n
+	arrays[Mesh.ARRAY_COLOR] = part.c
+	arrays[Mesh.ARRAY_INDEX] = part.i
+	return arrays
 
 func _array_mesh(ch: Dictionary) -> ArrayMesh:
 	var arrays := []

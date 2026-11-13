@@ -99,6 +99,32 @@ static func shadow_distance() -> float:
 static func glow_enabled() -> bool:
 	return level() == Level.HIGH and not is_mobile()
 
+## Ajusta una escena con su propio Environment (salón, patio, fondo del título) a la misma política que
+## la mazmorra: sin glow ni SSAO en móvil, FXAA, resolución 3D por calidad. `vp` puede ser null.
+static func tune_environment(env: Environment, vp: Viewport = null) -> void:
+	env.glow_enabled = glow_enabled()
+	if is_mobile():
+		env.ssao_enabled = false
+		env.sdfgi_enabled = false
+		env.volumetric_fog_enabled = false
+	if vp:
+		vp.scaling_3d_scale = scale_3d()
+		if is_mobile():
+			vp.msaa_3d = Viewport.MSAA_DISABLED
+			vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
+			vp.use_debanding = true
+
+## Sombras de una luz solo donde se permiten (PC en calidad Alta).
+static func tune_light(l: Light3D, wants_shadow: bool = true) -> void:
+	l.shadow_enabled = wants_shadow and shadows_enabled()
+
+## Gobernador de resolución dinámica para escenas fuera de GameStartFacade (salón, patio).
+static func add_governor(parent: Node, vp: Viewport) -> void:
+	var g := PerformanceGovernor.new()
+	g.name = "PerformanceGovernor"
+	parent.add_child(g)
+	g.setup(vp)
+
 ## Luces dinámicas de efectos (destellos, impactos, aura). En Bajo se crean invisibles (coste ~0).
 static func lights_enabled() -> bool:
 	return level() >= Level.MEDIUM
@@ -117,7 +143,20 @@ static func new_light() -> OmniLight3D:
 ## Tope de FPS en móvil: 60, o 30 en calidad Baja (batería y temperatura: un móvil caliente baja de
 ## frecuencia y acaba yendo peor que a 30 estables).
 static func mobile_max_fps() -> int:
+	var st := _settings()
+	var saved: int = int(st.get("mobile_fps")) if st else 0
+	if saved == 30 or saved == 60:
+		return saved
 	return 30 if level() == Level.LOW else 60
+
+## Guarda el tope de FPS del móvil (0 = automático) y lo aplica ya.
+static func set_mobile_fps(v: int) -> void:
+	var st := _settings()
+	if st:
+		st.set("mobile_fps", v if v == 30 or v == 60 else 0)
+		st.call("save_settings")
+	if is_mobile():
+		Engine.max_fps = mobile_max_fps()
 
 ## FPS objetivo para la resolución dinámica.
 static func target_fps() -> float:

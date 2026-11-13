@@ -2,7 +2,8 @@ extends Node
 ## Mide los clips de espada: velocidad de la mano derecha por fotograma (para las ventanas de golpe),
 ## avance de la cadera y zancada (para la locomoción). Uso: Godot --headless --path . res://tools/measure_sword_clips.tscn
 const CLIPS := ["sword/sw_attack1", "sword/sw_attack2", "sword/sw_combo", "sword/sw_run_attack",
-	"sword/sw_walk", "sword/sw_run", "sword/sw_strafe", "greatsword/gs_walk", "greatsword/gs_run", "greatsword/gs_strafe_r"]
+	"sword/sw_walk", "sword/sw_run", "sword/sw_strafe", "greatsword/gs_walk", "greatsword/gs_run", "greatsword/gs_strafe_r",
+	"katana/kt_attack1", "katana/kt_combo", "katana/kt_special", "katana/kt_run_attack"]
 
 func _ready() -> void:
 	for f in CLIPS:
@@ -42,7 +43,7 @@ func _ready() -> void:
 			prev = gh
 		print("CLIP ", f, " len=", snappedf(a.length, 0.001), " frames=", frames, " height=", snappedf(height, 0.001),
 			" hips_move(m@1.62)=", (hn - h0) * 1.62 / height, " footZrange(m@1.62)=", snappedf((fz_max - fz_min) * 1.62 / height, 0.001))
-		if f.contains("attack") or f.contains("combo"):
+		if f.contains("attack") or f.contains("combo") or f.contains("special"):
 			print("  HANDSPEED dm/s per frame: ", speeds)
 		inst.queue_free()
 	get_tree().quit()

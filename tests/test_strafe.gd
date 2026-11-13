@@ -32,5 +32,41 @@ func _ready() -> void:
 	ac._update_strafe(1.0, Vector3(0, 0, -3), true)
 	assert(ac._strafe_w < 0.1, "De frente: sin paso lateral")
 	print("CHECK 2 PASSED: peso y lado del paso lateral")
+	# La carrera solo va hacia delante: de lado y atrás se anda
+	player.mesh.rotation.y = 0.0
+	ac._fwd_run = true
+	assert(ac._moving_forward(Vector3(0, 0, -5)), "De frente se puede correr")
+	assert(not ac._moving_forward(Vector3(5, 0, 0)), "De lado no se corre")
+	assert(not ac._moving_forward(Vector3(0, 0, 5)), "Hacia atrás no se corre")
+	var mc = player.movement_controller
+	assert(mc.SIDE_SPEED_DUNGEON < 0.6 and mc.BACK_SPEED_DUNGEON < 0.6, "En mazmorra de lado/atrás se va a paso de andar")
+	mc.gs_calm = 5.0
+	mc._gs_mult = 1.1
+	mc._update_gs_gait(0.016, true, false)
+	assert(not mc.gs_running(), "De lado la espada/espadón deja de correr")
+	print("CHECK 3 PASSED: carrera solo hacia delante")
+	# Corriendo en diagonal (joystick a 45°) el cuerpo se gira hacia donde corre; andando de lado, no
+	var fwd: Vector3 = -player.spring_arm.global_transform.basis.z
+	fwd.y = 0.0
+	fwd = fwd.normalized()
+	var aim_yaw := atan2(-fwd.x, -fwd.z)
+	VirtualInput.movement_vector = Vector2(0.7071, -0.7071)
+	for i in 150:      # 2,5 s: el espadón/espada/arco tardan en pasar a correr
+		mc.face_lock_until = 0.0
+		mc.handle_movement(1.0 / 60.0)
+	var right: Vector3 = player.spring_arm.global_transform.basis.x
+	right.y = 0.0
+	var wish := (fwd + right.normalized()).normalized()
+	var body := -(player.mesh as Node3D).global_transform.basis.z
+	body.y = 0.0
+	assert(mc._runs_now(PlayerAnimationController.WALK_TO_RUN + 1.0), "En diagonal va corriendo")
+	assert(body.normalized().dot(wish) > 0.97, "Corriendo en diagonal el cuerpo mira hacia donde corre (%.2f)" % body.normalized().dot(wish))
+	VirtualInput.movement_vector = Vector2(1.0, 0.0)
+	for i in 40:
+		mc.face_lock_until = 0.0
+		mc.handle_movement(1.0 / 60.0)
+	assert(absf(angle_difference(player.mesh.rotation.y, aim_yaw)) < 0.1, "De lado sigue mirando a la mira")
+	VirtualInput.movement_vector = Vector2.ZERO
+	print("CHECK 4 PASSED: carrera en diagonal mira hacia donde corre")
 	print("ALL STRAFE CHECKS PASSED")
 	get_tree().quit(0)

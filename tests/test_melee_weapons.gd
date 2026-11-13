@@ -207,5 +207,31 @@ func _ready() -> void:
 	assert(not ac.carry_only and not ac.held_equipped, "Con la espalanza se quita la postura de transporte")
 	print("CHECK 6 PASSED: maza (%.1f por golpe) y mazazo al suelo" % mace_hit)
 
+	# 7. Puntos débiles: la maza no se cancela hasta golpear; la espada para mejor
+	await _wait(1.0)
+	await _equip(W.MACE)
+	await _wait(0.3)
+	cc.attack_cooldown = 0.0
+	res.energy = PlayerResources.ENERGY_MAX
+	_player.attack()
+	await _wait(0.1)
+	assert(ac.is_attacking() and not ac.can_cancel_for_dodge(), "La anticipación de la maza no se esquiva")
+	var cancel_after := false
+	for i in 240:      # hasta 4 s: el golpe de maza llega a ~0,7 s
+		await get_tree().physics_frame
+		if not ac.is_attacking():
+			break
+		if ac._struck_action == ac._current_action_name and ac.active_attack_name == "":
+			cancel_after = ac.can_cancel_for_dodge()
+			break
+	assert(cancel_after, "Tras golpear, la recuperación de la maza sí se esquiva")
+	await _wait(1.5)
+	var pc: PlayerParryController = _player.parry_controller
+	assert(is_equal_approx(pc.window(), PlayerParryController.WINDOW), "Con la maza, guardia normal")
+	await _equip(W.SWORD)
+	assert(is_equal_approx(pc.window(), PlayerParryController.SWORD_WINDOW) and pc.bonus_mult() > PlayerParryController.BONUS_MULT,
+		"Con la espada, guardia más larga y contraataque mayor")
+	print("CHECK 7 PASSED: maza comprometida, espada para mejor")
+
 	print("ALL MELEE WEAPON CHECKS PASSED")
 	get_tree().quit(0)

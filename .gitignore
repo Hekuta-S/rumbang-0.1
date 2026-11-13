@@ -27,3 +27,7 @@ addons/ziva_agent/
 
 # Exportación web
 build/
+
+# Backups de Blender y caches locales
+*.blend1
+graphify-out/cache/

@@ -12,8 +12,9 @@ func apply_config() -> void:
 func get_model_paths() -> Dictionary:
 	return { "idle": "", "walk": "", "tex": "" }
 
+## Multiplica la velocidad del empujón (1 = normal; menos = más pesado)
 func get_knockback_resistance() -> float:
-	return 1.0
+	return 0.85
 
 func process_ai(delta: float, to_player: Vector3, dist: float, effective_speed: float) -> Vector3:
 	return Vector3.ZERO
@@ -37,6 +38,9 @@ static func try_global_shot() -> bool:
 
 
 class RangedGoblinBehavior extends EnemyBehavior:
+	func get_knockback_resistance() -> float:
+		return 0.8
+
 	func apply_config() -> void:
 		# Flyweight: estado intrínseco compartido por todos los enemigos de este tipo
 		EnemyTypeFlyweightFactory.get_flyweight(EnemyData.EnemyType.GOBLIN_RANGED).apply_to(enemy)
@@ -67,6 +71,9 @@ class RangedGoblinBehavior extends EnemyBehavior:
 
 
 class SniperGoblinBehavior extends EnemyBehavior:
+	func get_knockback_resistance() -> float:
+		return 0.75
+
 	func apply_config() -> void:
 		# Flyweight: estado intrínseco compartido por todos los enemigos de este tipo
 		EnemyTypeFlyweightFactory.get_flyweight(EnemyData.EnemyType.SNIPER_GOBLIN).apply_to(enemy)
@@ -98,6 +105,9 @@ class SniperGoblinBehavior extends EnemyBehavior:
 ## Mago de artillería: misma skin que el mago, ataca desde mucho más lejos con un proyectil en parábola
 ## que cae donde estaba el jugador al disparar (no lo persigue).
 class MortarGoblinBehavior extends EnemyBehavior:
+	func get_knockback_resistance() -> float:
+		return 0.6
+
 	func apply_config() -> void:
 		# Flyweight: estado intrínseco compartido por todos los enemigos de este tipo
 		EnemyTypeFlyweightFactory.get_flyweight(EnemyData.EnemyType.MORTAR_GOBLIN).apply_to(enemy)
@@ -172,6 +182,9 @@ class MeleeGoblinBehavior extends EnemyBehavior:
 		return (tangent * ORBIT_SPEED + radial * radial_err) * effective_speed
 
 class NormalGoblinBehavior extends MeleeGoblinBehavior:
+	func get_knockback_resistance() -> float:
+		return 0.85
+
 	func apply_config() -> void:
 		# Flyweight: estado intrínseco compartido por todos los enemigos de este tipo
 		EnemyTypeFlyweightFactory.get_flyweight(EnemyData.EnemyType.NORMAL_GOBLIN).apply_to(enemy)
@@ -196,9 +209,12 @@ class HeavyBruteBehavior extends MeleeGoblinBehavior:
 		}
 
 	func get_knockback_resistance() -> float:
-		return 0.3
+		return 0.2
 
 class ZombieGoblinBehavior extends MeleeGoblinBehavior:
+	func get_knockback_resistance() -> float:
+		return 0.6
+
 	func apply_config() -> void:
 		# Flyweight: estado intrínseco compartido por todos los enemigos de este tipo
 		EnemyTypeFlyweightFactory.get_flyweight(EnemyData.EnemyType.ZOMBIE_GOBLIN).apply_to(enemy)

@@ -226,6 +226,25 @@ func _build_play_menu() -> void:
 		b.focus_entered.connect(func(): hint.text = desc)
 		box.add_child(b)
 	box.add_child(hint)
+	# Supervivencia: dificultad (se desbloquea venciendo al Nigromante) y reto
+	var diff_btn := _make_button("", C_BTN_BORDER)
+	diff_btn.custom_minimum_size = Vector2(330, 38)
+	var chal_btn := _make_button("", C_BTN_BORDER)
+	chal_btn.custom_minimum_size = Vector2(330, 38)
+	var refresh_mods := func():
+		diff_btn.text = "  DIFICULTAD: %s" % RunModifiers.difficulty_name()
+		var c: Dictionary = RunModifiers.CHALLENGES[RunModifiers.challenge()]
+		chal_btn.text = "  RETO: %s" % c["name"]
+		hint.text = "Supervivencia. Oro x%s por dificultad y reto. %s" % [str(snappedf(RunModifiers.DIFFICULTIES[RunModifiers.difficulty()]["gold"] * c["gold"], 0.01)), c["desc"]]
+	diff_btn.pressed.connect(func():
+		RunModifiers.cycle_difficulty()
+		refresh_mods.call())
+	chal_btn.pressed.connect(func():
+		RunModifiers.cycle_challenge()
+		refresh_mods.call())
+	refresh_mods.call()
+	box.add_child(diff_btn)
+	box.add_child(chal_btn)
 	var back := _make_button("  VOLVER", C_BTN_BORDER)
 	back.custom_minimum_size = Vector2(330, 42)
 	back.pressed.connect(_toggle_play_menu)
@@ -323,7 +342,7 @@ func _build_upgrades_panel() -> void:
 	vbox.add_child(header)
 	
 	var title := Label.new()
-	title.text = "MEJORAS DE ARMAS"
+	title.text = "MEJORAS PERMANENTES"
 	title.add_theme_font_size_override("font_size", 32)
 	title.add_theme_color_override("font_color", C_TITLE)
 	header.add_child(title)
@@ -353,13 +372,12 @@ func _build_upgrades_panel() -> void:
 
 func _refresh_upgrades() -> void:
 	lbl_gold.text = "Oro: " + str(SaveManager.get_total_gold())
-	
 	for child in upgrades_container.get_children():
 		child.queue_free()
-		
-	for w in weapons:
-		var panel = PanelContainer.new()
-		var style = StyleBoxFlat.new()
+	for id in MetaShop.ITEMS:
+		var def: Dictionary = MetaShop.ITEMS[id]
+		var panel := PanelContainer.new()
+		var style := StyleBoxFlat.new()
 		style.bg_color = C_BTN_BG
 		style.border_width_bottom = 2
 		style.border_color = C_BTN_BORDER
@@ -369,48 +387,41 @@ func _refresh_upgrades() -> void:
 		style.content_margin_bottom = 10
 		panel.add_theme_stylebox_override("panel", style)
 		upgrades_container.add_child(panel)
-		
-		var hbox = HBoxContainer.new()
+		var hbox := HBoxContainer.new()
 		panel.add_child(hbox)
-		
-		var name_lbl = Label.new()
-		name_lbl.text = w["name"]
-		name_lbl.custom_minimum_size = Vector2(250, 0)
-		name_lbl.add_theme_font_size_override("font_size", 18)
-		hbox.add_child(name_lbl)
-		
-		var spacer = Control.new()
+		var name_box := VBoxContainer.new()
+		name_box.custom_minimum_size = Vector2(330, 0)
+		hbox.add_child(name_box)
+		var name_lbl := Label.new()
+		name_lbl.text = String(def["name"]).to_upper()
+		name_lbl.add_theme_font_size_override("font_size", 16)
+		name_box.add_child(name_lbl)
+		var desc_lbl := Label.new()
+		desc_lbl.text = String(def["desc"])
+		desc_lbl.add_theme_font_size_override("font_size", 11)
+		desc_lbl.add_theme_color_override("font_color", C_TEXT_DIM)
+		name_box.add_child(desc_lbl)
+		var spacer := Control.new()
 		spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		hbox.add_child(spacer)
-		
-		var lvl = SaveManager.get_upgrade(w["id"])
-		
-		# Draw 5 blocks
-		for i in range(5):
-			var block = ColorRect.new()
-			block.custom_minimum_size = Vector2(20, 20)
+		var lvl := MetaShop.level(id)
+		var maxl := MetaShop.max_level(id)
+		for i in range(maxl):
+			var block := ColorRect.new()
+			block.custom_minimum_size = Vector2(14, 20)
 			block.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-			if i < lvl:
-				block.color = C_ACCENT
-			else:
-				block.color = C_BTN_BORDER
+			block.color = C_ACCENT if i < lvl else C_BTN_BORDER
 			hbox.add_child(block)
-			
-		var spacer2 = Control.new()
+		var spacer2 := Control.new()
 		spacer2.custom_minimum_size = Vector2(20, 0)
 		hbox.add_child(spacer2)
-			
-		var cost = 500
-		var btn_buy = _make_button("+" if lvl < 5 else "MAX", C_ACCENT if lvl < 5 else C_BTN_BORDER)
-		btn_buy.custom_minimum_size = Vector2(100, 40)
-		if lvl >= 5:
-			btn_buy.disabled = true
-		else:
-			btn_buy.text = str(cost) + "G"
-			btn_buy.pressed.connect(func():
-				if SaveManager.buy_upgrade(w["id"], cost):
-					_refresh_upgrades()
-			)
+		var cost := MetaShop.cost(id)
+		var btn_buy := _make_button("MAX" if cost < 0 else "%dG" % cost, C_ACCENT if cost > 0 else C_BTN_BORDER)
+		btn_buy.custom_minimum_size = Vector2(120, 40)
+		btn_buy.disabled = cost < 0 or not MetaShop.can_buy(id)
+		btn_buy.pressed.connect(func():
+			if MetaShop.buy(id):
+				_refresh_upgrades())
 		hbox.add_child(btn_buy)
 
 func _make_button(txt: String, border_col: Color) -> Button:
@@ -421,7 +432,8 @@ func _btn_style(bg: Color, border: Color, radius: int) -> StyleBoxFlat:
 
 func _on_play() -> void:
 	GameData.game_mode = "survival"
-	SceneLoader.load_scene("res://scenes/ui/character_select.tscn")
+	GameData.selected_index = GameData.survival_index()
+	SceneLoader.load_scene("res://scenes/core/main_procedural.tscn")
 
 func _on_dungeon_hub() -> void:
 	GameData.game_mode = "dungeon"
@@ -515,7 +527,7 @@ func _refresh_codex() -> void:
 			_codex_line("%s  =  %s + %s" % [e["name"], weapon, WeaponSynergies.catalyst_name(w)], 15, MetaProgress.COLOR)
 			_codex_line("      %s" % e["desc"], 12, C_TEXT_DIM)
 		else:
-			_codex_line("???  =  %s + ???" % weapon, 15, C_TEXT_DIM)
+			_codex_line("???  =  %s + %s" % [weapon, WeaponSynergies.catalyst_name(w)], 15, C_TEXT_DIM)
 
 func _codex_line(text: String, size: int, color: Color) -> void:
 	var l := Label.new()

@@ -50,7 +50,7 @@ func _run() -> void:
 		names = String(args[1]).split(",")
 	var push := float(args[2]) if args.size() > 2 else 1.0
 	var W := WeaponData.WeaponType
-	var by_name := {"maza": W.MACE, "dagas": W.DAGGERS, "espalanza": W.SPEAR_LANCE, "espadon": W.GREATSWORD, "espada": W.SWORD}
+	var by_name := {"maza": W.MACE, "dagas": W.DAGGERS, "espalanza": W.SPEAR_LANCE, "espadon": W.GREATSWORD, "espada": W.SWORD, "arco": W.BOW, "katana": W.KATANA}
 	var cam := Camera3D.new()
 	cam.fov = 35.0
 	_main.add_child(cam)
@@ -65,6 +65,10 @@ func _run() -> void:
 	for full in names:
 		var nm := String(full).get_slice("_", 0)
 		var mode := String(full).get_slice("_", 1) if String(full).contains("_") else "andar"
+		# "<arma>_der" / "_izq" / "_atras": anda de lado o hacia atrás (mirando a la mira) con empuje `push`
+		mover.v = {"der": Vector2(push, 0), "izq": Vector2(-push, 0), "atras": Vector2(0, push)}.get(mode, Vector2(0, -push))
+		if mode in ["der", "izq", "atras"]:
+			mode = "andar"
 		var w: int = by_name[nm]
 		player.global_position = map.room_center(0) + Vector3(0, 0.3, 0)
 		player.velocity = Vector3.ZERO

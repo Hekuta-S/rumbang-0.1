@@ -29,7 +29,7 @@ func _ready() -> void:
 
 	_camera = Camera3D.new()
 	_camera.fov = 62.0
-	_camera.far = 400.0
+	_camera.far = 140.0 if Quality.is_mobile() else 400.0
 	add_child(_camera)
 	_camera.current = true
 
@@ -99,6 +99,7 @@ func _build_environment() -> void:
 	env.fog_light_color = Color(0.1, 0.11, 0.2)
 	env.fog_density = 0.009
 	env.fog_sky_affect = 0.7
+	Quality.tune_environment(env)   # sin viewport: el contenedor ya reduce la resolución (stretch_shrink)
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
@@ -106,7 +107,7 @@ func _build_environment() -> void:
 	var moon := DirectionalLight3D.new()
 	moon.light_color = Color(0.55, 0.65, 1.0)
 	moon.light_energy = 1.1
-	moon.shadow_enabled = true
+	Quality.tune_light(moon)
 	moon.directional_shadow_max_distance = 70.0
 	moon.rotation_degrees = Vector3(-50.0, 30.0, 0.0)
 	add_child(moon)

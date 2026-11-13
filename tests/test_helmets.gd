@@ -70,7 +70,7 @@ func _ready() -> void:
 	var model := (load(GameData.get_idle_model_path("riva")) as PackedScene).instantiate() as Node3D
 	add_child(model)
 	var l := CharacterLook.new()
-	l.hat = "gorra"; l.hair_style = "riva"
+	l.hair_style = "riva"
 	var ap := CharacterLookApplier.apply_to(model, l)
 	var visible_hair := func() -> int:
 		var n := 0
@@ -78,7 +78,7 @@ func _ready() -> void:
 			if ap.hair_meshes[id].visible:
 				n += 1
 		return n
-	_check(_acc(ap.skeleton)["other"].size() == 1 and visible_hair.call() == 1, "Punto de partida: gorra y pelo")
+	_check(_acc(ap.skeleton)["other"].is_empty() and visible_hair.call() == 1, "Punto de partida: sin gorro y con pelo")
 	var box: AABB = CharacterLookApplier.region_boxes(ap.mesh_instance, ap.skeleton)["head"]
 	var head_w: float = box.size.x * ap.mesh_instance.global_transform.basis.get_scale().x
 	for h in fit:
@@ -96,10 +96,10 @@ func _ready() -> void:
 	ap.set_helmet("")
 	await get_tree().process_frame
 	var acc2 := _acc(ap.skeleton)
-	_check(acc2["helmet"].is_empty() and acc2["other"].size() == 1 and visible_hair.call() == 1, "Sin casco vuelven gorra y pelo")
+	_check(acc2["helmet"].is_empty() and acc2["other"].is_empty() and visible_hair.call() == 1, "Sin casco vuelve el pelo")
 	ap.set_helmet("fantasma")
 	await get_tree().process_frame
-	_check(_acc(ap.skeleton)["helmet"].is_empty() and _acc(ap.skeleton)["other"].size() == 1, "Un casco desconocido no hace nada")
+	_check(_acc(ap.skeleton)["helmet"].is_empty() and _acc(ap.skeleton)["other"].is_empty(), "Un casco desconocido no hace nada")
 	# El casco pedido ANTES de aplicar la apariencia se coloca al aplicarla
 	var m2 := (load(GameData.get_idle_model_path("riva")) as PackedScene).instantiate() as Node3D
 	add_child(m2)

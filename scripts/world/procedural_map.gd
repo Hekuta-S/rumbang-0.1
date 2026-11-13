@@ -74,6 +74,7 @@ const PROPS := {
 ## Las luces son la iluminación principal (cueva cerrada): se encienden aunque la calidad las apague
 ## (entonces con un tope más bajo, ver DungeonMap._place_torches).
 var lights_essential := false
+var light_scale := 1.0                ## multiplica la fuerza de todas las luces (de día, DayNightCycle las baja)
 @export var embers_enabled: bool = true
 
 var used_seed: int = 0
@@ -100,8 +101,11 @@ var _flicker_t: float = 0.0
 var _embers: Array[CPUParticles3D] = []
 var _cull_timer: float = 0.0
 ## Distancia (m) a la que se apagan luces y brasas lejanas (más corta en móvil).
-const LIGHT_CULL_DIST_PC := 55.0
-const LIGHT_CULL_DIST_MOBILE := 38.0
+const LIGHT_CULL_DIST_PC := 70.0
+const LIGHT_CULL_DIST_MOBILE := 45.0
+## Filtro opcional (DungeonFog): func(pos: Vector3, dist_sq: float) -> bool. Las luces que no pasan no gastan
+## cupo de `visible_lights` (p. ej. antorchas de salas vecinas tapadas por la roca o la niebla).
+var light_eligible: Callable
 var _mobile: bool = false
 
 func _ready() -> void:
@@ -855,7 +859,12 @@ func _process(delta: float) -> void:
 		if not is_instance_valid(l) or not l.visible:
 			continue
 		var f := 0.85 + 0.15 * sin(_flicker_t * 9.0 + float(i) * 1.7) + 0.08 * sin(_flicker_t * 23.0 + float(i) * 4.1)
-		l.light_energy = _light_base[i] * f
+		l.light_energy = _light_base[i] * f * light_scale
+
+## Recalcula ya qué luces van encendidas (p. ej. al cambiar de sala, sin esperar al siguiente tick).
+func refresh_lights() -> void:
+	_cull_timer = 0.4
+	_cull_lights_and_embers()
 
 ## Apaga luces y brasas lejos del jugador (cada 0,4 s): cada luz dinámica y cada sistema de partículas
 ## cuesta en cada frame aunque estén fuera de vista.
@@ -872,7 +881,7 @@ func _cull_lights_and_embers() -> void:
 	for l in _lights:
 		if is_instance_valid(l):
 			var d2 := l.global_position.distance_squared_to(pp)
-			if lights_on and d2 <= limit_sq:
+			if lights_on and d2 <= limit_sq and (not light_eligible.is_valid() or light_eligible.call(l.global_position, d2)):
 				close.append([d2, l])
 	if close.size() > visible_lights:
 		close.sort_custom(func(a, b): return a[0] < b[0])

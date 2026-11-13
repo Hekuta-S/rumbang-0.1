@@ -382,7 +382,7 @@ func _item_text(v: Container, it: Dictionary, hide_stats: bool) -> void:
 func _add_perk_line(v: Control, it: Dictionary) -> void:
 	var el := EquipmentDB.element_of(it)
 	for line in EquipmentDB.trait_lines(it):
-		var col := EquipmentDB.rarity_color(it)
+		var col := EquipmentDB.trait_color(line, EquipmentDB.rarity_color(it))
 		if el != "" and (line.begins_with("Elemento") or line.begins_with("Armadura de")):
 			col = EquipmentDB.ELEMENTS[el]["color"]
 		v.add_child(_text(line, 10, col))

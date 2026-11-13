@@ -176,6 +176,8 @@ func _do_tick() -> void:
 		var e: Dictionary = active[id]
 		if "_force_dot" in host:
 			host._force_dot = true
+		if "_dot_id" in host:
+			host._dot_id = String(id)       # color del número de daño (DamageNumbers)
 		host.take_damage(dmg, Vector3.ZERO)
 		if not is_instance_valid(host):
 			return

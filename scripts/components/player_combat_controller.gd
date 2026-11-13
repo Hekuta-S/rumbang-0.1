@@ -76,6 +76,8 @@ func _ready() -> void:
 	_strategies[WeaponData.WeaponType.MACE] = WeaponStrategy.MaceStrategy.new(self)
 	_strategies[WeaponData.WeaponType.GREATSWORD] = WeaponStrategy.GreatswordStrategy.new(self)
 	_strategies[WeaponData.WeaponType.SWORD] = WeaponStrategy.SwordStrategy.new(self)
+	_strategies[WeaponData.WeaponType.KATANA] = WeaponStrategy.KatanaStrategy.new(self)
+	_strategies[WeaponData.WeaponType.BOW] = WeaponStrategy.BowStrategy.new(self)
 
 
 const INPUT_BUFFER_TIME: float = 0.28
@@ -83,6 +85,11 @@ var _attack_buffer_timer: float = 0.0
 
 func _process(delta: float) -> void:
 	_update_spear_charge(delta)
+	var bow = _strategies.get(WeaponData.WeaponType.BOW)
+	if bow:
+		bow.update_charge(delta)
+		if bow.charge >= 0.0:
+			VirtualInput.alt_aims = true
 	if _attack_buffer_timer > 0.0:
 		_attack_buffer_timer -= delta
 		_try_consume_buffered_attack()
@@ -268,6 +275,31 @@ func mace_slam() -> bool:
 	var strategy = _strategies.get(WeaponData.WeaponType.MACE)
 	return strategy != null and strategy.mace_slam()
 
+## Tajo especial de la katana (click derecho, mazmorra). Cobra su recurso solo si sale.
+func katana_special() -> bool:
+	var strategy = _strategies.get(WeaponData.WeaponType.KATANA)
+	return strategy != null and strategy.katana_special()
+
+## Arco: el clic derecho mantenido tensa y al soltarlo sale la flecha cargada (BowStrategy).
+func start_bow_charge() -> bool:
+	var strategy = _strategies.get(WeaponData.WeaponType.BOW)
+	return strategy != null and strategy.start_charge()
+
+func release_bow_charge() -> void:
+	var strategy = _strategies.get(WeaponData.WeaponType.BOW)
+	if strategy:
+		strategy.release_charge()
+
+## ¿Está tensando el arco?
+func is_bow_charging() -> bool:
+	var strategy = _strategies.get(WeaponData.WeaponType.BOW)
+	return strategy != null and strategy.charge >= 0.0
+
+## Remate con el arco: flecha a quemarropa. Devuelve los s de juego hasta el impacto (-1 si no salió).
+func bow_finisher_shot(target: Node3D) -> float:
+	var strategy = _strategies.get(WeaponData.WeaponType.BOW)
+	return strategy.finisher_shot(target) if strategy else -1.0
+
 ## Mazmorra: tras cuatro golpes ligeros, el especial lanza el clavado con salto. Devuelve true si salió.
 func try_spear_slam() -> bool:
 	if GameData.game_mode != "dungeon" or player.current_weapon() != WeaponData.WeaponType.SPEAR_LANCE:
@@ -335,6 +367,7 @@ func get_soft_aim_direction(max_angle_deg: float = 60.0, max_dist: float = 8.0) 
 const SPEAR_AIM_ANGLE_DEG := 35.0
 const SPEAR_AIM_RANGE := 5.5
 const SPEAR_AIM_MAX_HEIGHT := 2.2     ## desnivel máximo (m) para no enganchar a otra planta
+const ATTACK_FACE_HOLD_S := 0.4         ## supervivencia: s que mantiene la mira tras atacar antes de volver a girar al caminar
 const SPEAR_AIM_HOLD_S := 0.3         ## s que el movimiento no vuelve a girar al personaje
 
 const CROSSHAIR_ASSIST_DEG := 20.0    ## cono de ayuda alrededor de la crosshair (mazmorra)
@@ -440,10 +473,18 @@ func face_locked_target() -> bool:
 
 ## Mazmorra: orienta a Mikeura hacia el objetivo fijado o el enemigo más alineado.
 func _face_soft_aim() -> void:
-	if GameData.game_mode == "dungeon" and player and player.mesh:
+	if player == null or player.mesh == null:
+		return
+	if GameData.game_mode == "dungeon":
 		var aim_dir = get_soft_aim_direction()
 		if aim_dir.length_squared() > 0.01:
 			_face_dir(aim_dir, SPEAR_AIM_HOLD_S)
+	elif player.get("spring_arm"):
+		# Supervivencia: el personaje camina libre, pero cada ataque sale hacia donde mira la camara
+		var f: Vector3 = -player.spring_arm.global_transform.basis.z
+		f.y = 0.0
+		if f.length_squared() > 0.01:
+			_face_dir(f.normalized(), ATTACK_FACE_HOLD_S)
 
 ## Gira al personaje hacia `dir` y evita que el movimiento lo vuelva a girar durante `hold_s`.
 func _face_dir(dir: Vector3, hold_s: float) -> void:
@@ -453,7 +494,7 @@ func _face_dir(dir: Vector3, hold_s: float) -> void:
 		mc.face_lock_until = maxf(mc.face_lock_until, Time.get_ticks_msec() / 1000.0 + hold_s)
 
 func buffer_attack() -> void:
-	if spear_charge >= 0.0: return
+	if spear_charge >= 0.0 or is_bow_charging(): return
 	_attack_buffer_timer = INPUT_BUFFER_TIME
 	_try_consume_buffered_attack()
 

@@ -18,6 +18,8 @@ const FULL_HP := 0.9    ## "hp_full": a partir de esta fracción
 const SLOTS := ["casco", "pechera", "pantalones", "talisman_1", "talisman_2"]
 const BAG_MAX := 8
 const SAVE_KEY := "equipment"
+## Por ahora no se conserva ningún objeto al morir: cada partida empieza sin equipo. Ponlo en true para reactivarlo.
+const PERSIST_LOADOUT := false
 
 var player: Node
 var equipped: Dictionary = {}        ## ranura -> pieza
@@ -27,6 +29,47 @@ var _buffs: Dictionary = {}          ## uid de la pieza -> {stats, until} (bonus
 var _perk_ready: Dictionary = {}     ## uid -> instante en que su efecto vuelve a estar listo
 ## false en pruebas que no quieren tocar el guardado.
 var persist := true
+
+# Estado de los rasgos de la Fase 2 del plan de loot (ver LootHits)
+var last_parry_t := -100.0            ## instante del último parry (rasgo "contra")
+var last_dodge_t := -100.0            ## instante de la última esquiva (rasgo "bailarin")
+var chain_stacks := 0                 ## golpes seguidos (fabricante Arriero)
+var chain_last_t := -100.0
+var vacio_ready_t := 0.0              ## regla "vacio": cuándo vuelve a absorber un golpe
+var cazador_armed := false            ## regla "cazador": el siguiente golpe aturde
+
+## ¿Lleva puesta (o en la mano) una legendaria con la regla `rule`?
+func has_rule(rule: String) -> bool:
+	for it in active_items():
+		if EquipmentDB.rule_of(it) == rule:
+			return true
+	return false
+
+## Daño extra de la cadena del Arriero (0 si el arma no es suya o se cortó).
+func chain_bonus() -> float:
+	var m := EquipmentDB.maker_of(weapon_in_hand())
+	if String(weapon_in_hand().get("maker", "")) != "arriero" or _now() - chain_last_t > float(m["window"]):
+		return 0.0
+	return float(m["per"]) * mini(chain_stacks, int(m["max"]))
+
+func add_chain() -> void:
+	var m := EquipmentDB.maker_of(weapon_in_hand())
+	if m.is_empty():
+		return
+	if _now() - chain_last_t > float(m.get("window", 1.5)):
+		chain_stacks = 0
+	chain_stacks = mini(chain_stacks + 1, int(m.get("max", 8)))
+	chain_last_t = _now()
+
+func reset_chain() -> void:
+	chain_stacks = 0
+
+## Regla "vacio": true si este golpe se absorbe (y la gasta durante 8 s).
+func absorb_hit() -> bool:
+	if not has_rule("vacio") or _now() < vacio_ready_t:
+		return false
+	vacio_ready_t = _now() + LootHits.VACIO_COOLDOWN
+	return true
 
 func _ready() -> void:
 	if player == null:
@@ -44,7 +87,7 @@ func start_run() -> void:
 	_buffs.clear()
 	_perk_ready.clear()
 	var saved: Variant = SaveManager.meta.get(SAVE_KEY, {})
-	if saved is Dictionary:
+	if PERSIST_LOADOUT and saved is Dictionary:
 		for slot in SLOTS:
 			var it := EquipmentDB.sanitize(saved.get(slot))
 			if not it.is_empty() and EquipmentDB.slots_for(it).has(slot):
@@ -187,6 +230,12 @@ func notify(event: String) -> void:
 	if player == null:
 		return
 	var now := _now()
+	match event:
+		"parry": last_parry_t = now
+		"dodge":
+			last_dodge_t = now
+			LootHits.on_dodge(self)
+		"hurt": reset_chain()
 	for src in perk_sources():
 		var perk: Dictionary = src["perk"]
 		if String(perk.get("trigger", "")) != event:
@@ -341,6 +390,8 @@ func receive(item: Dictionary) -> String:
 				equip(item, slot)
 				result = "equipped"
 				break
+	if result != "full":
+		RunLog.received(item)
 	if result == "bag":
 		if bag.size() >= BAG_MAX:
 			result = "full"
@@ -355,6 +406,7 @@ func receive(item: Dictionary) -> String:
 func equip(item: Dictionary, slot: String = "") -> bool:
 	if item.is_empty():
 		return false
+	RunLog.equipped(item)
 	var idx := _bag_index(item)
 	if idx >= 0:
 		bag.remove_at(idx)
@@ -446,7 +498,7 @@ func _changed() -> void:
 
 ## Guarda SOLO lo equipado (y el arma de la mano, que pasa a ser el arma inicial).
 func save() -> void:
-	if not persist or _is_test_with_real_save():
+	if not PERSIST_LOADOUT or not persist or _is_test_with_real_save():
 		return
 	var data := {}
 	for slot in equipped:
@@ -472,7 +524,7 @@ func _is_test_with_real_save() -> bool:
 static func saved_loadout() -> Dictionary:
 	var out := {}
 	var saved: Variant = SaveManager.meta.get(SAVE_KEY, {})
-	if saved is Dictionary:
+	if PERSIST_LOADOUT and saved is Dictionary:
 		for slot in SLOTS + ["arma"]:
 			var it := EquipmentDB.sanitize(saved.get(slot))
 			if not it.is_empty():

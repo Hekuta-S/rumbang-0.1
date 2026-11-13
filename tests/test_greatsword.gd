@@ -109,12 +109,12 @@ func _ready() -> void:
 	# 3. Andar -> correr: tras GS_RUN_DELAY s moviéndose sin combate; daño, golpe y rodada lo cortan
 	mc.note_combat()
 	assert(not mc.gs_running(), "Recién hecho un golpe: anda")
-	for i in 20:
-		mc._update_gs_gait(0.1, true)       # 2,0 s caminando
+	for i in int(PlayerMovementController.GS_RUN_DELAY * 10.0) + 3:
+		mc._update_gs_gait(0.1, true)       # GS_RUN_DELAY + 0,3 s caminando
 	assert(mc.gs_running(), "Tras %.1f s sin combate corre" % PlayerMovementController.GS_RUN_DELAY)
 	_player.take_damage(1.0)
 	assert(not mc.gs_running() and mc.gs_calm == 0.0, "Recibir daño lo devuelve a andar")
-	for i in 20:
+	for i in int(PlayerMovementController.GS_RUN_DELAY * 10.0) + 3:
 		mc._update_gs_gait(0.1, true)
 	assert(mc.gs_running(), "Vuelve a correr")
 	mc._dodge_cooldown_timer = 0.0

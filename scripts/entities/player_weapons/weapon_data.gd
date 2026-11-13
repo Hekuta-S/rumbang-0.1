@@ -62,6 +62,8 @@ enum WeaponType {
 	MACE = 16,
 	GREATSWORD = 17,
 	SWORD = 18,
+	BOW = 19,
+	KATANA = 20,   ## arma mítica: Katana de Sangre (solo como legendaria de rareza Mítica)
 }
 
 ## ---------------------------------------------------------------------------
@@ -130,6 +132,14 @@ static func _build_weapon_table() -> Dictionary:
 		# Espada de una mano: combo de cuatro golpes más ligeros que el espadón; anda y corre como él.
 		WeaponType.SWORD: WeaponDirector.construct_melee(
 				WeaponBuilder.new(18, "Espada", "🗡️", "melee"), 15.0, 0.50, 3.0, 75.0),
+
+		# Arco: flechas rápidas a distancia (tercera seguida = triple) y disparo cargado que atraviesa (BowStrategy).
+		WeaponType.BOW: WeaponDirector.construct_ranged(
+				WeaponBuilder.new(19, "Arco", "🏹", "ranged"), 13.0, 0.45, 34.0, 30.0),
+
+		# Katana (mítica): combo de cuatro tajos rápidos con la guardia y la locomoción del espadón, y un especial.
+		WeaponType.KATANA: WeaponDirector.construct_melee(
+				WeaponBuilder.new(20, "Katana de Sangre", "🗡️", "melee"), 20.0, 0.55, 3.4, 80.0),
 	}
 	return table
 ## ---------------------------------------------
@@ -193,6 +203,8 @@ static var weapon_names: Dictionary = {
 	WeaponType.MACE: "Maza Rúnica",
 	WeaponType.GREATSWORD: "Espadón",
 	WeaponType.SWORD: "Espada",
+	WeaponType.BOW: "Arco",
+	WeaponType.KATANA: "Katana de Sangre",
 }
 
 ## Icono por arma (HUD / señales).
@@ -212,6 +224,8 @@ static var weapon_icons: Dictionary = {
 	WeaponType.MACE: "🔨",
 	WeaponType.GREATSWORD: "⚔️",
 	WeaponType.SWORD: "🗡️",
+	WeaponType.BOW: "🏹",
+	WeaponType.KATANA: "🗡️",
 }
 
 ## Daño con Berserk aplicado según la ficha (mismos valores que los literales).

@@ -1,6 +1,7 @@
 ## character_select.gd — Personalización del personaje (único personaje jugable, ver CharacterLook).
 ## Vista previa 3D a la izquierda; a la derecha nombre, colores, accesorios y proporciones. Cada cambio
 ## se ve al momento; al empezar la partida se guarda en user://personaje.cfg.
+class_name CharacterSelect
 extends Control
 
 const Style := preload("res://scripts/ui/rumbang_style.gd")
@@ -9,7 +10,7 @@ const SWATCH := Vector2(26, 26)
 ## Zona a la que se acerca la cámara al tocar cada opción
 const FOCUS := {
 	"hair": "face", "eyes": "face", "hat": "face", "hat2": "face", "head": "face", "hair_style": "face",
-	"underwear": "torso", "waistband": "torso",
+	"underwear": "torso", "waistband": "torso", "shirt": "torso", "pants": "legs",
 	"shoes": "feet", "shoes_accent": "feet", "sole": "feet", "footwear": "feet",
 }
 
@@ -20,15 +21,27 @@ var _pickers: Dictionary = {}        ## ranura -> ColorPickerButton
 var _options: Dictionary = {}        ## "hat"/"footwear" -> OptionButton
 var _sliders: Dictionary = {}        ## proporción -> HSlider
 var _value_labels: Dictionary = {}   ## proporción -> Label
+## Primera partida: la creación va ANTES de la invocación (título -> crear personaje -> tutorial del patio).
+## Sin botón de atrás, empieza con la espada y al confirmar sigue al tutorial en vez de a una partida.
+static var creation := false
+const TUTORIAL := "res://scenes/core/tutorial_patio.tscn"
+
 var _btn_start: Button
+var _btn_back: Button
 var _syncing := false
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	theme = Style.get_theme()
+	if creation:
+		GameData.game_mode = "dungeon"
+		GameData.set_dungeon_weapon(WeaponData.WeaponType.SWORD)   # la primera arma es una espada
 	GameData.selected_index = GameData.custom_index()
 	_look = CharacterLook.current().duplicate_look()
 	_build_ui()
+	if creation:
+		_btn_start.text = "CONFIRMAR E INVOCAR"
+		_btn_back.visible = false
 	CharacterPreview.preload_all(CharacterLook.CHAR_ID)
 	_preview.look = _look
 	_preview.show_character(CharacterLook.CHAR_ID, Style.ACCENT)
@@ -79,6 +92,7 @@ func _build_ui() -> void:
 	var btn_back := Style.make_button("← ATRÁS", Style.BTN_BORDER, Vector2(160, 42))
 	btn_back.pressed.connect(_on_back)
 	header.add_child(btn_back)
+	_btn_back = btn_back
 
 	var body := HBoxContainer.new()
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -166,8 +180,9 @@ func _build_editor() -> Control:
 	vb.add_child(_option_row("hair_style", "Peinado", CharacterLook.HAIR_STYLES))
 
 	vb.add_child(_section("ACCESORIOS"))
-	vb.add_child(_option_row("hat", "Gorro", CharacterLook.HATS))
-	vb.add_child(_option_row("footwear", "Calzado", CharacterLook.FOOTWEAR))
+	vb.add_child(_option_row("footwear", "Calzado", CharacterLook.footwear_options()))
+	vb.add_child(_option_row("shirt", "Camiseta", CharacterLook.shirt_options()))
+	vb.add_child(_option_row("pants", "Pantalón", CharacterLook.pants_options()))
 
 	vb.add_child(_section("COLORES"))
 	for s in CharacterLook.COLOR_SLOTS:
@@ -179,6 +194,8 @@ func _build_editor() -> Control:
 	var c := GameData.get_selected()
 	var w: int = int(GameData.initial_weapons()[0])
 	info.text = "Arma inicial: %s    Pasiva: %s" % [WeaponData.weapon_names.get(w, "Arma"), c.get("passive_name", "—")]
+	if GameData.start_tome() != "":
+		info.text += "    Tomo inicial: %s" % TomeDB.tome_name(GameData.start_tome())
 	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info.add_theme_font_size_override("font_size", 13)
 	info.add_theme_color_override("font_color", Style.TEXT_DIM)
@@ -305,7 +322,10 @@ func _sync_controls() -> void:
 
 func _changed(key: String = "") -> void:
 	_preview.apply_look(_look)
-	_preview.focus(FOCUS.get(key, "full"))
+	var shot: String = FOCUS.get(key, "full")
+	if shot != "full":
+		_preview.zoom_shot = shot
+	_preview.focus(shot)
 
 # ───────────────────────────── acciones ─────────────────────────────
 
@@ -314,8 +334,15 @@ func _on_start() -> void:
 	_look.save()
 	CharacterLook.set_current(_look)
 	GameData.selected_index = GameData.custom_index()
+	if creation:
+		creation = false
+		DungeonHub.set_character_created(true)
+		SceneLoader.load_scene(TUTORIAL)
+		return
 	var scene := Net.game_scene() if GameData.game_mode == "dungeon" else "res://scenes/core/main_procedural.tscn"
 	SceneLoader.load_scene(scene)
 
 func _on_back() -> void:
+	if creation:
+		return   # la primera vez no se puede salir sin crear el personaje
 	SceneLoader.load_scene("res://scenes/ui/dungeon_hub.tscn")   # el Salón es el menú principal

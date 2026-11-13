@@ -1,9 +1,10 @@
 extends Node
 
-## Editor visual del agarre de espadones, dagas, mazas y espadas, y de las ventanas de daño de sus ataques.
+## Editor visual del agarre de espadones, dagas, mazas, espadas y arcos (mano izquierda), y de las ventanas de daño de sus ataques.
 ## Abrir tools/melee_grip_editor.tscn (o greatsword_grip_editor.tscn) con F6, con ventana normal (no headless).
 ##
-## Panel izquierdo — AGARRE: elige arma, modelo (y mano, en las dagas), mueve posición/rotación. Guardar escribe
+## Panel izquierdo — AGARRE: elige arma, modelo (y mano, en las dagas), mueve posición/rotación/escala, a mano o con
+## el gizmo sobre el arma (como el editor de ropa: W mover, E rotar, R escalar). H / Tab ocultan los paneles. Guardar escribe
 ## resources/greatsword_grip.json, dagger_grip.json, mace_grip.json y sword_grip.json.
 ## Panel inferior — VENTANAS DE DAÑO: elige un ataque de la lista y recórrelo fotograma a fotograma (30 fps). Las
 ## franjas rojas son los fotogramas en los que el arma hace daño: arrastra sus bordes o pulsa I / O para poner el
@@ -28,10 +29,12 @@ const CAT_GS := 0
 const CAT_DAGGER := 1
 const CAT_MACE := 2
 const CAT_SWORD := 3
-const CAT_COUNT := 4
-const CAT_NAMES := ["Espadones", "Dagas", "Mazas", "Espadas"]
+const CAT_BOW := 4
+const CAT_KATANA := 5
+const CAT_COUNT := 6
+const CAT_NAMES := ["Espadones", "Dagas", "Mazas", "Espadas", "Arcos", "Katanas"]
 ## Prefijo de las acciones de combo de cada categoría (PlayerAnimationController.MELEE_ACTIONS).
-const CAT_ANIM_PREFIX := ["gs", "dagger", "mace", "sw"]
+const CAT_ANIM_PREFIX := ["gs", "dagger", "mace", "sw", "bow", "kt"]
 const SPEEDS := [["0,25×", 0.25], ["0,5×", 0.5], ["1× (juego)", 1.0]]
 
 # Paleta
@@ -95,6 +98,10 @@ var _pos_spins: Array[SpinBox] = []
 var _rot_spins: Array[SpinBox] = []
 var _pos_sliders: Array[HSlider] = []
 var _rot_sliders: Array[HSlider] = []
+var _scl_spins: Array[SpinBox] = []
+var _scl_sliders: Array[HSlider] = []
+var _ui_layer: CanvasLayer
+var _hide_hint: Label
 var _status: Label
 var _status_dot: Panel
 var _anim_list: ItemList
@@ -154,7 +161,7 @@ func _run() -> void:
 	_vis = _player.weapon_visuals
 	if _vis == null or not _vis.has_method("set_greatsword_grip") \
 			or not _vis.has_method("set_dagger_grip") or not _vis.has_method("set_mace_grip") \
-			or not _vis.has_method("set_sword_grip"):
+			or not _vis.has_method("set_sword_grip") or not _vis.has_method("set_bow_grip"):
 		_fail("PlayerWeaponVisuals no expone los ajustes de agarre.")
 		return
 	_cat = CAT_GS
@@ -296,8 +303,12 @@ func _process(delta: float) -> void:
 	var offset := Vector3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch)) * _dist
 	_cam.global_position = target + offset
 	_cam.look_at(target, Vector3.UP)
+	_update_gizmo()
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _gizmo_input(event):
+		get_viewport().set_input_as_handled()
+		return
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		match mb.button_index:
@@ -341,6 +352,20 @@ func _unhandled_input(event: InputEvent) -> void:
 			_set_edge_at_head(0)
 		elif key.keycode == KEY_O:
 			_set_edge_at_head(1)
+		elif key.keycode == KEY_H or key.keycode == KEY_TAB:
+			_toggle_ui()
+		elif key.keycode == KEY_W and not key.ctrl_pressed:
+			_set_gizmo_mode(GIZMO_MOVE)
+		elif key.keycode == KEY_E and not key.ctrl_pressed:
+			_set_gizmo_mode(GIZMO_ROTATE)
+		elif key.keycode == KEY_R and not key.ctrl_pressed:
+			_set_gizmo_mode(GIZMO_SCALE)
+		elif key.keycode == KEY_X:
+			_local_check.button_pressed = not _local_check.button_pressed
+		elif key.keycode == KEY_Z and key.ctrl_pressed:
+			_undo_grip()
+		elif key.keycode == KEY_ESCAPE and _gz_drag >= 0:
+			_cancel_gizmo_drag()
 		else:
 			handled = false
 		if handled:
@@ -427,6 +452,7 @@ func _make_theme() -> Theme:
 func _build_ui() -> void:
 	_theme = _make_theme()
 	var layer := CanvasLayer.new()
+	_ui_layer = layer
 	layer.name = "GripEditorUI"
 	layer.layer = 100
 	add_child(layer)
@@ -445,6 +471,18 @@ func _build_ui() -> void:
 	_hand_row.visible = _cat == CAT_DAGGER
 	_refresh_skin_select()
 	_show_values(_current_entry())
+	# Aviso con el menú oculto (en su propia capa)
+	var hint_layer := CanvasLayer.new()
+	hint_layer.layer = 101
+	add_child(hint_layer)
+	_hide_hint = Label.new()
+	_hide_hint.text = "Menú oculto · H para mostrar"
+	_hide_hint.position = Vector2(UI_MARGIN, UI_MARGIN)
+	_hide_hint.add_theme_color_override("font_color", Color(1, 1, 1, 0.55))
+	_hide_hint.visible = false
+	hint_layer.add_child(_hide_hint)
+	_build_gizmo()
+	_set_gizmo_mode(GIZMO_MOVE)
 
 func _layout() -> void:
 	if _sidebar and _bottom:
@@ -542,6 +580,35 @@ func _build_sidebar(root: Control) -> void:
 	box.add_child(_section("ROTACIÓN  (°)"))
 	for i in 3:
 		_add_axis_row(box, i, -180.0, 180.0, 1.0, "°", _rot_spins, _rot_sliders)
+	box.add_child(_section("ESCALA  (×)"))
+	for i in 3:
+		_add_axis_row(box, i, 0.05, 4.0, 0.01, "×", _scl_spins, _scl_sliders)
+
+	# — Gizmo —
+	box.add_child(_section("GIZMO"))
+	var gz_row := HBoxContainer.new()
+	gz_row.add_theme_constant_override("separation", 4)
+	for m in 3:
+		var b := Button.new()
+		b.text = GIZMO_MODE_NAMES[m]
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.pressed.connect(_set_gizmo_mode.bind(m))
+		gz_row.add_child(b)
+		_gz_buttons.append(b)
+	box.add_child(gz_row)
+	var gz_row2 := HBoxContainer.new()
+	_local_check = CheckButton.new()
+	_local_check.text = "Ejes del arma (X)"
+	_local_check.focus_mode = Control.FOCUS_NONE
+	_local_check.button_pressed = true
+	gz_row2.add_child(_local_check)
+	_snap_check = CheckButton.new()
+	_snap_check.text = "Imán (Ctrl)"
+	_snap_check.focus_mode = Control.FOCUS_NONE
+	gz_row2.add_child(_snap_check)
+	box.add_child(gz_row2)
 
 	# — Acciones —
 	box.add_child(HSeparator.new())
@@ -562,7 +629,8 @@ func _build_sidebar(root: Control) -> void:
 	var reset := _button("Restablecer", "Vuelve al agarre por defecto de la mano (sin guardar)", _on_reset)
 	var reload := _button("Recargar", "Descarta los cambios sin guardar y relee los JSON", _on_reload)
 	var close := _button("Cerrar", "Salir del editor", func() -> void: get_tree().quit(0))
-	for b in [reset, reload, close]:
+	var hide_btn := _button("Ocultar (H)", "Oculta los paneles; H o Tab los vuelven a mostrar", _toggle_ui)
+	for b in [reset, reload, hide_btn, close]:
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		buttons.add_child(b)
 	box.add_child(buttons)
@@ -582,6 +650,7 @@ func _build_sidebar(root: Control) -> void:
 
 	var hint := Label.new()
 	hint.text = "Vista: arrastrar = orbitar · rueda = zoom · botón central = reiniciar\n" \
+		+ "Gizmo: W mover · E rotar · R escalar · X ejes · Ctrl imán · Ctrl+Z deshacer · H / Tab = ocultar menú\n" \
 		+ "Ataque: K = reproducir · ←/→ = fotograma · I / O = inicio / fin del daño"
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint.add_theme_font_size_override("font_size", 11)
@@ -809,6 +878,10 @@ func _model_count(cat: int) -> int:
 			return DaggerModels.count()
 		CAT_SWORD:
 			return SwordModels.count()
+		CAT_BOW:
+			return BowModels.count()
+		CAT_KATANA:
+			return KatanaModels.count()
 		_:
 			return MaceModels.count()
 
@@ -820,6 +893,10 @@ func _model_name(cat: int, skin: int) -> String:
 			return DaggerModels.skin_name(skin)
 		CAT_SWORD:
 			return SwordModels.skin_name(skin)
+		CAT_BOW:
+			return BowModels.skin_name(skin)
+		CAT_KATANA:
+			return KatanaModels.skin_name(skin)
 		_:
 			return MaceModels.skin_name(skin)
 
@@ -831,6 +908,10 @@ func _cat_weapon(cat: int) -> int:
 			return WeaponData.WeaponType.DAGGERS
 		CAT_SWORD:
 			return WeaponData.WeaponType.SWORD
+		CAT_BOW:
+			return WeaponData.WeaponType.BOW
+		CAT_KATANA:
+			return WeaponData.WeaponType.KATANA
 		_:
 			return WeaponData.WeaponType.MACE
 
@@ -842,12 +923,20 @@ func _config_path(cat: int) -> String:
 			return PlayerWeaponVisuals.DAGGER_GRIP_CONFIG_PATH
 		CAT_SWORD:
 			return PlayerWeaponVisuals.SWORD_GRIP_CONFIG_PATH
+		CAT_BOW:
+			return PlayerWeaponVisuals.BOW_GRIP_CONFIG_PATH
+		CAT_KATANA:
+			return PlayerWeaponVisuals.KATANA_GRIP_CONFIG_PATH
 		_:
 			return PlayerWeaponVisuals.MACE_GRIP_CONFIG_PATH
 
 func _default_offset(cat: int) -> Vector3:
 	if cat == CAT_SWORD:
 		return PlayerWeaponVisuals.SWORD_GRIP_OFFSET
+	if cat == CAT_BOW:
+		return PlayerWeaponVisuals.BOW_GRIP_OFFSET
+	if cat == CAT_KATANA:
+		return PlayerWeaponVisuals.KATANA_GRIP_OFFSET
 	return PlayerWeaponVisuals.GS_GRIP_OFFSET if cat == CAT_GS else PlayerWeaponVisuals.MELEE_GRIP_OFFSET
 
 func _active_holder() -> Node3D:
@@ -860,6 +949,10 @@ func _active_holder() -> Node3D:
 			return _vis.dagger_holder(_hand)
 		CAT_SWORD:
 			return _vis.sword_holder()
+		CAT_BOW:
+			return _vis.bow_holder()
+		CAT_KATANA:
+			return _vis.katana_holder()
 		_:
 			return _vis.mace_holder()
 
@@ -885,11 +978,18 @@ func _load_values(cat: int = -1) -> void:
 		CAT_SWORD:
 			for i in SwordModels.count():
 				_values[cat][i] = PlayerWeaponVisuals.sword_grip_values(i)
+		CAT_BOW:
+			for i in BowModels.count():
+				_values[cat][i] = PlayerWeaponVisuals.bow_grip_values(i)
+		CAT_KATANA:
+			for i in KatanaModels.count():
+				_values[cat][i] = PlayerWeaponVisuals.katana_grip_values(i)
 
 func _current_values() -> Dictionary:
 	return {
 		"pos": Vector3(_pos_spins[0].value, _pos_spins[1].value, _pos_spins[2].value),
 		"rot": Vector3(_rot_spins[0].value, _rot_spins[1].value, _rot_spins[2].value),
+		"scale": Vector3(_scl_spins[0].value, _scl_spins[1].value, _scl_spins[2].value),
 	}
 
 func _current_entry() -> Dictionary:
@@ -901,9 +1001,11 @@ func _show_values(value: Dictionary) -> void:
 	_syncing = true
 	var pos: Vector3 = value["pos"]
 	var rot: Vector3 = value["rot"]
+	var scl: Vector3 = value.get("scale", Vector3.ONE)
 	for i in 3:
 		_pos_spins[i].value = pos[i]
 		_rot_spins[i].value = rot[i]
+		_scl_spins[i].value = scl[i]
 	_syncing = false
 
 func _store_current() -> void:
@@ -918,17 +1020,21 @@ func _apply_entry() -> void:
 	var value := _current_entry()
 	match _cat:
 		CAT_GS:
-			_vis.set_greatsword_grip(value["pos"], value["rot"])
+			_vis.set_greatsword_grip(value["pos"], value["rot"], value.get("scale", Vector3.ONE))
 		CAT_DAGGER:
-			_vis.set_dagger_grip(_hand, value["pos"], value["rot"])
+			_vis.set_dagger_grip(_hand, value["pos"], value["rot"], value.get("scale", Vector3.ONE))
 		CAT_SWORD:
-			_vis.set_sword_grip(value["pos"], value["rot"])
+			_vis.set_sword_grip(value["pos"], value["rot"], value.get("scale", Vector3.ONE))
+		CAT_BOW:
+			_vis.set_bow_grip(value["pos"], value["rot"], value.get("scale", Vector3.ONE))
+		CAT_KATANA:
+			_vis.set_katana_grip(value["pos"], value["rot"], value.get("scale", Vector3.ONE))
 		_:
-			_vis.set_mace_grip(value["pos"], value["rot"])
+			_vis.set_mace_grip(value["pos"], value["rot"], value.get("scale", Vector3.ONE))
 
 func _apply_dagger_hand(hand: String) -> void:
 	var value: Dictionary = _values[CAT_DAGGER][_skin][hand]
-	_vis.set_dagger_grip(hand, value["pos"], value["rot"])
+	_vis.set_dagger_grip(hand, value["pos"], value["rot"], value.get("scale", Vector3.ONE))
 
 func _refresh_skin_select() -> void:
 	_skin_select.clear()
@@ -964,6 +1070,11 @@ func _apply_skin() -> void:
 		CAT_SWORD:
 			GameData.sword_skin = _skin
 			_vis.set_sword_skin(_skin)
+		CAT_BOW:
+			GameData.bow_skin = _skin
+			_vis.set_bow_skin(_skin)
+		CAT_KATANA:
+			_vis.set_katana_skin(_skin)
 	_show_values(_current_entry())
 	if _cat == CAT_DAGGER:
 		_apply_dagger_hand("right")
@@ -1013,7 +1124,7 @@ func _windows_equal(a: Array, b: Array) -> bool:
 func _refresh_anim_list() -> void:
 	var prefix: String = CAT_ANIM_PREFIX[_cat]
 	_anim_names.clear()
-	for anim_name in PlayerAnimationController.MELEE_ACTIONS:
+	for anim_name in PlayerAnimationController.MELEE_ACTIONS + PlayerAnimationController.BOW_ACTIONS:
 		if String(anim_name).begins_with(prefix) and _clip(anim_name) != null:
 			_anim_names.append(anim_name)
 	_anim_list.clear()
@@ -1224,6 +1335,8 @@ func _on_freeze_toggled(pressed: bool) -> void:
 
 func _on_fine_toggled(fine: bool) -> void:
 	for i in 3:
+		_scl_spins[i].step = 0.001 if fine else 0.01
+		_scl_sliders[i].step = _scl_spins[i].step
 		_pos_spins[i].step = 0.001 if fine else 0.005
 		_pos_sliders[i].step = _pos_spins[i].step
 		_rot_spins[i].step = 0.1 if fine else 1.0
@@ -1247,6 +1360,10 @@ func _on_category_selected(index: int) -> void:
 		_skin = _player.dagger_skin()
 	elif _cat == CAT_SWORD:
 		_skin = _player.sword_skin()
+	elif _cat == CAT_BOW:
+		_skin = _player.bow_skin()
+	elif _cat == CAT_KATANA:
+		_skin = 0
 	else:
 		_skin = _player.mace_skin()
 	_hand = "right"
@@ -1290,6 +1407,7 @@ func _on_reset() -> void:
 	var entry := _current_entry()
 	entry["pos"] = _default_offset(_cat)
 	entry["rot"] = Vector3.ZERO
+	entry["scale"] = Vector3.ONE
 	_show_values(entry)
 	_apply_entry()
 	_grip_dirty = true
@@ -1305,6 +1423,10 @@ func _on_reload() -> void:
 			PlayerWeaponVisuals.reload_mace_grip_config()
 		CAT_SWORD:
 			PlayerWeaponVisuals.reload_sword_grip_config()
+		CAT_BOW:
+			PlayerWeaponVisuals.reload_bow_grip_config()
+		CAT_KATANA:
+			PlayerWeaponVisuals.reload_katana_grip_config()
 	_load_values(_cat)
 	_apply_skin()
 	PlayerAnimationController.reload_attack_windows_config()
@@ -1326,6 +1448,7 @@ func _on_save() -> void:
 	PlayerWeaponVisuals.reload_dagger_grip_config()
 	PlayerWeaponVisuals.reload_mace_grip_config()
 	PlayerWeaponVisuals.reload_sword_grip_config()
+	PlayerWeaponVisuals.reload_bow_grip_config()
 	PlayerAnimationController.reload_attack_windows_config()
 	var ac = _player.animation_controller
 	if ac and ac.has_method("refresh_hit_windows"):
@@ -1393,6 +1516,14 @@ func _save_category(cat: int) -> bool:
 			for i in SwordModels.count():
 				var id := String(SwordModels.skin(i)["id"])
 				config[id] = _to_json_values(_values[cat][i])
+		CAT_BOW:
+			for i in BowModels.count():
+				var id := String(BowModels.skin(i)["id"])
+				config[id] = _to_json_values(_values[cat][i])
+		CAT_KATANA:
+			for i in KatanaModels.count():
+				var id := String(KatanaModels.skin(i)["id"])
+				config[id] = _to_json_values(_values[cat][i])
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	if file == null:
 		_set_status("ERROR al escribir %s: %s" % [path, error_string(FileAccess.get_open_error())], C_ERR)
@@ -1405,7 +1536,419 @@ func _save_category(cat: int) -> bool:
 func _to_json_values(value: Dictionary) -> Dictionary:
 	var pos: Vector3 = value["pos"]
 	var rot: Vector3 = value["rot"]
-	return {
+	var scl: Vector3 = value.get("scale", Vector3.ONE)
+	var out := {
 		"pos": [pos.x, pos.y, pos.z],
 		"rot": [rot.x, rot.y, rot.z],
 	}
+	if not scl.is_equal_approx(Vector3.ONE):
+		out["scale"] = [scl.x, scl.y, scl.z]
+	return out
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Gizmo (como el editor de ropa): W = mover, E = rotar, R = escalar sobre el arma
+# ══════════════════════════════════════════════════════════════════════════════
+## Mover y rotar trabajan en el mundo y se traducen a pos/rot del agarre; escalar, en los ejes del arma (la escala
+## va en el modelo, antes de la rotación del agarre). X = ejes del arma / del mundo (escalar siempre en los del arma).
+
+const GIZMO_MOVE := 0
+const GIZMO_ROTATE := 1
+const GIZMO_SCALE := 2
+const GIZMO_MODE_NAMES := ["Mover (W)", "Rotar (E)", "Escalar (R)"]
+const GIZMO_K := 0.11
+const GIZMO_PICK_PX := 12.0
+const GIZMO_SNAP_MOVE := 0.005
+const GIZMO_SNAP_ROT := 5.0
+const GIZMO_SNAP_SCALE := 0.05
+const C_CENTER := Color(0.95, 0.95, 0.95)
+
+var _gizmo: Node3D
+var _gz: Array[Node3D] = []
+var _gz_mats: Array = []
+var _gz_buttons: Array[Button] = []
+var _local_check: CheckButton
+var _snap_check: CheckButton
+var _gz_mode := GIZMO_MOVE
+var _gz_hover := -1
+var _gz_drag := -1
+var _gz_undo: Array = []
+# Estado al empezar a arrastrar
+var _d_axes: Array[Vector3] = []
+var _d_origin := Vector3.ZERO
+var _d_gs := 1.0
+var _d_entry: Dictionary = {}
+var _d_global := Transform3D.IDENTITY
+var _d_t0 := 0.0
+var _d_hit0 := Vector3.ZERO
+var _d_u := Vector3.ZERO
+var _d_v := Vector3.ZERO
+var _d_prev := 0.0
+var _d_total := 0.0
+var _d_dist0 := 1.0
+
+func _toggle_ui() -> void:
+	if _ui_layer == null:
+		return
+	_ui_layer.visible = not _ui_layer.visible
+	_hide_hint.visible = not _ui_layer.visible
+
+func _gz_mat(color: Color) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.no_depth_test = true
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.albedo_color = color
+	m.render_priority = 100
+	return m
+
+func _gz_add(parent: Node3D, mesh: Mesh, mat: Material, xf: Transform3D) -> void:
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = mat
+	mi.transform = xf
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(mi)
+
+func _build_gizmo() -> void:
+	_gizmo = Node3D.new()
+	_gizmo.name = "GripGizmo"
+	_main.add_child(_gizmo)
+	for m in 3:
+		var holder := Node3D.new()
+		_gizmo.add_child(holder)
+		_gz.append(holder)
+		_gz_mats.append([])
+	var axes := [Vector3.RIGHT, Vector3.UP, Vector3.BACK]
+	for i in 3:
+		var a: Vector3 = axes[i]
+		var to_axis := Basis(Quaternion(Vector3.UP, a))
+		var mv := _gz_mat(AXIS_COLORS[i])
+		(_gz_mats[GIZMO_MOVE] as Array).append(mv)
+		var shaft := CylinderMesh.new()
+		shaft.top_radius = 0.022
+		shaft.bottom_radius = 0.022
+		shaft.height = 0.78
+		shaft.radial_segments = 8
+		_gz_add(_gz[GIZMO_MOVE], shaft, mv, Transform3D(to_axis, a * 0.39))
+		var cone := CylinderMesh.new()
+		cone.top_radius = 0.0
+		cone.bottom_radius = 0.075
+		cone.height = 0.22
+		cone.radial_segments = 12
+		_gz_add(_gz[GIZMO_MOVE], cone, mv, Transform3D(to_axis, a * 0.89))
+		var rt := _gz_mat(AXIS_COLORS[i])
+		(_gz_mats[GIZMO_ROTATE] as Array).append(rt)
+		var ring := TorusMesh.new()
+		ring.inner_radius = 0.965
+		ring.outer_radius = 1.0
+		ring.rings = 64
+		ring.ring_segments = 8
+		_gz_add(_gz[GIZMO_ROTATE], ring, rt, Transform3D(to_axis, Vector3.ZERO))
+		var sc := _gz_mat(AXIS_COLORS[i])
+		(_gz_mats[GIZMO_SCALE] as Array).append(sc)
+		var sshaft := CylinderMesh.new()
+		sshaft.top_radius = 0.022
+		sshaft.bottom_radius = 0.022
+		sshaft.height = 0.85
+		sshaft.radial_segments = 8
+		_gz_add(_gz[GIZMO_SCALE], sshaft, sc, Transform3D(to_axis, a * 0.425))
+		var cube := BoxMesh.new()
+		cube.size = Vector3.ONE * 0.13
+		_gz_add(_gz[GIZMO_SCALE], cube, sc, Transform3D(Basis.IDENTITY, a * 0.92))
+	var c_move := _gz_mat(Color(C_CENTER, 0.9))
+	(_gz_mats[GIZMO_MOVE] as Array).append(c_move)
+	var ball := SphereMesh.new()
+	ball.radius = 0.075
+	ball.height = 0.15
+	_gz_add(_gz[GIZMO_MOVE], ball, c_move, Transform3D.IDENTITY)
+	var c_scale := _gz_mat(Color(C_CENTER, 0.9))
+	(_gz_mats[GIZMO_SCALE] as Array).append(c_scale)
+	var cbox := BoxMesh.new()
+	cbox.size = Vector3.ONE * 0.16
+	_gz_add(_gz[GIZMO_SCALE], cbox, c_scale, Transform3D.IDENTITY)
+
+func _set_gizmo_mode(m: int) -> void:
+	_gz_mode = m
+	for i in 3:
+		_gz[i].visible = i == m
+	for i in _gz_buttons.size():
+		_gz_buttons[i].set_pressed_no_signal(i == m)
+	_refresh_gizmo_colors()
+
+func _refresh_gizmo_colors() -> void:
+	for m in 3:
+		var mats: Array = _gz_mats[m]
+		for i in mats.size():
+			var base: Color = AXIS_COLORS[i] if i < 3 else C_CENTER
+			var hot := (i == _gz_hover and _gz_drag < 0) or (i == _gz_drag and m == _gz_mode)
+			(mats[i] as StandardMaterial3D).albedo_color = Color(base.lightened(0.55), 1.0) if hot else Color(base, 0.9)
+
+func _gizmo_size() -> float:
+	var h := _active_holder()
+	if h == null or _cam == null:
+		return 0.1
+	return _cam.global_position.distance_to(h.global_position) * GIZMO_K
+
+func _gizmo_basis(h: Node3D) -> Basis:
+	if _local_check.button_pressed or _gz_mode == GIZMO_SCALE:
+		return h.global_transform.basis.orthonormalized()
+	return Basis.IDENTITY
+
+func _update_gizmo() -> void:
+	if _gizmo == null:
+		return
+	var h := _active_holder()
+	if h == null or not h.is_visible_in_tree():
+		_gizmo.visible = false
+		return
+	_gizmo.visible = true
+	var gs := _d_gs if _gz_drag >= 0 else _gizmo_size()
+	var b := _gizmo_basis(h) if _gz_drag < 0 else Basis(_d_axes[0], _d_axes[1], _d_axes[2])
+	_gizmo.global_transform = Transform3D(b * Basis.from_scale(Vector3.ONE * gs), h.global_position)
+
+func _gz_axes() -> Array[Vector3]:
+	var b := _gizmo.global_transform.basis
+	return [b.x.normalized(), b.y.normalized(), b.z.normalized()]
+
+func _gz_screen(p: Vector3) -> Variant:
+	if _cam.is_position_behind(p):
+		return null
+	return _cam.unproject_position(p)
+
+func _seg_dist(p: Vector2, a: Vector2, b: Vector2) -> float:
+	var ab := b - a
+	var l2 := ab.length_squared()
+	if l2 < 0.0001:
+		return p.distance_to(a)
+	var t := clampf((p - a).dot(ab) / l2, 0.0, 1.0)
+	return p.distance_to(a + ab * t)
+
+## Asa bajo el ratón: 0-2 = eje X/Y/Z, 3 = centro, -1 = ninguna.
+func _pick_handle(mp: Vector2) -> int:
+	if _gizmo == null or not _gizmo.visible:
+		return -1
+	var o := _gizmo.global_position
+	var gs := _gizmo_size()
+	var axes := _gz_axes()
+	var best := -1
+	var best_d := GIZMO_PICK_PX
+	if _gz_mode != GIZMO_ROTATE:
+		var so: Variant = _gz_screen(o)
+		if so != null and mp.distance_to(so) < GIZMO_PICK_PX:
+			return 3
+		for i in 3:
+			var se: Variant = _gz_screen(o + axes[i] * gs)
+			if so == null or se == null:
+				continue
+			var d := _seg_dist(mp, so, se)
+			if d < best_d:
+				best_d = d
+				best = i
+	else:
+		var to_cam := (_cam.global_position - o).normalized()
+		for i in 3:
+			var u := axes[(i + 1) % 3]
+			var v := axes[(i + 2) % 3]
+			var prev: Variant = null
+			for k in 49:
+				var t := TAU * float(k) / 48.0
+				var dir := u * cos(t) + v * sin(t)
+				var sp: Variant = _gz_screen(o + dir * gs) if dir.dot(to_cam) > -0.12 else null
+				if sp != null and prev != null:
+					var d := _seg_dist(mp, prev, sp)
+					if d < best_d:
+						best_d = d
+						best = i
+				prev = sp
+	return best
+
+func _ray(mp: Vector2) -> Array:
+	return [_cam.project_ray_origin(mp), _cam.project_ray_normal(mp)]
+
+func _axis_t(o: Vector3, a: Vector3, mp: Vector2) -> float:
+	var r := _ray(mp)
+	var ro: Vector3 = r[0]
+	var rd: Vector3 = r[1]
+	var w0 := o - ro
+	var b := a.dot(rd)
+	var c := a.dot(w0)
+	var e := rd.dot(w0)
+	var den := 1.0 - b * b
+	if absf(den) < 0.0001:
+		return NAN
+	return (b * e - c) / den
+
+func _ray_plane(o: Vector3, n: Vector3, mp: Vector2) -> Variant:
+	var r := _ray(mp)
+	var ro: Vector3 = r[0]
+	var rd: Vector3 = r[1]
+	var den := n.dot(rd)
+	if absf(den) < 0.0001:
+		return null
+	return ro + rd * (n.dot(o - ro) / den)
+
+func _ring_angle(o: Vector3, mp: Vector2) -> float:
+	var hit: Variant = _ray_plane(o, _d_axes[_gz_drag], mp)
+	if hit == null:
+		return NAN
+	var vec: Vector3 = (hit as Vector3) - o
+	return atan2(vec.dot(_d_v), vec.dot(_d_u))
+
+func _gz_snap() -> bool:
+	return _snap_check.button_pressed != Input.is_key_pressed(KEY_CTRL)
+
+## Ratón sobre el gizmo: resaltar, empezar/seguir/acabar el arrastre. true = evento consumido.
+func _gizmo_input(event: InputEvent) -> bool:
+	if _gizmo == null:
+		return false
+	if event is InputEventMouseMotion:
+		var mp := (event as InputEventMouseMotion).position
+		if _gz_drag >= 0:
+			_update_gizmo_drag(mp)
+			return true
+		if not _dragging:
+			var h := _pick_handle(mp)
+			if h != _gz_hover:
+				_gz_hover = h
+				_refresh_gizmo_colors()
+		return false
+	if event is InputEventMouseButton and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+		var mb := event as InputEventMouseButton
+		if mb.pressed:
+			var h := _pick_handle(mb.position)
+			if h < 0:
+				return false
+			_begin_gizmo_drag(h, mb.position)
+			return true
+		if _gz_drag >= 0:
+			_gz_drag = -1
+			_refresh_gizmo_colors()
+			return true
+	return false
+
+func _begin_gizmo_drag(h: int, mp: Vector2) -> void:
+	var holder := _active_holder()
+	_gz_undo.append([_cat, _skin, _hand, _current_entry().duplicate()])
+	if _gz_undo.size() > 60:
+		_gz_undo.pop_front()
+	_gz_drag = h
+	_d_axes = _gz_axes()
+	_d_origin = holder.global_position
+	_d_gs = _gizmo_size()
+	_d_entry = _current_entry().duplicate()
+	_d_global = holder.global_transform
+	match _gz_mode:
+		GIZMO_MOVE:
+			if h < 3:
+				_d_t0 = _axis_t(_d_origin, _d_axes[h], mp)
+			else:
+				var hit: Variant = _ray_plane(_d_origin, -_cam.global_transform.basis.z, mp)
+				_d_hit0 = hit if hit != null else _d_origin
+		GIZMO_ROTATE:
+			var n := _d_axes[h]
+			_d_u = n.cross(Vector3.UP)
+			if _d_u.length() < 0.2:
+				_d_u = n.cross(Vector3.RIGHT)
+			_d_u = _d_u.normalized()
+			_d_v = n.cross(_d_u)
+			_d_prev = _ring_angle(_d_origin, mp)
+			_d_total = 0.0
+		GIZMO_SCALE:
+			if h < 3:
+				_d_t0 = _axis_t(_d_origin, _d_axes[h], mp)
+			else:
+				var so: Variant = _gz_screen(_d_origin)
+				_d_dist0 = maxf(mp.distance_to(so) if so != null else 1.0, 24.0)
+	_refresh_gizmo_colors()
+
+func _update_gizmo_drag(mp: Vector2) -> void:
+	var holder := _active_holder()
+	if holder == null:
+		return
+	var parent_inv: Transform3D = (holder.get_parent() as Node3D).global_transform.affine_inverse()
+	var entry: Dictionary = _d_entry.duplicate()
+	var snap := _gz_snap()
+	match _gz_mode:
+		GIZMO_MOVE:
+			var delta_w := Vector3.ZERO
+			if _gz_drag < 3:
+				var t := _axis_t(_d_origin, _d_axes[_gz_drag], mp)
+				if is_nan(t) or is_nan(_d_t0):
+					return
+				var d := t - _d_t0
+				if snap:
+					d = snappedf(d, GIZMO_SNAP_MOVE)
+				delta_w = _d_axes[_gz_drag] * d
+			else:
+				var hit: Variant = _ray_plane(_d_origin, -_cam.global_transform.basis.z, mp)
+				if hit == null:
+					return
+				delta_w = (hit as Vector3) - _d_hit0
+			var pos: Vector3 = parent_inv * (_d_origin + delta_w)
+			if snap and _gz_drag == 3:
+				pos = pos.snapped(Vector3.ONE * GIZMO_SNAP_MOVE)
+			entry["pos"] = pos
+		GIZMO_ROTATE:
+			var ang := _ring_angle(_d_origin, mp)
+			if is_nan(ang) or is_nan(_d_prev):
+				return
+			if absf(_d_axes[_gz_drag].dot(_cam.global_transform.basis.z)) < 0.12:
+				return
+			_d_total += wrapf(ang - _d_prev, -PI, PI)
+			_d_prev = ang
+			var delta := _d_total
+			if snap:
+				delta = snappedf(delta, deg_to_rad(GIZMO_SNAP_ROT))
+			# Base fija del agarre (lo que no es rot/escala): F = B0 · (R0 · S0)⁻¹, en el espacio del padre
+			var b0: Basis = (parent_inv.basis * _d_global.basis)
+			var r0 := Basis.from_euler((_d_entry["rot"] as Vector3) * (PI / 180.0))
+			var s0: Vector3 = _d_entry.get("scale", Vector3.ONE)
+			var f := b0 * (r0 * Basis.from_scale(s0)).inverse()
+			var axis_local: Vector3 = (parent_inv.basis * _d_axes[_gz_drag]).normalized()
+			var b1 := Basis(axis_local, delta) * b0
+			var rs := f.inverse() * b1
+			var r1 := Basis(rs.x.normalized(), rs.y.normalized(), rs.z.normalized()).orthonormalized()
+			entry["rot"] = r1.get_euler() * (180.0 / PI)
+		GIZMO_SCALE:
+			var ratio := 1.0
+			if _gz_drag < 3:
+				var t := _axis_t(_d_origin, _d_axes[_gz_drag], mp)
+				if is_nan(t) or is_nan(_d_t0):
+					return
+				ratio = 1.0 + (t - _d_t0) / _d_gs
+			else:
+				var so: Variant = _gz_screen(_d_origin)
+				if so == null:
+					return
+				ratio = mp.distance_to(so) / _d_dist0
+			ratio = maxf(ratio, 0.02)
+			var scl: Vector3 = _d_entry.get("scale", Vector3.ONE)
+			if _gz_drag < 3:
+				scl[_gz_drag] *= ratio
+			else:
+				scl *= ratio
+			if snap:
+				scl = Vector3(snappedf(scl.x, GIZMO_SNAP_SCALE), snappedf(scl.y, GIZMO_SNAP_SCALE), snappedf(scl.z, GIZMO_SNAP_SCALE))
+			entry["scale"] = scl.clamp(Vector3.ONE * 0.05, Vector3.ONE * 4.0)
+	_show_values(entry)
+	_store_current()
+	_apply_entry()
+	_grip_dirty = true
+	_mark_dirty()
+
+func _cancel_gizmo_drag() -> void:
+	_gz_drag = -1
+	_undo_grip()
+	_refresh_gizmo_colors()
+
+func _undo_grip() -> void:
+	if _gz_undo.is_empty():
+		return
+	var u: Array = _gz_undo.pop_back()
+	if int(u[0]) != _cat or int(u[1]) != _skin or String(u[2]) != _hand:
+		return
+	_show_values(u[3])
+	_store_current()
+	_apply_entry()
+	_grip_dirty = true
+	_mark_dirty()

@@ -214,6 +214,19 @@ const CHARACTERS: Array = [
 ## El resto de fichas siguen aquí pero ocultas; añadir su id para volver a usarlas.
 const UNLOCKED_CHARACTERS: Array[String] = ["riva"]
 
+## Supervivencia se juega con Mikeura (la mazmorra, con el personaje personalizable de arriba).
+const SURVIVAL_UNLOCKED: Array[String] = ["mikeura"]
+
+func is_survival_unlocked(char_id: String) -> bool:
+	return SURVIVAL_UNLOCKED.has(char_id)
+
+## Índice en CHARACTERS del personaje de supervivencia.
+func survival_index() -> int:
+	for i in CHARACTERS.size():
+		if is_survival_unlocked(String(CHARACTERS[i].get("id", ""))):
+			return i
+	return 0
+
 func is_character_unlocked(char_id: String) -> bool:
 	return UNLOCKED_CHARACTERS.has(char_id)
 
@@ -259,11 +272,25 @@ func _ready() -> void:
 # ───────────── Yunque del salón: arma inicial de la mazmorra (personaje personalizable) ─────────────
 ## Armas que se pueden equipar en el yunque del Salón (DungeonHub). La espalanza es la de siempre.
 const DUNGEON_WEAPONS: Array[int] = [WeaponData.WeaponType.SPEAR_LANCE, WeaponData.WeaponType.DAGGERS, WeaponData.WeaponType.MACE,
-	WeaponData.WeaponType.GREATSWORD, WeaponData.WeaponType.SWORD]
+	WeaponData.WeaponType.GREATSWORD, WeaponData.WeaponType.SWORD, WeaponData.WeaponType.BOW, WeaponData.WeaponType.KATANA]
+## Armas que por ahora no salen en supervivencia (sí en la mazmorra): dagas, maza, espadón,
+## espada y arco. La espalanza y el resto de armas siguen disponibles.
+const SURVIVAL_HIDDEN_WEAPONS: Array[int] = [WeaponData.WeaponType.DAGGERS, WeaponData.WeaponType.MACE,
+	WeaponData.WeaponType.GREATSWORD, WeaponData.WeaponType.SWORD, WeaponData.WeaponType.BOW, WeaponData.WeaponType.KATANA]
+
+## ¿Se puede ofrecer esta arma en la partida actual? En supervivencia se ocultan las de
+## SURVIVAL_HIDDEN_WEAPONS; en la mazmorra todas siguen disponibles.
+func weapon_available_in_mode(w: int) -> bool:
+	if game_mode == "dungeon":
+		return true
+	return not SURVIVAL_HIDDEN_WEAPONS.has(w)
+
 ## Modelo de espadón (GreatswordModels) que lleva el yunque cuando no hay uno equipado con otro.
 var greatsword_skin: int = 0
 ## Modelo de espada de una mano (SwordModels), igual que el del espadón.
 var sword_skin: int = 0
+## Modelo de arco (BowModels).
+var bow_skin: int = 0
 ## Modelo de daga (DaggerModels) y de maza (MaceModels) que se muestran en el yunque y en la partida.
 var dagger_skin: int = 0
 var mace_skin: int = 0
@@ -294,6 +321,15 @@ func set_dungeon_weapon(w: int) -> void:
 
 ## Armas con las que empieza la partida: en la mazmorra el personaje personalizable lleva la del yunque;
 ## en supervivencia cada personaje la suya de siempre.
+## Tomo con el que empieza cada personaje en supervivencia (nivel 1, rareza común; ver TomeDB).
+const START_TOMES := {
+	"riva": "poder", "mikeura": "armadura", "heckler": "zancada", "vangry": "regeneracion", "bronch": "area",
+	"tatan": "avaricia", "joel": "saber", "garri": "multiplicidad", "saimon": "celeridad",
+}
+
+func start_tome() -> String:
+	return String(START_TOMES.get(String(get_selected().get("id", "")), ""))
+
 func initial_weapons() -> Array:
 	var c := get_selected()
 	if game_mode == "dungeon" and String(c.get("id", "")) == CharacterLook.CHAR_ID:
@@ -348,6 +384,13 @@ func apply_to_player(player: CharacterBody3D) -> void:
 		"tatan":
 			# Tatan has no dedicated passive yet; fall through with no passive.
 			player.passive = null
+## Suelta lo retenido para la partida (modelos, clips y texturas de enemigos, jefes, mapa y armas). En móvil
+## se llama al volver al Salón: si no, esa memoria seguía ocupada en los menús hasta cerrar el juego.
+func release_run_cache() -> void:
+	cache_preloaded.clear()
+	cache_enemy_models.clear()
+	cache_enemy_textures.clear()
+
 func preload_assets() -> void:
 	var paths = preload_paths()
 	_preload_from(paths)

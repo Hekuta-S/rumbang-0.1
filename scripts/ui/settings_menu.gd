@@ -47,6 +47,8 @@ func _build_ui() -> void:
 	_add_slider(vbox, "Música", SettingsManager.music_vol, _on_music_changed)
 	
 	_add_quality_selector(vbox)
+	if Quality.is_mobile():
+		_add_fps_selector(vbox)
 	_add_attack_marks_toggle(vbox)
 	_add_submenu_button(vbox, "Sensibilidad", _fill_sensitivity)
 	_add_submenu_button(vbox, "Controles táctiles", _fill_touch)
@@ -60,6 +62,7 @@ func _build_ui() -> void:
 	close_btn.custom_minimum_size = Vector2(0, 45)
 	close_btn.pressed.connect(func(): queue_free())
 	vbox.add_child(close_btn)
+	close_btn.grab_focus.call_deferred()
 
 func _add_quality_selector(parent: Control) -> void:
 	var hbox = HBoxContainer.new()
@@ -76,6 +79,22 @@ func _add_quality_selector(parent: Control) -> void:
 		opt.add_item(n)
 	opt.selected = Quality.level()
 	opt.item_selected.connect(_on_quality_changed)
+	hbox.add_child(opt)
+
+## Tope de FPS (solo móvil): Automático / 30 / 60. A 30 el móvil gasta menos batería y se calienta menos.
+func _add_fps_selector(parent: Control) -> void:
+	var hbox = HBoxContainer.new()
+	parent.add_child(hbox)
+	var lbl = Label.new()
+	lbl.text = "Límite de FPS"
+	lbl.custom_minimum_size = Vector2(150, 0)
+	hbox.add_child(lbl)
+	var opt = OptionButton.new()
+	opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for n in ["Automático", "30 FPS (ahorra batería)", "60 FPS"]:
+		opt.add_item(n)
+	opt.selected = [0, 30, 60].find(SettingsManager.mobile_fps)
+	opt.item_selected.connect(func(idx: int): Quality.set_mobile_fps([0, 30, 60][idx]))
 	hbox.add_child(opt)
 
 ## Guarda el nivel y aplica en vivo lo que se puede (resolución 3D, sombras y brillo).
@@ -202,6 +221,7 @@ func _open_subpanel(title_text: String, fill: Callable) -> void:
 	back.custom_minimum_size = Vector2(0, 42)
 	back.pressed.connect(func(): layer.queue_free())
 	outer.add_child(back)
+	back.grab_focus.call_deferred()
 
 ## Deslizador con rango libre y el valor al lado (p. ej. "×1.25").
 func _add_range_slider(parent: Control, label_text: String, min_v: float, max_v: float, start_val: float, callback: Callable) -> void:

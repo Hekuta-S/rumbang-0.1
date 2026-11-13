@@ -4,6 +4,7 @@ extends Node
 ## Eventos de la partida de supervivencia (hijo de WaveManager), para que los 7 minutos tengan ritmo:
 ##  - Cada EVENT_INTERVAL s (EVENT_INTERVAL_ENDLESS en el modo infinito) un evento al azar sin repetir:
 ##      marea  : un muro de enemigos entra desde un lado (HORDE_*)
+##      cerco  : un anillo de goblins se cierra desde todos los lados (RING_*)
 ##      élite  : 1 enemigo grande con modificador (ELITE_MODS); al morir suelta un objeto
 ##      cofre maldito : cofre morado cerca del jugador; abrirlo da un objeto y oro, pero durante
 ##                      CURSE_TIME s salen muchos más enemigos (WaveManager.curse)
@@ -15,7 +16,9 @@ extends Node
 const EVENT_INTERVAL := 90.0
 const EVENT_INTERVAL_ENDLESS := 55.0
 const FIRST_EVENT := 70.0
-const EVENTS := ["horde", "elite", "cursed_chest"]
+const EVENTS := ["horde", "elite", "cursed_chest", "ring"]
+## Formación (cuenta según el tiempo de partida; ver ring_count)
+const RING_DIST := 20.0
 
 const HORDE_BASE := 16
 const HORDE_PER_MINUTE := 3
@@ -38,7 +41,6 @@ const CURSE_TIME := 45.0
 const CURSE_CAP_BONUS := 30          ## enemigos vivos de más mientras dura la maldición
 const CURSE_COLOR := Color(0.75, 0.3, 1.0)
 const CHEST_LIFETIME := 40.0
-const CHEST_GOLD := 60
 
 const SHRINES := 2
 const SHRINE_RADIUS := 3.5
@@ -56,7 +58,7 @@ var _running := false
 var _next_event_t := FIRST_EVENT
 var _last_event := ""
 var _miniboss_done := false
-var _queue: Array = []               ## [pos, tipo, modificador élite ("" = normal)]
+var _queue: Array = []               ## [pos, tipo, modificador élite ("" = normal), rasgo ("" = ninguno)]
 var _elites: Array = []              ## [{enemy, max_hp, marker}]
 var _shrines: Array = []             ## [{node, ring_mat, label, progress, ambushed}]
 var _shrine_respawn: Array = []      ## instantes (s de partida) en que reaparecen
@@ -119,6 +121,7 @@ func _start_random_event() -> void:
 			# Sin tilde: la fuente pixel no tiene "É" mayúscula
 			announce("¡ELITE!" if n == 1 else "¡ELITES!", ELITE_COLOR, "Derrótalo: suelta un objeto")
 		"cursed_chest": _spawn_cursed_chest()
+		"ring": _start_ring()
 
 func _start_horde() -> void:
 	var count := HORDE_BASE + int(_elapsed() / 60.0) * HORDE_PER_MINUTE
@@ -127,16 +130,29 @@ func _start_horde() -> void:
 		var a := base_angle + deg_to_rad(randf_range(-HORDE_ARC_DEG, HORDE_ARC_DEG))
 		var d := HORDE_DIST + randf_range(-2.0, 3.0)
 		var type := EnemyData.EnemyType.ZOMBIE_GOBLIN if randf() < 0.35 else EnemyData.EnemyType.NORMAL_GOBLIN
-		_queue.append([_ground(player.global_position + Vector3(cos(a), 0, sin(a)) * d), type, ""])
+		_queue.append([_ground(player.global_position + Vector3(cos(a), 0, sin(a)) * d), type, "", ""])
 	announce("¡MAREA!", Color(1.0, 0.55, 0.2), "Una horda llega por un flanco")
+
+static func ring_count(t: float) -> int:
+	return clampi(16 + int(t / 60.0) * 3, 16, 40)
+
+## Cerco: anillo completo alrededor del jugador, a RING_DIST, que se cierra al perseguirlo.
+func _start_ring() -> void:
+	var n := ring_count(_elapsed())
+	var off := randf() * TAU
+	for i in n:
+		var a := off + TAU * float(i) / float(n)
+		var type := EnemyData.EnemyType.ZOMBIE_GOBLIN if i % 4 == 0 else EnemyData.EnemyType.NORMAL_GOBLIN
+		_queue.append([_ground(player.global_position + Vector3(cos(a), 0, sin(a)) * RING_DIST), type, "", ""])
+	announce("¡CERCO!", Color(1.0, 0.45, 0.3), "Te rodean: abre un hueco")
 
 func _queue_elite(mod: String, type: int = EnemyData.EnemyType.NORMAL_GOBLIN) -> void:
 	var a := randf() * TAU
-	_queue.append([_ground(player.global_position + Vector3(cos(a), 0, sin(a)) * 16.0), type, mod])
+	_queue.append([_ground(player.global_position + Vector3(cos(a), 0, sin(a)) * 16.0), type, mod, ""])
 
 func _spawn_miniboss() -> void:
 	_queue.append([_ground(player.global_position + Vector3(14, 0, 0).rotated(Vector3.UP, randf() * TAU)),
-		EnemyData.EnemyType.HEAVY_BRUTE, "miniboss"])
+		EnemyData.EnemyType.HEAVY_BRUTE, "miniboss", ""])
 	announce("¡MINIJEFE!", MINIBOSS_COLOR, "El Cacique Goblin se acerca")
 	AudioManager.play("boss_sting", -4.0, 1.25)
 
@@ -145,7 +161,7 @@ func _drain_queue() -> void:
 	while not _queue.is_empty() and budget > 0:
 		budget -= 1
 		var job: Array = _queue.pop_front()
-		var spawned: Array = waves._spawn_single_enemy(job[0], job[1])
+		var spawned: Array = waves._spawn_single_enemy(job[0], job[1], String(job[3]))
 		if job[2] != "" and not spawned.is_empty():
 			make_elite(spawned[0], job[2])
 
@@ -159,6 +175,7 @@ func make_elite(en: EnemyData, mod: String) -> void:
 	en.speed *= float(m["speed"])
 	en.damage *= float(m["damage"])
 	en.gold_reward *= int(m["gold"])
+	en.xp_reward = XpCurve.XP_MINIBOSS if mod == "miniboss" else XpCurve.XP_ELITE
 	en.scale *= float(m["scale"])
 	en.hit_radius = 0.45 * en.scale.x
 	en.hit_height = 1.6 * en.scale.y
@@ -217,8 +234,10 @@ func _on_elite_died(_ref, pos: Vector3, _gold: int, entry: Dictionary) -> void:
 	_drop_marker(entry)
 	_elites.erase(entry)
 	_spawn_item(pos)
+	MapPickup.spawn(get_tree().current_scene, _ground(pos + Vector3(-1.5, 0, 0)), MapPickup.roll_kind())
 	if entry["miniboss"]:
 		_spawn_item(pos + Vector3(1.5, 0, 0))
+		MapPickup.spawn(get_tree().current_scene, _ground(pos + Vector3(0, 0, 1.5)), MapPickup.roll_kind())
 		announce("¡MINIJEFE DERROTADO!", MINIBOSS_COLOR, "")
 	HitFeedback.shake(0.3)
 
@@ -265,14 +284,39 @@ func _open_cursed_chest(chest: Node3D) -> void:
 	var at := chest.global_position
 	chest.queue_free()
 	waves.curse(CURSE_TIME)
-	GameState.get_instance().add_gold(CHEST_GOLD)
 	var scene := get_tree().current_scene
-	if scene and scene.get("facade"):
-		scene.facade.update_gold(GameState.get_instance().gold)
 	NecroVFX.shockwave(scene, at, 6.0, CURSE_COLOR)
 	AudioManager.play("boss_sting", -8.0, 1.6)
-	announce("¡MALDICION!", CURSE_COLOR, "Muchos más enemigos durante %d s" % int(CURSE_TIME))
-	_spawn_item(at)
+	var sb = player.get("stat_block") if is_instance_valid(player) else null
+	var rewards := ChestRoulette.roll(sb.luck() if sb != null else 0.0)
+	announce("¡MALDICION! · " + ChestRoulette.summary(rewards), CURSE_COLOR, "Muchos más enemigos durante %d s" % int(CURSE_TIME))
+	HitFeedback.slowmo(0.6, 0.35)
+	_grant_rewards(at, rewards)
+
+## Reparte las recompensas del cofre una a una (tono creciente).
+func _grant_rewards(at: Vector3, rewards: Array) -> void:
+	for i in rewards.size():
+		var r: String = rewards[i]
+		var ang := TAU * float(i) / float(maxi(rewards.size(), 1))
+		var spot := at + Vector3(cos(ang), 0, sin(ang)) * (0.0 if rewards.size() == 1 else 1.8)
+		get_tree().create_timer(0.25 + ChestRoulette.STAGGER * i, true, false, true).timeout.connect(func():
+			if is_instance_valid(self) and is_instance_valid(player):
+				_give_reward(r, spot, i))
+
+func _give_reward(r: String, spot: Vector3, i: int) -> void:
+	var scene := get_tree().current_scene
+	AudioManager.play("level-up", -6.0, 1.0 + 0.12 * float(i))
+	match r:
+		"item": _spawn_item(spot)
+		"gold":
+			GameState.get_instance().add_gold(ChestRoulette.GOLD_EACH)
+			if scene and scene.get("facade"):
+				scene.facade.update_gold(GameState.get_instance().gold)
+		"xp":
+			if scene and scene.get("facade"):
+				scene.facade.spawn_xp_orb(_ground(spot), ChestRoulette.XP_EACH)
+		_:
+			MapPickup.spawn(scene, _ground(spot), r)
 
 # ───────────────────────────── Santuarios ─────────────────────────────
 
@@ -333,7 +377,7 @@ func _update_shrines(delta: float) -> void:
 			s["ambushed"] = true
 			for k in SHRINE_AMBUSH:
 				var a := TAU * float(k) / SHRINE_AMBUSH
-				_queue.append([_ground(node.global_position + Vector3(cos(a), 0, sin(a)) * 13.0), EnemyData.EnemyType.NORMAL_GOBLIN, ""])
+				_queue.append([_ground(node.global_position + Vector3(cos(a), 0, sin(a)) * 13.0), EnemyData.EnemyType.NORMAL_GOBLIN, "", ""])
 		s["progress"] = clampf(float(s["progress"]) + (delta if inside else -delta * 0.5) / SHRINE_CHARGE, 0.0, 1.0)
 		var p: float = s["progress"]
 		(s["ring_mat"] as StandardMaterial3D).albedo_color = Color(SHRINE_COLOR.lerp(Color.WHITE, p), 0.55 + 0.45 * p)

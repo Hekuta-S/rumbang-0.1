@@ -8,6 +8,12 @@ extends Node3D
 
 var facade: GameStartFacade
 
+func _enter_tree() -> void:
+	# Supervivencia se juega con Mikeura aunque la escena se abra directamente o venga de otra seleccion
+	# (se hace aqui porque el Player, hijo de esta escena, elige su modelo en su propio _ready)
+	if GameData.game_mode == "survival" and not GameData.is_survival_unlocked(String(GameData.get_selected().get("id", ""))):
+		GameData.selected_index = GameData.survival_index()
+
 func _ready() -> void:
 	# --- APLICACIÓN DEL PATRÓN FACADE ---
 	# En lugar de crear y conectar 4+ managers manualmente,
@@ -25,10 +31,10 @@ func _ready() -> void:
 	if player.has_signal("player_died"):
 		player.connect("player_died", _on_player_died)
 	# Resumen de la partida (supervivencia) en las pantallas de victoria y caída
-	if GameData.game_mode != "dungeon":
-		for screen in [hud.victory_screen, hud.game_over_screen]:
-			if screen:
-				screen.visibility_changed.connect(_fill_run_summary.bind(screen))
+	# (en la mazmorra, RunLog: indicadores de repetición de la fase 5)
+	for screen in [hud.victory_screen, hud.game_over_screen]:
+		if screen:
+			screen.visibility_changed.connect(_fill_run_summary.bind(screen))
 
 	var bench := EnemyBenchmark.from_env()
 	if bench != null:
@@ -42,6 +48,12 @@ func restart() -> void:
 	Engine.time_scale = 1.0
 	EnemyRegistry.clear()
 	GameState.get_instance().reset_session()
+	# Recargar congela un frame largo: la tapa se dibuja antes y la escena nueva la quita al estar lista
+	SceneLoader.next_scene_path = scene_file_path
+	SceneLoader.hold_cover("Reiniciando...")
+	SceneLoader.claim_cover()
+	await get_tree().process_frame
+	await get_tree().process_frame
 	get_tree().reload_current_scene.call_deferred()
 
 func _process(delta: float) -> void:
@@ -95,6 +107,10 @@ func _fill_run_summary(screen: Control) -> void:
 		summary.add_theme_font_size_override("font_size", 10)
 		vb.add_child(summary)
 		vb.move_child(summary, stats.get_index() + 1)
+	if GameData.game_mode == "dungeon":
+		RunLog.finish()
+		summary.text = "\n".join(RunLog.summary_lines())
+		return
 	summary.text = "
 ".join(RunStats.summary_lines(player.get("weapon_inventory") if is_instance_valid(player) else null))
 	# Tras vencer al jefe se puede seguir: modo infinito
@@ -126,12 +142,13 @@ func _gold_with_bonus(base: int) -> int:
 		return base
 	return maxi(base, int(round(float(base) * sb.gold_mult())))
 
-func _on_enemy_died(pos: Vector3, gold_val: int) -> void:
+func _on_enemy_died(pos: Vector3, gold_val: int, xp: float = 1.0) -> void:
 	gold_val = _gold_with_bonus(gold_val)
 	GameState.get_instance().add_gold(gold_val)
 	facade.update_gold(GameState.get_instance().gold)
 	SaveManager.add_gold(gold_val)
-	facade.spawn_xp_orb(pos)
+	facade.spawn_xp_orb(pos, xp)
+	MapPickup.roll_kill_drop(self, pos)
 
 func _on_boss_died(pos: Vector3, gold_val: int) -> void:
 	gold_val = _gold_with_bonus(gold_val)
@@ -143,6 +160,8 @@ func _on_boss_died(pos: Vector3, gold_val: int) -> void:
 		return                        # en el modo infinito un jefe más no termina la partida
 	if GameData.game_mode != "dungeon":
 		MetaProgress.record("survival_boss_kills")
+		RunModifiers.record_clear()
+		_record_survival_run()
 	# Derrotar al Nigromante (7:10) termina la partida con victoria
 	AudioManager.play("victory")
 	facade.show_victory()
@@ -155,7 +174,16 @@ func _char_id() -> String:
 	var char_data: Dictionary = GameData.get_selected()
 	return str(char_data.get("id", "unknown"))
 
+## Cuenta la partida de supervivencia y el nivel alcanzado (desbloqueo de armas, ver MetaProgress).
+func _record_survival_run() -> void:
+	var xp: Node = player.get("experience_comp") if is_instance_valid(player) else null
+	MetaProgress.record_survival_run(int(xp.level) if xp else 1)
+
 func _on_player_died() -> void:
+	if GameData.game_mode == "dungeon":
+		RunLog.finish()   # fase 5: guarda la partida en el historial
+	else:
+		_record_survival_run()
 	_save_best_time()
 	if RunStats.endless_from >= 0.0:
 		MetaProgress.record_max("best_endless_s", int(GameState.get_instance().elapsed_time - RunStats.endless_from))

@@ -9,6 +9,8 @@ extends Node3D
 ## Pasados LIFETIME segundos todo se hunde y se borra. Como mucho MAX_ALIVE a la vez (se va el más viejo).
 ## Uso: GroundImpactVFX.spawn(escena, punto, radio, fuerza)
 
+## false: los golpes pesados ya no dejan grieta, cascotes ni trozos de tierra en el suelo.
+const ENABLED := false
 const LIFETIME := 6.0
 const FADE := 1.2
 const MAX_ALIVE := 8
@@ -31,7 +33,7 @@ var _debris: Array = []              ## [{node, vel, spin, bounces, size, rest}]
 var _rubble: Array[Node3D] = []
 
 static func spawn(root: Node, at: Vector3, p_radius: float, p_strength: float = 1.0) -> GroundImpactVFX:
-	if root == null or not root.is_inside_tree():
+	if not ENABLED or root == null or not root.is_inside_tree():
 		return null
 	_alive = _alive.filter(func(n): return is_instance_valid(n))
 	while _alive.size() >= MAX_ALIVE:

@@ -160,7 +160,7 @@ func _build_browse() -> void:
 	back.custom_minimum_size = Vector2(0, 40)
 	back.pressed.connect(func():
 		Net.leave()
-		get_tree().change_scene_to_file("res://scenes/ui/dungeon_hub.tscn"))
+		SceneLoader.load_scene("res://scenes/ui/dungeon_hub.tscn"))
 	box.add_child(back)
 
 func _show_browse() -> void:

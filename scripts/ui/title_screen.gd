@@ -4,11 +4,13 @@ extends Control
 ## Pantalla de título (la primera al abrir el juego): panorama del mapa al estilo Minecraft
 ## (MenuBackground: la cámara orbita despacio sobre el mapa procedural), el logo y
 ## "Presiona cualquier tecla para continuar" ("Toca para continuar" en móvil). Cualquier tecla, clic,
-## toque o botón del mando funde a negro y pasa al Salón de la Invocación (DungeonHub), que la primera
-## vez empieza con la intro. Desde el salón, Esc vuelve aquí.
+## toque o botón del mando funde a negro y pasa al Salón de la Invocación (DungeonHub); la primera
+## vez pasa antes por el patio del tutorial (TutorialPatio). Desde el salón, Esc vuelve aquí.
 
 const Style := preload("res://scripts/ui/rumbang_style.gd")
 const HUB := "res://scenes/ui/dungeon_hub.tscn"
+const CREATE := "res://scenes/ui/character_select.tscn"   ## primera vez: crear el personaje antes de la invocación
+const TUTORIAL := "res://scenes/core/tutorial_patio.tscn"   ## primera vez: el patio de entrenamiento
 
 signal continued
 
@@ -39,7 +41,7 @@ func _build() -> void:
 	_bg_container = SubViewportContainer.new()
 	_bg_container.set_anchors_preset(PRESET_FULL_RECT)
 	_bg_container.stretch = true
-	_bg_container.stretch_shrink = 2 if Quality.is_mobile() else 1
+	_bg_container.stretch_shrink = (3 if Quality.level() == Quality.Level.LOW else 2) if Quality.is_mobile() else 1
 	_bg_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_bg_container)
 	var vp := SubViewport.new()
@@ -147,6 +149,12 @@ func _input(event: InputEvent) -> void:
 		continue_to_hub()
 
 ## Funde a negro y pasa al Salón (lo usan también los tests sin cambiar de escena: change = false).
+## Adónde lleva "continuar": el salón; la primera vez, crear el personaje y luego el patio del tutorial.
+static func next_scene() -> String:
+	if DungeonHub.tutorial_done():
+		return HUB
+	return TUTORIAL if DungeonHub.character_created() else CREATE
+
 func continue_to_hub(change: bool = true) -> void:
 	if leaving:
 		return
@@ -157,4 +165,7 @@ func continue_to_hub(change: bool = true) -> void:
 	var t := create_tween()
 	t.tween_property(_fade, "color:a", 1.0, 0.6)
 	if change:
-		t.tween_callback(func(): SceneLoader.load_scene(HUB))
+		t.tween_callback(func():
+			var next := next_scene()
+			CharacterSelect.creation = next == CREATE
+			SceneLoader.load_scene(next))

@@ -4,18 +4,24 @@ extends Node
 ## Remates al estilo God of War (solo mazmorra). Un enemigo con la barra de aturdimiento llena
 ## (DungeonGoblin.State.STUNNED) muestra "REMATE" sobre la cabeza; a menos de RANGE, el botón de
 ## ataque (ratón, gatillo o botón táctil) lanza el remate en lugar del golpe normal:
-##  - el personaje se lanza hacia él a cámara lenta, golpea (slam si el arma lo tiene) y el
-##    impacto congela la imagen con onda, chispas y temblor fuerte;
+##  - el personaje se lanza hacia él y suelta el golpe más fuerte de su arma
+##    (PlayerAnimationController.FINISHER_ANIMS); el impacto sale en el fotograma en que ese golpe abre su
+##    ventana de daño (hit_window_opened, editable en tools/melee_grip_editor.tscn), no a un tiempo fijo, con
+##    cámara lenta justo antes y la imagen congelada con onda, chispas y temblor fuerte;
+##  - el arco remata con una flecha a quemarropa al soltar la cuerda (BowStrategy.finisher_shot);
 ##  - los enemigos normales mueren en el acto; los jefes pierden finish_damage_frac de su vida;
 ##  - cura HEAL_FRACTION de la vida máxima y es invulnerable mientras dura.
 ## Mientras dura no se puede atacar, esquivar ni hacer parry (lo comprueba Player).
 
 const RANGE := 3.2
-const DURATION := 0.7                 ## s de juego de principio a fin
-const STRIKE_AT := 0.3                ## s de juego hasta el impacto
+const DURATION := 0.7                 ## s de juego de principio a fin (sin golpe con ventana: reloj fijo)
+const STRIKE_AT := 0.3                ## s de juego hasta el impacto (sin golpe con ventana)
+const RECOVERY := 0.35                ## s de juego tras el impacto hasta acabar el remate
+const STRIKE_GRACE := 0.25            ## si la ventana no llega (golpe cortado), el impacto sale este margen después
 const STAND_OFF := 1.0                ## distancia a la que se queda del enemigo (m)
+const BOW_STAND_OFF := 2.2            ## el arco remata desde algo más lejos (flecha a quemarropa)
 const SLOWMO_SCALE := 0.4
-const SLOWMO_TIME := 0.32             ## s reales de cámara lenta antes del impacto
+const SLOWMO_TIME := 0.32             ## s reales de cámara lenta que terminan en el impacto
 const HEAL_FRACTION := 0.12
 const RETARGET_TIME := 4.0            ## no remata dos veces al mismo (las copias en red tardan en enterarse)
 const COLOR := Color(1.0, 0.82, 0.3)
@@ -25,6 +31,11 @@ var player: CharacterBody3D
 var _target: DungeonGoblin
 var _t := -1.0
 var _struck := false
+var _anim := ""                       ## golpe de remate en curso ("" = reloj fijo)
+var _strike_at := STRIKE_AT           ## s de juego en que se espera el impacto
+var _duration := DURATION
+var _slowed := false
+var _anim_connected := false
 var _recent: Dictionary = {}          ## enemigo -> instante (ms) de su último remate
 var _prompt: Label3D
 
@@ -80,43 +91,89 @@ func try_finish() -> bool:
 	_recent[g] = Time.get_ticks_msec()
 	_t = 0.0
 	_struck = false
+	_slowed = false
+	_anim = ""
+	_strike_at = STRIKE_AT
+	_duration = DURATION
 	_prompt.visible = false
-	var hc = player.get("health_comp")
-	if hc and hc.has_method("set_invincibility"):
-		hc.set_invincibility(DURATION + 0.4)
 	var pc = player.get("parry_controller")
 	if pc:
 		pc.cancel()
+	var bow: bool = player.has_method("current_weapon") and player.current_weapon() == WeaponData.WeaponType.BOW
 	# Se lanza hasta quedarse a STAND_OFF del enemigo, mirándolo
 	var to := g.global_position - player.global_position
 	to.y = 0.0
 	var dir: Vector3 = to.normalized() if to.length_squared() > 0.0001 else -player.mesh.global_transform.basis.z
 	player.mesh.rotation.y = atan2(-dir.x, -dir.z)
 	if mc:
-		mc.face_lock_until = Time.get_ticks_msec() / 1000.0 + DURATION
-		var dist := maxf(to.length() - STAND_OFF, 0.0)
+		var dist := maxf(to.length() - (BOW_STAND_OFF if bow else STAND_OFF), 0.0)
 		# Frenada constante (DASH_DECEL): v = √(2·a·d) recorre justo `dist`
 		mc.add_dash(dir * sqrt(2.0 * PlayerMovementController.DASH_DECEL * dist))
 	var ac = player.get("animation_controller")
-	if ac:
+	if bow:
+		# Flecha a quemarropa: el impacto es cuando se suelta la cuerda
+		var cc = player.get("combat_controller")
+		var release: float = cc.bow_finisher_shot(g) if cc and cc.has_method("bow_finisher_shot") else -1.0
+		if release >= 0.0:
+			_strike_at = release
+			_duration = release + RECOVERY
+	elif ac:
 		ac.cancel_action()
-		if ac.can_slam():
+		_connect_anim(ac)
+		ac.suppress_hit_dash = true
+		var info: Dictionary = ac.play_finisher() if ac.has_method("play_finisher") else {}
+		if not info.is_empty():
+			_anim = String(info["anim"])
+			_strike_at = float(info["hit"])
+			_duration = maxf(_strike_at + RECOVERY, minf(float(info["length"]), _strike_at + 0.8))
+		elif ac.can_slam():
 			ac.play_slam()
 		else:
 			ac.play_attack()
+	if mc:
+		mc.face_lock_until = Time.get_ticks_msec() / 1000.0 + _duration
+	if g.has_method("hold_stun"):
+		g.hold_stun(_strike_at + STRIKE_GRACE + 0.2)
+	var hc = player.get("health_comp")
+	if hc and hc.has_method("set_invincibility"):
+		hc.set_invincibility(_duration + 0.4)
 	AudioManager.play("melee_swing", -2.0, 0.7)
-	HitFeedback.slowmo(SLOWMO_TIME, SLOWMO_SCALE)
 	return true
+
+func _connect_anim(ac: Node) -> void:
+	if _anim_connected or not ac.has_signal("hit_window_opened"):
+		return
+	_anim_connected = true
+	ac.hit_window_opened.connect(_on_hit_window_opened)
+
+## El golpe de remate llega a su fotograma de contacto: ahí entra el remate (ni antes ni después).
+func _on_hit_window_opened(_attack_id: int, anim_name: String) -> void:
+	if is_active() and not _struck and _anim != "" and anim_name == _anim:
+		_do_strike()
+
+func _do_strike() -> void:
+	_struck = true
+	var ac = player.get("animation_controller")
+	if ac:
+		ac.suppress_hit_dash = false
+	_strike()
 
 func _process(delta: float) -> void:
 	if is_active():
 		_t += delta
-		if not _struck and _t >= STRIKE_AT:
-			_struck = true
-			_strike()
-		if _t >= DURATION:
+		# Cámara lenta que acaba justo en el impacto (delta ya va a cámara lenta: SLOWMO_TIME reales = ×SCALE de juego)
+		if not _slowed and not _struck and _t >= _strike_at - SLOWMO_TIME * SLOWMO_SCALE:
+			_slowed = true
+			HitFeedback.slowmo(SLOWMO_TIME, SLOWMO_SCALE)
+		# Sin golpe con ventana (o si el golpe se cortó y la ventana no llega), por reloj
+		if not _struck and _t >= _strike_at + (STRIKE_GRACE if _anim != "" else 0.0):
+			_do_strike()
+		if _t >= _duration:
 			_t = -1.0
 			_target = null
+			var ac = player.get("animation_controller")
+			if ac:
+				ac.suppress_hit_dash = false
 		return
 	var g := candidate()
 	_prompt.visible = g != null
@@ -137,6 +194,7 @@ func _strike() -> void:
 	if player.has_method("notify_equipment"):
 		player.notify_equipment("finisher")
 	HitFeedback.freeze(0.12)
+	AudioManager.duck(6.0, 0.25)   # remate: la música se aparta para que se oiga el golpe
 	HitFeedback.shake(0.85)
 	AudioManager.play_at("kill_burst", at, 0.0, 0.75)
 	AudioManager.play_at("impact_blunt", at, 0.0, 0.5)

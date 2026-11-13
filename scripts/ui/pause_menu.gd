@@ -123,7 +123,7 @@ func _refresh_stats_panel() -> void:
 	# Mejoras específicas por arma (p. ej. Espalanza: Hoja extra 2/7)
 	var winv = player.get("weapon_inventory")
 	if winv:
-		for w in winv.weapon_slots:
+		for w in winv.create_iterator():
 			if not WeaponUpgrades.has_specific(w):
 				continue
 			var parts: Array = []
@@ -151,6 +151,20 @@ func open_equipment() -> void:
 			_refresh_stats_panel()
 		equip_btn.grab_focus.call_deferred())
 	$Control.add_child(_equip_panel)
+
+## Inventario directo (tocar la tira de equipo del HUD): abre la pausa y encima el panel de EQUIPO; al cerrar
+## el panel se cierra también el menú y el juego sigue. Sin sistema de equipo (supervivencia) no abre nada.
+func open_inventory() -> void:
+	var p := get_tree().get_first_node_in_group("player")
+	if p == null or p.get("equipment") == null or is_instance_valid(_equip_panel):
+		return
+	if not visible:
+		open_menu()
+	open_equipment()
+	if is_instance_valid(_equip_panel):
+		_equip_panel.closed.connect(func():
+			if visible:
+				close_menu.call_deferred())
 
 func open_menu():
 	var p := get_tree().get_first_node_in_group("player")

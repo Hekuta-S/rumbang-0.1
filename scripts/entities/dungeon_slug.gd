@@ -62,9 +62,11 @@ func _init() -> void:
 	speed_mult = 1.5              # 2,25 m/s
 	hit_radius = 0.6
 	hit_height = 0.8
-	windup_poise = 16.0
-	stagger_damage = 22.0
-	knock_scale = 0.6
+	windup_poise = 22.0
+	stagger_damage = 25.0
+	armor = 9.0
+	armor_break = 28.0
+	knock_scale = 0.45
 	telegraph_color = COLOR
 	warn_sfx = "slug_gurgle"
 	swing_sfx = "slug_splat"
@@ -82,9 +84,11 @@ func make_small() -> DungeonSlug:
 	speed_mult = 2.0              # 3 m/s
 	hit_radius = 0.35
 	hit_height = 0.5
-	windup_poise = 6.0
-	stagger_damage = 12.0
-	knock_scale = 1.1
+	windup_poise = 9.0
+	stagger_damage = 14.0
+	armor = 5.0
+	armor_break = 18.0
+	knock_scale = 0.95
 	sfx_pitch = 1.4
 	face_player_dist = 4.0
 	return self
@@ -110,7 +114,8 @@ func _on_impact() -> void:
 	var root := get_tree().current_scene
 	if root:
 		var from := global_position + Vector3(0, 0.7, 0) + _facing * 0.8
-		MageOrb.spawn(root, from, _facing, float(_atk["orb_speed"]), float(_atk["damage"]), COLOR, get_rid())
+		var orb := MageOrb.spawn(root, from, _facing, float(_atk["orb_speed"]), float(_atk["damage"]) * damage_mult, COLOR, get_rid())
+		orb.shooter = self
 		AudioManager.play_at("slug_spit", from, 0.0, randf_range(0.9, 1.1) * sfx_pitch)
 
 func _die() -> void:

@@ -104,7 +104,10 @@ const TORCH_COLOR := Color(1.0, 0.58, 0.26)      ## mismo tono que las antorchas
 const TORCH_SPACING := 17.0                      ## separación mínima entre antorchas de pared en cavernas (m)
 const TUNNEL_TORCH_SPACING := 18.0               ## ... y en los túneles
 const CAVE_LIGHTS := 160                         ## luces que se pueden crear (se encienden las más cercanas)
-const CAVE_VISIBLE_LIGHTS := 24
+const CAVE_VISIBLE_LIGHTS := 32                  ## calidad media/alta (DungeonFog solo deja competir las de la sala)
+const CAVE_VISIBLE_LIGHTS_LOW := 18
+const BAKED_GAIN_MOBILE := 0.45                  ## luz de antorchas horneada en el color de vértice (solo móvil)
+const CAVE_VISIBLE_LIGHTS_MOBILE := 6            ## renderer Mobile: 8 omni por malla como mucho; el resto de antorchas va horneado (BAKED_GAIN_MOBILE)
 ## Trozos de 24 m para carcasa y props en la cueva iluminada (PC): el renderizador Mobile aplica como mucho
 ## 8 luces omni por malla/MultiMesh, y con trozos grandes no son las antorchas cercanas.
 const LIT_CHUNK := 24.0
@@ -136,6 +139,8 @@ func palette() -> Dictionary:
 
 ## Anclajes de pared de la carcasa (CaveShell.anchors) para las antorchas; vacío = sin antorchas (cloacas).
 var _torch_anchors: Array = []
+var _shell_mat: ShaderMaterial           ## material de la carcasa (para activar la luz horneada)
+var _bake_sources: Array = []            ## [pos, energía, alcance, atenuación] de antorchas y braseros
 var _cave_shell: CaveShell            # la carcasa de este mapa (alturas del techo para las estalactitas)
 var _cliff_spots := {}                # celda de 8 m -> [posiciones de acantilados] (sin antorchas encima)
 var _torch_spots := {}                # celda de 8 m -> [posiciones de antorchas de pared]
@@ -175,6 +180,7 @@ func generate(p_seed: int = 0) -> void:
 	_breakables.clear()
 	_crystals.clear()
 	_torch_anchors.clear()
+	_bake_sources.clear()
 	_cave_shell = null
 	_cliff_spots.clear()
 	_torch_spots.clear()
@@ -1021,7 +1027,7 @@ func _place_torches() -> void:
 	var sun := get_parent().get_node_or_null("DirectionalLight3D") as DirectionalLight3D if get_parent() else null
 	if sun:
 		sun.visible = false
-	visible_lights = 6 if _mobile else (CAVE_VISIBLE_LIGHTS if Quality.lights_enabled() else 10)
+	visible_lights = CAVE_VISIBLE_LIGHTS_MOBILE if _mobile else (CAVE_VISIBLE_LIGHTS if Quality.lights_enabled() else CAVE_VISIBLE_LIGHTS_LOW)
 	var taken := {}                       # celda de 8 m -> [posiciones de antorchas]
 	var braziers := {}                    # ídem, braseros (sin antorchas de pared encima)
 	# Primero los braseros de las bocas de túnel, luego las antorchas de pared
@@ -1045,6 +1051,7 @@ func _place_torches() -> void:
 				_add_flame(top, 0.7)
 				# un poco hacia la caverna: ilumina también el fuste del pilar, no solo desde arriba
 				_add_light(top + Vector3(into_room.x * 0.7, 0.3, into_room.y * 0.7), TORCH_COLOR, 2.6, 10.0, 1.3)
+				_bake_sources.append([top, 2.6, 10.0, 1.3])
 				_mark_taken(braziers, top)
 				if embers_enabled:
 					_add_embers(top)
@@ -1074,6 +1081,11 @@ func _place_torches() -> void:
 		var flame := at + basis * TORCH_FLAME
 		_add_flame(flame, 0.5)
 		_add_light(flame + Vector3(inward.x, 0.6, inward.y) * 0.3, TORCH_COLOR, 2.2, 9.0, 1.3)
+		_bake_sources.append([flame + Vector3(inward.x, 0.6, inward.y) * 0.3, 2.2, 9.0, 1.3])
+	# Móvil: solo se encienden 8 luces; el resto de antorchas llega como luz horneada en las paredes y el techo
+	if _mobile and _cave_shell != null and _shell_mat != null:
+		_cave_shell.bake_light(_bake_sources)
+		_shell_mat.set_shader_parameter("baked_gain", BAKED_GAIN_MOBILE)
 
 func _near_taken(taken: Dictionary, p: Vector3, spacing: float) -> bool:
 	var k := Vector2i(floori(p.x / 8.0), floori(p.z / 8.0))
@@ -1116,7 +1128,9 @@ func _build_wall_visuals() -> void:
 	mat.set_shader_parameter("tint_gain", 2.2)
 	mat.set_shader_parameter("top_light_h", 1000.0)      # sin cresta clara: la parte alta la oscurece el color
 	mat.set_shader_parameter("use_normal_map", not low_q)
-	mat.set_shader_parameter("break_tiling", not low_q)
+	# Anti-repetición = 3 lecturas más por píxel en toda la pared y el techo: no en móvil
+	mat.set_shader_parameter("break_tiling", not low_q and not _mobile)
+	_shell_mat = mat
 	var shell := CaveShell.new()
 	shell.cell = CELL
 	shell.chunk = WALL_CHUNK if _mobile else LIT_CHUNK

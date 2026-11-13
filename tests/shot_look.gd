@@ -36,6 +36,10 @@ func _looks() -> Array[CharacterLook]:
 	d.hat = "gorra_atras"; d.colors["hat"] = Color(0.95, 0.8, 0.2); d.colors["skin"] = Color(0.98, 0.86, 0.76)
 	d.hair_style = "riva"; d.colors["hair"] = Color(0.62, 0.42, 0.22)
 	out.append(d)
+	for id in ClothingFit.fitted_ids():                   # 5..: una por camiseta (resources/clothing_fit.json)
+		var e := CharacterLook.new()
+		e.shirt = id; e.hair_style = "riva"
+		out.append(e)
 	return out
 
 func _run() -> void:

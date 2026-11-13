@@ -6,6 +6,8 @@ extends Node
 ##    (o suelta el actual).
 ##  - Con un objetivo fijado, la cámara lo sigue sola y los golpes se orientan hacia él.
 ##    Un golpe rápido de ratón (o del stick derecho) hacia un lado cambia al enemigo de ese lado.
+##  - Táctil: tocar el botón fija/suelta; mantenerlo y deslizar el dedo cambia al enemigo de esa dirección
+##    (cada tramo de arrastre salta a uno más, como mover el stick derecho en consola).
 ##  - Se suelta solo si el objetivo muere (pasa al siguiente cercano), se aleja o deja de verse.
 
 signal target_changed(target: Node3D)
@@ -65,6 +67,9 @@ func _ready() -> void:
 	_marker.visible = false
 	add_child(_marker)
 
+func _exit_tree() -> void:
+	VirtualInput.target_locked = false
+
 func has_target() -> bool:
 	return target != null and is_instance_valid(target) and not _is_dead(target)
 
@@ -97,6 +102,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		pressed = true
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_MIDDLE:
 		pressed = true
+	elif event is InputEventJoypadButton and event.pressed and event.button_index == JOY_BUTTON_LEFT_SHOULDER:
+		pressed = true   # L1 del mando
 	if pressed:
 		toggle()
 		get_viewport().set_input_as_handled()
@@ -107,6 +114,22 @@ func _physics_process(_delta: float) -> void:
 	if VirtualInput.just_pressed_target:
 		VirtualInput.just_pressed_target = false     # se consume: solo cuenta una vez por pulsación
 		toggle()
+	if VirtualInput.target_switch_dir != Vector2.ZERO:
+		var dir := VirtualInput.target_switch_dir
+		VirtualInput.target_switch_dir = Vector2.ZERO
+		switch_toward(dir)
+
+## Cambia al enemigo que está en pantalla hacia `dir` (coordenadas de pantalla: +x derecha, +y abajo)
+## desde el objetivo actual, como el stick derecho en consola. Devuelve true si cambió.
+func switch_toward(dir: Vector2) -> bool:
+	if not has_target() or dir.length_squared() < 0.0001:
+		return false
+	var next := _dir_candidate(dir.normalized())
+	if next == null:
+		return false
+	_set_target(next)
+	_switch_cd = SWITCH_COOLDOWN
+	return true
 
 func _process(delta: float) -> void:
 	_t += delta
@@ -132,6 +155,7 @@ func _process(delta: float) -> void:
 				_set_target(null)
 
 	_marker.visible = has_target()
+	VirtualInput.target_locked = _marker.visible
 	if _marker.visible:
 		_marker.global_position = target.global_position + Vector3(0.0, MARKER_HEIGHT + 0.05 * sin(_t * 5.0), 0.0)
 		_marker_mat.set_shader_parameter("pulse", 0.5 + 0.5 * sin(_t * 6.0))
@@ -142,6 +166,7 @@ func _set_target(t: Node3D) -> void:
 	target = t
 	_unseen = 0.0
 	_flick = 0.0
+	VirtualInput.target_locked = t != null
 	if t:
 		AudioManager.play("ui_click", -10.0, 1.4)
 	target_changed.emit(t)
@@ -190,6 +215,31 @@ func _side_candidate(side: float) -> Node3D:
 		var dx: float = (cam.unproject_position(e.global_position).x - cur_x) * side
 		if dx > 4.0 and dx < best_dx:
 			best_dx = dx
+			best = e
+	return best
+
+## El enemigo en pantalla más cercano en la dirección `dir` (normalizada) desde el objetivo actual:
+## dentro de un cono de ±70°, puntuando distancia en pantalla y desviación del ángulo.
+func _dir_candidate(dir: Vector2) -> Node3D:
+	var cam := player.get_viewport().get_camera_3d()
+	if cam == null:
+		return null
+	var cur := cam.unproject_position(target_point())
+	var best: Node3D = null
+	var best_score := INF
+	for e in _candidates(MAX_RANGE):
+		if e == target or cam.is_position_behind(e.global_position):
+			continue
+		var off: Vector2 = cam.unproject_position(e.global_position + Vector3(0.0, MARKER_HEIGHT * 0.7, 0.0)) - cur
+		var d := off.length()
+		if d < 4.0:
+			continue
+		var ang := absf(dir.angle_to(off / d))
+		if ang > deg_to_rad(70.0):
+			continue
+		var score := d * (1.0 + ang * 2.0)
+		if score < best_score:
+			best_score = score
 			best = e
 	return best
 

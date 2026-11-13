@@ -9,7 +9,7 @@ class_name WaveManager
 ## continue_endless() la reanuda y la dificultad sigue subiendo sin tope).
 ## RunEvents (hijo) añade los eventos de la partida: mareas, élites, minijefe, cofre maldito y santuarios.
 
-signal enemy_died(pos: Vector3, gold_val: int)
+signal enemy_died(pos: Vector3, gold_val: int, xp: float)
 signal boss_died(pos: Vector3, gold_val: int)
 
 ## 6 min + 70 s = 7:10
@@ -26,6 +26,10 @@ const ALIVE_CAP_START: int = 18
 ## Escalado por minuto de partida.
 const HP_PER_MINUTE: float = 0.15
 const DAMAGE_PER_MINUTE: float = 0.06
+## Inicio más suave: la vida arranca en EARLY_HP_FACTOR y sube a 100 % en EARLY_RAMP_S segundos
+## (el goblin normal, 35 PV, muere de 1 golpe al principio).
+const EARLY_HP_FACTOR: float = 0.28
+const EARLY_RAMP_S: float = 180.0
 ## Modo infinito: vida y daño extra por minuto pasado el jefe.
 const ENDLESS_HP_PER_MINUTE: float = 0.45
 const ENDLESS_DAMAGE_PER_MINUTE: float = 0.12
@@ -119,6 +123,64 @@ func stop_run() -> void:
 	_pending_spawns = 0
 	spawn_timer.stop()
 
+# ── Director de intensidad ───────────────────────────────────────────────
+## La presión sale de wave_config.json["director"]: una línea temporal escrita a mano (intervalo, lote y
+## tope de vivos por instante, interpolados) y, encima, un pulso cada block_s segundos
+## (acumulación -> pico -> calma) para que haya respiro y sustos en vez de una rampa lineal.
+
+## Parámetros del director en el segundo `t`: {interval, batch (float), cap (0..1), phase}.
+## Pura (sin estado) para poder probarla. Sin "director" en la config cae a la curva lineal antigua.
+static func director_params(t: float, cfg: Dictionary) -> Dictionary:
+	var d: Dictionary = cfg.get("director", {})
+	var tl: Array = d.get("timeline", [])
+	if tl.is_empty():
+		var p := clampf(t / BOSS_TIME_S, 0.0, 1.0)
+		return {"interval": lerpf(INTERVAL_START, INTERVAL_END, p), "batch": lerpf(BATCH_START, BATCH_END, p), "cap": p, "phase": "build"}
+	var a: Dictionary = tl[0]
+	var b: Dictionary = tl[tl.size() - 1]
+	if t >= float(b["t"]):
+		a = b
+	elif t > float(a["t"]):
+		for i in range(1, tl.size()):
+			if t <= float(tl[i]["t"]):
+				a = tl[i - 1]
+				b = tl[i]
+				break
+	var span := float(b["t"]) - float(a["t"])
+	var f := 0.0 if span <= 0.0 else clampf((t - float(a["t"])) / span, 0.0, 1.0)
+	var out := {
+		"interval": lerpf(float(a["interval"]), float(b["interval"]), f),
+		"batch": lerpf(float(a["batch"]), float(b["batch"]), f),
+		"cap": lerpf(float(a["cap"]), float(b["cap"]), f),
+		"phase": "build",
+	}
+	var block := float(d.get("block_s", 30.0))
+	if t >= float(d.get("pulse_from", 45.0)) and block > 0.0:
+		var pos := fmod(t, block) / block
+		for ph in d.get("phases", []):
+			if pos <= float(ph["until"]):
+				out["interval"] = float(out["interval"]) * float(ph["interval_mult"])
+				out["batch"] = float(out["batch"]) * float(ph["batch_mult"])
+				out["phase"] = String(ph["name"])
+				break
+	return out
+
+func current_phase() -> String:
+	return String(director_params(_elapsed(), wave_config)["phase"])
+
+## Factor de vida por la potencia del jugador: si va por delante del nivel esperado a esta altura, los
+## enemigos aguantan más; si va por detrás, menos (una mala partida no se vuelve imposible).
+func power_factor() -> float:
+	var pw: Dictionary = wave_config.get("director", {}).get("power", {})
+	if pw.is_empty() or player == null:
+		return 1.0
+	var xp = player.get("experience_comp")
+	if xp == null:
+		return 1.0
+	var expected := 1.0 + _elapsed() * float(pw.get("expected_level_per_s", 0.0625))
+	return clampf(1.0 + (float(xp.level) - expected) * float(pw.get("per_level", 0.02)),
+		float(pw.get("min", 0.8)), float(pw.get("max", 1.35)))
+
 # ── Curva de dificultad ──────────────────────────────────────────────────
 
 func _elapsed() -> float:
@@ -136,7 +198,7 @@ func _tryhard() -> bool:
 	return sb != null and sb.is_tryhard()
 
 func _current_interval() -> float:
-	var interval := lerpf(INTERVAL_START, INTERVAL_END, _progress())
+	var interval: float = float(director_params(_elapsed(), wave_config)["interval"]) * RunModifiers.spawn_interval_mult()
 	if _tryhard():
 		interval *= PlayerStatBlock.TRYHARD_SPAWN_INTERVAL
 	if _boss_alive():
@@ -144,7 +206,7 @@ func _current_interval() -> float:
 	return interval
 
 func _current_batch() -> int:
-	var batch := int(round(lerpf(BATCH_START, BATCH_END, _progress())))
+	var batch := int(round(float(director_params(_elapsed(), wave_config)["batch"])))
 	if _tryhard():
 		batch = int(round(batch * PlayerStatBlock.TRYHARD_SPAWN_RATE))
 	if is_cursed():
@@ -152,7 +214,8 @@ func _current_batch() -> int:
 	return maxi(batch, 1)
 
 func _alive_cap() -> int:
-	return int(round(lerpf(ALIVE_CAP_START, Quality.alive_cap_end(), _progress()) * Quality.crowd_factor))
+	var cap_frac: float = director_params(_elapsed(), wave_config)["cap"]
+	return int(round(lerpf(ALIVE_CAP_START, Quality.alive_cap_end(), cap_frac) * Quality.crowd_factor))
 
 # ── Bucle de aparición ───────────────────────────────────────────────────
 
@@ -194,11 +257,12 @@ func _current_pool() -> Array:
 
 ## Crea un enemigo (o un grupo de zombis) y devuelve los que añadió. `at` fija el sitio (las
 ## mareas de RunEvents) y `type_override` el tipo (sin grupo de zombis).
-func _spawn_single_enemy(at: Vector3 = Vector3.INF, type_override: int = -1) -> Array:
+func _spawn_single_enemy(at: Vector3 = Vector3.INF, type_override: int = -1, trait_override: String = "") -> Array:
 	var spawn_pos: Vector3 = _random_spawn_pos() if at == Vector3.INF else at
 	var main_node = get_tree().current_scene
 	var type_val = 1
 	var is_zombie = false
+	var trait_id := trait_override
 
 	var pool: Array = _current_pool()
 	if type_override >= 0:
@@ -214,11 +278,12 @@ func _spawn_single_enemy(at: Vector3 = Vector3.INF, type_override: int = -1) -> 
 			if roll <= current_weight:
 				type_val = int(entry.get("type", 1))
 				is_zombie = bool(entry.get("is_zombie", false))
+				trait_id = String(entry.get("trait", ""))
 				break
 
 	var minutes := _elapsed() / 60.0
-	var hp_mult := 1.0 + HP_PER_MINUTE * minutes
-	var dmg_mult := 1.0 + DAMAGE_PER_MINUTE * minutes
+	var hp_mult := (1.0 + HP_PER_MINUTE * minutes) * lerpf(EARLY_HP_FACTOR, 1.0, clampf(_elapsed() / EARLY_RAMP_S, 0.0, 1.0)) * power_factor() * RunModifiers.enemy_hp_mult()
+	var dmg_mult := (1.0 + DAMAGE_PER_MINUTE * minutes) * RunModifiers.enemy_damage_mult()
 	if endless:
 		var extra := maxf(_elapsed() - BOSS_TIME_S, 0.0) / 60.0
 		hp_mult += ENDLESS_HP_PER_MINUTE * extra
@@ -239,6 +304,9 @@ func _spawn_single_enemy(at: Vector3 = Vector3.INF, type_override: int = -1) -> 
 		en.max_hp *= hp_mult
 		en.hp = en.max_hp
 		en.damage *= dmg_mult
+		en.xp_reward = XpCurve.xp_for_type(type_val)
+		if trait_id != "":
+			en.apply_trait(trait_id)
 		spawned.append(en)
 	return spawned
 
@@ -264,9 +332,21 @@ func _spawn_boss() -> void:
 func _exit_tree() -> void:
 	EnemyMotion.reset()
 
-func _on_enemy_died_internal(_enemy_ref, pos: Vector3, gold_val: int) -> void:
+func _on_enemy_died_internal(enemy_ref, pos: Vector3, gold_val: int) -> void:
 	RunStats.kills += 1
-	enemy_died.emit(pos, gold_val)
+	if enemy_ref != null and enemy_ref.trait_id == "splitter":
+		_split.call_deferred(pos)
+	enemy_died.emit(pos, gold_val, float(enemy_ref.xp_reward) if enemy_ref != null else 1.0)
+
+## El hinchado suelta dos crías (si hay sitio bajo el tope de vivos).
+func _split(pos: Vector3) -> void:
+	if not _running and not endless:
+		return
+	for i in 2:
+		if EnemyRegistry.count() + _pending_spawns >= _alive_cap() + 10:
+			return
+		var off := Vector3(randf_range(-1.2, 1.2), 0.0, randf_range(-1.2, 1.2))
+		_spawn_single_enemy(pos + off, EnemyData.EnemyType.NORMAL_GOBLIN, "mini")
 
 func _on_boss_died_internal(pos: Vector3, gold_val: int) -> void:
 	RunStats.boss_killed = true

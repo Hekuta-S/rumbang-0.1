@@ -1,0 +1,1041 @@
+extends CharacterBody3D
+
+signal stats_changed(hp, max_hp)
+signal experience_gained(amount, current_xp, required_xp)
+signal leveled_up(new_level)
+signal weapon_changed(weapon_index, weapon_name)
+signal weapon_attacked(weapon_type)
+signal reload_state_changed(weapon_type, ammo, max_ammo, is_reloading, progress)
+signal player_died
+
+# PlayerWeaponInventory and PlayerCameraAndAimController are globally available via class_name
+
+var health_comp: Node
+var experience_comp: Node
+
+@export var max_hp: float:
+	get: return health_comp.max_hp if health_comp else 10.0
+	set(v): if health_comp: health_comp.max_hp = v
+
+
+var hp: float:
+	get: return health_comp.hp if health_comp else 10.0
+	set(v): if health_comp: health_comp.hp = v
+
+
+@export var move_speed: float = 8.5
+@export var roll_speed: float = 18.0
+@export var mouse_sensitivity: float = 0.003
+
+var camera_controller: Node
+var input_controller: Node
+var combat_controller: Node
+var inventory: Node
+var stat_block: PlayerStatBlock
+var equipment: PlayerEquipment      ## Casco, pechera, pantalones, talismanes y arma (solo mazmorra)
+
+var is_berserk: bool = false
+var berserk_timer: float = 0.0
+var is_riva_fast: bool = false ## Riva en modo ráfaga (Pies Humeantes): animación súper carrera + estela de humo
+ ## Índice actual del elemento para el ataque de Saimon
+var skill_cd_timer: float = 0.0
+@export var skill_cooldown: float = 10.0
+
+var time_since_damage: float:
+	get: return health_comp.time_since_damage if health_comp else 0.0
+	set(v): if health_comp: health_comp.time_since_damage = v
+
+
+
+## Mikeura's signature weapon: a spear-lance with a melee thrust AND a ranged throw.
+
+
+
+## 4-weapon loadout: slot 0 is filled by the character's starting weapon,
+## the rest are filled when the player picks up weapons in the map.
+
+
+
+
+
+
+
+const PlayerMovementController = preload("res://scripts/components/player_movement_controller.gd")
+const PlayerAnimationController = preload("res://scripts/components/player_animation_controller.gd")
+
+var movement_controller: PlayerMovementController
+var parry_controller: PlayerParryController
+var finisher_controller: PlayerFinisherController
+var animation_controller: PlayerAnimationController
+var weapon_inventory: PlayerWeaponInventory
+var camera_aim_controller: PlayerCameraAndAimController
+var target_lock: TargetLockController ## Fijar objetivo (solo mazmorra)
+var resources: PlayerResources          ## Energía, maná y balas
+
+
+
+
+
+
+
+
+# --- Auto Combat Variables ---
+
+
+
+# -----------------------------
+
+## ---------------------------------------------------------------------------
+## Datos de armas centralizados en WeaponData (refactor neutro). Estas tres
+## funciones-fachada conservan las firmas originales; delegan en el módulo de
+## datos canónico para que los attack_* no cambien.
+## ---------------------------------------------------------------------------
+func get_weapon_data(weapon_type: int) -> WeaponData:
+	return WeaponData.get_weapon_data(weapon_type)
+
+var weapon_levels: Dictionary:
+	get: return weapon_inventory.weapon_levels if weapon_inventory else {}
+	set(v): if weapon_inventory: weapon_inventory.weapon_levels = v
+
+func get_weapon_level(w_id: int) -> int:
+	if weapon_inventory:
+		return weapon_inventory.get_weapon_level(w_id)
+	return weapon_levels.get(w_id, 1)
+
+func upgrade_weapon(w_id: int) -> void:
+	if weapon_inventory:
+		weapon_inventory.upgrade_weapon(w_id)
+	else:
+		weapon_levels[w_id] = get_weapon_level(w_id) + 1
+
+func get_weapon_modifiers(w_id: int) -> Dictionary:
+	if weapon_inventory:
+		var m: Dictionary = weapon_inventory.get_weapon_modifiers(w_id)
+		WeaponSynergies.apply(weapon_inventory, w_id, m)   # sinergias de etiqueta y evolución
+		DungeonRunes.apply(m)                              # runas de la mazmorra
+		DungeonRun.apply(w_id, m)                          # pergaminos de enfoque
+		_apply_weapon_item_mods(w_id, m)                   # modificador propio del arma equipada
+		return m
+	var lvl = get_weapon_level(w_id)
+	var data = get_weapon_data(w_id)
+	var cat = data.category
+	var mods = {
+		"damage": 1.0,
+		"size": 1.0,
+		"cooldown": 1.0,
+		"quantity_bonus": 0,
+		"pierce_bonus": 0,
+		"duration": 1.0
+	}
+	if lvl >= 2: mods.damage += 0.15
+	if lvl >= 3:
+		if cat == "melee" or cat == "special": mods.size += 0.10
+		elif cat == "ranged": mods.quantity_bonus += 1
+	if lvl >= 4: mods.cooldown *= 0.85
+	if lvl >= 5: mods.damage += 0.15
+	if lvl >= 6:
+		if cat == "ranged": mods.pierce_bonus += 1
+		else: mods.quantity_bonus += 1
+	if lvl >= 7: mods.size += 0.15
+	return mods
+
+## Mazmorra: suma el modificador de la pieza de esa arma (EquipmentDB.WEAPON_MODS) a `m`, en el sitio.
+func _apply_weapon_item_mods(w_id: int, m: Dictionary) -> void:
+	if equipment == null or GameData.game_mode != "dungeon" or not equipment.weapon_items.has(w_id):
+		return
+	var mods: Dictionary = EquipmentDB.wmod_of(equipment.weapon_items[w_id]).get("mods", {})
+	for k in mods:
+		if k == "cooldown":
+			m[k] = maxf(float(m.get(k, 1.0)) * float(mods[k]), WeaponUpgrades.MIN_COOLDOWN_MULT)
+		else:
+			m[k] = float(m.get(k, 0.0)) + float(mods[k])
+
+func _weapon_damage(weapon_type: int) -> float:
+	return _damage_chain(weapon_type, false).value()
+
+func _weapon_heavy_damage(weapon_type: int) -> float:
+	return _damage_chain(weapon_type, true).value()
+
+## --- APLICACIÓN DEL PATRÓN DECORATOR ---
+## Componente base (daño de la ficha) envuelto por un decorador por cada modificador.
+func _damage_chain(weapon_type: int, heavy: bool) -> DamageSource:
+	var data := get_weapon_data(weapon_type)
+	var dmg: DamageSource = BaseWeaponDamage.new(data, heavy)
+	dmg = BerserkDamageDecorator.new(dmg, data, is_berserk)
+	dmg = UpgradeDamageDecorator.new(dmg, get_weapon_modifiers(weapon_type))
+	dmg = StatBlockDamageDecorator.new(dmg, stat_block)
+	return dmg
+
+ ## 0: Purple (AoE), 1: Brown (Speed Boost), 2: Green (Healing Cloud)
+
+
+## Nombre / coste / icono por arma. Re-exportados desde WeaponData (módulo
+## canónico) para no tocar a los consumidores (HUD, señales, UI).
+var weapon_names: Dictionary = WeaponData.weapon_names
+var weapon_icons: Dictionary = WeaponData.weapon_icons
+
+@onready var spring_arm: SpringArm3D = $SpringArm3D
+@onready var camera: Camera3D = spring_arm.find_child("Camera3D", true, false) as Camera3D
+@onready var mesh: Node3D = $KnightMesh
+@onready var muzzle: Marker3D = $KnightMesh/Muzzle
+@onready var melee_area: Area3D = $KnightMesh/MeleeArea
+
+# Weapon 3D Model references
+var weapon_models: Dictionary = {}
+var weapon_visuals: Node = null
+
+
+
+
+
+
+
+
+## Weapons with a magazine use ammo instead of energy (empty = needs reload).
+## Key: WeaponType -> rounds per magazine. Weapons not listed are infinite.
+
+
+## Seconds it takes to reload a magazine weapon after it runs dry.
+
+
+## Current ammo per weapon type (only relevant for weapons with a magazine).
+
+
+
+
+
+
+## Spore bonuses set by PassiveBronch (defaults are the un-buffed values).
+
+
+
+## Assign a PassiveData resource in the Inspector to give this character unique passives.
+@export var passive: PassiveData = null
+
+func _ready() -> void:
+	add_to_group("player")
+
+	camera_aim_controller = PlayerCameraAndAimController.new()
+	camera_aim_controller.name = "PlayerCameraAndAimController"
+	camera_aim_controller.player = self
+	camera_aim_controller.spring_arm = spring_arm
+	camera_aim_controller.camera = camera
+	camera_aim_controller.muzzle = muzzle
+	camera_aim_controller.mesh = mesh
+	add_child(camera_aim_controller)
+
+	weapon_inventory = PlayerWeaponInventory.new()
+	weapon_inventory.name = "PlayerWeaponInventory"
+	add_child(weapon_inventory)
+	
+	combat_controller = PlayerCombatController.new()
+	combat_controller.name = "PlayerCombatController"
+	add_child(combat_controller)
+
+	inventory = InventoryComponent.new()
+	inventory.name = "InventoryComponent"
+	add_child(inventory)
+
+	# El equipo va antes que la stat block (que lo lee en su _ready)
+	if GameData.game_mode == "dungeon":
+		equipment = PlayerEquipment.new()
+		equipment.name = "PlayerEquipment"
+		equipment.player = self
+		add_child(equipment)
+
+	stat_block = PlayerStatBlock.new()
+	stat_block.name = "PlayerStatBlock"
+	add_child(stat_block)
+
+	health_comp = HealthComponent.new()
+	health_comp.name = "HealthComponent"
+	add_child(health_comp)
+	
+	experience_comp = ExperienceComponent.new()
+	experience_comp.name = "ExperienceComponent"
+	add_child(experience_comp)
+
+	weapon_inventory.weapon_changed.connect(func(idx, name_value): emit_signal("weapon_changed", idx, name_value))
+	weapon_inventory.reload_state_changed.connect(func(weapon_type, ammo, max_ammo, is_reloading, progress): emit_signal("reload_state_changed", weapon_type, ammo, max_ammo, is_reloading, progress))
+
+	health_comp.health_changed.connect(func(h, mh): emit_signal("stats_changed", h, mh))
+	health_comp.entity_died.connect(_on_entity_died)
+	experience_comp.experience_gained.connect(func(amount, current_xp, required_xp): emit_signal("experience_gained", amount, current_xp, required_xp))
+	experience_comp.leveled_up.connect(func(new_level): emit_signal("leveled_up", new_level))
+
+	health_comp.damage_taking.connect(func(data):
+		if passive and passive.has_method("on_take_damage"):
+			data["amount"] = passive.on_take_damage(self, data["amount"])
+		# Armadura de objetos / Tryhard: reducción porcentual final
+		if stat_block:
+			data["amount"] = data["amount"] * (1.0 - stat_block.armor())
+	)
+
+	if combat_controller.is_auto_combat_enabled and GameData.game_mode != "dungeon":
+		var auto_combat_script = load("res://scripts/components/auto_combat_controller.gd")
+		var auto_combat_node = auto_combat_script.new()
+		auto_combat_node.name = "AutoCombatController"
+		add_child(auto_combat_node)
+	
+	input_controller = load("res://scripts/components/player_input_controller.gd").new()
+	input_controller.name = "PlayerInputController"
+	add_child(input_controller)
+	
+	input_controller.weapon_cycle.connect(cycle_slots)
+	input_controller.weapon_select.connect(select_slot)
+	input_controller.skill_pressed.connect(activate_skill)
+	input_controller.dodge_pressed.connect(func():
+		if movement_controller and not is_finishing():
+			movement_controller.perform_dodge()
+	)
+	input_controller.parry_pressed.connect(func():
+		if parry_controller and not is_finishing():
+			parry_controller.try_parry()
+	)
+	input_controller.attack_pressed.connect(attack)
+	input_controller.alt_attack_pressed.connect(_on_alt_attack_pressed)
+	input_controller.alt_attack_released.connect(_on_alt_attack_released)
+	input_controller.reload_pressed.connect(start_reload)
+	input_controller.toggle_mouse_capture.connect(_on_toggle_mouse_capture)
+	input_controller.spawn_debug_enemy.connect(_on_spawn_debug_enemy)
+
+	hp = max_hp
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	
+	# Apply passive overrides BEFORE emitting stats (passive may change hp).
+	if passive:
+		passive.apply_to_player(self)
+	
+	# Setup 3rd Person Camera System
+	camera_controller = $CameraController
+
+	if GameData.game_mode == "dungeon":
+		target_lock = TargetLockController.new()
+		target_lock.name = "TargetLockController"
+		target_lock.player = self
+		add_child(target_lock)
+	
+	# Energía, maná y balas (solo gastan en la mazmorra)
+	resources = PlayerResources.new()
+	resources.name = "PlayerResources"
+	add_child(resources)
+
+	setup_weapon_models()
+	
+	movement_controller = PlayerMovementController.new()
+	movement_controller.name = "PlayerMovementController"
+	add_child(movement_controller)
+	
+	animation_controller = PlayerAnimationController.new()
+	animation_controller.name = "PlayerAnimationController"
+	add_child(animation_controller)
+
+	parry_controller = PlayerParryController.new()
+	parry_controller.name = "PlayerParryController"
+	add_child(parry_controller)
+	if GameData.game_mode == "dungeon":
+		finisher_controller = PlayerFinisherController.new()
+		finisher_controller.name = "PlayerFinisherController"
+		add_child(finisher_controller)
+	# Espalanza visible en la mano (con estela, aura y animaciones): solo en la mazmorra.
+	# En supervivencia se queda el modelo procedural oculto de siempre.
+	if weapon_visuals and GameData.game_mode == "dungeon":
+		weapon_visuals.attach_spear_to_hand(animation_controller.model)
+		weapon_visuals.attach_axe_to_hand(animation_controller.model)
+		weapon_visuals.attach_melee_to_hands(animation_controller.model)
+	
+	weapon_inventory.weapon_slots.clear()
+	# Each character starts with their signature weapon.
+	# (en la mazmorra, el personaje personalizable lleva el arma elegida en el yunque del Salón)
+	var initial_weapons: Array = GameData.initial_weapons()
+	for w in initial_weapons:
+		weapon_inventory.weapon_slots.append(w)
+		
+	weapon_inventory.current_slot = 0
+	if combat_controller:
+		combat_controller.weapon_slots = weapon_inventory.weapon_slots
+		combat_controller.current_slot = weapon_inventory.current_slot
+		combat_controller.weapon_ammo = weapon_inventory.weapon_ammo
+		combat_controller.reloading_weapon = weapon_inventory.reloading_weapon
+		combat_controller.reload_timer = weapon_inventory.reload_timer
+		combat_controller.total_reload_time = weapon_inventory.total_reload_time
+		combat_controller.weapon_mag_size = weapon_inventory.weapon_mag_size
+		combat_controller.weapon_reload_time = weapon_inventory.weapon_reload_time
+	select_slot(0)
+	
+	# Spawn elemental orbs if the player starts with Ciclo Elemental
+	_try_spawn_elemental_orbs()
+	
+	emit_signal("stats_changed", hp, max_hp)
+	
+	# El modelo se revela con play_spawn_scan() cuando el mundo está listo (GameStartFacade.start_game)
+	hide_for_spawn()
+
+# Per-frame combat + movement + camera + animation hook.
+func _physics_process(delta: float) -> void:
+	time_since_damage += delta
+	
+	
+		
+			
+	if skill_cd_timer > 0: skill_cd_timer -= delta
+
+	# Magazine weapon reload: progresses even while another weapon is out.
+	
+		
+		
+			
+			
+			
+		
+
+	if is_berserk:
+		berserk_timer -= delta
+		if berserk_timer <= 0: is_berserk = false
+
+	
+		
+
+	movement_controller.handle_movement(delta)
+	
+
+## Attack / skill / secondary-fire input. Lives in the physics timestep so
+## hold-to-fire weapons, cooldowns and the Kaionz charge mechanic are stable.
+
+func select_slot(slot_idx: int) -> void:
+	if not weapon_inventory: return
+	if slot_idx < 0 or slot_idx >= weapon_inventory.weapon_slots.size():
+		return
+	weapon_inventory.current_slot = slot_idx
+	if combat_controller:
+		combat_controller.current_slot = slot_idx
+		combat_controller.weapon_slots = weapon_inventory.weapon_slots
+	var wt: int = weapon_inventory.weapon_slots[slot_idx]
+	update_weapon_visuals()
+	if weapon_names.has(wt):
+		emit_signal("weapon_changed", slot_idx, weapon_names[wt])
+	
+
+func cycle_slots(delta_idx: int) -> void:
+	if not weapon_inventory:
+		return
+	var target: int = weapon_inventory.next_slot_index(delta_idx)
+	if target >= 0:
+		select_slot(target)
+
+func _input(event) -> void:
+	if camera_controller:
+		camera_controller.handle_input(event)
+
+	if event is InputEventKey and event.pressed and event.keycode == KEY_U:
+		if experience_comp and experience_comp.has_method("gain_experience"):
+			experience_comp.gain_experience(experience_comp.experience_required - experience_comp.experience)
+
+
+	# ── Cursor release / recapture ─────────────────────────────────────────
+	if event.is_action_pressed("ui_cancel"):
+		if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		else:
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Weapon 3D models — built procedurally, attached to KnightMesh.
+# ══════════════════════════════════════════════════════════════════════════
+## Builds the weapon info list shown in the HUD weapon slots.
+## Each entry matches what hud.update_weapons() expects (icon/name/cost, and
+## max_ammo/ammo for magazine weapons).
+
+	
+var weapon_slots: Array:
+	get: return weapon_inventory.weapon_slots if weapon_inventory else []
+	set(v): if weapon_inventory: weapon_inventory.weapon_slots = v
+
+var current_slot: int:
+	get: return weapon_inventory.current_slot if weapon_inventory else 0
+	set(v): if weapon_inventory: weapon_inventory.current_slot = v
+
+var is_spear_thrown: bool:
+	get: return combat_controller.is_spear_thrown if combat_controller else false
+	set(v): if combat_controller: combat_controller.is_spear_thrown = v
+
+var reloading_weapon: int:
+	get: return weapon_inventory.reloading_weapon if weapon_inventory else -1
+	set(v): if weapon_inventory: weapon_inventory.reloading_weapon = v
+
+var auto_combat_target:
+	get:
+		if is_instance_valid(combat_controller) and "auto_combat_target" in combat_controller:
+			var target = combat_controller.get("auto_combat_target")
+			if is_instance_valid(target):
+				return target
+		return null
+	set(v):
+		if is_instance_valid(combat_controller) and "auto_combat_target" in combat_controller:
+			combat_controller.set("auto_combat_target", v)
+
+var dust_speed_boost_timer: float:
+	get: return combat_controller.dust_speed_boost_timer if combat_controller else 0.0
+	set(v): if combat_controller: combat_controller.dust_speed_boost_timer = v
+
+var spore_damage_mult: float:
+	get: return combat_controller.spore_damage_mult if combat_controller else 1.0
+	set(v): if combat_controller: combat_controller.spore_damage_mult = v
+
+var spore_cloud_duration: float:
+	get: return combat_controller.spore_cloud_duration if combat_controller else 3.0
+	set(v): if combat_controller: combat_controller.spore_cloud_duration = v
+
+func get_weapons_list() -> Array:
+	if weapon_inventory:
+		return weapon_inventory.get_weapons_list()
+	return []
+
+func setup_weapon_models() -> void:
+	# Construye las mallas 3D de las armas en un componente dedicado
+	# (player_weapon_visuals.gd) y comparte su diccionario de modelos.
+	weapon_visuals = load("res://scripts/entities/player_weapon_visuals.gd").new()
+	add_child(weapon_visuals)
+	weapon_visuals.setup_weapon_models(mesh)
+	weapon_models = weapon_visuals.weapon_models
+
+# end of setup_weapon_models() — everything below is gameplay helpers.
+
+## Spawns the ElementalOrbs node if ELEMENTS_CYCLE is in the loadout and
+## the orbs haven't been created yet.
+func _try_spawn_elemental_orbs() -> void:
+	if not combat_controller:
+		return
+	if combat_controller.elemental_orbs != null and is_instance_valid(combat_controller.elemental_orbs):
+		return
+	if not weapon_inventory or not weapon_inventory.weapon_slots.has(WeaponData.WeaponType.ELEMENTS_CYCLE):
+		return
+	var orbs_node := ElementalOrbs.new()
+	orbs_node.name = "ElementalOrbs"
+	combat_controller.elemental_orbs = orbs_node
+	get_parent().add_child.call_deferred(orbs_node)
+	orbs_node.setup.call_deferred(self)
+
+# ══════════════════════════════════════════════════════════════════════════
+# MOVEMENT & CAMERA
+# ══════════════════════════════════════════════════════════════════════════
+const GRAVITY := 22.0
+
+## WASD -> direction vector. Checks both the logical and physical key states so
+## it works with real keyboards and synthetic/test key events alike.
+
+## Shows only the model of the currently selected weapon slot. The spear stays
+## hidden while it is flying through the air.
+func update_weapon_visuals() -> void:
+	# Ningún modelo de arma es visible, solo el efecto/shader; excepción: la espalanza en la mano
+	if animation_controller:
+		animation_controller.set_held_weapon(current_weapon())
+	if weapon_visuals and current_weapon() == WeaponData.WeaponType.GREATSWORD:
+		weapon_visuals.set_greatsword_skin(greatsword_skin())
+	elif weapon_visuals and current_weapon() == WeaponData.WeaponType.SWORD:
+		weapon_visuals.set_sword_skin(sword_skin())
+	elif weapon_visuals and current_weapon() == WeaponData.WeaponType.DAGGERS:
+		weapon_visuals.set_dagger_skin(dagger_skin())
+	elif weapon_visuals and current_weapon() == WeaponData.WeaponType.MACE:
+		weapon_visuals.set_mace_skin(mace_skin())
+	for wt in weapon_models:
+		var m: Node3D = weapon_models[wt]
+		if m != null and is_instance_valid(m):
+			m.visible = _is_hand_weapon_shown(wt, m)
+
+func show_weapon_temporarily(_duration: float = 0.5) -> void:
+	# Ninguna arma es visible al atacar, solo el efecto; excepción: la espalanza en la mano
+	for wt in weapon_models:
+		var m: Node3D = weapon_models[wt]
+		if m != null and is_instance_valid(m):
+			m.visible = _is_hand_weapon_shown(wt, m)
+
+func _is_hand_weapon_shown(wt: int, m: Node3D) -> bool:
+	if wt == WeaponData.WeaponType.SPINNING_AXE and combat_controller and combat_controller.is_axe_thrown:
+		return false
+	return m.has_meta("in_hand") and wt == current_weapon() and not (combat_controller and combat_controller.is_spear_thrown)
+
+## Cuál de los cuatro espadones (GreatswordModels) lleva: el del arma equipada si es un espadón, o el elegido.
+func greatsword_skin() -> int:
+	var item: Dictionary = equipment.get_item("arma") if equipment else {}
+	if not item.is_empty() and int(item.get("weapon", -1)) == WeaponData.WeaponType.GREATSWORD:
+		return int(item.get("skin", 0))
+	return GameData.greatsword_skin
+
+## Cuál de las cuatro espadas (SwordModels) lleva: el de la espada equipada, o el elegido.
+func sword_skin() -> int:
+	var item: Dictionary = equipment.get_item("arma") if equipment else {}
+	if not item.is_empty() and int(item.get("weapon", -1)) == WeaponData.WeaponType.SWORD:
+		return int(item.get("skin", 0))
+	return GameData.sword_skin
+
+## Cuál de las dagas (DaggerModels) lleva: el de la daga equipada, o el elegido.
+func dagger_skin() -> int:
+	var item: Dictionary = equipment.get_item("arma") if equipment else {}
+	if not item.is_empty() and int(item.get("weapon", -1)) == WeaponData.WeaponType.DAGGERS:
+		return int(item.get("skin", 0))
+	return GameData.dagger_skin
+
+## Cuál de las mazas (MaceModels) lleva: el de la maza equipada, o el elegido.
+func mace_skin() -> int:
+	var item: Dictionary = equipment.get_item("arma") if equipment else {}
+	if not item.is_empty() and int(item.get("weapon", -1)) == WeaponData.WeaponType.MACE:
+		return int(item.get("skin", 0))
+	return GameData.mace_skin
+
+func current_weapon() -> int:
+	if weapon_inventory:
+		return weapon_inventory.get_current_weapon()
+	return WeaponData.WeaponType.SPEAR_LANCE
+
+func on_spear_returned() -> void:
+	if combat_controller and combat_controller.has_method("on_spear_returned"):
+		combat_controller.on_spear_returned()
+
+## Add a weapon to the next free slot. Returns false if the loadout is full.
+func add_weapon(w_type: int) -> bool:
+	if not weapon_inventory: return false
+	if not weapon_inventory.add_weapon(w_type):
+		return false
+	if combat_controller:
+		combat_controller.weapon_slots = weapon_inventory.weapon_slots
+		combat_controller.current_slot = weapon_inventory.current_slot
+	update_weapon_visuals()
+	emit_signal("weapon_changed", weapon_inventory.current_slot, weapon_names[current_weapon()])
+	if w_type == WeaponData.WeaponType.ELEMENTS_CYCLE:
+		_try_spawn_elemental_orbs()
+	return true
+
+## Current ammo for a weapon (-1 means the weapon has no magazine / infinite).
+
+
+func _emit_reload_state() -> void:
+	if not weapon_inventory: return
+	weapon_inventory.emit_reload_state()
+	emit_signal("reload_state_changed", weapon_inventory.reloading_weapon if weapon_inventory.reloading_weapon >= 0 else current_weapon(), weapon_inventory.get_weapon_ammo(weapon_inventory.reloading_weapon if weapon_inventory.reloading_weapon >= 0 else current_weapon()), weapon_inventory.weapon_mag_size.get(weapon_inventory.reloading_weapon if weapon_inventory.reloading_weapon >= 0 else current_weapon(), 0), weapon_inventory.reloading_weapon >= 0, clamp(weapon_inventory.reload_timer / max(weapon_inventory.total_reload_time, 0.0001), 0.0, 1.0))
+
+# ══════════════════════════════════════════════════════════════════════════
+# COMBAT
+# ══════════════════════════════════════════════════════════════════════════
+
+## Per-character special ability (E key): Berserk, o la habilidad de la pasiva si la tiene (Heckler).
+func activate_skill() -> void:
+	if skill_cd_timer > 0: return
+	skill_cd_timer = skill_cooldown
+	# Habilidad propia de la pasiva (p. ej. el teletransporte de Heckler)
+	if passive and passive.has_method("on_skill"):
+		passive.on_skill(self)
+		return
+	# Habilidad por defecto: modo Berserk
+	is_berserk = true
+	berserk_timer = 6.0
+	# Grito animado: solo en la mazmorra (en supervivencia, como antes)
+	if animation_controller and GameData.game_mode == "dungeon":
+		animation_controller.play_shout()
+
+## Raycasts from the camera center out through the crosshair point.
+func get_camera_aim_point() -> Vector3:
+	if camera_aim_controller and camera_aim_controller.has_method("get_camera_aim_point"):
+		if is_instance_valid(combat_controller) and "auto_combat_target" in combat_controller and is_instance_valid(combat_controller.get("auto_combat_target")):
+			return combat_controller.get("auto_combat_target").global_position + Vector3(0, 1.0, 0)
+		return camera_aim_controller.get_camera_aim_point()
+	return Vector3.ZERO
+
+## Calculates a flattened horizontal forward vector toward the current aim point.
+func get_attack_forward_dir() -> Vector3:
+	if camera_aim_controller and camera_aim_controller.has_method("get_attack_forward_dir"):
+		return camera_aim_controller.get_attack_forward_dir()
+	return Vector3.FORWARD
+
+func orient_player_to_aim(_aim_point: Vector3) -> void:
+	if camera_aim_controller and camera_aim_controller.has_method("orient_player_to_aim"):
+		camera_aim_controller.orient_player_to_aim(_aim_point)
+
+func apply_camera_recoil(pitch_amount: float, yaw_amount: float, kick_z: float = 0.08) -> void:
+	return
+
+func create_muzzle_flash(flash_color: Color, scale_multiplier: float = 1.0) -> void:
+	if camera_aim_controller and camera_aim_controller.has_method("create_muzzle_flash"):
+		camera_aim_controller.create_muzzle_flash(flash_color, scale_multiplier)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Parry: un golpe cuerpo a cuerpo de `attacker` va a entrar; true si la guardia lo para.
+func try_parry_melee(attacker: Node3D) -> bool:
+	return parry_controller != null and parry_controller.try_block_melee(attacker)
+
+## Parry: daño de un proyectil que llega desde `from_pos` (reducido si la guardia lo cubre).
+func parry_projectile_damage(amount: float, from_pos: Vector3) -> float:
+	return parry_controller.projectile_damage(amount, from_pos) if parry_controller else amount
+
+## Parry: multiplicador del siguiente golpe (se consume al usarlo).
+func parry_bonus_mult() -> float:
+	return parry_controller.consume_bonus() if parry_controller else 1.0
+
+func take_damage(amount: float, direction: Vector3 = Vector3.ZERO) -> void:
+	if health_comp and health_comp.has_method("take_damage"):
+		var landed: bool = health_comp.invincibility_time <= 0.0
+		if landed and equipment and equipment.absorb_hit():
+			# Regla "vacio" (Coraza del Vacío): este golpe no hace daño
+			EquipmentPickup.toast(self, "ABSORBIDO", EquipmentDB.RULE_COLOR)
+			RunLog.proc("rule:vacio")
+			return
+		if landed and GameData.game_mode == "dungeon":
+			amount *= DungeonRun.incoming_mult()          # cofre maldito
+			if DungeonRun.second_wind_ready():
+				var hc: Node = health_comp
+				health_comp.damage_taking.connect(func(data): DungeonRun.try_second_wind(data, hc, self), CONNECT_ONE_SHOT)
+		health_comp.take_damage(amount)
+		if landed:
+			HitFeedback.on_player_hit(self, amount, direction)
+			notify_equipment("hurt")
+			if movement_controller:
+				movement_controller.note_combat()    # el espadón deja de correr al recibir un golpe
+
+## Evento para los efectos especiales del equipo de la mazmorra (PlayerEquipment.notify).
+func notify_equipment(event: String) -> void:
+	if equipment:
+		equipment.notify(event)
+
+## Aplica veneno/sangrado/quemadura al jugador (ver StatusEffects).
+func apply_status(effect_id: String, dps: float, duration: float, source: Node = null,
+		source_weapon: int = -1, stacks: int = 1) -> void:
+	StatusEffects.apply_to(self, effect_id, dps, duration, source, source_weapon, stacks)
+
+func heal(amount: float) -> void:
+	if health_comp and health_comp.has_method("heal"):
+		health_comp.heal(amount)
+
+# ── Robo de vida ─────────────────────────────────────────────────────────
+const LIFESTEAL_MAX_PER_HIT := 2.0   ## tope de vida robada por golpe
+const LIFESTEAL_MIN_TICK := 0.1      ## se cura al acumular esto (evita emitir señales por fracciones)
+var _lifesteal_accum: float = 0.0
+var _last_heal_fx_time: float = -10.0
+
+## Lo llaman hitboxes/proyectiles al dañar a un enemigo. Cada arma define su propio
+## porcentaje de robo (mods.lifesteal, ver WeaponUpgrades); sin mejora vale 0.
+func on_damage_dealt(amount: float, weapon_type: int = -1) -> void:
+	if weapon_type < 0 or weapon_inventory == null or amount <= 0.0:
+		return
+	var steal: float = float(get_weapon_modifiers(weapon_type).get("lifesteal", 0.0))
+	if steal <= 0.0:
+		return
+	if hp <= 0.0 or hp >= max_hp:
+		_lifesteal_accum = 0.0
+		return
+	_lifesteal_accum += minf(amount * steal, LIFESTEAL_MAX_PER_HIT)
+	if _lifesteal_accum >= LIFESTEAL_MIN_TICK:
+		var gained := _lifesteal_accum
+		_lifesteal_accum = 0.0
+		heal(gained)
+		_play_heal_fx()
+
+## Destello verde breve al curarse por robo de vida (máx. uno cada 0.25 s).
+func _play_heal_fx() -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	if now - _last_heal_fx_time < 0.25:
+		return
+	_last_heal_fx_time = now
+	var fx := CPUParticles3D.new()
+	fx.amount = Quality.count(8)
+	fx.lifetime = 0.55
+	fx.one_shot = true
+	fx.explosiveness = 0.9
+	fx.direction = Vector3.UP
+	fx.spread = 40.0
+	fx.initial_velocity_min = 1.0
+	fx.initial_velocity_max = 2.2
+	fx.gravity = Vector3(0, -0.5, 0)
+	fx.scale_amount_min = 0.5
+	fx.scale_amount_max = 1.0
+	var m := SphereMesh.new()
+	m.radius = 0.05
+	m.height = 0.1
+	m.radial_segments = 6
+	m.rings = 3
+	fx.mesh = m
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(0.35, 1.0, 0.5)
+	mat.emission_enabled = true
+	mat.emission = Color(0.2, 1.0, 0.4)
+	mat.emission_energy_multiplier = 3.0
+	fx.material_override = mat
+	fx.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(fx)
+	fx.position = Vector3(0.0, 1.0, 0.0)
+	fx.emitting = true
+	get_tree().create_timer(1.0).timeout.connect(fx.queue_free)
+
+
+func create_air_shockwave_visual(center: Vector3, max_radius: float) -> void:
+	# Primary shockwave ring
+	var ring := MeshInstance3D.new()
+	var ring_mesh := TorusMesh.new()
+	ring_mesh.inner_radius  = 0.15
+	ring_mesh.outer_radius  = 0.45
+	ring_mesh.rings         = 22
+	ring_mesh.ring_segments = 14
+	ring.mesh = ring_mesh
+
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode  = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color  = Color(0.65, 0.95, 1.0, 1.0)
+	mat.transparency  = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.emission_enabled = true
+	mat.emission      = Color(0.5, 0.90, 1.0)
+	mat.emission_energy_multiplier = 4.5
+	ring.material_override = mat
+
+	get_parent().add_child(ring)
+	ring.global_position = center + Vector3(0, 0.12, 0)
+
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(ring, "scale", Vector3(max_radius, 1.0, max_radius), 0.55).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	tw.tween_property(mat,  "albedo_color:a", 0.0, 0.65)
+	tw.chain().tween_callback(ring.queue_free)
+
+	# Secondary inner pulse ring (slightly delayed)
+	var ring2 := MeshInstance3D.new()
+	var ring2_mesh := TorusMesh.new()
+	ring2_mesh.inner_radius  = 0.08
+	ring2_mesh.outer_radius  = 0.28
+	ring2_mesh.rings         = 18
+	ring2_mesh.ring_segments = 10
+	ring2.mesh = ring2_mesh
+	var mat2 := mat.duplicate() as StandardMaterial3D
+	mat2.albedo_color = Color(0.85, 0.98, 1.0, 0.85)
+	ring2.material_override = mat2
+
+	get_parent().add_child(ring2)
+	ring2.global_position = center + Vector3(0, 0.3, 0)
+
+	var tw2 := create_tween().set_parallel(true)
+	tw2.tween_interval(0.08)
+	tw2.tween_property(ring2, "scale", Vector3(max_radius * 0.65, 1.0, max_radius * 0.65), 0.42).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	tw2.tween_property(mat2,  "albedo_color:a", 0.0, 0.50)
+	tw2.chain().tween_callback(ring2.queue_free)
+
+	# Ambient light burst
+	var swave_light := Quality.new_light()
+	swave_light.light_color  = Color(0.55, 0.88, 1.0)
+	swave_light.light_energy = 8.0
+	swave_light.omni_range   = max_radius * 1.5
+	get_parent().add_child(swave_light)
+	swave_light.global_position = center + Vector3(0, 1.0, 0)
+	var ltw := create_tween()
+	ltw.tween_property(swave_light, "light_energy", 0.0, 0.7)
+	ltw.tween_callback(swave_light.queue_free)
+
+	# CPUParticles burst of wind wisps around player
+	var wisp := CPUParticles3D.new()
+	wisp.amount              = 28
+	wisp.lifetime            = 0.5
+	wisp.one_shot            = true
+	wisp.explosiveness       = 0.95
+	wisp.direction           = Vector3.UP
+	wisp.spread              = 90.0
+	wisp.initial_velocity_min = 3.5
+	wisp.initial_velocity_max = 9.0
+	wisp.gravity             = Vector3(0, -1.5, 0)
+	wisp.scale_amount_min    = 0.10
+	wisp.scale_amount_max    = 0.28
+	wisp.emission_shape      = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	wisp.emission_sphere_radius = 0.6
+	var wisp_mesh := SphereMesh.new()
+	wisp_mesh.radius = 0.08
+	wisp_mesh.height = 0.16
+	wisp.mesh = wisp_mesh
+	var wisp_mat := StandardMaterial3D.new()
+	wisp_mat.shading_mode    = BaseMaterial3D.SHADING_MODE_UNSHADED
+	wisp_mat.albedo_color    = Color(0.7, 0.95, 1.0, 0.8)
+	wisp_mat.transparency    = BaseMaterial3D.TRANSPARENCY_ALPHA
+	wisp_mat.emission_enabled = true
+	wisp_mat.emission        = Color(0.5, 0.88, 1.0)
+	wisp_mat.emission_energy_multiplier = 3.0
+	wisp.material_override   = wisp_mat
+	get_parent().add_child(wisp)
+	wisp.global_position = center + Vector3(0, 0.8, 0)
+	wisp.emitting = true
+	var wc := create_tween()
+	wc.tween_interval(1.2)
+	wc.tween_callback(wisp.queue_free)
+
+# ══════════════════════════════════════════════════════════════════════════
+# TATAN — ALCHEMY DUSTS (copy-only weapon; the original had no dusts attack)
+# ══════════════════════════════════════════════════════════════════════════
+
+## Primary attack: lobs a pouch of the selected powder toward the aim point.
+## Mode 1 (brown speed dust) is a self-buff and is NOT thrown.
+
+
+
+
+
+func get_weapon_ammo(w_type: int) -> int:
+	return combat_controller.get_weapon_ammo(w_type)
+
+func start_reload() -> void:
+	combat_controller.start_reload()
+
+func auto_attack(target) -> void:
+	combat_controller.auto_attack(target)
+
+## En mitad de un remate (PlayerFinisherController): no se ataca, esquiva ni para.
+func is_finishing() -> bool:
+	return finisher_controller != null and finisher_controller.is_active()
+
+func attack() -> void:
+	if GameData.game_mode == "dungeon":
+		# Con un enemigo aturdido cerca, el ataque es su remate
+		if finisher_controller and finisher_controller.try_finish():
+			return
+		combat_controller.buffer_attack()
+	else:
+		combat_controller.attack()
+	
+func throw_spear() -> void:
+	combat_controller.throw_spear()
+
+## Armas cuyo especial cobra el recurso por su cuenta (PlayerCombatController).
+const SELF_PAID_SPECIALS := [WeaponData.WeaponType.SPEAR_LANCE, WeaponData.WeaponType.DAGGERS, WeaponData.WeaponType.MACE]
+
+func _on_alt_attack_pressed() -> void:
+	# El especial de cada arma cuesta su recurso. La espalanza, las dagas y la maza cobran el suyo dentro
+	# (solo si el especial sale: no en enfriamiento).
+	if resources and not SELF_PAID_SPECIALS.has(current_weapon()) and not resources.spend(current_weapon(), true):
+		return
+	if current_weapon() == WeaponData.WeaponType.DUSTS and GameData.game_mode == "dungeon":
+		combat_controller.dust_face()
+	elif current_weapon() == WeaponData.WeaponType.DUSTS:
+		combat_controller.cycle_dust_mode()
+	elif current_weapon() == WeaponData.WeaponType.SPEAR_LANCE and GameData.game_mode == "dungeon":
+		# Tras cuatro golpes ligeros: clavado con salto. Si no, lanzamiento cargado (con pose y aura)
+		if not combat_controller.try_spear_slam():
+			combat_controller.start_spear_charge()
+	elif current_weapon() == WeaponData.WeaponType.DAGGERS:
+		combat_controller.dagger_dash()
+	elif current_weapon() == WeaponData.WeaponType.MACE and GameData.game_mode == "dungeon":
+		combat_controller.mace_slam()
+	elif current_weapon() == WeaponData.WeaponType.GREATSWORD or current_weapon() == WeaponData.WeaponType.SWORD:
+		pass    # el espadón y la espada no tienen especial: su fuerza es andar/correr y el ataque con carrerilla
+	elif current_weapon() == WeaponData.WeaponType.FLAME_THROWER and GameData.game_mode == "dungeon":
+		combat_controller.flame_blast()
+	elif current_weapon() == WeaponData.WeaponType.SPORE_BAZOOKA and GameData.game_mode == "dungeon":
+		combat_controller.spore_shotgun()
+	elif current_weapon() == WeaponData.WeaponType.TRI_SHOTGUN and GameData.game_mode == "dungeon":
+		combat_controller.shotgun_burst()
+	elif current_weapon() == WeaponData.WeaponType.SPINNING_AXE and GameData.game_mode == "dungeon":
+		combat_controller.axe_spin()
+	else:
+		throw_spear()
+
+## Soltar el click derecho lanza la espalanza con la fuerza acumulada.
+func _on_alt_attack_released() -> void:
+	combat_controller.release_spear_charge()
+
+func _on_toggle_mouse_capture() -> void:
+	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	else:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+func _on_spawn_debug_enemy() -> void:
+	var forward_dir = -global_transform.basis.z
+	var pos: Vector3 = global_position + forward_dir * 10.0
+	EnemyManager.spawn(EnemyData.EnemyType.NORMAL_GOBLIN, pos)
+
+# ══════════════════════════════════════════════════════════════════════════
+# EFECTO DE ESCANEO DE PROFUNDIDAD INVERSO (SPAWN & DEATH)
+# ══════════════════════════════════════════════════════════════════════════
+
+static var depth_scan_shader: Shader = preload("res://assets/shaders/depth_scan_spawn.gdshader")
+var is_playing_death_scan: bool = false
+
+## Oculta el modelo hasta que el mundo esté listo (se revela con play_spawn_scan).
+func hide_for_spawn() -> void:
+	var model: Node3D = animation_controller.model if animation_controller else null
+	if model:
+		model.visible = false
+
+## Materializa al personaje de pies a cabeza con el shader de disolución.
+func play_spawn_scan() -> void:
+	var model: Node3D = animation_controller.model if animation_controller else null
+	if model == null:
+		return
+	SpawnDissolve.play(model, self, 1.6)
+
+func _on_entity_died() -> void:
+	if is_playing_death_scan:
+		return
+	if Net.is_online():
+		# Multijugador: no hay fin de partida; pasa a espectador hasta que se despeje la caverna
+		is_playing_death_scan = true
+		var nw := get_parent().get_node_or_null("NetWorld")
+		if nw:
+			nw.on_local_death()
+		return
+	is_playing_death_scan = true
+	play_death_scan()
+
+## Desvanece al personaje al morir usando el escaneo inverso (1.0 -> 0.0)
+func play_death_scan() -> void:
+	var meshes: Array[MeshInstance3D] = _get_player_character_meshes()
+	
+	var scan_mat := ShaderMaterial.new()
+	scan_mat.shader = depth_scan_shader
+	scan_mat.set_shader_parameter("is_dying", true)
+	scan_mat.set_shader_parameter("progress", 1.0)
+	scan_mat.set_shader_parameter("effect_color", Vector4(1.0, 0.25, 0.2, 1.0)) # Carmesí / desintegración
+	scan_mat.set_shader_parameter("glow_color", Vector4(1.0, 0.7, 0.2, 1.0))
+
+	for m in meshes:
+		m.material_override = scan_mat
+
+	var tween := create_tween()
+	# Barre desvaneciendo el cuerpo hacia el vacío en 0.9s
+	tween.tween_property(scan_mat, "shader_parameter/progress", 0.0, 0.9)\
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+
+	# Emitir señal de muerte para Game Over tras finalizar la desintegración
+	tween.tween_callback(func():
+		emit_signal("player_died")
+	)
+
+func _get_player_character_meshes() -> Array[MeshInstance3D]:
+	var result: Array[MeshInstance3D] = []
+	var k_mesh := get_node_or_null("KnightMesh")
+	if k_mesh:
+		for child in k_mesh.get_children():
+			if child is MeshInstance3D and child.name != "Sword":
+				result.append(child)
+	return result

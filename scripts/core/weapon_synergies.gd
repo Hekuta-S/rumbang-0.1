@@ -4,8 +4,8 @@ extends RefCounted
 ## Sinergias y evoluciones de arma (modo supervivencia, al estilo Megabonk).
 ##  - Etiquetas: cada arma tiene 1 o 2 (TAGS). Con 2 armas de la misma etiqueta se activa el
 ##    primer bono de SYNERGIES para todas ellas; con 3 o más, también el segundo.
-##  - Evolución: un arma de nivel EVOLVE_LEVEL o más (cada mejora sube un nivel) más su objeto
-##    catalizador (ItemDB) ofrece la carta "EVOLUCIÓN" (UpgradeChoiceUI). Al elegirla, el arma suma
+##  - Evolución: un arma de nivel EVOLVE_LEVEL o más (cada mejora sube un nivel) más su tomo
+##    (TomeDB, campo "tome" de EVOLUTIONS) ofrece la carta "EVOLUCIÓN" (UpgradeChoiceUI). Al elegirla, el arma suma
 ##    los mods de EVOLUTIONS y cambia de nombre. Se guarda como la mejora "evolved" del arma en
 ##    PlayerWeaponInventory.weapon_upgrades, así que reset_progress() también la olvida.
 ## Player.get_weapon_modifiers() aplica ambas cosas encima de las mejoras propias del arma.
@@ -39,6 +39,8 @@ const TAGS := {
 	W.MACE: ["arcano"],
 	W.GREATSWORD: ["filo"],
 	W.SWORD: ["filo"],
+	W.KATANA: ["filo", "fuego"],
+	W.BOW: ["filo", "naturaleza"],
 }
 
 ## [bono con 2 armas, bono extra con 3 o más]. "add" en todas las claves (cooldown multiplica).
@@ -58,27 +60,27 @@ const SYNERGY_DESC := {
 }
 
 const EVOLUTIONS := {
-	W.SPEAR_LANCE: {"item": "colmillo_jaguar", "name": "Lanza del Trueno",
+	W.SPEAR_LANCE: {"tome": "zancada", "name": "Lanza del Trueno",
 		"desc": "+60% daño, +30% tamaño, +2 cortes", "mods": {"damage": 0.6, "size": 0.3, "quantity_bonus": 2}},
-	W.FLAME_THROWER: {"item": "reloj_pendulo_roto", "name": "Aliento de Dragón",
+	W.FLAME_THROWER: {"tome": "celeridad", "name": "Aliento de Dragón",
 		"desc": "+50% daño, +40% alcance, ráfagas el doble de largas", "mods": {"damage": 0.5, "size": 0.4, "burst_time": 1.0}},
-	W.SPORE_BAZOOKA: {"item": "polvora_gruesa", "name": "Hongo Atómico",
+	W.SPORE_BAZOOKA: {"tome": "area", "name": "Hongo Atómico",
 		"desc": "+60% daño y +50% tamaño de la explosión", "mods": {"damage": 0.6, "size": 0.5}},
-	W.SPINNING_AXE: {"item": "mango_hierro", "name": "Torbellino de Acero",
+	W.SPINNING_AXE: {"tome": "armadura", "name": "Torbellino de Acero",
 		"desc": "+2 hachas, +60% tiempo girando, +25% tamaño", "mods": {"quantity_bonus": 2, "duration": 0.6, "size": 0.25}},
-	W.TRI_SHOTGUN: {"item": "carcaj_encantado", "name": "Trueno de Humo",
+	W.TRI_SHOTGUN: {"tome": "multiplicidad", "name": "Trueno de Humo",
 		"desc": "+4 perdigones, +30% daño, mucho más retroceso", "mods": {"quantity_bonus": 4, "damage": 0.3, "knockback": 1.0}},
-	W.ZOMBIE_ARM: {"item": "vela_anima", "name": "Mano de la Llorona",
+	W.ZOMBIE_ARM: {"tome": "vitalidad", "name": "Mano de la Llorona",
 		"desc": "+2 brazos, +50% daño, +6% robo de vida", "mods": {"quantity_bonus": 2, "damage": 0.5, "lifesteal": 0.06}},
-	W.ELEMENTS_CYCLE: {"item": "aguardiente_bendito", "name": "Tormenta Elemental",
+	W.ELEMENTS_CYCLE: {"tome": "avaricia", "name": "Tormenta Elemental",
 		"desc": "+2 orbes, +50% daño, giro +50% más rápido", "mods": {"orb_extra": 2, "damage": 0.5, "orbit_speed": 0.5}},
-	W.DUSTS: {"item": "mochila_cuero", "name": "Polvo de Estrellas",
+	W.DUSTS: {"tome": "saber", "name": "Polvo de Estrellas",
 		"desc": "+50% daño, +40% radio, +1 polvazo", "mods": {"damage": 0.5, "size": 0.4, "quantity_bonus": 1}},
-	W.SERPENTS: {"item": "corazon_ceiba", "name": "Guardianes Ancestrales",
+	W.SERPENTS: {"tome": "regeneracion", "name": "Guardianes Ancestrales",
 		"desc": "+60% daño y +25% tamaño de los espíritus", "mods": {"damage": 0.6, "size": 0.25}},
-	W.ENERGY_SWORD: {"item": "doble_filo", "name": "Espada Solar",
+	W.ENERGY_SWORD: {"tome": "poder", "name": "Espada Solar",
 		"desc": "+70% daño, +30% tamaño", "mods": {"damage": 0.7, "size": 0.3}},
-	W.RAILGUN: {"item": "ojo_mohan_comun", "name": "Cañón Celestial",
+	W.RAILGUN: {"tome": "suerte", "name": "Cañón Celestial",
 		"desc": "+60% daño, +2 perforaciones", "mods": {"damage": 0.6, "pierce_bonus": 2}},
 }
 
@@ -139,18 +141,18 @@ static func weapon_name(winv, weapon: int) -> String:
 		return String(EVOLUTIONS[weapon]["name"])
 	return String(WeaponData.weapon_names.get(weapon, "Arma"))
 
-## true si el arma puede evolucionar ya: nivel suficiente, su catalizador y sin evolucionar.
-static func can_evolve(winv, items, weapon: int) -> bool:
+## true si el arma puede evolucionar ya: nivel suficiente, su tomo (cualquier nivel) y sin evolucionar.
+static func can_evolve(winv, _items, weapon: int) -> bool:
 	if not EVOLUTIONS.has(weapon) or winv == null or is_evolved(winv, weapon):
 		return false
 	if not winv.weapon_slots.has(weapon) or winv.get_weapon_level(weapon) < EVOLVE_LEVEL:
 		return false
-	return items != null and items.count_item(String(EVOLUTIONS[weapon]["item"])) > 0
+	return TomeDB.level(String(EVOLUTIONS[weapon]["tome"])) > 0
 
 static func catalyst_name(weapon: int) -> String:
 	if not EVOLUTIONS.has(weapon):
 		return ""
-	return String(ItemDB.get_item(String(EVOLUTIONS[weapon]["item"])).get("name", "?"))
+	return TomeDB.tome_name(String(EVOLUTIONS[weapon]["tome"]))
 
 static func evolve(winv, weapon: int) -> void:
 	if not winv.weapon_upgrades.has(weapon):

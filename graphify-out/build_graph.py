@@ -18,7 +18,12 @@ def make_id(*parts) -> str:
     return joined.strip("_")
 
 
-FILES = sorted(ROOT.rglob("*.gd"))
+def _gd_ignored(p: Path) -> bool:
+    """Igual que Godot: se omite todo lo que esté bajo una carpeta con .gdignore."""
+    return any((d / ".gdignore").exists() for d in p.parents if ROOT in d.parents or d == ROOT)
+
+
+FILES = sorted(f for f in ROOT.rglob("*.gd") if not _gd_ignored(f))
 FILE_ID = {}
 for f in FILES:
     rel = f.relative_to(ROOT)

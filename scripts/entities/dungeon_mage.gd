@@ -80,11 +80,17 @@ func _init() -> void:
 	speed_mult = 1.7              # 3,4 m/s
 	hit_radius = 0.45
 	hit_height = 1.4
-	stagger_damage = 15.0
-	windup_poise = 8.0
+	stagger_damage = 18.0
+	armor = 6.0
+	armor_break = 20.0
+	knock_scale = 0.9
+	windup_poise = 11.0
 	telegraph_color = COLOR
 	swing_sfx = "impact_magic"
-	sfx_pitch = 1.25
+	warn_sfx = "mage_warn"
+	hurt_sfx = "mage_hurt"
+	die_sfx = "mage_die"
+	sfx_pitch = 1.0
 	attack_rest = 1.0
 	face_player_dist = KEEP_MAX + 4.0
 	uses_attack_token = false     # a distancia / jefe: no consume ficha de ataque
@@ -125,7 +131,8 @@ func _on_impact() -> void:
 	for i in n:
 		var ang := (i - (n - 1) * 0.5) * spread
 		var d := _facing.rotated(Vector3.UP, deg_to_rad(ang))
-		MageOrb.spawn(root, from, d, float(_atk["orb_speed"]), float(_atk["damage"]), COLOR, get_rid())
+		var orb := MageOrb.spawn(root, from, d, float(_atk["orb_speed"]), float(_atk["damage"]) * damage_mult, COLOR, get_rid())
+		orb.shooter = self
 
 ## Reaparece lejos del jugador, en suelo libre y viéndole; si no encuentra sitio, no se mueve.
 func _blink() -> void:

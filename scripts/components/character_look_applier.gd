@@ -88,6 +88,8 @@ var _head_mod: LookHeadModifier
 var _hat_id := ""
 var _hat_hair := ""
 var _foot_id := ""
+var _shoe_shown := ""          ## zapato del editor puesto ahora mismo (ver ClothingFit)
+var _shoe_nodes: Array[Node3D] = []
 var _hair_shown := ""          ## peinado suelto colgado ahora mismo
 var _hair_nodes: Array[Node3D] = []
 var _hat_nodes: Array[Node3D] = []
@@ -95,6 +97,10 @@ var _foot_nodes: Array[Node3D] = []
 var _helmet_id := ""            ## casco pedido (de EquipmentDB.helmet_of); "" = ninguno
 var _helmet_shown := ""         ## casco colgado ahora mismo
 var _helmet_nodes: Array[Node3D] = []
+var _shirt_shown := ""          ## camiseta colgada ahora mismo (ver ClothingFit)
+var _shirt_nodes: Array[Node3D] = []
+var _pants_shown := ""          ## pantalón puesto ahora mismo (misma mecánica que la camiseta)
+var _pants_nodes: Array[Node3D] = []
 var _armor: Dictionary = {}          ## pieza ("pechera") -> set pedido ("" = ninguno)
 var _armor_shown: Dictionary = {}    ## pieza -> set colgado ahora mismo
 var _armor_nodes: Dictionary = {}    ## pieza -> Array[Node3D]
@@ -347,10 +353,32 @@ func _apply_accessories() -> void:
 			_armor_shown[piece] = armor_wanted
 			if armor_wanted != "":
 				_attach_armor(piece, armor_wanted, regions)
-	if look.footwear != _foot_id:
+	var shirt_wanted: String = look.shirt if ClothingFit.fitted_ids(ClothingFit.SLOT_SHIRT).has(look.shirt) else ""
+	if shirt_wanted != _shirt_shown:
+		_free_all(_shirt_nodes)
+		_shirt_shown = shirt_wanted
+		if _shirt_shown != "":
+			_attach_shirt(_shirt_shown)
+	var pants_wanted: String = look.pants if ClothingFit.fitted_ids(ClothingFit.SLOT_PANTS).has(look.pants) else ""
+	if pants_wanted != _pants_shown:
+		_free_all(_pants_nodes)
+		_pants_shown = pants_wanted
+		if _pants_shown != "":
+			_attach_garment(_pants_shown, "pants", _pants_nodes)
+	# Zapato colocado en el editor (un .glb por pie, pegado al cuerpo) o calzado clásico (accesorio rígido)
+	var shoe_wanted: String = look.footwear if ClothingFit.fitted_ids(ClothingFit.SLOT_SHOES).has(look.footwear) else ""
+	if shoe_wanted != _shoe_shown:
+		_free_all(_shoe_nodes)
+		_shoe_shown = shoe_wanted
+		if _shoe_shown != "":
+			for part in [_shoe_shown, ClothingFit.twin_id(_shoe_shown)]:
+				if ClothingFit.fits().has(part):
+					_attach_garment(part, "shoes", _shoe_nodes)
+	var classic_foot: String = "" if shoe_wanted != "" else look.footwear
+	if classic_foot != _foot_id:
 		_free_all(_foot_nodes)
-		_foot_id = look.footwear
-		if _foot_id != "descalzo":
+		_foot_id = classic_foot
+		if _foot_id != "descalzo" and _foot_id != "":
 			for side in ["L", "R"]:
 				var mirror: bool = regions["mirror_" + side]
 				_attach(_foot_id, FOOT_BONES[side][0], regions["foot_" + side], mirror, _foot_nodes)
@@ -548,6 +576,24 @@ func _attach_armor(piece: String, set_id: String, regions: Dictionary) -> void:
 	var list: Array[Node3D] = _armor_nodes.get(piece, [] as Array[Node3D])
 	list.append(att)
 	_armor_nodes[piece] = list
+
+## Camiseta (assets/models/riva/ropa/<id>.glb) colocada con el ajuste de resources/clothing_fit.json, hecho en
+## tools/clothing_editor.tscn: va rígida sobre el hueso elegido (ver ClothingFit.skeleton_transform).
+func _attach_shirt(id: String) -> void:
+	_attach_garment(id, "shirt", _shirt_nodes)
+
+## Prenda pegada al cuerpo (camiseta o pantalón): la malla lleva los pesos de hueso del cuerpo, así sigue
+## los brazos, el torso y las piernas. Los nodos se llaman Acc_<ranura>_<id>_<n>.
+func _attach_garment(id: String, slot: String, into: Array[Node3D]) -> void:
+	var entry: Dictionary = ClothingFit.fits().get(id, {})
+	var ms := ClothingFit.BODY_HEIGHT / maxf(mesh_instance.mesh.get_aabb().size.y, 0.0001)
+	var parts := ClothingFit.build_skinned(id, entry, mesh_instance, ms)
+	for k in parts.size():
+		var mi := parts[k]
+		mi.name = "Acc_%s_%s_%d" % [slot, id, k]
+		skeleton.add_child(mi)
+		mi.set_meta("look_acc", true)
+		into.append(mi)
 
 func _color_nodes(nodes: Array[Node3D], mat_slots: Dictionary) -> void:
 	for n in nodes:

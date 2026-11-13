@@ -46,9 +46,11 @@ func _init() -> void:
 	speed_mult = 2.0              # 3 m/s
 	hit_radius = 0.55
 	hit_height = 0.8
-	windup_poise = 20.0           # inflándose solo la para un golpe fuerte
-	stagger_damage = 18.0
-	knock_scale = 0.9
+	windup_poise = 27.0           # inflándose solo la para un golpe fuerte
+	stagger_damage = 23.0
+	armor = 12.0
+	armor_break = 34.0
+	knock_scale = 0.7
 	telegraph_color = RED
 	sfx_pitch = 0.8
 	face_player_dist = 12.0

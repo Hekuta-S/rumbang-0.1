@@ -21,6 +21,10 @@ var speed: float = 6.0
 var attack_range: float = 12.0
 var damage: float = 2.0
 var gold_reward: int = 6
+## Multiplica el empujón que recibe (además del comportamiento): 1 = normal, menos = más pesado
+var knockback_resistance: float = 1.0
+var trait_id: String = ""      ## variante de comportamiento (ver apply_trait): splitter, mini
+var xp_reward: float = 1.0   ## XP de la gema al morir (lo fija WaveManager con XpCurve.xp_for_type)
 var detection_range: float = 40.0
 
 # --- Estado espacial ---
@@ -76,6 +80,28 @@ var token_wait: float = 0.0
 var orbit_sign: float = 1.0
 ## Posición del jugador en esta actualización (la fija update(); la usa _move).
 var _player_pos: Vector3 = Vector3.ZERO
+
+# --- Variantes (rasgos) sobre los modelos existentes: sin arte nuevo, cambian tamaño y comportamiento ---
+
+## Convierte al enemigo recién creado en una variante. Se aplica tras escalar vida y daño por minuto:
+##  splitter hinchado: grande y resistente; al morir suelta dos goblins pequeños (WaveManager)
+##  mini     cría del hinchado
+func apply_trait(id: String) -> void:
+	trait_id = id
+	match id:
+		"splitter":
+			max_hp *= 2.2
+			speed *= 0.9
+			scale = Vector3.ONE * 1.45
+			gold_reward *= 2
+			xp_reward = 3.0
+			knockback_resistance = 0.6   # grande y pesado: cuesta empujarlo
+		"mini":
+			max_hp *= 0.5
+			scale = Vector3.ONE * 0.7
+	hp = max_hp
+	hit_radius = 0.45 * scale.x
+	hit_height = 1.6 * scale.y
 
 # --- Dibujo (ver EnemyVisuals) ---
 var vat_key: String = ""
@@ -160,6 +186,8 @@ func get_transform_at(fraction: float) -> Transform3D:
 ## Reutiliza este enemigo (venga del pool o recién creado) en `pos` con estado limpio.
 func reactivate(pos: Vector3) -> void:
 	recycled = false
+	trait_id = ""
+	knockback_resistance = 1.0
 	global_position = pos
 	prev_position = pos
 	_reset_stats()
@@ -329,6 +357,7 @@ func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 		var push_speed: float = kb_len if kb_len > 1.05 else 3.0
 		if behavior:
 			push_speed *= behavior.get_knockback_resistance()
+		push_speed *= knockback_resistance
 		knockback_velocity = kb_norm * clampf(push_speed, 1.0, 24.0)
 
 	if not is_dot or now - _last_flash_t >= DOT_FLASH_INTERVAL:

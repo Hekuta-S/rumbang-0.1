@@ -39,6 +39,9 @@ var berserk_timer: float = 0.0
 var is_riva_fast: bool = false ## Riva en modo ráfaga (Pies Humeantes): animación súper carrera + estela de humo
  ## Índice actual del elemento para el ataque de Saimon
 var skill_cd_timer: float = 0.0
+## Algo con interact() junto a lo que estás (la forja de Tatán): la tecla de habilidad (E / RB / botón
+## táctil) lo usa en vez de lanzar la habilidad. Lo pone y quita quien está cerca (DungeonShop).
+var interact_target: Node = null
 @export var skill_cooldown: float = 10.0
 
 var time_since_damage: float:
@@ -113,6 +116,7 @@ func get_weapon_modifiers(w_id: int) -> Dictionary:
 		var m: Dictionary = weapon_inventory.get_weapon_modifiers(w_id)
 		WeaponSynergies.apply(weapon_inventory, w_id, m)   # sinergias de etiqueta y evolución
 		DungeonRunes.apply(m)                              # runas de la mazmorra
+		DungeonRun.apply(w_id, m)                          # pergaminos de enfoque
 		_apply_weapon_item_mods(w_id, m)                   # modificador propio del arma equipada
 		return m
 	var lvl = get_weapon_level(w_id)
@@ -416,9 +420,11 @@ func select_slot(slot_idx: int) -> void:
 	
 
 func cycle_slots(delta_idx: int) -> void:
-	if not weapon_inventory or weapon_inventory.weapon_slots.is_empty():
+	if not weapon_inventory:
 		return
-	select_slot((weapon_inventory.current_slot + delta_idx) % weapon_inventory.weapon_slots.size())
+	var target: int = weapon_inventory.next_slot_index(delta_idx)
+	if target >= 0:
+		select_slot(target)
 
 func _input(event) -> void:
 	if camera_controller:
@@ -533,6 +539,10 @@ func update_weapon_visuals() -> void:
 		weapon_visuals.set_greatsword_skin(greatsword_skin())
 	elif weapon_visuals and current_weapon() == WeaponData.WeaponType.SWORD:
 		weapon_visuals.set_sword_skin(sword_skin())
+	elif weapon_visuals and current_weapon() == WeaponData.WeaponType.KATANA:
+		weapon_visuals.set_katana_skin(0)
+	elif weapon_visuals and current_weapon() == WeaponData.WeaponType.BOW:
+		weapon_visuals.set_bow_skin(bow_skin())
 	elif weapon_visuals and current_weapon() == WeaponData.WeaponType.DAGGERS:
 		weapon_visuals.set_dagger_skin(dagger_skin())
 	elif weapon_visuals and current_weapon() == WeaponData.WeaponType.MACE:
@@ -567,6 +577,13 @@ func sword_skin() -> int:
 	if not item.is_empty() and int(item.get("weapon", -1)) == WeaponData.WeaponType.SWORD:
 		return int(item.get("skin", 0))
 	return GameData.sword_skin
+
+## Cuál de los arcos (BowModels) lleva: el del arco equipado, o el elegido.
+func bow_skin() -> int:
+	var item: Dictionary = equipment.get_item("arma") if equipment else {}
+	if not item.is_empty() and int(item.get("weapon", -1)) == WeaponData.WeaponType.BOW:
+		return int(item.get("skin", 0))
+	return GameData.bow_skin
 
 ## Cuál de las dagas (DaggerModels) lleva: el de la daga equipada, o el elegido.
 func dagger_skin() -> int:
@@ -619,6 +636,9 @@ func _emit_reload_state() -> void:
 
 ## Per-character special ability (E key): Berserk, o la habilidad de la pasiva si la tiene (Heckler).
 func activate_skill() -> void:
+	if is_instance_valid(interact_target) and interact_target.has_method("interact"):
+		interact_target.interact()
+		return
 	if skill_cd_timer > 0: return
 	skill_cd_timer = skill_cooldown
 	# Habilidad propia de la pasiva (p. ej. el teletransporte de Heckler)
@@ -701,6 +721,18 @@ func parry_bonus_mult() -> float:
 func take_damage(amount: float, direction: Vector3 = Vector3.ZERO) -> void:
 	if health_comp and health_comp.has_method("take_damage"):
 		var landed: bool = health_comp.invincibility_time <= 0.0
+		if not landed and movement_controller and movement_controller.try_perfect_dodge():
+			return
+		if landed and equipment and equipment.absorb_hit():
+			# Regla "vacio" (Coraza del Vacío): este golpe no hace daño
+			EquipmentPickup.toast(self, "ABSORBIDO", EquipmentDB.RULE_COLOR)
+			RunLog.proc("rule:vacio")
+			return
+		if landed and GameData.game_mode == "dungeon":
+			amount *= DungeonRun.incoming_mult()          # cofre maldito
+			if DungeonRun.second_wind_ready():
+				var hc: Node = health_comp
+				health_comp.damage_taking.connect(func(data): DungeonRun.try_second_wind(data, hc, self), CONNECT_ONE_SHOT)
 		health_comp.take_damage(amount)
 		if landed:
 			HitFeedback.on_player_hit(self, amount, direction)
@@ -914,7 +946,8 @@ func throw_spear() -> void:
 	combat_controller.throw_spear()
 
 ## Armas cuyo especial cobra el recurso por su cuenta (PlayerCombatController).
-const SELF_PAID_SPECIALS := [WeaponData.WeaponType.SPEAR_LANCE, WeaponData.WeaponType.DAGGERS, WeaponData.WeaponType.MACE]
+const SELF_PAID_SPECIALS := [WeaponData.WeaponType.SPEAR_LANCE, WeaponData.WeaponType.DAGGERS, WeaponData.WeaponType.MACE,
+	WeaponData.WeaponType.BOW]
 
 func _on_alt_attack_pressed() -> void:
 	# El especial de cada arma cuesta su recurso. La espalanza, las dagas y la maza cobran el suyo dentro
@@ -933,6 +966,10 @@ func _on_alt_attack_pressed() -> void:
 		combat_controller.dagger_dash()
 	elif current_weapon() == WeaponData.WeaponType.MACE and GameData.game_mode == "dungeon":
 		combat_controller.mace_slam()
+	elif current_weapon() == WeaponData.WeaponType.KATANA and GameData.game_mode == "dungeon":
+		combat_controller.katana_special()
+	elif current_weapon() == WeaponData.WeaponType.BOW and GameData.game_mode == "dungeon":
+		combat_controller.start_bow_charge()     # tensar: al soltar sale la flecha cargada
 	elif current_weapon() == WeaponData.WeaponType.GREATSWORD or current_weapon() == WeaponData.WeaponType.SWORD:
 		pass    # el espadón y la espada no tienen especial: su fuerza es andar/correr y el ataque con carrerilla
 	elif current_weapon() == WeaponData.WeaponType.FLAME_THROWER and GameData.game_mode == "dungeon":
@@ -949,6 +986,7 @@ func _on_alt_attack_pressed() -> void:
 ## Soltar el click derecho lanza la espalanza con la fuerza acumulada.
 func _on_alt_attack_released() -> void:
 	combat_controller.release_spear_charge()
+	combat_controller.release_bow_charge()
 
 func _on_toggle_mouse_capture() -> void:
 	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -983,6 +1021,18 @@ func play_spawn_scan() -> void:
 
 func _on_entity_died() -> void:
 	if is_playing_death_scan:
+		return
+	var gs := GameState.get_instance()
+	if GameData.game_mode == "survival" and gs.revives_left > 0 and not Net.is_online():
+		# Segunda vida (MetaShop): te levantas con la mitad de la vida, unos segundos invulnerable y sin enemigos encima
+		gs.revives_left -= 1
+		health_comp.hp = health_comp.max_hp * 0.5
+		health_comp.invincibility_time = 3.0
+		health_comp._emit_stats()
+		MapPickup.bomb_blast(global_position, 12.0)
+		NecroVFX.shockwave(get_parent(), global_position, 12.0, Color(1.0, 0.85, 0.3))
+		HitFeedback.shake(0.4)
+		AudioManager.play("level-up", -2.0, 0.8)
 		return
 	if Net.is_online():
 		# Multijugador: no hay fin de partida; pasa a espectador hasta que se despeje la caverna

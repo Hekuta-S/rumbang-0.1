@@ -86,6 +86,31 @@ const ACTION_SETS := {
 		"sw4": {"path": "res://assets/models/sword/sw_combo.fbx", "from": 40, "to": 106, "root_motion": true, "leg_scale": true},
 		"sw_run": {"path": "res://assets/models/sword/sw_run_attack.fbx", "root_motion": true, "leg_scale": true},
 	},
+	# Katana (mítica): "primer golpe" (kt1) y el mismo golpe en espejo (kt2, "mirror": izquierda <-> derecha), el clip "2 golpes" cortado en el fotograma 28 (kt3, kt4),
+	# el ataque al correr y el especial (clic derecho).
+	WeaponData.WeaponType.KATANA: {
+		"kt1": {"path": "res://assets/models/katana/kt_attack1.fbx", "root_motion": true, "leg_scale": true},
+		"kt2": {"path": "res://assets/models/katana/kt_attack1.fbx", "mirror": true, "root_motion": true, "leg_scale": true},
+		"kt3": {"path": "res://assets/models/katana/kt_combo.fbx", "from": 0, "to": 28, "root_motion": true, "leg_scale": true},
+		"kt4": {"path": "res://assets/models/katana/kt_combo.fbx", "from": 28, "to": 98, "root_motion": true, "leg_scale": true},
+		"kt_run": {"path": "res://assets/models/katana/kt_run_attack.fbx", "root_motion": true, "leg_scale": true},
+		"kt_special": {"path": "res://assets/models/katana/kt_special.fbx", "root_motion": true, "leg_scale": true},
+	},
+	# Arco (Mixamo, pack de arco largo): tensado completo en el fotograma 0, suelta la cuerda en el 5-6 y baja el arco
+	# hasta el reposo. Se reproduce por encima de las piernas si se anda (PlayerAnimationController.play_bow_shot).
+	WeaponData.WeaponType.BOW: {
+		"bow_shot": {"path": "res://assets/models/bow/bow_shot.fbx", "leg_scale": true},
+		# Animados en Blender sobre este mismo esqueleto (blender_sources/bow_anims.blend). Combo de tres disparos:
+		# 1 rápido, 2 con el arco inclinado y la mano a la espalda a por otra flecha, 3 en postura baja con
+		# sobretensado y retroceso fuerte (una sola flecha potente).
+		"bow_shot_1": {"path": "res://assets/models/bow/bow_shot_1.fbx", "leg_scale": true},
+		"bow_shot_2": {"path": "res://assets/models/bow/bow_shot_2.fbx", "leg_scale": true},
+		"bow_shot_3": {"path": "res://assets/models/bow/bow_shot_3.fbx", "leg_scale": true},
+		# Cargado: encajar y tensar (0-15), sostener con temblor (15-45, se repite en bucle) y la suelta potente
+		"bow_charge_draw": {"path": "res://assets/models/bow/bow_charge.fbx", "from": 0, "to": 15, "leg_scale": true},
+		"bow_charge_hold": {"path": "res://assets/models/bow/bow_charge.fbx", "from": 15, "to": 45, "leg_scale": true},
+		"bow_charge_release": {"path": "res://assets/models/bow/bow_charge_release.fbx", "leg_scale": true},
+	},
 	WeaponData.WeaponType.DUSTS: {            # Tatan: lanzamientos y polvo a la cara
 		"dust1": "res://assets/models/tatan/tatan_lanzar1.fbx",
 		"dust2": "res://assets/models/tatan/tatan_lanzar2.fbx",
@@ -132,6 +157,23 @@ const LOCO := {
 		"walk": {"path": "res://assets/models/sword/sw_walk.fbx", "leg_scale": true},
 		"run": {"path": "res://assets/models/sword/sw_run.fbx", "leg_scale": true},
 		"strafe": {"path": "res://assets/models/sword/sw_strafe.fbx", "leg_scale": true},
+	},
+	# Arco: reposo, andar en las cuatro direcciones con el arco listo. Sin carrera propia: al correr (tras un rato sin
+	# combatir, PlayerMovementController.GAITS) se usa la del personaje. "strafe_l" y "back" son opcionales: si un
+	# arma los trae, el paso a la izquierda y el retroceso usan su clip en vez de reproducir otro al revés.
+	# Katana: la guardia y la locomoción del espadón
+	WeaponData.WeaponType.KATANA: {
+		"idle": {"path": "res://assets/models/greatsword/gs_idle.fbx", "leg_scale": true},
+		"walk": {"path": "res://assets/models/greatsword/gs_walk.fbx", "leg_scale": true, "stride": {"UpLeg": 1.6, "Leg": 1.2}},
+		"run": {"path": "res://assets/models/greatsword/gs_run.fbx", "leg_scale": true},
+		"strafe": {"path": "res://assets/models/greatsword/gs_strafe_r.fbx", "leg_scale": true},
+	},
+	WeaponData.WeaponType.BOW: {
+		"idle": {"path": "res://assets/models/bow/bow_idle.fbx", "leg_scale": true},
+		"walk": {"path": "res://assets/models/bow/bow_walk.fbx", "leg_scale": true},
+		"strafe": {"path": "res://assets/models/bow/bow_walk_r.fbx", "leg_scale": true},
+		"strafe_l": {"path": "res://assets/models/bow/bow_walk_l.fbx", "leg_scale": true},
+		"back": {"path": "res://assets/models/bow/bow_walk_back.fbx", "leg_scale": true},
 	},
 }
 
@@ -210,7 +252,7 @@ static func widen_stride(anim: Animation, widen: Dictionary) -> void:
 			var angle := d.get_angle()
 			if angle < 0.0001:
 				continue
-			anim.track_set_key_value(i, j, (mean * Quaternion(d.get_axis(), angle * k)).normalized())
+			anim.track_set_key_value(i, j, (mean * Quaternion(d.get_axis().normalized(), angle * k)).normalized())
 
 static func has_carry(weapon_type: int) -> bool:
 	return CARRY.has(weapon_type)
@@ -257,6 +299,10 @@ static func _build_actions_from(paths: Dictionary, dst: Skeleton3D, skel_path: N
 			var anim: Animation = ap.get_animation(ap.get_animation_list()[0]).duplicate(true)
 			if spec is Dictionary and spec.has("from"):
 				slice_animation(anim, float(spec["from"]) / SAMPLE_FPS, float(spec["to"]) / SAMPLE_FPS)
+			if spec is Dictionary and spec.get("reverse", false):
+				reverse_animation(anim)
+			if spec is Dictionary and spec.get("mirror", false):
+				mirror_animation(anim, src)
 			_retarget_bones(anim, src, dst, skel_path, spec is Dictionary and spec.get("leg_scale", false))
 			if spec is Dictionary and spec.get("root_motion", false):
 				extract_root_motion(anim, skel_path)
@@ -296,6 +342,93 @@ static func slice_animation(anim: Animation, t0: float, t1: float) -> void:
 			anim.track_insert_key(i, float(kv[0]), kv[1])
 		anim.track_insert_key(i, t1 - t0, last)
 	anim.length = t1 - t0
+
+## Invierte la animación en el tiempo (la key en t pasa a length - t). Antes de _retarget_bones / root motion: el
+## avance de la cadera también se invierte, así que el golpe al revés retrocede lo que el original avanzaba.
+static func reverse_animation(anim: Animation) -> void:
+	var length := anim.length
+	for i in anim.get_track_count():
+		var n := anim.track_get_key_count(i)
+		if n == 0:
+			continue
+		var keys: Array = []
+		for k in n:
+			keys.append([length - anim.track_get_key_time(i, k), anim.track_get_key_value(i, k)])
+		for k in range(n - 1, -1, -1):
+			anim.track_remove_key(i, k)
+		for kv in keys:
+			anim.track_insert_key(i, maxf(float(kv[0]), 0.0), kv[1])
+
+## Refleja la animación en espejo (izquierda <-> derecha, plano X = 0 del esqueleto de origen). Antes de
+## _retarget_bones. Cada hueso toma el movimiento de su gemelo del otro lado reflejado, medido como desviación
+## respecto al reposo, así no hace falta que los ejes locales de los huesos izquierdos y derechos sean simétricos.
+static func mirror_animation(anim: Animation, src: Skeleton3D) -> void:
+	var tracks := _bone_tracks(anim, src)
+	var m := Basis.from_scale(Vector3(-1, 1, 1))
+	var n := src.get_bone_count()
+	var twin: Array[int] = []
+	for b in n:
+		var nm := src.get_bone_name(b)
+		var other := nm.replace("Left", "@").replace("Right", "Left").replace("@", "Right")
+		var t := src.find_bone(other)
+		twin.append(t if t >= 0 else b)
+	# Pistas de rotación que faltan en un gemelo (el original las tiene en el otro lado)
+	for b in n:
+		var tb: Dictionary = tracks.get(b, {})
+		var tw: int = twin[b]
+		if tb.has(Animation.TYPE_ROTATION_3D) and not (tracks.get(tw, {}) as Dictionary).has(Animation.TYPE_ROTATION_3D):
+			var path := String(anim.track_get_path(tb[Animation.TYPE_ROTATION_3D]))
+			var i := anim.add_track(Animation.TYPE_ROTATION_3D)
+			anim.track_set_path(i, NodePath(path.get_slice(":", 0) + ":" + src.get_bone_name(tw)))
+			anim.track_insert_key(i, 0.0, src.get_bone_rest(tw).basis.get_rotation_quaternion())
+	tracks = _bone_tracks(anim, src)
+	var rest_g: Array[Basis] = []
+	var rest_cache := {}
+	for b in n:
+		rest_g.append(_global_pose(src, b, anim, {}, 0.0, rest_cache).basis.orthonormalized())
+	var frames := maxi(int(round(anim.length * SAMPLE_FPS)), 1)
+	var rot_keys := {}   # bone -> [[t, quat]]
+	var pos_keys := {}
+	for f in frames + 1:
+		var t := minf(float(f) / SAMPLE_FPS, anim.length)
+		var cache := {}
+		var mg: Array[Transform3D] = []
+		mg.resize(n)
+		# Pose global reflejada de cada hueso, a partir de la de su gemelo
+		for b in n:
+			var tw: int = twin[b]
+			var g := _global_pose(src, tw, anim, tracks, t, cache)
+			var gb := g.basis.orthonormalized()
+			var basis := (m * gb * m) * (m * rest_g[tw] * m).inverse() * rest_g[b]
+			mg[b] = Transform3D(basis, m * g.origin)
+		for b in n:
+			var tr: Dictionary = tracks.get(b, {})
+			if tr.is_empty():
+				continue
+			var parent := src.get_bone_parent(b)
+			var local := mg[b] if parent < 0 else Transform3D(mg[parent].basis, mg[parent].origin).affine_inverse() * mg[b]
+			if tr.has(Animation.TYPE_ROTATION_3D):
+				if not rot_keys.has(b):
+					rot_keys[b] = []
+				rot_keys[b].append([t, local.basis.orthonormalized().get_rotation_quaternion()])
+			if tr.has(Animation.TYPE_POSITION_3D) and parent < 0:
+				if not pos_keys.has(b):
+					pos_keys[b] = []
+				# Escala del hueso raíz respecto al esqueleto: se conserva la del original
+				var orig: Vector3 = anim.position_track_interpolate(tr[Animation.TYPE_POSITION_3D], t)
+				pos_keys[b].append([t, Vector3(-orig.x, orig.y, orig.z)])
+	for b in rot_keys:
+		var i: int = tracks[b][Animation.TYPE_ROTATION_3D]
+		for k in range(anim.track_get_key_count(i) - 1, -1, -1):
+			anim.track_remove_key(i, k)
+		for kv in rot_keys[b]:
+			anim.track_insert_key(i, float(kv[0]), kv[1])
+	for b in pos_keys:
+		var i: int = tracks[b][Animation.TYPE_POSITION_3D]
+		for k in range(anim.track_get_key_count(i) - 1, -1, -1):
+			anim.track_remove_key(i, k)
+		for kv in pos_keys[b]:
+			anim.track_insert_key(i, float(kv[0]), kv[1])
 
 ## Saca el avance de la cadera (X, Z del esqueleto) de la animación: la pista queda quieta en horizontal (la
 ## altura se conserva) y el recorrido se guarda en el meta "root_motion" como {"fps", "pts": PackedVector2Array

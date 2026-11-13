@@ -46,33 +46,42 @@ func _run() -> void:
 		assert(ResourceLoader.exists(p), "Falta " + p + " (tools/blender_salon_invocacion.py)")
 	print("CHECK 1 PASSED: salón, rey y mago exportados")
 
-	# 2. Primera vez: intro; materiales, puertas/tapa, clips y piel del rey y el mago
+	# 2. El salón se explora directo (la primera vez el título lleva antes al patio del tutorial);
+	# materiales, puertas/tapa, clips y piel del mago; el rey solo sale en el tutorial
+	assert(TitleScreen.next_scene() == TitleScreen.CREATE, "La primera vez el título lleva a crear el personaje")
+	DungeonHub.set_character_created(true)
+	assert(TitleScreen.next_scene() == TitleScreen.TUTORIAL, "Con el personaje creado, al patio del tutorial")
+	DungeonHub.set_tutorial_done(true)
+	assert(TitleScreen.next_scene() == TitleScreen.HUB, "Con el tutorial hecho, al salón")
 	var hub := HUB.instantiate() as DungeonHub
 	add_child(hub)
 	await get_tree().process_frame
-	assert(hub.state == "intro", "La primera vez se ve la intro (estado %s)" % hub.state)
-	assert(not hub.player.visible and hub.player.locked, "El héroe aún no ha llegado")
+	assert(hub.state == "explore", "El salón arranca explorando (estado %s)" % hub.state)
+	assert(hub.king == null, "El rey no está en el salón")
+	assert(hub.player.visible and not hub.player.locked, "El héroe está y se mueve")
 	var names := {}
 	for mi in hub.get_node("Salon").find_children("*", "MeshInstance3D", true, false):
 		for i in (mi as MeshInstance3D).mesh.get_surface_count():
 			var m := (mi as MeshInstance3D).get_surface_override_material(i)
-			assert(m is StandardMaterial3D, "Material del juego en cada superficie del salón")
+			assert(m is StandardMaterial3D or m is ShaderMaterial,
+				"Material del juego en cada superficie del salón")
 			names[m.resource_name] = m
 	for k in ["salon_floor", "salon_brick", "salon_glow_rune", "salon_gold", "salon_carpet", "salon_steel", "salon_glow_crystal"]:
 		assert(names.has(k), "El salón tiene " + k)
 	for n in ["porton_izq", "porton_der", "puerta_arena_izq", "puerta_arena_der", "cofre_tapa"]:
 		assert(hub._movers.has(n), "Pieza móvil " + n)
-	var clips := {"rey": ["rey_idle", "rey_invocar", "rey_hablar", "rey_sorpresa"],
-		"mago": ["mago_idle", "mago_conjurar", "mago_sorpresa", "mago_reverencia"]}
+	var clips := {"mago": ["mago_idle", "mago_conjurar", "mago_sorpresa", "mago_reverencia"]}
 	for who in clips:
-		var npc: Node3D = hub.king if who == "rey" else hub.mage
+		var npc: Node3D = hub.mage
 		var ap := hub._anim(npc)
 		for c in clips[who]:
 			assert(ap and ap.has_animation(c), "%s tiene el clip %s" % [who, c])
 		var la := npc.get_node("LookApplier") as CharacterLookApplier
 		assert(la and la.mesh_instance.get_surface_override_material(0) is ShaderMaterial, who + ": piel de Riva")
 	assert(hub.player.has_clip("walk") and hub.player.has_clip("run"), "El héroe anda y corre")
-	print("CHECK 2 PASSED: intro arrancada; salón, puertas, rey y mago listos")
+	var arena_pos: Vector3 = DungeonHub.STATIONS["arena"]["pos"]
+	assert(absf(arena_pos.x) < 0.5 and arena_pos.z < -10.0, "La puerta de la arena está al fondo, donde estaba el trono")
+	print("CHECK 2 PASSED: salón explorable, sin rey, puerta de la arena al fondo")
 
 	# 3. Murmullos
 	var a := Murmur.make("¡Bienvenido, héroe!", "rey")
@@ -83,23 +92,12 @@ func _run() -> void:
 	assert(a.data.size() > 22050 and peak > 2000 and peak < 32000 and a.data != b.data, "Murmullos (pico %d)" % peak)
 	print("CHECK 3 PASSED: murmullos (pico %d)" % peak)
 
-	# 4. Tras el destello aparece el héroe en el círculo
-	await _wait_intro(hub, DungeonHub.FLASH_AT + 0.6)
-	assert(hub.player.visible and hub.player.global_position.distance_to(DungeonHub.CIRCLE) < 0.3, "El héroe en el círculo")
+	# 4/5. La intro del salón ya no se lanza sola; el héroe empieza en el círculo y el tutorial queda hecho
+	assert(hub.player.global_position.distance_to(DungeonHub.CIRCLE) < 0.3, "El héroe en el círculo")
 	assert(hub.player_model.get_node_or_null("LookApplier") != null, "Con su CharacterLook")
-	print("CHECK 4 PASSED: el héroe aparece a los %.1f s" % hub.intro_time)
-
-	# 5. Saltar (dos pulsaciones) -> se explora el salón
-	var ev := InputEventKey.new()
-	ev.keycode = KEY_SPACE
-	ev.pressed = true
-	hub._unhandled_input(ev)
-	assert(hub.state == "intro", "Una pulsación solo avisa")
-	hub._unhandled_input(ev)
-	await _until(func(): return hub.state == "explore", 6.0)
-	assert(hub.state == "explore" and not hub.player.locked, "Saltar lleva a explorar")
-	assert(DungeonHub.intro_seen(), "Intro marcada como vista")
-	print("CHECK 5 PASSED: intro saltada -> explorar")
+	assert(DungeonHub.tutorial_done(), "Tutorial marcado como hecho")
+	print("CHECK 4 PASSED: héroe en el círculo")
+	print("CHECK 5 PASSED: sin intro automática")
 
 	# 6. Andar: con clic/toque hasta el yunque; las columnas bloquean
 	var anvil: Vector3 = DungeonHub.STATIONS["yunque"]["pos"]
@@ -152,15 +150,26 @@ func _run() -> void:
 	assert(hub.near_station == "arena", "Junto a la puerta de la arena (%s)" % hub.near_station)
 	hub.use_station("arena")
 	var chars := HubPanels.survival_characters()
-	assert(chars.size() >= 3, "Varios personajes en supervivencia (%d)" % chars.size())
+	assert(chars.size() == GameData.SURVIVAL_UNLOCKED.size(), "Solo los personajes de supervivencia desbloqueados (%d)" % chars.size())
 	var ids := []
 	for i in chars:
 		ids.append(GameData.CHARACTERS[i]["id"])
-	assert(ids.has("mikeura") and ids.has("vangry"), "Personajes de siempre: %s" % [ids])
+	assert(ids == ["mikeura"], "En supervivencia se juega con Mikeura: %s" % [ids])
 	await get_tree().process_frame
 	assert(chars.has(hub.panels.selected_survivor()), "Hay uno elegido")
 	hub.panels.close()
 	print("CHECK 9 PASSED: arena con %d personajes" % chars.size())
+
+	# 9b. Muñeco de práctica: repetir el tutorial
+	hub.player.position = DungeonHub.STATIONS["patio"]["pos"] + Vector3(-0.8, 0, 0)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert(hub.near_station == "patio", "Junto al muñeco del tutorial (%s)" % hub.near_station)
+	hub.start_tutorial(false)
+	assert(hub.state == "leaving", "Repetir el tutorial sale del salón")
+	hub.state = "explore"
+	hub.player.locked = false
+	print("CHECK 9b PASSED: estación para repetir el tutorial")
 
 	# 10. Cofre (mejoras del menú de siempre) y salir (confirmación)
 	hub.player.position = DungeonHub.STATIONS["cofre"]["pos"] + Vector3(-0.9, 0, 0)

@@ -119,12 +119,14 @@ func _ready() -> void:
 	vis.set_sword_skin(0)
 	print("CHECK 2 PASSED: %d modelos de espada" % SwordModels.count())
 
-	# 3. Andar -> correr: más rápido que el espadón (1 s sin combate)
+	# 3. Andar -> correr: antes que el espadón (GAITS "delay" s sin combate)
+	var sw_delay := float(PlayerMovementController.GAITS[WeaponData.WeaponType.SWORD]["delay"])
+	assert(sw_delay < PlayerMovementController.GS_RUN_DELAY, "La espada arranca a correr antes que el espadón")
 	mc.note_combat()
 	assert(not mc.gs_running(), "Recién hecho un golpe: anda")
-	for i in 12:
+	for i in int(sw_delay * 10.0) + 3:
 		mc._update_gs_gait(0.1, true)
-	assert(mc.gs_running(), "Tras 1,2 s sin combate corre")
+	assert(mc.gs_running(), "Tras %.1f s sin combate corre" % sw_delay)
 	_player.take_damage(1.0)
 	assert(not mc.gs_running(), "Recibir daño lo devuelve a andar")
 	print("CHECK 3 PASSED: andar/correr según el combate")

@@ -53,10 +53,17 @@ func _init() -> void:
 	enemy_type = EnemyData.EnemyType.ZOMBIE_GOBLIN
 	hp_mult = 2.0                 # 25 × 2 = 50
 	speed_mult = 1.8              # 2,7 m/s
-	windup_poise = 14.0
-	knock_scale = 0.8
+	windup_poise = 20.0
+	stagger_damage = 21.0
+	armor = 10.0
+	armor_break = 30.0
+	knock_scale = 0.6
 	telegraph_color = COLOR
-	sfx_pitch = 0.82
+	warn_sfx = "zombie_warn"
+	swing_sfx = "zombie_swing"
+	hurt_sfx = "zombie_hurt"
+	die_sfx = "zombie_die"
+	sfx_pitch = 1.0
 
 func is_downed() -> bool:
 	return _downed
@@ -91,7 +98,7 @@ func _die() -> void:
 	_downed = true
 	_down_t = 0.0
 	_set_state(State.DEAD)
-	AudioManager.play_at("goblin_die", global_position, -3.0, 0.7)
+	AudioManager.play_at("zombie_die", global_position, -3.0, 1.1)
 
 func _physics_process(delta: float) -> void:
 	super(delta)
@@ -112,4 +119,4 @@ func _rise() -> void:
 	_set_state(State.HURT)
 	_state_t = hurt_time - RISE_TIME   # la reacción dura lo que tarda en levantarse
 	_play("rise", 0.05)
-	AudioManager.play_at("goblin_warn", global_position, 0.0, 0.6)
+	AudioManager.play_at("zombie_rise", global_position, 0.0)

@@ -18,11 +18,6 @@ const COLOR_SLOTS := [
 	["eyes", "Ojos", Color(0.32, 0.20, 0.10)],
 	["underwear", "Calzones", Color(0.20, 0.35, 0.80)],
 	["waistband", "Elástico", Color(0.95, 0.95, 0.95)],
-	["shoes", "Calzado", Color(0.40, 0.25, 0.12)],
-	["shoes_accent", "Calzado (detalle)", Color(0.25, 0.15, 0.08)],
-	["sole", "Suela", Color(0.92, 0.90, 0.85)],
-	["hat", "Gorro", Color(0.78, 0.16, 0.16)],
-	["hat2", "Gorro (detalle)", Color(0.95, 0.95, 0.95)],
 ]
 
 ## Peinados: mallas Pelo_<id> del modelo base (se muestra solo la elegida; "rapado" = ninguna)
@@ -33,8 +28,34 @@ const HAIR_STYLES := {
 	"anime": "Anime corto", "estilo1": "Ayato", "estilo2": "Largo", "estilo3": "Kaiya",
 	"estilo4": "Kaveh", "estilo5": "Medio", "estilo6": "Corto", "cuernos": "Cuernos",
 }
-const HATS := {"ninguno": "Sin gorro", "gorro": "Gorro de lana", "gorra": "Gorra", "gorra_atras": "Gorra al revés", "sombrero": "Sombrero"}
-const FOOTWEAR := {"descalzo": "Descalzo", "botas": "Botas", "converse": "Converse"}
+## Ya no hay gorros (se quitaron los modelos); el campo se conserva por compatibilidad con partidas guardadas.
+const HATS := {"ninguno": "Sin gorro"}
+const FOOTWEAR := {"descalzo": "Descalzo"}   # + los zapatos colocados en el editor de ropa (footwear_options)
+## Calzado que se puede elegir: los de siempre más los zapatos colocados con tools/clothing_editor.tscn.
+static func footwear_options() -> Dictionary:
+	var out := FOOTWEAR.duplicate()
+	for id in ClothingFit.fitted_ids(ClothingFit.SLOT_SHOES):
+		out[id] = ClothingFit.pretty(id)
+	return out
+
+const SHIRT_NONE := "ninguna"
+
+## Camisetas que se pueden elegir: las que tienen ajuste guardado en resources/clothing_fit.json
+## (se colocan con tools/clothing_editor.tscn).
+static func shirt_options() -> Dictionary:
+	var out := {SHIRT_NONE: "Sin camiseta"}
+	for id in ClothingFit.fitted_ids(ClothingFit.SLOT_SHIRT):
+		out[id] = ClothingFit.pretty(id)
+	return out
+
+const PANTS_NONE := "ninguno"
+
+## Pantalones que se pueden elegir: prendas con ranura "pants" y ajuste guardado (se colocan en el mismo editor).
+static func pants_options() -> Dictionary:
+	var out := {PANTS_NONE: "Sin pantalón"}
+	for id in ClothingFit.fitted_ids(ClothingFit.SLOT_PANTS):
+		out[id] = ClothingFit.pretty(id)
+	return out
 
 ## Proporciones: [clave, etiqueta, mínimo, máximo].
 const PROPORTIONS := [
@@ -67,6 +88,8 @@ var colors: Dictionary = {}
 var hair_style := "riva"
 var hat := "ninguno"
 var footwear := "descalzo"
+var shirt := SHIRT_NONE
+var pants := PANTS_NONE
 var height := 1.0
 var build := 1.0
 var head := 1.0
@@ -94,7 +117,7 @@ func duplicate_look() -> CharacterLook:
 func to_dict() -> Dictionary:
 	return {
 		"name": char_name, "colors": colors.duplicate(), "hair_style": hair_style, "hat": hat, "footwear": footwear,
-		"height": height, "build": build, "head": head,
+		"shirt": shirt, "pants": pants, "height": height, "build": build, "head": head,
 	}
 
 ## Construye una apariencia a partir de un diccionario (del disco o de otro jugador): todo se valida.
@@ -111,7 +134,9 @@ static func from_dict(d: Dictionary) -> CharacterLook:
 				l.colors[k] = Color(clampf(c.r, 0, 1), clampf(c.g, 0, 1), clampf(c.b, 0, 1))
 	l.hair_style = _pick(d.get("hair_style"), HAIR_STYLES, l.hair_style)
 	l.hat = _pick(d.get("hat"), HATS, l.hat)
-	l.footwear = _pick(d.get("footwear"), FOOTWEAR, l.footwear)
+	l.footwear = _pick(d.get("footwear"), footwear_options(), l.footwear)
+	l.shirt = _pick(d.get("shirt"), shirt_options(), l.shirt)
+	l.pants = _pick(d.get("pants"), pants_options(), l.pants)
 	for p in PROPORTIONS:
 		l.set(p[0], clampf(float(d.get(p[0], 1.0)), p[2], p[3]))
 	return l
@@ -153,6 +178,11 @@ func randomize_look(rng: RandomNumberGenerator = null) -> void:
 	colors["eyes"] = EYE_TONES[rng.randi() % EYE_TONES.size()]
 	hair_style = HAIR_STYLES.keys()[rng.randi() % HAIR_STYLES.size()]
 	hat = HATS.keys()[rng.randi() % HATS.size()]
-	footwear = FOOTWEAR.keys()[rng.randi() % FOOTWEAR.size()]
+	var shoes := footwear_options().keys()
+	footwear = shoes[rng.randi() % shoes.size()]
+	var shirts := shirt_options().keys()
+	shirt = shirts[rng.randi() % shirts.size()]
+	var trousers := pants_options().keys()
+	pants = trousers[rng.randi() % trousers.size()]
 	for p in PROPORTIONS:
 		set(p[0], snappedf(rng.randf_range(lerpf(p[2], 1.0, 0.5), lerpf(1.0, p[3], 0.5)), 0.01))

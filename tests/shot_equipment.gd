@@ -46,7 +46,6 @@ func _run() -> void:
 	eq.receive(EquipmentDB.roll("talisman", 3, rng))
 	EquipmentPickup.spawn(_main, c + Vector3(3.0, 0.0, 0.0), EquipmentDB.roll("pechera", 4, rng))
 	var shop := DungeonShop.spawn(_main, c + Vector3(0.0, 0.0, -4.0), p, 3)
-	shop._armed = false
 	p.global_position = c + Vector3(2.2, 0.3, 2.5)
 	p.look_at(shop.global_position, Vector3.UP)
 	await get_tree().create_timer(2.0).timeout

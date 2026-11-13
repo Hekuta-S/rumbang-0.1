@@ -213,6 +213,8 @@ const PERKS := {
 		"unique": true, "slots": ["arma"], "desc": "Cada baja: +12 de energía y +25% daño 4 s"},
 	"sed_obsidiana": {"name": "Sed de Obsidiana", "trigger": "kill", "heal": 0.03, "buff": {"move_speed": 0.25}, "dur": 3.0,
 		"unique": true, "slots": ["arma"], "desc": "Cada baja: cura un 3% y +25% velocidad 3 s"},
+	"sed_sangre": {"name": "Sed de Sangre", "trigger": "kill", "heal": 0.05, "buff": {"damage": 0.20, "attack_speed": 0.15}, "dur": 4.0,
+		"unique": true, "slots": ["arma"], "desc": "Cada baja: cura un 5%, +20% daño y +15% velocidad de ataque 4 s"},
 }
 ## ── Fase 2: elementos y modificadores de arma (solo mazmorra) ──
 ## Elemento de un ARMA (item["element"]): cada golpe puede aplicar su efecto (ElementalHits). Las armaduras
@@ -248,6 +250,12 @@ const WEAPON_MODS := {
 	WeaponData.WeaponType.SWORD: {
 		"filo": {"name": "Filo Largo", "mods": {"size": 0.2}, "desc": "+20% alcance de los golpes"},
 		"templada": {"name": "Hoja Templada", "mods": {"damage": 0.15}, "desc": "+15% daño"}},
+	WeaponData.WeaponType.KATANA: {
+		"filo": {"name": "Filo Carmesí", "mods": {"size": 0.2}, "desc": "+20% alcance de los tajos"},
+		"templada": {"name": "Acero Templado", "mods": {"damage": 0.15}, "desc": "+15% daño"}},
+	WeaponData.WeaponType.BOW: {
+		"tenso": {"name": "Cuerda Tensa", "mods": {"damage": 0.1, "pierce_bonus": 1}, "desc": "+10% daño; las flechas atraviesan a un enemigo más"},
+		"carcaj": {"name": "Carcaj Doble", "mods": {"quantity_bonus": 1}, "desc": "+1 flecha por disparo"}},
 	WeaponData.WeaponType.DAGGERS: {
 		"filo": {"name": "Filo Veloz", "mods": {"cooldown": 0.85}, "desc": "-15% tiempo entre ataques"},
 		"sed": {"name": "Sed de Sangre", "mods": {"lifesteal": 0.04}, "desc": "4% del daño se convierte en vida"}},
@@ -280,26 +288,84 @@ const PERK_CHANCE := [0.0, 0.0, 0.6, 1.0, 1.0]
 const LEGENDARY_CHANCE := 0.35
 const LEGENDARIES := {
 	"corona_rey": {"slot": "casco", "base": "yelmo_coronado", "name": "Corona del Rey Caído", "rarity": 4,
-		"stats": {"cooldown_reduction": 0.12, "max_mana": 25.0, "damage": 0.10, "mana_regen": 0.20}, "perk": "rey_caido"},
+		"stats": {"cooldown_reduction": 0.12, "max_mana": 25.0, "damage": 0.10, "mana_regen": 0.20}, "perk": "rey_caido",
+		"rule": "corona", "boss": "necro"},
 	"coraza_vacio": {"slot": "pechera", "base": "coraza_sombra", "name": "Coraza del Vacío", "rarity": 4,
-		"stats": {"max_hp": 10.0, "armor": 0.12, "hp_regen": 0.30, "max_energy": 20.0}, "perk": "muralla_sombra"},
+		"stats": {"max_hp": 10.0, "armor": 0.12, "hp_regen": 0.30, "max_energy": 20.0}, "perk": "muralla_sombra",
+		"rule": "vacio", "boss": "necro"},
 	"grebas_cazador": {"slot": "pantalones", "base": "grebas_sombra", "name": "Grebas del Cazador Nocturno", "rarity": 3,
-		"stats": {"move_speed": 0.16, "energy_regen": 0.22, "jump_height": 0.12}, "perk": "paso_sombra"},
+		"stats": {"move_speed": 0.16, "energy_regen": 0.22, "jump_height": 0.12}, "perk": "paso_sombra",
+		"rule": "cazador", "boss": "rat_king"},
 	"ojo_ancestral": {"slot": "talisman", "base": "ojo_mohan", "name": "Ojo Ancestral del Mohán", "rarity": 4,
-		"stats": {"damage": 0.15, "attack_speed": 0.10, "gold": 0.20, "magnet": 3.0}, "perk": "mirada_mohan"},
+		"stats": {"damage": 0.15, "attack_speed": 0.10, "gold": 0.20, "magnet": 3.0}, "perk": "mirada_mohan",
+		"rule": "ancestral", "boss": "rat_king"},
 	"maza_terremoto": {"slot": "arma", "weapon": WeaponData.WeaponType.MACE, "name": "Maza del Terremoto", "rarity": 3,
 		"stats": {"damage": 0.22, "energy_cost": 0.08, "cooldown_reduction": 0.06}, "perk": "terremoto",
-		"element": "fuego", "wmod": "crater", "skin": 3},
+		"element": "fuego", "wmod": "crater", "skin": 3, "rule": "terremoto"},
 	"dagas_hambre": {"slot": "arma", "weapon": WeaponData.WeaponType.DAGGERS, "name": "Dagas del Hambre", "rarity": 3,
 		"stats": {"attack_speed": 0.16, "damage": 0.12, "move_speed": 0.06}, "perk": "hambre_dagas",
-		"element": "sombra", "wmod": "filo", "skin": 3},
+		"element": "sombra", "wmod": "filo", "skin": 3, "rule": "hambre", "boss": "rat_king"},
 	"matadragones": {"slot": "arma", "weapon": WeaponData.WeaponType.GREATSWORD, "name": "Matadragones", "rarity": 3,
 		"stats": {"damage": 0.20, "energy_cost": 0.06, "move_speed": 0.08}, "perk": "gesta_dragon",
-		"element": "fuego", "wmod": "pesada", "skin": 1},
+		"element": "fuego", "wmod": "pesada", "skin": 1, "rule": "dragon"},
 	"espadon_obsidiana": {"slot": "arma", "weapon": WeaponData.WeaponType.GREATSWORD, "name": "Espadón de Obsidiana", "rarity": 3,
 		"stats": {"damage": 0.14, "attack_speed": 0.10, "cooldown_reduction": 0.06}, "perk": "sed_obsidiana",
-		"element": "sombra", "wmod": "tajo", "skin": 3},
+		"element": "sombra", "wmod": "tajo", "skin": 3, "rule": "obsidiana", "boss": "necro"},
+	# Armas míticas (rareza 4): su propio tipo de arma, que no sale en el sorteo normal (no está en WEAPONS)
+	"katana_sangre": {"slot": "arma", "weapon": WeaponData.WeaponType.KATANA, "name": "Katana de Sangre", "rarity": 4,
+		"stats": {"damage": 0.22, "attack_speed": 0.12, "move_speed": 0.06}, "perk": "sed_sangre",
+		"element": "fuego", "wmod": "filo", "skin": 0},
 }
+
+# ───────────────── Plan de loot, Fase 2: rasgos que cambian cómo juegas (LootHits) ─────────────────
+
+## Reglas de las legendarias ("texto rojo" de Borderlands): cada una rompe una regla del juego.
+const RULES := {
+	"terremoto": {"desc": "Cada remate sacude el suelo: aturde a los enemigos a 5 m"},
+	"hambre": {"desc": "Cada baja reinicia la voltereta y te devuelve su energía"},
+	"dragon": {"desc": "Cada 3er golpe al mismo enemigo lo prende y el fuego salta a los que tenga a 3 m"},
+	"obsidiana": {"desc": "Cada baja suelta una onda de sombra: 6 de daño a los enemigos a 4 m y te cura por cada uno"},
+	"corona": {"desc": "Matar a un élite rellena tu maná y tu energía"},
+	"vacio": {"desc": "El primer golpe que recibes cada 8 s no te hace daño"},
+	"cazador": {"desc": "Esquivar un ataque en el último momento ralentiza el tiempo y tu siguiente golpe aturde"},
+	"ancestral": {"desc": "Los élites sueltan una pieza más y los enemigos aturdidos sueltan maná"},
+}
+## Legendarias con "boss": solo las suelta ese jefe (botín propio que da motivo para repetir).
+const BOSS_LEGENDARY_CHANCE := 0.4
+
+## Rasgos condicionales (item["cond"], armas y talismanes): más daño cuando se cumple algo. Unen el loot con
+## el aturdimiento, los elementos, el parry y la esquiva. mult = daño extra (se suman entre piezas).
+const CONDITIONALS := {
+	"verdugo": {"name": "Verdugo", "when": "stunned", "mult": 0.5, "desc": "+50% daño a enemigos aturdidos"},
+	"piromano": {"name": "Pirómano", "when": "burning", "mult": 0.3, "desc": "+30% daño a enemigos que arden"},
+	"toxicologo": {"name": "Toxicólogo", "when": "poisoned", "mult": 0.3, "desc": "+30% daño a enemigos envenenados"},
+	"glaciar": {"name": "Glaciar", "when": "chilled", "mult": 0.35, "desc": "+35% daño a enemigos ralentizados"},
+	"matagigantes": {"name": "Matagigantes", "when": "big", "mult": 0.3, "desc": "+30% daño a élites y jefes"},
+	"oportunista": {"name": "Oportunista", "when": "recovering", "mult": 0.4, "desc": "+40% daño a enemigos que acaban de atacar"},
+	"primer_golpe": {"name": "Primer Golpe", "when": "full_hp", "mult": 0.6, "desc": "+60% daño a enemigos con la vida llena"},
+	"carnicero": {"name": "Carnicero", "when": "low_hp", "mult": 0.35, "desc": "+35% daño a enemigos con menos del 30% de vida"},
+	"contra": {"name": "Contra", "when": "after_parry", "mult": 0.8, "desc": "Tras un parry: +80% daño 2 s"},
+	"bailarin": {"name": "Bailarín", "when": "after_dodge", "mult": 0.5, "desc": "Tras esquivar: +50% daño 1,5 s"},
+}
+const COND_SLOTS := ["arma", "talisman"]
+const COND_CHANCE := [0.0, 0.35, 0.6, 1.0, 1.0]
+const AFTER_PARRY_WINDOW := 2.0
+const AFTER_DODGE_WINDOW := 1.5
+
+## Fabricantes de arma (item["maker"], como las marcas de Borderlands): cada uno añade una mecánica a los golpes.
+const MAKERS := {
+	"tatan": {"name": "Forja de Tatán", "mech": "Contundente", "stun": 0.08,
+		"desc": "Cada golpe llena un 8% extra la barra de aturdimiento"},
+	"arriero": {"name": "Taller Arriero", "mech": "Cadena", "per": 0.06, "max": 8, "window": 1.5,
+		"desc": "Cada golpe seguido suma +6% daño (hasta +48%); se pierde al parar 1,5 s o recibir un golpe"},
+	"conquistador": {"name": "Casa Conquistador", "mech": "Ejecución", "exec": 0.15,
+		"desc": "Remata al instante a los enemigos con menos del 15% de vida (no a los jefes)"},
+	"mohan": {"name": "Hermandad del Mohán", "mech": "Eco", "chance": 0.2, "echo": 0.6, "delay": 0.25,
+		"desc": "20% de que el golpe se repita como eco al 60%"},
+}
+const MAKER_CHANCE := [0.0, 0.6, 1.0, 1.0, 1.0]
+const RULE_COLOR := Color(1.0, 0.32, 0.25)
+const MAKER_COLOR := Color(0.95, 0.78, 0.5)
 const STAT_NAMES := {
 	"damage": "daño", "attack_speed": "vel. de ataque", "cooldown_reduction": "enfriamiento",
 	"armor": "armadura", "max_hp": "vida máx.", "hp_regen": "regeneración",
@@ -325,7 +391,7 @@ const WEAPONS := [
 	WeaponData.WeaponType.SPORE_BAZOOKA, WeaponData.WeaponType.TRI_SHOTGUN,
 	WeaponData.WeaponType.DUSTS, WeaponData.WeaponType.SERPENTS,
 	WeaponData.WeaponType.DAGGERS, WeaponData.WeaponType.MACE, WeaponData.WeaponType.GREATSWORD,
-	WeaponData.WeaponType.SWORD,
+	WeaponData.WeaponType.SWORD, WeaponData.WeaponType.BOW,
 ]
 
 # ───────────────────────────── Sorteo ─────────────────────────────
@@ -375,12 +441,42 @@ static func roll(kind: String = "", rarity: int = -1, rng: RandomNumberGenerator
 	var perk := roll_perk(kind, rarity, rng)
 	if perk != "":
 		item["perk"] = perk
+	var cond := roll_cond(kind, rarity, rng)
+	if cond != "":
+		item["cond"] = cond
 	return item
+
+## Rasgo condicional al azar para una pieza ("" = ninguno; solo armas y talismanes).
+static func roll_cond(kind: String, rarity: int, rng: RandomNumberGenerator = null) -> String:
+	if not COND_SLOTS.has(kind) or _randf(rng) >= COND_CHANCE[clampi(rarity, 0, COND_CHANCE.size() - 1)]:
+		return ""
+	var ids: Array = CONDITIONALS.keys().filter(func(id): return DungeonRun.known(id))   # planos
+	return String(ids[_randi(rng) % ids.size()])
+
+static func cond_of(item: Dictionary) -> Dictionary:
+	return CONDITIONALS.get(String(item.get("cond", "")), {})
+
+static func maker_of(item: Dictionary) -> Dictionary:
+	if String(item.get("slot", "")) != "arma":
+		return {}
+	return MAKERS.get(String(item.get("maker", "")), {})
+
+## Regla de una legendaria ("" si no tiene).
+static func rule_of(item: Dictionary) -> String:
+	var l: Variant = LEGENDARIES.get(String(item.get("legendary", "")))
+	return String(l.get("rule", "")) if l is Dictionary else ""
+
+## Botín de un jefe: con BOSS_LEGENDARY_CHANCE una de SUS legendarias; si no, una pieza rara o mejor.
+static func boss_drop(boss: String, min_rarity: int = 2, rng: RandomNumberGenerator = null) -> Dictionary:
+	var ids: Array = LEGENDARIES.keys().filter(func(id): return String(LEGENDARIES[id].get("boss", "")) == boss)
+	if not ids.is_empty() and _randf(rng) < BOSS_LEGENDARY_CHANCE:
+		return legendary_item(String(ids[_randi(rng) % ids.size()]))
+	return roll("", -1, rng, min_rarity)
 
 ## Elemento y modificador propio de un arma, según su rareza. Cambia el nombre ("Maza Rúnica de Fuego").
 ## Usa item["weapon"], así que se vuelve a llamar si cambia el arma.
 static func _roll_weapon_traits(item: Dictionary, rarity: int, rng: RandomNumberGenerator) -> void:
-	for k in ["element", "wmod", "set"]:
+	for k in ["element", "wmod", "set", "maker"]:
 		item.erase(k)
 	item["name"] = String(WeaponData.weapon_names.get(int(item["weapon"]), "Arma"))
 	if int(item["weapon"]) == WeaponData.WeaponType.GREATSWORD:
@@ -390,6 +486,9 @@ static func _roll_weapon_traits(item: Dictionary, rarity: int, rng: RandomNumber
 	elif int(item["weapon"]) == WeaponData.WeaponType.SWORD:
 		item["skin"] = _randi(rng) % SwordModels.count()
 		item["name"] = SwordModels.skin_name(int(item["skin"]))
+	elif int(item["weapon"]) == WeaponData.WeaponType.BOW:
+		item["skin"] = _randi(rng) % BowModels.count()
+		item["name"] = BowModels.skin_name(int(item["skin"]))
 	elif int(item["weapon"]) == WeaponData.WeaponType.DAGGERS:
 		item["skin"] = _randi(rng) % DaggerModels.count()
 		item["name"] = DaggerModels.skin_name(int(item["skin"]))
@@ -405,6 +504,9 @@ static func _roll_weapon_traits(item: Dictionary, rarity: int, rng: RandomNumber
 	if not mods.is_empty() and _randf(rng) < WMOD_CHANCE[clampi(rarity, 0, WMOD_CHANCE.size() - 1)]:
 		var mids: Array = mods.keys()
 		item["wmod"] = String(mids[_randi(rng) % mids.size()])
+	if _randf(rng) < MAKER_CHANCE[clampi(rarity, 0, MAKER_CHANCE.size() - 1)]:
+		var kids: Array = MAKERS.keys().filter(func(id): return DungeonRun.known(id))   # planos
+		item["maker"] = String(kids[_randi(rng) % kids.size()])
 
 ## Elemento de una pieza ("" si no tiene). Armas: el suyo; pechera/pantalones: el de su set del pack.
 static func element_of(item: Dictionary) -> String:
@@ -437,7 +539,7 @@ static func _maybe_legendary(kind: String, rarity: int, rng: RandomNumberGenerat
 	var ids: Array = []
 	for id in LEGENDARIES:
 		var l: Dictionary = LEGENDARIES[id]
-		if l["slot"] == kind and int(l["rarity"]) <= rarity:
+		if l["slot"] == kind and int(l["rarity"]) <= rarity and not l.has("boss") and DungeonRun.known(id):
 			ids.append(id)
 	return "" if ids.is_empty() else String(ids[_randi(rng) % ids.size()])
 
@@ -560,6 +662,9 @@ static func describe(item: Dictionary) -> String:
 		parts.append("✦ " + String(wmod_of(item)["name"]) + ": " + String(wmod_of(item)["desc"]))
 	if perk_of(item).size() > 0:
 		parts.append("★ " + perk_text(item))
+	for line in trait_lines(item):
+		if line.begins_with("+ ") or line.begins_with("⚔") or line.begins_with("★★"):
+			parts.append(line)
 	if item.has("set") and SETS.has(item["set"]):
 		parts.append("Set " + String(SETS[item["set"]]["name"]))
 	return " · ".join(parts)
@@ -584,7 +689,24 @@ static func trait_lines(item: Dictionary) -> Array[String]:
 		out.append("✦ %s: %s" % [w["name"], w["desc"]])
 	if perk_text(item) != "":
 		out.append("★ " + perk_text(item))
+	var c := cond_of(item)
+	if not c.is_empty():
+		out.append("+ %s: %s" % [c["name"], c["desc"]])
+	var m := maker_of(item)
+	if not m.is_empty():
+		out.append("⚔ %s · %s: %s" % [m["name"], m["mech"], m["desc"]])
+	var r := rule_of(item)
+	if r != "":
+		out.append("★★ " + String(RULES[r]["desc"]))
 	return out
+
+## Color de una línea de trait_lines: reglas de legendaria en rojo, fabricante en cobre; si no, `base`.
+static func trait_color(line: String, base: Color) -> Color:
+	if line.begins_with("★★"):
+		return RULE_COLOR
+	if line.begins_with("⚔"):
+		return MAKER_COLOR
+	return base
 
 ## Definición del efecto especial de una pieza ({} si no tiene).
 static func perk_of(item: Dictionary) -> Dictionary:
@@ -641,6 +763,10 @@ static func sanitize(v: Variant) -> Dictionary:
 		d["set"] = d["element"]   # partidas guardadas antes de la Fase 3
 	if d.has("wmod") and wmod_of(d).is_empty():
 		d.erase("wmod")
+	if d.has("cond") and (not COND_SLOTS.has(kind) or not CONDITIONALS.has(String(d["cond"]))):
+		d.erase("cond")
+	if d.has("maker") and maker_of(d).is_empty():
+		d.erase("maker")
 	d["name"] = String(d.get("name", "Pieza"))
 	return d
 

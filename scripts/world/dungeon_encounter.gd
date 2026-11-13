@@ -32,14 +32,15 @@ const BOSS_EVERY := 1                 ## cada cuántos niveles la caverna final 
 const GROUP_COLUMNS := 5              ## enemigos por fila al aparecer en grupo
 const ROW_DEPTH := 2.4                ## separación entre filas (m)
 const MAX_GROUP := 10                 ## tope de enemigos por caverna (sin contar al jefe)
-const MAX_SWARM := 14                 ## tope tras multiplicar los enjambres del mundo (WorldDefs "swarm")
+const EARLY_LEVELS := 2               ## niveles con grupos reducidos al empezar
+const MAX_SWARM := 14                ## tope tras multiplicar los enjambres del mundo (WorldDefs "swarm")
 ## Armas que se pueden elegir en el portal (las que tienen animaciones para la mazmorra).
 const PORTAL_WEAPONS := [
 	WeaponData.WeaponType.SPEAR_LANCE, WeaponData.WeaponType.FLAME_THROWER,
 	WeaponData.WeaponType.SPORE_BAZOOKA, WeaponData.WeaponType.TRI_SHOTGUN,
 	WeaponData.WeaponType.DUSTS, WeaponData.WeaponType.SERPENTS,
 	WeaponData.WeaponType.DAGGERS, WeaponData.WeaponType.MACE, WeaponData.WeaponType.GREATSWORD,
-	WeaponData.WeaponType.SWORD,
+	WeaponData.WeaponType.SWORD, WeaponData.WeaponType.BOW,
 ]
 
 var map: DungeonMap
@@ -53,14 +54,28 @@ var _alive: Dictionary = {}           ## índice de caverna -> goblins vivos
 var _doors: Dictionary = {}           ## índice de caverna -> [DungeonDoor]
 var _doors_waiting: Dictionary = {}   ## índice de caverna -> [bocas por cerrar cuando el jugador se aparte]
 var _triggered := false               ## la arena ya se activó (habilita la G)
+var room_recipe: Dictionary = {}      ## índice de caverna -> id de la receta con la que se pobló (WorldDefs "recipes")
+var _used_recipes: Array = []         ## recetas ya usadas en este nivel (no se repiten mientras queden)
+
+## Comienzo suave: en el nivel 1, las primeras STARTER_ROOMS cavernas normales (además de la arena) solo traen
+## el "starter_kind" del mundo (goblins normales en las cavernas), sin élites. Sin "starter_kind" no se aplica.
+const STARTER_ROOMS := 2
+var _starter_left := 0
+var _starter_rooms: Dictionary = {}   ## cavernas pobladas con el grupo de inicio (sin élites)
+
+## Élites (DungeonElites): probabilidad de un élite por caverna según el nivel (1, 2, 3, 4+); desde el nivel
+## ELITE_SECOND_FROM puede salir un segundo, y la escolta del jefe lleva uno seguro desde el nivel 2.
+const ELITE_CHANCE := [0.3, 0.55, 0.6, 0.7]
+const ELITE_SECOND_FROM := 4
+const ELITE_SECOND_CHANCE := 0.35
 var _changing_level := false
 
 # ── Estructura de partida (desafíos, forja, caminos; ver DungeonRunes / DungeonShop) ──
 const PATHS := {
-	"tesoro": {"icon": "💎", "title": "Tesoro", "desc": "Empiezas el nivel junto a un cofre de runas", "color": Color(1.0, 0.84, 0.3)},
+	"tesoro": {"icon": "💎", "title": "Tesoro", "desc": "Empiezas el nivel junto a un cofre de tomos", "color": Color(1.0, 0.84, 0.3)},
 	"desafio": {"icon": "⚔", "title": "Desafío", "desc": "Dos cavernas de desafío y el doble de oro", "color": Color(1.0, 0.35, 0.3)},
 	"descanso": {"icon": "🔥", "title": "Descanso", "desc": "Recuperas toda la vida y los recursos", "color": Color(0.45, 1.0, 0.55)},
-	"runa": {"icon": "🌀", "title": "Runa", "desc": "Eliges una runa ahora mismo", "color": DungeonRunes.COLOR},
+	"runa": {"icon": "🌀", "title": "Tomo", "desc": "Eliges un tomo ahora mismo", "color": DungeonRunes.COLOR},
 }
 const CHALLENGE_BASE_TIME := 14.0     ## s para despejar una caverna de desafío...
 const CHALLENGE_TIME_PER_ENEMY := 2.5 ## ...más esto por enemigo
@@ -80,6 +95,8 @@ func structure_enabled() -> bool:
 func setup(p_map: DungeonMap, p_player: Node3D) -> void:
 	map = p_map
 	player = p_player
+	if level == 1:
+		RunLog.begin(str(map.world().get("name", "")))   # fase 5: registro de la partida
 	_plan_rooms()
 	_spawn_chests()
 	_setup_level_extras()
@@ -90,7 +107,12 @@ func _plan_rooms() -> void:
 	_pending.clear()
 	_alive.clear()
 	_boss_pending.clear()
+	room_recipe.clear()
+	_used_recipes.clear()
+	_starter_rooms.clear()
+	_starter_left = STARTER_ROOMS if level == 1 and map.world().has("starter_kind") else 0
 	var extra := (level - 1) / 2
+	var early := maxi(EARLY_LEVELS + 1 - level, 0)   ## niveles 1-2: grupos más pequeños (2 y 1 menos)
 	for i in map.rooms.size():
 		var type: String = map.rooms[i]["type"]
 		if type == "start" or type == "treasure":
@@ -98,11 +120,11 @@ func _plan_rooms() -> void:
 		if i == map.arena_index:
 			_pending[i] = 1 + extra
 		elif type == "end":
-			_pending[i] = mini(6 + level, MAX_GROUP)
+			_pending[i] = mini(6 + level - early, MAX_GROUP)
 			if is_boss_level():
 				_boss_pending[i] = true
 		else:
-			_pending[i] = mini(randi_range(4, 6) + extra * 2, MAX_GROUP)
+			_pending[i] = mini(randi_range(4, 6) - early + extra * 2, MAX_GROUP)
 
 func _process(_delta: float) -> void:
 	if map == null or not is_instance_valid(player) or _changing_level:
@@ -127,6 +149,7 @@ func _process(_delta: float) -> void:
 			encounter_started.emit()
 	_check_treasure()
 	_update_challenge()
+	_update_curse_hud()
 	# Barreras pendientes: se cierran en cuanto el jugador no está encima
 	for room in _doors_waiting.keys():
 		var left: Array = []
@@ -152,27 +175,45 @@ func _spawn_group(room: int, count: int, from_player: Node3D = null) -> void:
 		_triggered = true
 	var kinds := _kinds_for(room, count)
 	count = kinds.size()
+	RunLog.room_started(room, String(room_recipe.get(room, "")), kinds)
+	var spawned: Array = []
 	for k in count:
 		# Cuadrícula: filas de GROUP_COLUMNS, cada fila más cerca del centro de la caverna
 		var row := k / GROUP_COLUMNS
 		var in_row := mini(GROUP_COLUMNS, count - row * GROUP_COLUMNS)
 		var offset := side * ((k % GROUP_COLUMNS) - (in_row - 1) * 0.5) * SPAWN_SPREAD
 		var g := _spawn_at(room, c + away * (SPAWN_DISTANCE - row * ROW_DEPTH) + offset, kinds[k])
+		spawned.append([g, kinds[k]])
 		if room == map.arena_index:
 			goblin = g
+	_apply_elites(room, spawned)
 
 ## Tipo de cada miembro del grupo (ver NetWorld.KINDS). La arena solo tiene el "arena_kind" del
-## mundo (el goblin normal en las cavernas). En las demás, los grupos de 4 o más llevan los tipos
-## "guaranteed" del mundo; el resto se reparte al azar según su "kind_weights", y los tipos de "swarm" se multiplican. El jefe va aparte.
+## mundo (el goblin normal en las cavernas). En las demás, si el mundo tiene "recipes" se elige una
+## receta (roles fijos + relleno); si no, los grupos de 4 o más llevan los tipos "guaranteed" y el resto
+## sale al azar según "kind_weights". Los tipos de "swarm" se multiplican. El jefe va aparte.
+## El orden final sigue los "roles" del mundo: los de distancia al fondo, los tanques delante.
 func _kinds_for(room: int, count: int) -> Array:
 	var kinds: Array = []
 	kinds.resize(count)
 	kinds.fill(map.world().get("arena_kind", "goblin"))
 	if room == map.arena_index or count <= 0:
 		return kinds
-	var guaranteed: Array = map.world()["guaranteed"] if count >= 4 else []
-	for k in count:
-		kinds[k] = guaranteed[k] if k < guaranteed.size() else _pick_kind()
+	if _starter_left > 0 and map.rooms[room]["type"] == "normal":
+		_starter_left -= 1
+		_starter_rooms[room] = true
+		room_recipe[room] = "inicio"
+		kinds.fill(String(map.world()["starter_kind"]))
+		return kinds
+	var recipes: Array = map.world().get("recipes", [])
+	if not recipes.is_empty():
+		var recipe := _pick_recipe(recipes)
+		room_recipe[room] = recipe["id"]
+		kinds = recipe_kinds(recipe, count)
+	else:
+		var guaranteed: Array = map.world()["guaranteed"] if count >= 4 else []
+		for k in count:
+			kinds[k] = guaranteed[k] if k < guaranteed.size() else _pick_kind()
 	kinds.shuffle()
 	# Enjambres: cada tipo de "swarm" ({tipo: [mín, máx]}) aparece en grupitos
 	var swarm: Dictionary = map.world().get("swarm", {})
@@ -182,10 +223,47 @@ func _kinds_for(room: int, count: int) -> Array:
 		var room_left := MAX_SWARM - out.size() - (kinds.size() - k - 1)   # sitio para los que faltan
 		for i in clampi(randi_range(int(r[0]), int(r[1])), 1, maxi(room_left, 1)):
 			out.append(kinds[k])
+	var roles: Dictionary = map.world().get("roles", {})
+	if not roles.is_empty():
+		out.sort_custom(func(x, y): return int(roles.get(x, 1)) < int(roles.get(y, 1)))
+	return out
+
+## Receta para la próxima caverna: al azar por peso entre las del nivel que aún no han salido en él.
+func _pick_recipe(recipes: Array) -> Dictionary:
+	var ok: Array = recipes.filter(func(r): return int(r.get("min_level", 1)) <= level)
+	if ok.is_empty():
+		ok = recipes
+	var fresh: Array = ok.filter(func(r): return not _used_recipes.has(r["id"]))
+	if fresh.is_empty():
+		_used_recipes.clear()
+		fresh = ok
+	var weights := {}
+	for r in fresh:
+		weights[r["id"]] = float(r.get("weight", 1.0))
+	var id: String = _weighted_pick(weights)
+	_used_recipes.append(id)
+	for r in fresh:
+		if r["id"] == id:
+			return r
+	return fresh[0]
+
+## `count` tipos según la receta: primero los "fixed" (recortados al tamaño del grupo), luego el relleno.
+static func recipe_kinds(recipe: Dictionary, count: int) -> Array:
+	var out: Array = []
+	var fixed: Dictionary = recipe.get("fixed", {})
+	for kind in fixed:
+		for i in int(fixed[kind]):
+			if out.size() < count:
+				out.append(kind)
+	var fill: Variant = recipe.get("fill", "goblin")
+	while out.size() < count:
+		out.append(_weighted_pick(fill) if fill is Dictionary else String(fill))
 	return out
 
 func _pick_kind() -> String:
-	var weights: Dictionary = map.world()["kind_weights"]
+	return _weighted_pick(map.world()["kind_weights"])
+
+static func _weighted_pick(weights: Dictionary) -> String:
 	var total := 0.0
 	for w in weights.values():
 		total += float(w)
@@ -194,7 +272,40 @@ func _pick_kind() -> String:
 		roll -= float(weights[kind])
 		if roll <= 0.0:
 			return kind
-	return weights.keys().back()          # por redondeo: el último del mundo, nunca uno de otro
+	return weights.keys().back()          # por redondeo: el último, nunca uno de otro mundo
+
+## Convierte en élite a 0-2 miembros del grupo recién aparecido (ver ELITE_CHANCE). `spawned` = [[enemigo, tipo]].
+func _apply_elites(room: int, spawned: Array) -> void:
+	var n := elite_count(room)
+	if n <= 0:
+		return
+	var swarm: Dictionary = map.world().get("swarm", {})
+	var pool: Array = spawned.filter(func(p): return is_instance_valid(p[0]) and not swarm.has(p[1]) and not DungeonElites.NEVER.has(p[1]))
+	pool.shuffle()
+	var mods: Array = DungeonElites.MODS.keys()
+	mods.shuffle()
+	var lines: Array = []
+	for i in mini(n, pool.size()):
+		var mod: String = mods[i % mods.size()]
+		DungeonElites.make(pool[i][0], mod)
+		RunLog.elite(mod)
+		var m: Dictionary = DungeonElites.MODS[mod]
+		lines.append("ELITE %s · %s" % [m["label"], m["desc"]])
+	if not lines.is_empty():
+		_show_banner("\n".join(lines))
+
+## Cuántos élites lleva la caverna (0 en red o en la arena).
+func elite_count(room: int) -> int:
+	if not structure_enabled() or room == map.arena_index or _starter_rooms.has(room):
+		return 0
+	var n := 0
+	if randf() < float(ELITE_CHANCE[clampi(level, 1, ELITE_CHANCE.size()) - 1]) + DungeonRun.elite_bonus():
+		n += 1
+	if level >= ELITE_SECOND_FROM and randf() < ELITE_SECOND_CHANCE + DungeonRun.elite_bonus():
+		n += 1
+	if map.rooms[room]["type"] == "end" and level >= 2:
+		n = maxi(n, 1)
+	return n
 
 func _spawn_at(room: int, pos: Vector3, kind: String = "goblin") -> DungeonGoblin:
 	# Si el punto cae en roca o en un prop, se acerca al centro hasta encontrar suelo libre
@@ -212,6 +323,8 @@ func _spawn_at(room: int, pos: Vector3, kind: String = "goblin") -> DungeonGobli
 	g.position = Vector3(pos.x, 0.1, pos.z)
 	get_parent().add_child(g)
 	g.global_position = Vector3(pos.x, 0.1, pos.z)
+	if structure_enabled():
+		DungeonRun.apply_heat(g)
 	_track(room, g)
 	SpawnDissolve.play(g.get_model(), g, 0.9, Color(1.0, 0.25, 0.1), 1.4)
 	return g
@@ -219,7 +332,7 @@ func _spawn_at(room: int, pos: Vector3, kind: String = "goblin") -> DungeonGobli
 ## Cuenta un enemigo vivo de la caverna; los que nacen de él (DungeonSlug al dividirse) también.
 func _track(room: int, g: DungeonGoblin) -> void:
 	_alive[room] = _alive.get(room, 0) + 1
-	g.died.connect(func(dead): _on_goblin_died(room); _drop_resources(dead); _award_gold(dead); EquipmentPickup.drop_for_enemy(get_parent(), dead); _notify_kill())
+	g.died.connect(func(dead): _on_goblin_died(room, dead); _drop_resources(dead); _award_gold(dead); EquipmentPickup.drop_for_enemy(get_parent(), dead); _notify_kill(); LootHits.on_kill(dead); RunLog.kill())
 	if g.has_signal("spawned"):
 		g.spawned.connect(func(child): _track(room, child))
 
@@ -230,8 +343,8 @@ func _notify_kill() -> void:
 		p.notify_equipment("kill")
 
 ## Los enemigos sueltan balas (si llevas un arma de fuego) o maná.
-const AMMO_DROP_CHANCE := 0.3
-const MANA_DROP_CHANCE := 0.25
+const AMMO_DROP_CHANCE := 0.36   ## antes 0.3
+const MANA_DROP_CHANCE := 0.3    ## antes 0.25
 
 func _drop_resources(dead) -> void:
 	if not is_instance_valid(dead) or not is_instance_valid(player):
@@ -253,13 +366,15 @@ func _drop_resources(dead) -> void:
 	if randf() < MANA_DROP_CHANCE:
 		ResourcePickup.spawn(get_parent(), pos + Vector3(randf_range(-0.4, 0.4), 0, randf_range(-0.4, 0.4)), ResourcePickup.Kind.MANA)
 
-func _on_goblin_died(room: int) -> void:
+func _on_goblin_died(room: int, dead = null) -> void:
 	_alive[room] = _alive.get(room, 1) - 1
 	if _alive[room] <= 0:
 		if _boss_pending.has(room):
 			_boss_pending.erase(room)
 			_spawn_boss(room)
 			return
+		# Último de la caverna: cámara lenta y cierre (HitFeedback)
+		HitFeedback.room_clear(dead.global_position if is_instance_valid(dead) else player.global_position)
 		_room_cleared(room)
 		encounter_cleared.emit()
 
@@ -287,11 +402,19 @@ func _close_room(room: int) -> void:
 func _room_cleared(room: int) -> void:
 	if not _challenge.is_empty() and int(_challenge["room"]) == room:
 		_finish_challenge(true)
+	if structure_enabled() and (room == scroll_room or map.rooms[room]["type"] == "end"):
+		var is_end: bool = map.rooms[room]["type"] == "end"
+		if room == scroll_room:
+			if is_instance_valid(_scroll_mark):
+				_scroll_mark.queue_free()
+			scroll_room = -1
+		spawn_scroll(_free_spot(map.room_center(room), 6.5 if is_end else 1.5, randf() * 360.0))
 	_doors_waiting.erase(room)
 	for d in _doors.get(room, []):
 		if is_instance_valid(d):
 			d.open()
 	_doors.erase(room)
+	RunLog.room_cleared(room, player.get("equipment") if is_instance_valid(player) else null)
 	_net_call("room_cleared", [room])
 	if map.rooms[room]["type"] == "end" and not is_instance_valid(portal):
 		_spawn_portal(room)
@@ -360,6 +483,8 @@ func _on_weapon_chosen(weapon_type: int) -> void:
 
 ## Da el arma y la equipa; con los huecos llenos sustituye a la que se lleva en la mano.
 func give_weapon(weapon_type: int) -> void:
+	if weapon_type == WeaponChoiceUI.SKIP:
+		return
 	var inv = player.get("weapon_inventory")
 	if inv == null:
 		return
@@ -375,6 +500,7 @@ func next_level() -> void:
 		return
 	_changing_level = true
 	level += 1
+	RunLog.level = level
 	AttackTokens.set_level(level)
 	var fade := CanvasLayer.new()
 	fade.layer = 90
@@ -657,6 +783,13 @@ func _setup_level_extras() -> void:
 	if is_instance_valid(shop):
 		shop.queue_free()
 	shop = null
+	for n in [_scroll_mark, cursed_chest]:
+		if is_instance_valid(n):
+			n.queue_free()
+	scroll_room = -1
+	cursed_chest = null
+	for p in get_tree().get_nodes_in_group("run_pickups"):
+		p.queue_free()
 	if not structure_enabled():
 		return
 	# Cavernas de desafío: las normales (ni la arena ni la final)
@@ -676,18 +809,19 @@ func _setup_level_extras() -> void:
 		var c := map.room_center(i)
 		mark.global_position = Vector3(c.x, 3.2, c.z)
 		_challenge_rooms[i] = mark
+	_setup_run_extras(normal)
 	var start := _start_room()
 	# Logro "Verdugo": la partida empieza con una runa
 	if level == 1 and MetaProgress.starting_rune() and GameState.get_instance().runes.is_empty():
 		var first := DungeonRunes.roll(1)
 		if not first.is_empty():
 			DungeonRunes.add(first[0])
-			_show_banner("Runa inicial: %s" % DungeonRunes.RUNES[first[0]]["name"])
+			_show_banner("Tomo inicial: %s" % DungeonRunes.rune_name(first[0]))
 	if level >= (1 if MetaProgress.early_forge() else SHOP_FROM_LEVEL):
 		shop = DungeonShop.spawn(get_parent(), _free_spot(map.room_center(start), SHOP_OFFSET, 0.0), player, level)
 	if path == "tesoro":
 		var chest := TreasureChest.spawn(get_parent(), _free_spot(map.room_center(start), SHOP_OFFSET, 180.0), player)
-		chest.opened.connect(func(_c): _offer_rune("COFRE DE RUNAS", "ELIGE UNA RUNA"))
+		chest.opened.connect(func(_c): _offer_rune("COFRE DE TOMOS", "ELIGE UN TOMO"))
 		_chests.append(chest)
 
 func _start_room() -> int:
@@ -715,7 +849,9 @@ func _award_gold(dead) -> void:
 	var g := int(dead.get("gold_reward") if dead.get("gold_reward") != null else 5)
 	if path == "desafio":
 		g *= 2
-	_add_gold(g)
+	var amount := int(round(g * DungeonRun.gold_mult()))
+	_add_gold(amount)
+	RewardJuice.gold_burst(get_parent(), dead.global_position, amount, player)
 
 func _add_gold(amount: int) -> void:
 	var gs := GameState.get_instance()
@@ -768,7 +904,7 @@ func _finish_challenge(won: bool, silent: bool = false) -> void:
 		MetaProgress.record("challenges_won")
 		_add_gold(CHALLENGE_GOLD + 10 * level)
 		AudioManager.play("level-up", -4.0, 1.2)
-		_offer_rune("¡DESAFIO SUPERADO!", "ELIGE UNA RUNA")
+		_offer_rune("¡DESAFIO SUPERADO!", "ELIGE UN TOMO")
 	else:
 		_show_banner("DESAFIO FALLIDO")
 
@@ -794,17 +930,127 @@ func _choose_path() -> void:
 		var o: Dictionary = PATHS[id].duplicate()
 		o["id"] = id
 		options.append(o)
+	if DungeonRun.heat() < DungeonRun.HEAT_MAX:
+		options.append(DungeonRun.heat_option())   # riesgo opcional: siempre se ofrece
 	var ui := DungeonChoiceUI.present(get_parent(), "ELIGE TU CAMINO", "NIVEL %d" % (level + 1), options)
 	ui.chosen.connect(_on_path_chosen)
 
 func _on_path_chosen(id: String) -> void:
 	path = id
 	match id:
+		"calor":
+			DungeonRun.add_heat()
+			next_level()
 		"descanso":
 			if player.has_method("heal") and player.get("health_comp"):
 				player.heal(player.health_comp.max_hp)
 			next_level()
 		"runa":
-			_offer_rune("RUNA", "ELIGE UNA RUNA", next_level)
+			_offer_rune("TOMO", "ELIGE UN TOMO", next_level)
 		_:
 			next_level()
+
+# ───────────────────────────── Fase 3: pergaminos, cofre maldito, calor (DungeonRun) ─────────────────────────────
+
+var scroll_room := -1                 ## caverna que suelta un pergamino de enfoque al limpiarla
+var _scroll_mark: Label3D
+var cursed_chest: TreasureChest
+var _curse_label: Label
+
+## Pergamino por nivel en una caverna normal (distinta de la de desafío si se puede) y, quizá, un cofre maldito.
+func _setup_run_extras(normal: Array) -> void:
+	GameState.get_instance().second_wind_used = false
+	var free: Array = normal.filter(func(i): return not _challenge_rooms.has(i))
+	if free.is_empty():
+		free = normal
+	if not free.is_empty():
+		scroll_room = free[0]
+		_scroll_mark = _room_mark(scroll_room, "📜 PERGAMINO", Color(0.95, 0.85, 0.5), 2.6)
+	if level >= DungeonRun.CURSED_CHEST_FROM and (DungeonRun.heat() > 0 or randf() < DungeonRun.CURSED_CHEST_CHANCE):
+		var room: int = free[free.size() - 1] if not free.is_empty() else _start_room()
+		spawn_cursed_chest(_free_spot(map.room_center(room), 3.0, randf() * 360.0))
+
+func _room_mark(room: int, text: String, col: Color, height: float) -> Label3D:
+	var mark := Label3D.new()
+	mark.text = text
+	mark.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	mark.font_size = 56
+	mark.outline_size = 12
+	mark.modulate = col
+	get_parent().add_child(mark)
+	var c := map.room_center(room)
+	mark.global_position = Vector3(c.x, height, c.z)
+	return mark
+
+## Pergamino de enfoque: al recogerlo se elige Brutalidad, Táctica o Supervivencia.
+func spawn_scroll(at: Vector3) -> RunPickup:
+	var p := RunPickup.spawn(get_parent(), at, "PERGAMINO", Color(0.95, 0.85, 0.5))
+	p.picked.connect(func(_by): offer_focus())
+	return p
+
+func offer_focus() -> DungeonChoiceUI:
+	var ui := DungeonChoiceUI.present(get_parent(), "PERGAMINO DE ENFOQUE", "CADA UNO CURA UN %d%%" % int(DungeonRun.SCROLL_HEAL * 100.0),
+		DungeonRun.FOCUS.keys().map(func(id): return DungeonRun.focus_option(id)))
+	ui.chosen.connect(func(id): DungeonRun.add_focus(id, player))
+	return ui
+
+## Cofre maldito: no se abre solo; al acercarse se pregunta.
+func spawn_cursed_chest(at: Vector3) -> TreasureChest:
+	cursed_chest = TreasureChest.spawn(get_parent(), at, player)
+	cursed_chest.auto_open = false
+	var mark := Label3D.new()
+	mark.text = "☠ COFRE MALDITO"
+	mark.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	mark.font_size = 44
+	mark.outline_size = 10
+	mark.modulate = DungeonRun.CURSE_COLOR
+	mark.position = Vector3(0, 1.6, 0)
+	cursed_chest.add_child(mark)
+	cursed_chest.approached.connect(_ask_cursed_chest)
+	cursed_chest.opened.connect(_on_cursed_opened)
+	return cursed_chest
+
+func _ask_cursed_chest(chest: TreasureChest) -> void:
+	if chest.is_open:
+		return
+	var ui := DungeonChoiceUI.present(get_parent(), "☠ COFRE MALDITO", "PIEZA RARA Y %d ORO" % DungeonRun.cursed_gold(level), [
+		{"id": "abrir", "icon": "☠", "title": "Abrirlo", "color": DungeonRun.CURSE_COLOR,
+			"desc": "Recibes x%.1f de daño\nhasta lograr %d bajas" % [DungeonRun.CURSE_DAMAGE_MULT, DungeonRun.CURSE_KILLS]},
+		{"id": "dejar", "icon": "✋", "title": "Dejarlo", "color": Color(0.7, 0.7, 0.7), "desc": "Puedes volver luego"},
+	])
+	ui.chosen.connect(func(id):
+		if id == "abrir" and is_instance_valid(chest):
+			chest.open())
+
+func _on_cursed_opened(chest: TreasureChest) -> void:
+	DungeonRun.curse()
+	_add_gold(DungeonRun.cursed_gold(level))
+	if is_instance_valid(chest):
+		EquipmentPickup.spawn(get_parent(), chest.global_position + Vector3(0, 0, 1.4),
+			EquipmentDB.roll("", -1, null, DungeonRun.CURSED_MIN_RARITY))
+		DungeonRun.maybe_blueprint(get_parent(), chest.global_position + Vector3(1.2, 0, 0.6), 0.5)
+	_show_banner("¡MALDITO! x%.1f DAÑO RECIBIDO" % DungeonRun.CURSE_DAMAGE_MULT)
+
+## Contador de la maldición, bajo el aviso del desafío.
+func _update_curse_hud() -> void:
+	var left := GameState.get_instance().curse_kills if structure_enabled() else 0
+	if left <= 0:
+		if is_instance_valid(_curse_label):
+			_curse_label.get_parent().queue_free()
+			_curse_label = null
+			_show_banner("MALDICIÓN ROTA")
+		return
+	if not is_instance_valid(_curse_label):
+		var layer := CanvasLayer.new()
+		layer.name = "CurseCounter"
+		layer.layer = 70
+		_curse_label = Label.new()
+		_curse_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
+		_curse_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		_curse_label.offset_top = 100
+		_curse_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_curse_label.theme = RumbangStyle.get_theme()
+		RumbangStyle.style_title(_curse_label, 18, DungeonRun.CURSE_COLOR, RumbangStyle.NEON_MAGENTA)
+		layer.add_child(_curse_label)
+		get_parent().add_child(layer)
+	_curse_label.text = "☠ MALDITO · %d BAJAS" % left

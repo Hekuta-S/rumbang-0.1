@@ -308,7 +308,7 @@ FLOOR_Z = 0.08        ## altura de la cara de las losas
 def build_floor(b, rnd):
     tile = 1.0
     for ix in range(int(-HALL_X / tile), int(HALL_X / tile)):
-        for iy in range(int(HALL_Y0 / tile), int(DAIS_Y / tile)):
+        for iy in range(int(HALL_Y0 / tile), int(HALL_Y1 / tile)):
             cx, cy = (ix + 0.5) * tile, (iy + 0.5) * tile
             if math.hypot(cx - CIRCLE[0], cy - CIRCLE[1]) < CIRCLE_R + 0.15:
                 continue      # el círculo lleva su propio disco
@@ -329,17 +329,10 @@ def build_floor(b, rnd):
 def build_carpet(b):
     z = FLOOR_Z + 0.012
     w = 1.1
-    for y0, y1 in ((HALL_Y0 + 0.3, CIRCLE[1] - CIRCLE_R - 1.35), (CIRCLE[1] + CIRCLE_R + 1.35, DAIS_Y)):
+    for y0, y1 in ((HALL_Y0 + 0.3, CIRCLE[1] - CIRCLE_R - 1.35), (CIRCLE[1] + CIRCLE_R + 1.35, HALL_Y1 - 1.6)):
         box(b, (0, (y0 + y1) / 2, z), (w * 2, y1 - y0, 0.022), "salon_carpet", bevel=0.006)
         for sx in (-1, 1):
             box(b, (sx * (w - 0.08), (y0 + y1) / 2, z + 0.006), (0.07, y1 - y0, 0.024), "salon_gold")
-    # alfombra subiendo el estrado hasta el trono
-    for k in range(3):
-        y = DAIS_Y + k * 0.6
-        zt = 0.25 * (k + 1)
-        box(b, (0, y + 0.3, zt + 0.01), (w * 1.6, 0.62, 0.02), "salon_carpet")
-        box(b, (0, y + 0.012, zt - 0.115), (w * 1.6, 0.02, 0.25), "salon_carpet")
-    box(b, (0, DAIS_Y + 1.8 + 0.8, 0.76), (w * 1.6, 1.6, 0.02), "salon_carpet")
 
 
 def build_circle(b_struct, b_runes, rnd):
@@ -606,9 +599,9 @@ def build_props(b, b_flames, b_gems, rnd):
     # tinajas
     for (x, y, r) in ((-5.4, -6.9, 0.32), (-5.0, -7.3, 0.25), (5.0, 9.2, 0.3)):
         cyl(b, (x, y, FLOOR_Z), r, r * 2.2, "salon_stone_dark", segs=10, r_top=r * 0.55)
-    # braseros a ambos lados del estrado
+    # braseros a ambos lados de la puerta de la arena
     for sx in (-1, 1):
-        x, y = sx * 3.2, DAIS_Y - 0.6
+        x, y = sx * 3.2, HALL_Y1 - 2.6
         cyl(b, (x, y, FLOOR_Z), 0.3, 0.08, "salon_iron", segs=10)
         cyl(b, (x, y, FLOOR_Z + 0.08), 0.06, 0.9, "salon_iron", segs=6)
         cyl(b, (x, y, FLOOR_Z + 0.95), 0.18, 0.28, "salon_iron", segs=10, r_top=0.42)
@@ -733,7 +726,7 @@ def _arch_frame(b, M, poly, depth, thick, m):
         _move_last(b, M @ Matrix.Translation((mid.x, mid.y, 0)) @ Matrix.Rotation(ang, 4, "Z"))
 
 
-def _door_leaf(col, name, hinge, width, height, top_curve, normal_axis, open_sign, rnd, arena=False):
+def _door_leaf(col, name, hinge, width, height, top_curve, normal_axis, open_sign, rnd, arena=False, inw=1.0):
     """Hoja de puerta de tablones con herrajes. hinge = bisagra (abajo); la hoja crece hacia `open_sign`
     a lo largo del muro. normal_axis 'x': muro en x = cte (la hoja va a lo largo de y)."""
     b = _Tracked(name)
@@ -755,16 +748,16 @@ def _door_leaf(col, name, hinge, width, height, top_curve, normal_axis, open_sig
         if normal_axis == "x":
             box(b, (hx - 0.06, hy + open_sign * width / 2, hz + zz), (0.03, width - 0.06, 0.1), "salon_iron")
         else:
-            box(b, (hx + open_sign * width / 2, hy + 0.06, hz + zz), (width - 0.06, 0.03, 0.1), "salon_iron")
+            box(b, (hx + open_sign * width / 2, hy + 0.06 * inw, hz + zz), (width - 0.06, 0.03, 0.1), "salon_iron")
     if normal_axis == "x":
         annulus(b, (0, 0), 0.07, 0.09, -0.012, 0.012, "salon_iron", segs=16)
         _move_last(b, Matrix.Translation((hx - 0.09, hy + open_sign * (width - 0.22), hz + height * 0.45)) @ Matrix.Rotation(math.pi / 2, 4, "Y"))
     else:
         annulus(b, (0, 0), 0.08, 0.1, -0.012, 0.012, "salon_iron", segs=16)
-        _move_last(b, Matrix.Translation((hx + open_sign * (width - 0.25), hy + 0.09, hz + height * 0.42)) @ Matrix.Rotation(math.pi / 2, 4, "X"))
+        _move_last(b, Matrix.Translation((hx + open_sign * (width - 0.25), hy + 0.09 * inw, hz + height * 0.42)) @ Matrix.Rotation(math.pi / 2, 4, "X"))
     if arena:   # calavera de hierro en la hoja
         sphere(b, (hx - 0.07, hy + open_sign * width * 0.55, hz + height * 0.68) if normal_axis == "x" else
-               (hx + open_sign * width * 0.55, hy + 0.07, hz + height * 0.68), 0.09, "salon_iron", sub=1, scale=(0.6, 1, 1))
+               (hx + open_sign * width * 0.55, hy + 0.07 * inw, hz + height * 0.68), 0.09, "salon_iron", sub=1, scale=(0.6, 1, 1))
     return _pivoted(b, col, hinge)
 
 
@@ -786,27 +779,29 @@ def build_exit_gate(st, glass, flames, col, rnd):
 
 
 def build_arena_door(st, glass, flames, col, rnd):
-    """Puerta de la arena (Supervivencia) en el muro derecho, entre columnas, con rótulo de espadas."""
-    x = HALL_X - 0.05
-    yc = 5.0
-    w, h = 2.0, 3.4
-    R = Matrix.Rotation(math.pi / 2, 4, "Z") @ Matrix.Rotation(math.pi / 2, 4, "X")
-    poly = arch_poly(w + 0.3, h - 0.7, h + 0.3)
-    _arch_frame(st, Matrix.Translation((x - 0.14, yc, FLOOR_Z)) @ R, poly, 0.5, 0.3, "salon_stone_dark")
-    prism(glass, arch_poly(w, h - 0.7, h + 0.15), -0.01, 0.01, "salon_glow_arena", M=Matrix.Translation((x - 0.01, yc, FLOOR_Z)) @ R)
-    leaves = [_door_leaf(col, "puerta_arena_izq", (x - 0.12, yc - w / 2, FLOOR_Z), w / 2, h, 0.55, "x", 1, rnd, arena=True),
-              _door_leaf(col, "puerta_arena_der", (x - 0.12, yc + w / 2, FLOOR_Z), w / 2, h, 0.55, "x", -1, rnd, arena=True)]
-    # rótulo: escudo de hierro con dos espadas cruzadas
-    zc = FLOOR_Z + h + 0.85
-    cyl(st, (x - 0.2, yc, zc), 0.42, 0.06, "salon_iron", segs=16, rot=(0, -math.pi / 2, 0), smooth=False)
-    cyl(st, (x - 0.24, yc, zc), 0.34, 0.03, "salon_banner_red", segs=16, rot=(0, -math.pi / 2, 0), smooth=False)
+    """Puerta de la arena (Supervivencia) en el muro del fondo (donde estaba el trono), centrada y bien
+    visible al entrar: arco de piedra oscura, brillo rojo, rótulo de espadas y dos antorchas."""
+    w, h = 2.6, 3.9
+    y = HALL_Y1 - 0.05
+    poly = arch_poly(w + 0.3, h - 0.9, h + 0.4)
+    M = Matrix.Translation((0, y - 0.14, FLOOR_Z)) @ Matrix.Rotation(math.pi / 2, 4, "X")
+    _arch_frame(st, M, poly, 0.5, 0.34, "salon_stone_dark")
+    prism(glass, arch_poly(w, h - 0.9, h + 0.25), -0.01, 0.01, "salon_glow_arena",
+          M=Matrix.Translation((0, y - 0.01, FLOOR_Z)) @ Matrix.Rotation(math.pi / 2, 4, "X"))
+    leaves = [_door_leaf(col, "puerta_arena_izq", (-w / 2, y - 0.12, FLOOR_Z), w / 2, h, 0.7, "y", 1, rnd, arena=True, inw=-1.0),
+              _door_leaf(col, "puerta_arena_der", (w / 2, y - 0.12, FLOOR_Z), w / 2, h, 0.7, "y", -1, rnd, arena=True, inw=-1.0)]
+    # rótulo: escudo de hierro con dos espadas cruzadas sobre el arco
+    zc = FLOOR_Z + h + 0.95
+    ys = y - 0.2
+    cyl(st, (0, ys, zc), 0.5, 0.06, "salon_iron", segs=16, rot=(math.pi / 2, 0, 0), smooth=False)
+    cyl(st, (0, ys - 0.04, zc), 0.41, 0.03, "salon_banner_red", segs=16, rot=(math.pi / 2, 0, 0), smooth=False)
     for sgn in (-1, 1):
-        box(st, (0, 0, 0), (0.05, 0.08, 1.15), "salon_steel", bevel=0.005)
-        _move_last(st, Matrix.Translation((x - 0.3, yc, zc)) @ Matrix.Rotation(sgn * 0.75, 4, "X"))
-        box(st, (0, 0, 0), (0.07, 0.36, 0.06), "salon_gold")
-        _move_last(st, Matrix.Translation((x - 0.32, yc, zc)) @ Matrix.Rotation(sgn * 0.75, 4, "X") @ Matrix.Translation((0, 0, -0.33)))
-    for sy in (-1, 1):
-        build_torch(st, flames, (x - 0.15, yc + sy * 1.55, 2.4), (-1, 0))
+        box(st, (0, 0, 0), (0.05, 0.08, 1.3), "salon_steel", bevel=0.005)
+        _move_last(st, Matrix.Translation((0, ys - 0.1, zc)) @ Matrix.Rotation(sgn * 0.75, 4, "Y"))
+        box(st, (0, 0, 0), (0.36, 0.07, 0.06), "salon_gold")
+        _move_last(st, Matrix.Translation((0, ys - 0.12, zc)) @ Matrix.Rotation(sgn * 0.75, 4, "Y") @ Matrix.Translation((0, 0, -0.37)))
+    for sx in (-1, 1):
+        build_torch(st, flames, (sx * 2.1, y - 0.15, 2.6), (0, -1))
     return leaves
 
 
@@ -1001,7 +996,6 @@ def build_salon():
     build_carpet(st)
     build_circle(st, runes, rnd)
     build_candles(st, flames, rnd)
-    build_dais_and_throne(st, flames, glass)
     build_walls(st, glass, flames, rnd)
     build_banners(st, rnd)
     build_props(st, flames, glass, rnd)

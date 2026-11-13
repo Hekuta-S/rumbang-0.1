@@ -20,6 +20,14 @@ func _ready() -> void:
 	var t0 := Time.get_ticks_usec()
 	GameData.preload_assets()
 	print("preload_assets: %.0f ms" % ((Time.get_ticks_usec() - t0) / 1000.0))
+	# Lo mismo que la pantalla de carga: datos de la partida en caché y un modelo de cada enemigo calentado
+	t0 = Time.get_ticks_usec()
+	var LoadingScreen := load("res://scripts/ui/loading_screen.gd")
+	if OS.get_environment("STALLS_BASELINE") != "1":     # =1: como antes en móvil (sin caché de partida)
+		LoadingScreen.cache_run_data_sync()
+	for m in DungeonGoblin.warm_models():
+		(m as Node).free()
+	print("pantalla de carga (datos + calentar enemigos): %.0f ms" % ((Time.get_ticks_usec() - t0) / 1000.0))
 	t0 = Time.get_ticks_usec()
 	var ps := load("res://scenes/core/main_dungeon.tscn") as PackedScene
 	print("load escena: %.0f ms" % ((Time.get_ticks_usec() - t0) / 1000.0))

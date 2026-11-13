@@ -20,10 +20,10 @@ const SALON_PATH := "res://assets/models/salon/salon_trono.glb"
 const KING_PATH := "res://assets/models/salon/rey.glb"
 const MAGE_PATH := "res://assets/models/salon/mago.glb"
 const TEX_DIR := "res://assets/textures/dungeon/"
-const MUSIC := "res://assets/audio/dungeon_theme.wav"
 const CHARACTER_SELECT := "res://scenes/ui/character_select.tscn"
 const SURVIVAL_SCENE := "res://scenes/core/main_procedural.tscn"
 const LOBBY := "res://scenes/ui/lobby_menu.tscn"
+const TUTORIAL := "res://scenes/core/tutorial_patio.tscn"
 const TITLE := "res://scenes/ui/title_screen.tscn"   ## pantalla de título (panorama del mapa)
 
 const FLOOR_Y := 0.08
@@ -42,8 +42,8 @@ const STATIONS := {
 		"cam": null},
 	"yunque": {"pos": Vector3(4.5, FLOOR_Y, -1.0), "r": 1.5, "label": "YUNQUE", "h": 1.5, "prompt": "Yunque: armas de la mazmorra",
 		"cam": [Vector3(-2.3, 1.5, 0.6), Vector3(0.4, 0.9, -0.9)]},
-	"arena": {"pos": Vector3(7.5, FLOOR_Y, -5.0), "r": 1.8, "label": "ARENA", "h": 4.9, "prompt": "Arena de supervivencia",
-		"cam": [Vector3(-3.2, 1.2, 2.6), Vector3(0.4, 1.5, 0.0)]},
+	"arena": {"pos": Vector3(0.0, FLOOR_Y, -12.6), "r": 2.0, "label": "ARENA", "h": 5.6, "prompt": "Arena de supervivencia",
+		"cam": [Vector3(-2.4, 1.7, 3.0), Vector3(0.0, 1.7, -1.4)]},
 	"cofre": {"pos": Vector3(5.0, FLOOR_Y, 4.4), "r": 1.5, "label": "COFRE", "h": 1.3, "prompt": "Cofre: mejoras de armas",
 		"cam": [Vector3(-2.0, 1.4, 1.2), Vector3(0.0, 0.4, 0.0)]},
 	"libro": {"pos": Vector3(-4.8, FLOOR_Y, 5.2), "r": 1.4, "label": "LOGROS", "h": 1.7, "prompt": "Libro de logros",
@@ -52,6 +52,8 @@ const STATIONS := {
 		"cam": [Vector3(-1.8, 1.6, 1.4), Vector3(0.0, 0.8, 0.0)]},
 	"bola": {"pos": Vector3(-4.4, FLOOR_Y, -6.6), "r": 1.5, "label": "MULTIJUGADOR", "h": 1.9, "prompt": "Bola de cristal: multijugador LAN",
 		"cam": [Vector3(1.6, 1.6, 1.4), Vector3(0.0, 1.2, 0.0)]},
+	"patio": {"pos": Vector3(2.6, FLOOR_Y, 4.2), "r": 1.5, "label": "TUTORIAL", "h": 2.5, "prompt": "Repetir el tutorial del patio",
+		"cam": null},
 	"salir": {"pos": Vector3(0.0, FLOOR_Y, 6.9), "r": 1.9, "label": "SALIR", "h": 3.4, "prompt": "Salir del juego",
 		"cam": [Vector3(0.0, 2.0, -4.0), Vector3(0.0, 2.2, 1.0)]},
 }
@@ -59,7 +61,7 @@ const STATIONS := {
 ## [posición relativa al héroe, punto mirado (absoluto)].
 const NEAR_CAMS := {
 	"salir": [Vector3(1.8, 2.0, -3.6), Vector3(0.0, 2.3, 7.9)],
-	"arena": [Vector3(-2.8, 2.0, -0.8), Vector3(7.9, 1.9, -5.0)],
+	"arena": [Vector3(2.4, 2.2, 3.4), Vector3(0.0, 2.0, -13.9)],
 }
 ## Portales del mago (uno por mundo, en las marcas de runas de la izquierda) y su color
 const PORTAL_SPOTS := [Vector3(-4.7, FLOOR_Y, -4.4), Vector3(-4.7, FLOOR_Y, 2.6)]
@@ -120,7 +122,6 @@ var _torch_base: Array[float] = []
 var _beam: MeshInstance3D
 var _beam_mat: ShaderMaterial
 var _sparks: CPUParticles3D
-var _music: AudioStreamPlayer
 var _voice: AudioStreamPlayer
 var _time := 0.0
 var _skip_armed := false
@@ -146,7 +147,7 @@ func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_build_world()
 	_build_ui()
-	if force_intro or OS.get_cmdline_user_args().has("--intro") or not intro_seen():
+	if force_intro or OS.get_cmdline_user_args().has("--intro"):
 		start_intro()
 	else:
 		begin_explore(true)
@@ -158,6 +159,32 @@ static func intro_seen() -> bool:
 	if cfg.load(config_path) != OK:
 		return false
 	return bool(cfg.get_value("intro", "seen", false))
+
+## Tutorial del patio (TutorialPatio): la primera vez, el título lleva allí antes que al salón.
+static func tutorial_done() -> bool:
+	var cfg := ConfigFile.new()
+	if cfg.load(config_path) != OK:
+		return false
+	return bool(cfg.get_value("tutorial", "done", false))
+
+static func set_tutorial_done(done: bool) -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(config_path)
+	cfg.set_value("tutorial", "done", done)
+	cfg.save(config_path)
+
+## Creación de personaje de la primera partida (CharacterSelect.creation): va antes del tutorial.
+static func character_created() -> bool:
+	var cfg := ConfigFile.new()
+	if cfg.load(config_path) != OK:
+		return false
+	return bool(cfg.get_value("personaje", "creado", false))
+
+static func set_character_created(done: bool) -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(config_path)
+	cfg.set_value("personaje", "creado", done)
+	cfg.save(config_path)
 
 static func set_intro_seen(seen: bool) -> void:
 	var cfg := ConfigFile.new()
@@ -186,9 +213,11 @@ func _build_world() -> void:
 	env.adjustment_enabled = true
 	env.adjustment_saturation = 1.08
 	env.adjustment_contrast = 1.06
+	Quality.tune_environment(env, get_viewport())
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
+	Quality.add_governor(self, get_viewport())
 
 	camera = Camera3D.new()
 	camera.near = 0.05
@@ -213,31 +242,32 @@ func _build_world() -> void:
 	moon.light_color = Color(0.55, 0.62, 1.0)
 	moon.light_energy = 0.35
 	moon.rotation_degrees = Vector3(-38.0, -70.0, 0.0)
-	moon.shadow_enabled = true
+	Quality.tune_light(moon)
 	moon.directional_shadow_max_distance = 30.0
 	add_child(moon)
 
 	# Luces omni (el renderizador móvil admite 8 por malla y el salón es una sola): antorchas, braseros,
 	# círculo y fragua. Lo demás (relleno, portales, bola, arena) son focos, que tienen su propio cupo.
-	for p in [Vector3(-5.6, 3.2, 1.0), Vector3(5.6, 3.2, 1.0), Vector3(-3.2, 1.9, -7.4), Vector3(3.2, 1.9, -7.4)]:
+	for p in [Vector3(-5.6, 3.2, 1.0), Vector3(5.6, 3.2, 1.0), Vector3(-3.2, 1.9, -11.4), Vector3(3.2, 1.9, -11.4)]:
+		if Quality.is_mobile() and p.y < 2.5:
+			continue   # móvil: menos luces omni (cada una se recalcula por píxel); el foco de la arena cubre el fondo
 		_torch(p, Color(1.0, 0.58, 0.26), 2.2 if p.y > 2.5 else 1.8, 9.0, p.y < 2.5)
-	_torch(Vector3(5.6, 1.4, -1.0), Color(1.0, 0.45, 0.15), 2.0, 5.0, false)      # fragua
+	if not Quality.is_mobile():
+		_torch(Vector3(5.6, 1.4, -1.0), Color(1.0, 0.45, 0.15), 2.0, 5.0, false)      # fragua
 	_circle_light = OmniLight3D.new()
 	_circle_light.position = CIRCLE + Vector3(0, 0.6, 0)
 	_circle_light.light_color = Color(0.4, 0.75, 1.0)
 	_circle_light.light_energy = 0.6
 	_circle_light.omni_range = 7.0
-	_circle_light.shadow_enabled = true
+	Quality.tune_light(_circle_light)
 	add_child(_circle_light)
 	_spot(Vector3(-4.4, 2.6, -6.6), Vector3(-4.4, FLOOR_Y, -6.6), Color(0.75, 0.4, 1.0), 2.5, 35.0)   # bola
-	_spot(Vector3(6.0, 3.2, -5.0), Vector3(8.0, 1.0, -5.0), Color(1.0, 0.3, 0.1), 2.0, 45.0)         # arena
+	_spot(Vector3(0.0, 3.4, -10.6), Vector3(0.0, 1.6, -13.9), Color(1.0, 0.3, 0.1), 2.6, 50.0)        # arena
 	_spot(Vector3(4.6, 3.0, -1.4), Vector3(4.8, 0.8, -2.55), Color(1.0, 0.8, 0.6), 1.6, 40.0)        # armero
 
 	_build_beam()
 
-	king = _spawn_npc(KING_PATH, KING_POS, 0.0, _king_look())
 	mage = _spawn_npc(MAGE_PATH, MAGE_POS, _yaw_to(MAGE_POS, CIRCLE) - 0.35, _mage_look())
-	_play(king, "rey_idle")
 	_play(mage, "mago_idle")
 	player = HubPlayer.new()
 	player.name = "Heroe"
@@ -263,16 +293,11 @@ func _build_world() -> void:
 		add_child(_touch_controls)
 
 	_build_station_labels()
+	_build_training_dummy()
 	_build_rack()
 	_build_portals()
 
-	_music = AudioStreamPlayer.new()
-	_music.bus = "Music" if AudioServer.get_bus_index("Music") >= 0 else "Master"
-	if ResourceLoader.exists(MUSIC):
-		_music.stream = load(MUSIC)
-		_music.volume_db = -14.0
-		add_child(_music)
-		_music.play()
+	MusicDirector.play("hub")   # tema tranquilo del salón (tools/generate_chill_soundtrack.gd)
 	_voice = AudioStreamPlayer.new()
 	_voice.bus = "SFX" if AudioServer.get_bus_index("SFX") >= 0 else "Master"
 	add_child(_voice)
@@ -284,7 +309,7 @@ func _torch(p: Vector3, c: Color, energy: float, rng: float, shadow: bool) -> vo
 	l.light_energy = energy
 	l.omni_range = rng
 	l.omni_attenuation = 1.3
-	l.shadow_enabled = shadow
+	Quality.tune_light(l, shadow)
 	add_child(l)
 	_torches.append(l)
 	_torch_base.append(energy)
@@ -320,7 +345,6 @@ func _build_collision() -> void:
 	var boxes := [   # [centro (x, z), tamaño (x, z)]
 		[Vector2(8.3, -3.0), Vector2(0.6, 23.0)], [Vector2(-8.3, -3.0), Vector2(0.6, 23.0)],
 		[Vector2(0.0, 8.0), Vector2(17.0, 1.2)], [Vector2(0.0, -14.3), Vector2(17.0, 0.6)],
-		[Vector2(0.0, -11.0), Vector2(9.2, 6.1)],                                   # estrado
 		[Vector2(6.0, -1.0), Vector2(1.4, 1.7)], [Vector2(4.9, -2.55), Vector2(0.25, 1.7)],   # fragua, armero
 		[Vector2(5.0, 4.4), Vector2(0.75, 1.2)], [Vector2(4.4, -6.4), Vector2(1.0, 1.6)],     # cofre, mesa
 	]
@@ -332,7 +356,7 @@ func _build_collision() -> void:
 		cs.position = Vector3(b[0].x, 1.5, b[0].y)
 		body.add_child(cs)
 	var cyls := [   # [centro (x, z), radio]
-		[Vector2(-3.2, -7.4), 0.4], [Vector2(3.2, -7.4), 0.4], [Vector2(-3.6, -0.6), 0.32],
+		[Vector2(-3.2, -11.4), 0.4], [Vector2(3.2, -11.4), 0.4], [Vector2(-3.6, -0.6), 0.32],
 		[Vector2(4.5, -1.0), 0.38], [Vector2(5.8, -2.15), 0.3], [Vector2(4.7, 5.25), 0.28],
 		[Vector2(-4.8, 5.2), 0.42], [Vector2(-4.4, -6.6), 0.42], [Vector2(5.0, -6.4), 0.25],
 		[Vector2(-5.4, 6.9), 0.34], [Vector2(-5.0, 7.3), 0.28], [Vector2(MAGE_POS.x, MAGE_POS.z), 0.42],
@@ -553,15 +577,63 @@ func _build_station_labels() -> void:
 		add_child(l)
 		_station_labels[id] = l
 
+## Muñeco de práctica junto a la entrada: la estación para repetir el tutorial.
+func _build_training_dummy() -> void:
+	var p: Vector3 = STATIONS["patio"]["pos"]
+	var wood := salon_material("salon_wood", null) as StandardMaterial3D
+	wood.vertex_color_use_as_albedo = false
+	var root := Node3D.new()
+	root.position = p
+	add_child(root)
+	var post := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.13
+	cm.bottom_radius = 0.17
+	cm.height = 1.5
+	post.mesh = cm
+	post.position.y = 0.75
+	post.material_override = wood
+	root.add_child(post)
+	var arm := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.9, 0.12, 0.12)
+	arm.mesh = bm
+	arm.position.y = 1.1
+	arm.material_override = wood
+	root.add_child(arm)
+	var head := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.17
+	sm.height = 0.34
+	head.mesh = sm
+	head.position.y = 1.62
+	var straw := StandardMaterial3D.new()
+	straw.albedo_color = Color(0.78, 0.64, 0.28)
+	straw.roughness = 1.0
+	head.material_override = straw
+	root.add_child(head)
+	var body := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	var sh := CylinderShape3D.new()
+	sh.radius = 0.3
+	sh.height = 1.8
+	cs.shape = sh
+	cs.position.y = 0.9
+	body.add_child(cs)
+	root.add_child(body)
+
 ## Las tres armas del yunque colgadas en el armero (modelos del juego); la equipada se ilumina.
 func _build_rack() -> void:
 	var files := {WeaponData.WeaponType.SPEAR_LANCE: ["res://assets/models/weapons/espalanza.glb", 1.9],
 		WeaponData.WeaponType.DAGGERS: ["", 0.5],
 		WeaponData.WeaponType.MACE: ["", 1.5],
 		WeaponData.WeaponType.GREATSWORD: ["", 1.7],
-		WeaponData.WeaponType.SWORD: ["", 1.1]}
+		WeaponData.WeaponType.SWORD: ["", 1.1],
+		WeaponData.WeaponType.BOW: ["", 1.3],
+		WeaponData.WeaponType.KATANA: ["", 1.05]}
 	var zs := {WeaponData.WeaponType.SPEAR_LANCE: -3.0, WeaponData.WeaponType.DAGGERS: -2.55, WeaponData.WeaponType.MACE: -2.1,
-		WeaponData.WeaponType.GREATSWORD: -1.65, WeaponData.WeaponType.SWORD: -1.2}
+		WeaponData.WeaponType.GREATSWORD: -1.65, WeaponData.WeaponType.SWORD: -1.2, WeaponData.WeaponType.BOW: -0.75,
+		WeaponData.WeaponType.KATANA: -0.3}
 	for w in files:
 		var f: Array = files[w]
 		var holder := Node3D.new()
@@ -580,6 +652,10 @@ func _build_rack() -> void:
 					m = GreatswordModels.build(GameData.greatsword_skin)
 				WeaponData.WeaponType.SWORD:
 					m = SwordModels.build(GameData.sword_skin)
+				WeaponData.WeaponType.BOW:
+					m = BowModels.build(GameData.bow_skin)
+				WeaponData.WeaponType.KATANA:
+					m = KatanaModels.build(0)
 				_:
 					m = _instance(String(f[0]))
 			if m == null:
@@ -980,12 +1056,28 @@ func use_station(id: String) -> void:
 	match id:
 		"mago":
 			_talk_to_mage()
+		"patio":
+			start_tutorial()
 		"bola":
 			AudioManager.play("orb_cast", -4.0, 1.2)
 			state = "leaving"
 			get_tree().change_scene_to_file(LOBBY)
 		_:
 			_open_station_panel(id)
+
+## Repetir el tutorial: funde a negro y vuelve al patio (se puede saltar desde allí).
+func start_tutorial(change: bool = true) -> void:
+	if state != "explore":
+		return
+	state = "leaving"
+	player.locked = true
+	player.stop()
+	AudioManager.play("impact_magic", 0.0, 1.1)
+	_flash.color = Color(0.45, 0.8, 1.0, 0.0)
+	var tw := create_tween()
+	tw.tween_property(_flash, "color:a", 1.0, 0.45)
+	if change:
+		tw.tween_callback(func(): SceneLoader.load_scene(TUTORIAL))
 
 func _talk_to_mage() -> void:
 	_play(mage, "mago_reverencia" if portals_open else "mago_conjurar", "mago_idle" if portals_open else "", 0.3)
@@ -1024,8 +1116,8 @@ func start_survival(char_index: int) -> void:
 	state = "leaving"
 	GameData.game_mode = "survival"
 	GameData.selected_index = char_index
-	_swing("puerta_arena_izq", Vector3(0, 1.6, 0), 0.9)
-	_swing("puerta_arena_der", Vector3(0, -1.6, 0), 0.9)
+	_swing("puerta_arena_izq", Vector3(0, 1.5, 0), 0.9)
+	_swing("puerta_arena_der", Vector3(0, -1.5, 0), 0.9)
 	AudioManager.play("slam_boom", -8.0, 0.6)
 	var tw := create_tween()
 	tw.tween_interval(0.7)

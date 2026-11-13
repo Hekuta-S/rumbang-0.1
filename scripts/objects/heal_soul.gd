@@ -14,6 +14,7 @@ var _vel := Vector3.ZERO
 var _age := 0.0
 var _player: Node3D
 var _magnet := false
+var _magnet_t := 0.0
 var _mesh: MeshInstance3D
 
 static var _shared_mesh: SphereMesh = null
@@ -102,7 +103,8 @@ func _physics_process(delta: float) -> void:
 	if not _magnet and to_p.length() < MAGNET_RADIUS:
 		_magnet = true
 	if _magnet:
-		global_position += to_p.normalized() * SPEED * delta
+		_magnet_t += delta
+		global_position += to_p.normalized() * minf(RewardJuice.magnet_speed(SPEED, _magnet_t) * delta, to_p.length())
 		if to_p.length() < 0.7:
 			_collect(_player)
 	else:
@@ -117,6 +119,6 @@ func _collect(player: Node) -> void:
 	var max_hp: float = float(hc.max_hp) if hc != null else 100.0
 	if player.has_method("heal"):
 		player.heal(max_hp * HEAL_FRACTION)
-	AudioManager.play("ui_click", -10.0, 1.9)
+	RewardJuice.collect(get_parent(), global_position, COLOR, "ui_click", -10.0, 1.6)
 	set_physics_process(false)
 	queue_free()

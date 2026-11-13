@@ -5,6 +5,10 @@ extends Node3D
 ## y emite `opened`; la mazmorra responde ofreciendo armas al azar.
 
 signal opened(chest: TreasureChest)
+## Sin apertura automática (cofre maldito): al acercarse emite `approached` y quien lo usa decide si open().
+signal approached(chest: TreasureChest)
+var auto_open := true
+var _near := false
 
 const OPEN_RADIUS := 2.4
 const WOOD := Color(0.36, 0.22, 0.11)
@@ -111,7 +115,12 @@ func _process(delta: float) -> void:
 	if not is_instance_valid(player):
 		return
 	var d := Vector2(player.global_position.x - global_position.x, player.global_position.z - global_position.z)
-	if d.length() <= OPEN_RADIUS:
+	if not auto_open:
+		var near := d.length() <= OPEN_RADIUS
+		if near and not _near:
+			approached.emit(self)
+		_near = near
+	elif d.length() <= OPEN_RADIUS:
 		open()
 
 func open() -> void:

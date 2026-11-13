@@ -59,8 +59,8 @@ func _ready() -> void:
 
 	# 3. Las runas se notan en el arma
 	var dmg0: float = p.get_weapon_modifiers(p.current_weapon())["damage"]
-	gs.runes["furia"] = int(gs.runes.get("furia", 0)) + 1
-	assert(absf(float(p.get_weapon_modifiers(p.current_weapon())["damage"]) - dmg0 - 0.15) < 0.001, "Runa de Furia: +15% daño")
+	gs.runes["poder"] = int(gs.runes.get("poder", 0)) + 1
+	assert(absf(float(p.get_weapon_modifiers(p.current_weapon())["damage"]) - dmg0 - 0.15) < 0.001, "Tomo de Poder (mazmorra): +15% daño")
 	var stun0 := DungeonRunes.stun_mult()
 	gs.runes["quebranto"] = int(gs.runes.get("quebranto", 0)) + 1   # la runa del desafío pudo ser esta
 	assert(DungeonRunes.stun_mult() > stun0, "Runa del Quebranto: más aguante")
@@ -72,10 +72,10 @@ func _ready() -> void:
 	assert(enc._challenge.is_empty() and _find_choice(scene) == null, "Sin tiempo: desafío fallido y sin premio")
 	print("CHECK 4 PASSED: desafío fallido")
 
-	# 5. Camino tras el portal: 3 opciones; "descanso" cura y baja de nivel (con forja)
+	# 5. Camino tras el portal: 3 opciones al azar + Calor (riesgo opcional, DungeonRun); "descanso" cura y baja de nivel (con forja)
 	enc._choose_path()
 	var pui := _find_choice(scene)
-	assert(pui != null and pui._options.size() == 3, "Tres caminos")
+	assert(pui != null and pui._options.size() == 4 and pui._options.back()["id"] == "calor", "Tres caminos y Calor")
 	pui.queue_free()
 	get_tree().paused = false
 	p.health_comp.hp = 100.0

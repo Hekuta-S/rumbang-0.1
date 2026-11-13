@@ -86,6 +86,50 @@ func _ready() -> void:
 	assert(lock.has_target(), "Una pulsación de FIJ fija al enemigo (y no lo suelta al instante)")
 	print("CHECK 4 PASSED: FIJ fija una vez")
 
+	# 4c. Mantener FIJ y deslizar cambia al enemigo de ese lado (como el stick derecho); tocar sin
+	# arrastrar con un objetivo fijado lo suelta.
+	var tgt_i: int = controls.BUTTONS.find_custom(func(b): return b["key"] == "target")
+	var cam := get_viewport().get_camera_3d()
+	var right: Vector3 = cam.global_transform.basis.x
+	right.y = 0.0
+	right = right.normalized()
+	lock._set_target(g)
+	var g_r: Node3D = _enc.spawn_brute()
+	g_r.global_position = g.global_position + right * 4.0
+	var g_l: Node3D = _enc.spawn_brute()
+	g_l.global_position = g.global_position - right * 4.0
+	await _wait(0.6)
+	lock._set_target(g)
+	await get_tree().physics_frame
+	var c0: Vector2 = controls._btn_center[tgt_i]
+	controls._on_press(9, c0, true)
+	for i in 4:
+		controls._on_drag(9, c0 + Vector2(20 * (i + 1), 0), Vector2(20, 0))
+	for i in 4:
+		await get_tree().physics_frame
+	assert(g_r != g and g_l != g and g_r != g_l, "Tres enemigos distintos")
+	assert(lock.target == g_r, "Deslizar a la derecha cambia al goblin de la derecha (objetivo: %s)" % lock.target)
+	controls._on_press(9, c0 + Vector2(80, 0), false)
+	for i in 4:
+		await get_tree().physics_frame
+	assert(lock.target == g_r, "Soltar tras cambiar no suelta el objetivo")
+	controls._on_press(9, c0, true)
+	for i in 4:
+		controls._on_drag(9, c0 - Vector2(20 * (i + 1), 0), Vector2(-20, 0))
+	for i in 4:
+		await get_tree().physics_frame
+	controls._on_press(9, c0 - Vector2(80, 0), false)
+	assert(lock.target == g, "Deslizar a la izquierda vuelve al del centro")
+	controls._on_press(9, c0, true)
+	controls._on_press(9, c0, false)
+	for i in 4:
+		await get_tree().physics_frame
+	assert(not lock.has_target(), "Tocar FIJ sin arrastrar suelta el objetivo")
+	g_r.queue_free()
+	g_l.queue_free()
+	await _wait(0.2)
+	print("CHECK 4c PASSED: deslizar FIJ cambia de objetivo por dirección")
+
 	# 4b. Teclado: C fija y suelta; Tab ya no fija sino que abre/cierra el menú de pausa
 	var key := func(code: Key) -> void:
 		var ev := InputEventKey.new()

@@ -92,7 +92,7 @@ func _on_disconnected(_reason: String) -> void:
 	# Se perdió la conexión (o el anfitrión cerró la partida): de vuelta al menú
 	if is_inside_tree():
 		get_tree().paused = false
-		get_tree().change_scene_to_file("res://scenes/ui/dungeon_hub.tscn")
+		SceneLoader.load_scene("res://scenes/ui/dungeon_hub.tscn")
 
 func _on_peer_left(id: int) -> void:
 	if remotes.has(id):
@@ -455,7 +455,7 @@ func _game_over() -> void:
 	var tree := get_tree()
 	Net.leave("Fin de la partida")   # _on_disconnected ya vuelve al menú
 	if is_instance_valid(tree) and tree.current_scene and tree.current_scene.get_node_or_null("NetWorld") == self:
-		tree.change_scene_to_file("res://scenes/ui/dungeon_hub.tscn")
+		SceneLoader.load_scene("res://scenes/ui/dungeon_hub.tscn")
 
 ## Al despejar una caverna todos los caídos reviven con media vida junto a un compañero.
 func _revive_downed() -> void:

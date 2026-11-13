@@ -12,7 +12,7 @@ func _ready() -> void:
 
 	# 2. Serialización y validación (lo que llega por la red no se usa tal cual)
 	var l := CharacterLook.new()
-	l.char_name = "Pepe"; l.hat = "sombrero"; l.footwear = "converse"; l.height = 1.1
+	l.char_name = "Pepe"; l.footwear = "descalzo"; l.height = 1.1
 	l.colors["skin"] = Color(0.5, 0.3, 0.2)
 	var back := CharacterLook.from_dict(l.to_dict())
 	assert(back.to_dict() == l.to_dict(), "to_dict/from_dict ida y vuelta")
@@ -64,18 +64,14 @@ func _ready() -> void:
 	print("CHECK 3 PASSED: %d superficies y %d peinados" % [mats.size(), ap.hair_meshes.size()])
 
 	# 4. Accesorios en sus huesos y se cambian sin duplicarse
+	# (Ya no hay gorros ni botas rígidas: los zapatos son prendas del editor de ropa, ver test_clothing_shoes)
 	var atts := _attachments(ap.skeleton)
-	assert(atts.size() == 5, "Sombrero + 2 pies + 2 cañas (%d)" % atts.size())
 	for a in atts:
 		assert(ap.skeleton.find_bone(a.bone_name) >= 0, "Hueso válido " + a.bone_name)
-	l.hat = "ninguno"; l.footwear = "descalzo"
-	ap.apply(l)
-	await get_tree().process_frame
-	assert(_attachments(ap.skeleton).is_empty(), "Sin accesorios al quitarlos")
-	l.hat = "gorra"
+	l.footwear = "descalzo"
 	ap.apply(l); ap.apply(l)
 	await get_tree().process_frame
-	assert(_attachments(ap.skeleton).size() == 1, "Reaplicar no duplica")
+	assert(_attachments(ap.skeleton).is_empty(), "Sin accesorios por defecto y reaplicar no duplica")
 	print("CHECK 4 PASSED: accesorios en huesos")
 
 	# 5. Proporciones: altura/complexión en la raíz, cabeza en el modificador
@@ -89,7 +85,7 @@ func _ready() -> void:
 
 	# 6. El jugador de la mazmorra sale con la apariencia guardada
 	var cur := CharacterLook.new()
-	cur.colors["underwear"] = Color(0.1, 0.8, 0.2); cur.hat = "gorro"
+	cur.colors["underwear"] = Color(0.1, 0.8, 0.2); cur.hat = "ninguno"
 	CharacterLook.set_current(cur)
 	GameData.game_mode = "dungeon"
 	var scene: Node = load("res://scenes/core/main_dungeon.tscn").instantiate()
@@ -103,7 +99,10 @@ func _ready() -> void:
 	var pm: Node3D = player.get_node("PlayerAnimationController").model
 	var pap := pm.get_node_or_null("LookApplier") as CharacterLookApplier
 	assert(pap != null, "El jugador lleva el aplicador")
-	assert(pap.look.color("underwear").is_equal_approx(Color(0.1, 0.8, 0.2)) and _attachments(pap.skeleton).size() == 1, "Con su apariencia")
+	var pnames: Array = []
+	for a in _attachments(pap.skeleton):
+		pnames.append(a.name)
+	assert(pap.look.color("underwear").is_equal_approx(Color(0.1, 0.8, 0.2)) and _attachments(pap.skeleton).size() == 1, "Con su apariencia (accesorios: %s)" % str(pnames))
 	print("CHECK 6 PASSED: jugador con su apariencia")
 	# 7. Sin pasiva y con la espalanza de arma inicial
 	assert(player.get("passive") == null, "El personaje personalizable no tiene pasiva")

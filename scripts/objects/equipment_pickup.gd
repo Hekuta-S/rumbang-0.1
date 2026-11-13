@@ -10,9 +10,9 @@ extends Area3D
 const MAGNET_RADIUS := 2.5
 const SPEED := 9.0
 const LIFETIME := 90.0
-const PROP_CHANCE := 0.08          ## cajas, barriles y bolsas
-const ENEMY_CHANCE := 0.012        ## cualquier enemigo
-const ELITE_CHANCE := 0.12         ## brutos
+const PROP_CHANCE := 0.11          ## cajas, barriles y bolsas (antes 0.08)
+const ENEMY_CHANCE := 0.02         ## cualquier enemigo (antes 0.012)
+const ELITE_CHANCE := 0.16         ## brutos (antes 0.12)
 const BOSS_MIN_RARITY := 2         ## los jefes sueltan siempre una pieza, rara como mínimo
 
 var item: Dictionary = {}
@@ -25,6 +25,7 @@ var beam: MeshInstance3D              ## columna de luz de las piezas raras o me
 const BEAM_MIN_RARITY := 2
 
 static func spawn(parent: Node, pos: Vector3, p_item: Dictionary) -> EquipmentPickup:
+	RunLog.drop(p_item)
 	var p := EquipmentPickup.new()
 	p.item = p_item
 	p.collision_layer = 0
@@ -37,19 +38,28 @@ static func spawn(parent: Node, pos: Vector3, p_item: Dictionary) -> EquipmentPi
 static func try_drop(parent: Node, pos: Vector3, chance: float, min_rarity: int = 0) -> EquipmentPickup:
 	if GameData.game_mode != "dungeon" or Net.is_online() or parent == null:
 		return null
-	if randf() >= chance:
+	if randf() >= chance * DungeonRun.drop_mult():
 		return null
-	return spawn(parent, pos, EquipmentDB.roll("", -1, null, min_rarity))
+	var item := EquipmentDB.roll("", -1, null, maxi(maxi(min_rarity, DungeonRun.min_rarity()), DungeonRun.pity_min_rarity()))
+	DungeonRun.note_drop(item)
+	return spawn(parent, pos, item)
 
 ## Botín de un enemigo muerto según su tipo.
 static func drop_for_enemy(parent: Node, dead: Node3D) -> EquipmentPickup:
 	if not is_instance_valid(dead):
 		return null
 	if dead is DungeonNecromancer:
-		return try_drop(parent, dead.global_position, 1.0, BOSS_MIN_RARITY)
+		# Jefes: botín propio (sus legendarias, EquipmentDB "boss") o una pieza rara o mejor
+		if GameData.game_mode != "dungeon" or Net.is_online() or parent == null:
+			return null
+		var boss := "rat_king" if dead is DungeonRatKing else "necro"
+		DungeonRun.maybe_blueprint(parent, dead.global_position + Vector3(-1.2, 0, 0), 1.0)
+		return spawn(parent, dead.global_position, EquipmentDB.boss_drop(boss, BOSS_MIN_RARITY))
+	# Garantía: tras DungeonRun.PITY_KILLS bajas sin pieza, la siguiente baja suelta una
+	var forced := DungeonRun.note_kill_for_loot()
 	if dead is DungeonBrute:
-		return try_drop(parent, dead.global_position, ELITE_CHANCE, 1)
-	return try_drop(parent, dead.global_position, ENEMY_CHANCE)
+		return try_drop(parent, dead.global_position, 1.0 if forced else ELITE_CHANCE, 1)
+	return try_drop(parent, dead.global_position, 1.0 if forced else ENEMY_CHANCE)
 
 func _ready() -> void:
 	add_to_group("equipment_pickups")

@@ -5,6 +5,7 @@ extends CanvasLayer
 ##   su sitio habitual).
 ## - Botones abajo a la derecha: ATAQUE (grande, mantener = ataque continuo) rodeado de dos arcos:
 ##   SALTO, RODAR, ESPECIAL y FIJAR objetivo (arco interior); HABILIDAD, PARAR, RECARGAR y ARMA (arco exterior).
+## - FIJAR: tocar fija/suelta; mantener y deslizar hacia un lado cambia al enemigo de ese lado.
 ## - Cualquier otro dedo que arrastre mueve la cámara.
 ## - Respeta el área segura (muescas / barras del sistema) y se recoloca al cambiar el tamaño.
 ## - Suelta todo al pausar, al perder el foco o al ocultarse (nada se queda "pegado").
@@ -15,6 +16,9 @@ const IDLE_ALPHA := 0.5
 const ACTIVE_ALPHA := 0.95
 const JOY_ZONE_WIDTH := 0.5        ## fracción izquierda de la pantalla donde nace el joystick
 const JOY_ZONE_TOP := 0.2          ## no nace en el 20 % superior (HUD)
+## FIJAR: arrastre necesario (px, o radios del botón si es mayor) para cambiar de objetivo.
+const TARGET_SWIPE_MIN := 34.0
+const TARGET_SWIPE_RADII := 0.7
 
 ## Botones de acción. mode: "hold" = activo mientras el dedo esté puesto; "tap" = un solo pulso.
 ## ring 0 = botón grande; 1 y 2 = arcos interior y exterior; angle en grados (270 = arriba, 180 = izquierda).
@@ -66,6 +70,12 @@ var _btn_id: Array[int] = []           ## dedo que lo pulsa (-1 = libre)
 
 var _look_id := -1
 var _alpha := IDLE_ALPHA
+
+# Botón FIJAR: tocar fija/suelta; mantener y deslizar cambia de objetivo hacia esa dirección.
+var _tgt_origin := Vector2.ZERO        ## punto desde el que se mide el arrastre (se reinicia en cada cambio)
+var _tgt_drag := Vector2.ZERO          ## desplazamiento actual del dedo (para dibujar la guía)
+var _tgt_was_locked := false           ## había objetivo al pulsar: soltar sin arrastrar lo suelta
+var _tgt_switched := false             ## se cambió de objetivo durante esta pulsación
 
 # Editor de disposición
 var _editing := false
@@ -264,8 +274,12 @@ func _draw_controls() -> void:
 		var ba := a * (0.35 if hidden else 1.0)   # en el editor, los ocultos salen apagados
 		_draw_socket(c, r, b["color"], ba, pressed, int(b["ring"]) == 0)
 		var icon_col: Color = Color.WHITE if pressed else (b["color"] as Color).lightened(0.55)
-		_draw_icon(String(b["key"]), c + Vector2(0, 1.5), r * 0.92, Color(0, 0, 0, 0.6 * ba))   # sombra del icono
-		_draw_icon(String(b["key"]), c, r * 0.92, Color(icon_col, ba))
+		var ic := c
+		if pressed and b["key"] == "target" and _tgt_drag != Vector2.ZERO:
+			ic += _tgt_drag   # la mira sigue al dedo: guía del cambio de objetivo
+			_overlay.draw_line(c, ic, Color(StoneUI.AMBER, 0.7 * ba), 2.0, true)
+		_draw_icon(String(b["key"]), ic + Vector2(0, 1.5), r * 0.92, Color(0, 0, 0, 0.6 * ba))   # sombra del icono
+		_draw_icon(String(b["key"]), ic, r * 0.92, Color(icon_col, ba))
 		if _editing and b["key"] == _edit_sel:
 			_draw_selection(c, r)
 	if _editing and _edit_sel == JOY_KEY:
@@ -444,6 +458,11 @@ func _on_press(idx: int, pos: Vector2, pressed: bool) -> void:
 		var bi := _button_at(pos)
 		if bi != -1:
 			_btn_id[bi] = idx
+			if String(BUTTONS[bi]["key"]) == "target":
+				_tgt_origin = pos
+				_tgt_drag = Vector2.ZERO
+				_tgt_switched = false
+				_tgt_was_locked = VirtualInput.target_locked
 			_set_button(bi, true)
 			_overlay.queue_redraw()
 		elif _joy_id == -1 and _in_joystick_zone(pos):
@@ -480,19 +499,42 @@ func _set_button(bi: int, down: bool) -> void:
 		"dodge": VirtualInput.just_pressed_dodge = down or VirtualInput.just_pressed_dodge
 		"parry": VirtualInput.just_pressed_parry = down or VirtualInput.just_pressed_parry
 		"weapon": VirtualInput.just_pressed_cycle_next = down or VirtualInput.just_pressed_cycle_next
-		"target": VirtualInput.just_pressed_target = down or VirtualInput.just_pressed_target
+		"target":
+			# Sin objetivo: fija al pulsar. Con objetivo: suelta al levantar el dedo, salvo que se
+			# haya arrastrado para cambiar de objetivo.
+			if down and not _tgt_was_locked:
+				VirtualInput.just_pressed_target = true
+			elif not down:
+				if _tgt_was_locked and not _tgt_switched:
+					VirtualInput.just_pressed_target = true
+				_tgt_drag = Vector2.ZERO
 
 func _on_drag(idx: int, pos: Vector2, relative: Vector2) -> void:
 	if idx == _joy_id:
 		_update_joystick(pos)
 	elif idx == _look_id:
 		VirtualInput.look_vector += relative
+	elif idx != -1 and _button_id("target") == idx:
+		_drag_target(pos)
 	elif VirtualInput.attack_aims and _button_id("attack") == idx:
 		# Apuntando con el botón de disparo: el mismo dedo mueve la mira
 		VirtualInput.look_vector += relative
 	elif VirtualInput.alt_aims and _button_id("alt") == idx:
 		# Cargando el especial (lanzamiento de la espalanza): el dedo del botón apunta
 		VirtualInput.look_vector += relative
+
+## Arrastre del dedo sobre FIJAR: al pasar el umbral pide cambiar al enemigo de esa dirección y vuelve a
+## medir desde ahí, así seguir deslizando salta al siguiente (como inclinar otra vez el stick).
+func _drag_target(pos: Vector2) -> void:
+	var r := _btn_radius[_key_index("target")]
+	var d := pos - _tgt_origin
+	if VirtualInput.target_locked and d.length() >= maxf(TARGET_SWIPE_MIN, r * TARGET_SWIPE_RADII):
+		VirtualInput.target_switch_dir = d.normalized()
+		_tgt_switched = true
+		_tgt_origin = pos
+		d = Vector2.ZERO
+	_tgt_drag = d.limit_length(r * 0.6)
+	_overlay.queue_redraw()
 
 ## Dedo que mantiene pulsado el botón `key` (-1 si ninguno).
 func _button_id(key: String) -> int:
@@ -532,6 +574,9 @@ func _release_all() -> void:
 		_btn_id[i] = -1
 	_joy_center = _joy_rest
 	_joy_offset = Vector2.ZERO
+	_tgt_drag = Vector2.ZERO
+	_tgt_switched = false
+	_tgt_was_locked = false
 	VirtualInput.movement_vector = Vector2.ZERO
 	VirtualInput.is_jumping = false
 	VirtualInput.is_running = false

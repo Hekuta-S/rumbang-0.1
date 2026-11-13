@@ -15,6 +15,7 @@ var color := Color(0.55, 0.35, 1.0)
 var owner_rid: RID
 var _t := 0.0
 var _player: Node3D
+var shooter: Node                     ## quién lo lanzó (RunLog: causa de la muerte)
 var visual_only := false              ## copia en un cliente: solo se ve, el daño lo decide el anfitrión
 
 static func spawn(parent: Node, from: Vector3, p_dir: Vector3, p_speed: float, p_damage: float, p_color: Color, p_owner: RID) -> MageOrb:
@@ -81,6 +82,7 @@ func _physics_process(delta: float) -> void:
 			var dmg := damage
 			if target.has_method("parry_projectile_damage"):
 				dmg = target.parry_projectile_damage(damage, global_position)
+			RunLog.hit_by(shooter)
 			target.take_damage(dmg, dir)
 			AudioManager.play_at("impact_magic", global_position, -2.0, 1.1)
 			_burst()

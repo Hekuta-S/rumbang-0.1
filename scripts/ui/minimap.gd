@@ -1,17 +1,17 @@
 class_name Minimap
 extends Control
 
-## Minimapa de la mazmorra (arriba a la izquierda). Compacto: sigue al jugador en una ventana de unos
-## 80 m. Expandido (M): muestra toda la zona explorada. Niebla de exploración: solo se dibujan las
+## Minimapa de la mazmorra (arriba a la derecha, ver HudLayout). Compacto: sigue al jugador en una ventana de unos
+## 80 m. Expandido (M o tocarlo): muestra toda la zona explorada. Niebla de exploración: solo se dibujan las
 ## celdas que algún jugador ha pisado de cerca. Marca jugadores, cofres, portal y altar (los enemigos no aparecen).
 ## El mapa se pinta en una textura de 1 píxel por celda (se actualiza solo al descubrir celdas nuevas).
 
-const COMPACT := 200.0                ## lado del panel compacto (px)
+const COMPACT := HudLayout.MAP_COMPACT   ## lado del panel compacto (px; 150 en pantallas estrechas)
 const MAX_EXPANDED := 600.0           ## lado máximo del panel expandido
 const WINDOW_CELLS := 36.0            ## celdas visibles en el modo compacto
 const REVEAL_R := 7                   ## radio de descubrimiento (celdas)
 const TOGGLE_KEY := KEY_M            ## (C es el bloqueo de objetivo; Tab, el menú de pausa)
-const MARGIN := 22.0
+const MARGIN := HudLayout.MAP_MARGIN
 const INSET := 6.0
 const EXPAND_SPEED := 9.0
 
@@ -36,11 +36,13 @@ var _seen := {}
 var _expanded := false
 var _t := 0.0                         ## 0 compacto … 1 expandido
 var _font: Font
+var _mobile := false
 
 func _ready() -> void:
 	_font = ThemeDB.fallback_font
 	visible = GameData.game_mode == "dungeon"
-	mouse_filter = Control.MOUSE_FILTER_STOP if Quality.is_mobile() else Control.MOUSE_FILTER_IGNORE
+	# Pulsable en las dos plataformas (en escritorio el ratón suele estar capturado: ahí manda la M)
+	mouse_filter = Control.MOUSE_FILTER_STOP
 	_view = Control.new()
 	_view.name = "View"
 	_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -48,8 +50,16 @@ func _ready() -> void:
 	_view.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_view.draw.connect(_draw_view)
 	add_child(_view)
-	set_anchors_preset(Control.PRESET_TOP_LEFT)
+	apply_layout(Quality.is_mobile())
+
+## Arriba a la derecha en las dos plataformas; se guarda la plataforma para los textos de ayuda.
+func apply_layout(mobile: bool) -> void:
+	_mobile = mobile
+	set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	_layout()
+
+func compact_side() -> float:
+	return HudLayout.map_compact(get_viewport_rect().size.x)
 
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch and event.pressed:
@@ -72,12 +82,12 @@ func _expanded_side() -> float:
 	return minf(MAX_EXPANDED, get_viewport_rect().size.y - MARGIN * 2.0 - 24.0)
 
 func _layout() -> void:
-	var side := lerpf(COMPACT, _expanded_side(), _ease(_t))
-	var top := MARGIN + (44.0 + 66.0 if Quality.is_mobile() else 0.0)
-	offset_left = MARGIN
-	offset_top = top
-	offset_right = MARGIN + side
-	offset_bottom = top + side
+	var side := lerpf(compact_side(), _expanded_side(), _ease(_t))
+	# Anclado a la derecha: al ampliarse crece hacia la izquierda y hacia abajo, sin salirse de la pantalla
+	offset_right = -MARGIN
+	offset_left = -MARGIN - side
+	offset_top = MARGIN
+	offset_bottom = MARGIN + side
 	_view.position = Vector2(INSET, INSET)
 	_view.size = Vector2(side - INSET * 2.0, side - INSET * 2.0)
 
@@ -203,8 +213,15 @@ func _draw_view() -> void:
 			_view.draw_colored_polygon(PackedVector2Array([pp2 + dir * r * 1.3, pp2 - dir * r * 0.8 + side * r * 0.8, pp2 - dir * r * 0.3, pp2 - dir * r * 0.8 - side * r * 0.8]), ME_COL)
 		else:
 			_view.draw_circle(pp2, dot * 1.1, MATE_COL)
-	var hint := "M · CERRAR" if _expanded else "M"
-	HudDraw.text(_view, _font, Vector2(_view.size.x - (70.0 if _expanded else 18.0), _view.size.y - 6.0), hint, 10, Color(1, 1, 1, 0.55))
+	var hint := hint_text()
+	var hw := _font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x
+	HudDraw.text(_view, _font, Vector2(_view.size.x - hw - 6.0, _view.size.y - 6.0), hint, 10, Color(1, 1, 1, 0.55))
+
+## Ayuda de la esquina: compacto "M · TOCA" (solo "TOCA" en móvil); ampliado "TOCA PARA CERRAR" (+ "M" en escritorio).
+func hint_text() -> String:
+	if _expanded:
+		return "TOCA PARA CERRAR" if _mobile else "M · TOCA PARA CERRAR"
+	return "TOCA" if _mobile else "M · TOCA"
 
 func _diamond(c: Vector2, r: float, col: Color) -> void:
 	_view.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -r), c + Vector2(r, 0), c + Vector2(0, r), c + Vector2(-r, 0)]), col)

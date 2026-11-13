@@ -9,6 +9,7 @@ extends Control
 
 const Style := preload("res://scripts/ui/rumbang_style.gd")
 const MENU_SCRIPT := preload("res://scripts/ui/main_menu.gd")
+const ANVIL_W := 1140.0              ## ancho del panel del yunque (6 armas en una fila a 1280 px)
 const MENU_PANELS := {"cofre": "mejoras", "libro": "logros", "mesa": "ajustes"}
 
 var hub: DungeonHub
@@ -111,7 +112,7 @@ func _back_button(box: Container, text: String = "  VOLVER") -> Button:
 # ───────────────────────────── yunque ─────────────────────────────
 
 func _build_anvil() -> Control:
-	var p := _frame(900)
+	var p := _frame(ANVIL_W)
 	p.offset_top = 40
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 14)
@@ -125,11 +126,13 @@ func _build_anvil() -> Control:
 	var weapons: Array = GameData.DUNGEON_WEAPONS.duplicate()
 	if not weapons.has(GameData.dungeon_weapon):
 		weapons.append(GameData.dungeon_weapon)
-	var card_w := 280.0 if weapons.size() <= 3 else (210.0 if weapons.size() <= 4 else 180.0)
+	# Reparte el ancho del panel (menos márgenes y separaciones) entre todas las armas
+	var card_w := minf(280.0, (ANVIL_W - 56.0 - 14.0 * (weapons.size() - 1)) / weapons.size())
 	for w in weapons:
 		var card := Button.new()
 		card.name = "Arma_%d" % w
-		card.custom_minimum_size = Vector2(card_w, 300)
+		card.custom_minimum_size = Vector2(card_w, 320)
+		card.clip_contents = true
 		card.toggle_mode = false
 		var v := VBoxContainer.new()
 		v.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -144,7 +147,7 @@ func _build_anvil() -> Control:
 		if icon_path != "" and ResourceLoader.exists(icon_path):
 			var tr := TextureRect.new()
 			tr.texture = load(icon_path)
-			tr.custom_minimum_size = Vector2(0, 120)
+			tr.custom_minimum_size = Vector2(0, minf(120.0, card_w - 40.0))
 			tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 			tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -152,7 +155,8 @@ func _build_anvil() -> Control:
 		var n := Label.new()
 		n.text = String(WeaponData.weapon_names.get(w, "Arma"))
 		n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		n.add_theme_font_size_override("font_size", 14)
+		n.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		n.add_theme_font_size_override("font_size", 14 if card_w >= 200.0 else 12)
 		n.add_theme_color_override("font_color", Style.TITLE)
 		n.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		v.add_child(n)
@@ -191,7 +195,19 @@ func _loadout_box() -> Control:
 	var saved := PlayerEquipment.saved_loadout()
 	var names := {"casco": "Casco", "pechera": "Pechera", "pantalones": "Pantalones",
 		"talisman_1": "Talismán 1", "talisman_2": "Talismán 2", "arma": "Arma"}
+	# Sin nada guardado basta una línea (el aviso de abajo explica de dónde sale el equipo)
+	var empty := true
 	for slot in PlayerEquipment.SLOTS + ["arma"]:
+		if not (saved.get(slot, {}) as Dictionary).is_empty():
+			empty = false
+	if empty:
+		var none := Label.new()
+		none.name = "Vacio"
+		none.text = "Nada todavía."
+		none.add_theme_font_size_override("font_size", 10)
+		none.add_theme_color_override("font_color", Style.TEXT_DIM)
+		v.add_child(none)
+	for slot in ([] if empty else PlayerEquipment.SLOTS + ["arma"]):
 		var l := Label.new()
 		l.name = "Slot_" + slot
 		var it: Dictionary = saved.get(slot, {})
@@ -223,19 +239,22 @@ func _refresh_cards() -> void:
 		var on := int(w) == GameData.dungeon_weapon
 		var st := Style.button_style(Color(0.12, 0.07, 0.16, 0.95) if on else Color(0.05, 0.03, 0.08, 0.9),
 			Style.ACCENT if on else Style.BTN_BORDER, 4, 3 if on else 2)
+		st.skew = Vector2.ZERO          # cartas rectas: con la inclinación el texto se salía
+		st.content_margin_left = 6
+		st.content_margin_right = 6
 		for s in ["normal", "hover", "pressed", "focus"]:
 			b.add_theme_stylebox_override(s, st)
 		(b.find_child("Equipada", true, false) as Label).visible = on
 
 # ───────────────────────────── arena (supervivencia) ─────────────────────────────
 
-## Personajes de supervivencia: los de siempre que tienen modelo (índices de GameData.CHARACTERS).
+## Personajes de supervivencia desbloqueados (GameData.SURVIVAL_UNLOCKED) que tienen modelo (índices de GameData.CHARACTERS).
 static func survival_characters() -> Array[int]:
 	var out: Array[int] = []
 	for i in GameData.CHARACTERS.size():
 		var id := String(GameData.CHARACTERS[i].get("id", ""))
 		var path := GameData.get_idle_model_path(id)
-		if path != "" and ResourceLoader.exists(path):
+		if GameData.is_survival_unlocked(id) and path != "" and ResourceLoader.exists(path):
 			out.append(i)
 	return out
 

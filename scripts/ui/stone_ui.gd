@@ -157,7 +157,7 @@ static func item_card(it: Dictionary, delta: Dictionary = {}, old: Dictionary = 
 				flow.add_child(_label(EquipmentDB.format_stat(String(k), val) + "   ", 10, Color(0.55, 0.9, 0.5) if val > 0.0 else Color(0.92, 0.4, 0.4), false))
 	var el := EquipmentDB.element_of(it)
 	for line in EquipmentDB.trait_lines(it):
-		var c := col
+		var c := EquipmentDB.trait_color(line, col)
 		if el != "" and (line.begins_with("Elemento") or line.begins_with("Armadura de")):
 			c = EquipmentDB.ELEMENTS[el]["color"]
 		v.add_child(_label(line, 10, c))

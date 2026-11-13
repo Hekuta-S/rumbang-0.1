@@ -540,7 +540,7 @@ class SpearLanceStrategy extends WeaponStrategy:
 
 		var trail: BladeTrail = c.player.weapon_visuals.spear_trail if c.player.weapon_visuals else null
 		if is_instance_valid(trail) and trail.is_visible_in_tree():
-			trail.emit(0.4)
+			trail.emit(0.4, 1.5 if anim_name in ["attack3", "attack4"] else 1.0)
 
 	## Sonido del golpe sincronizado con el instante en que la hoja corta (no al pulsar): silbido propio de
 	## cada golpe del combo (ver tools/generate_swing_sfx.gd) con un poco de variación de tono.
@@ -548,8 +548,7 @@ class SpearLanceStrategy extends WeaponStrategy:
 		var pitch := randf_range(0.93, 1.07)
 		match anim_name:
 			"attack1":
-				AudioManager.play("swing_light", -3.0, pitch)
-				AudioManager.play("ataque-espalanza", -15.0, 1.15 * pitch)
+				AudioManager.play("spear_thrust", -2.0, pitch)
 			"attack2":
 				AudioManager.play("swing_sweep", -2.0, pitch)
 			"attack4":
@@ -1715,6 +1714,7 @@ class ComboMeleeStrategy extends WeaponStrategy:
 	var hits: Dictionary = {}
 	var _active_hitbox: Node3D = null
 	var _anim_connected := false
+	var _trail_power := 1.0               ## fuerza del golpe en curso, para la estela (BladeTrail.emit)
 
 	func _connect_animation_signals() -> void:
 		if _anim_connected:
@@ -1742,6 +1742,7 @@ class ComboMeleeStrategy extends WeaponStrategy:
 		HitFeedback.shake(float(h["shake"]))
 		var sfx: Array = h["sfx"]
 		AudioManager.play(sfx[0], sfx[1], float(sfx[2]) * randf_range(0.94, 1.06))
+		_trail_power = clampf(float(h["dmg"]), 0.9, 1.7)   # los remates dejan una estela más viva
 		_emit_trails(0.3)
 		_on_strike(anim_name, h)
 
@@ -1800,20 +1801,20 @@ class DaggersStrategy extends ComboMeleeStrategy:
 	const DASH_COOLDOWN := 1.1
 	const DASH_DAMAGE_MULT := 1.8
 	const DASH_HIT := {"size": Vector3(1.8, 2.0, 2.4), "center": Vector3(0.0, 0.9, -0.5), "dmg": DASH_DAMAGE_MULT,
-		"kb": 4.0, "shake": 0.2, "stun": 0.1, "sfx": ["swing_spin", -2.0, 1.4]}
+		"kb": 4.0, "shake": 0.2, "stun": 0.1, "sfx": ["dagger_dash", -2.0, 1.0]}
 	var _dash_ready_at := 0.0
 
 	func _init(controller: PlayerCombatController) -> void:
 		super(controller)
 		weapon = WeaponData.WeaponType.DAGGERS
 		var light := {"size": Vector3(1.5, 1.8, 2.1), "center": Vector3(0.0, 0.9, -1.0), "dmg": 1.0,
-			"kb": 3.0, "shake": 0.08, "stun": 0.0, "sfx": ["swing_light", -4.0, 1.35]}
+			"kb": 3.0, "shake": 0.08, "stun": 0.0, "sfx": ["dagger_swing", -3.0, 1.0]}
 		hits = {
 			"dagger1": light,
 			"dagger2": light,
 			# Torbellino: una vuelta completa, corta todo alrededor
 			"dagger3": {"radius": 2.2, "height": 1.8, "center": Vector3(0.0, 0.9, 0.0), "dmg": 1.2,
-				"kb": 5.0, "shake": 0.14, "stun": 0.0, "sfx": ["swing_spin", -3.0, 1.4]},
+				"kb": 5.0, "shake": 0.14, "stun": 0.0, "sfx": ["dagger_spin", -2.0, 1.0]},
 		}
 
 	func _emit_trails(duration: float) -> void:
@@ -1822,7 +1823,7 @@ class DaggersStrategy extends ComboMeleeStrategy:
 			return
 		for t in vis.dagger_trails:
 			if is_instance_valid(t) and t.is_visible_in_tree():
-				t.emit(duration)
+				t.emit(duration, _trail_power)
 
 	func dash_cooldown_left() -> float:
 		return maxf(_dash_ready_at - Time.get_ticks_msec() / 1000.0, 0.0)
@@ -1849,9 +1850,9 @@ class DaggersStrategy extends ComboMeleeStrategy:
 		c.attack_cooldown = maxf(c.attack_cooldown, DASH_TIME + 0.05)
 		var dmg: float = c.player._weapon_damage(weapon) * DASH_DAMAGE_MULT
 		_spawn_hitbox(DASH_HIT, dmg, DASH_TIME + 0.05, dir)
+		_trail_power = 1.5
 		_emit_trails(DASH_TIME + 0.1)
-		AudioManager.play("dodge", -3.0, 1.25)
-		AudioManager.play("swing_spin", -2.0, 1.4)
+		AudioManager.play("dagger_dash", -1.0, 1.0)
 		HitFeedback.shake(0.15)
 		return true
 
@@ -1885,21 +1886,21 @@ class MaceStrategy extends ComboMeleeStrategy:
 		# Maza de dos manos de ~1,7 m: llega bastante más lejos que la espalanza
 		hits = {
 			"mace1": {"size": Vector3(3.0, 2.4, 3.6), "center": Vector3(0.0, 0.9, -1.8), "dmg": 1.0,
-				"kb": 11.0, "shake": 0.45, "stun": 0.25, "sfx": ["slam_boom", -3.0, 1.15]},
+				"kb": 11.0, "shake": 0.45, "stun": 0.25, "sfx": ["mace_swing", -1.0, 1.0]},
 			"mace2": {"size": Vector3(5.0, 2.2, 3.4), "center": Vector3(0.0, 0.9, -1.3), "dmg": 0.9,
-				"kb": 12.0, "shake": 0.35, "stun": 0.25, "sfx": ["swing_sweep", -1.0, 0.6]},
+				"kb": 12.0, "shake": 0.35, "stun": 0.25, "sfx": ["mace_swing", -1.0, 1.08]},
 			# Helicóptero: vuelta completa con la maza estirada
 			"mace3": {"radius": 3.0, "height": 2.2, "center": Vector3(0.0, 0.9, 0.0), "dmg": 1.3,
-				"kb": 14.0, "shake": 0.4, "stun": 0.35, "sfx": ["swing_spin", -1.0, 0.55]},
+				"kb": 14.0, "shake": 0.4, "stun": 0.35, "sfx": ["mace_spin", -1.0, 1.0]},
 			# Cierre del combo: la saca del suelo, la sube y la deja caer en vertical (más daño y aturdimiento)
 			"mace4": {"size": Vector3(2.6, 2.4, 3.6), "center": Vector3(0.0, 0.9, -1.8), "dmg": 1.35,
-				"kb": 13.0, "shake": 0.55, "stun": 0.4, "sfx": ["slam_boom", -2.0, 1.0]},
+				"kb": 13.0, "shake": 0.55, "stun": 0.4, "sfx": ["mace_swing", 0.0, 0.9]},
 		}
 
 	func _emit_trails(duration: float) -> void:
 		var t: BladeTrail = c.player.weapon_visuals.mace_trail if c.player.weapon_visuals else null
 		if is_instance_valid(t) and t.is_visible_in_tree():
-			t.emit(duration)
+			t.emit(duration, _trail_power)
 
 	func _on_strike(anim_name: String, h: Dictionary) -> void:
 		if not GROUND_HIT.has(anim_name):
@@ -1918,7 +1919,7 @@ class MaceStrategy extends ComboMeleeStrategy:
 		if ac == null or ac._current_action_name != anim_name:
 			return   # el golpe se cortó (esquiva, parada...) antes de llegar al suelo
 		HitFeedback.freeze(0.14 if anim_name == "mace4" else 0.12)
-		AudioManager.play("impact_blunt", -5.0, 0.6)
+		AudioManager.play("mace_ground", -1.0, 1.0 if anim_name == "mace4" else 1.12)
 		var at: Vector3 = c.player.mesh.to_global(h["center"])
 		_slam_effects(at, 1.6 * _melee_size())
 		var cr: Array = CRATER[anim_name]
@@ -1948,7 +1949,7 @@ class MaceStrategy extends ComboMeleeStrategy:
 		if mc:
 			mc.slow_until = now + length * 0.85
 			mc.slow_mult = 0.1
-		AudioManager.play("swing_spin", -4.0, 0.6)
+		AudioManager.play("mace_spin", -3.0, 0.9)
 		c.player.get_tree().create_timer(SLAM_IMPACT).timeout.connect(_slam_impact)
 		return true
 
@@ -1986,9 +1987,10 @@ class MaceStrategy extends ComboMeleeStrategy:
 				c.player.on_damage_dealt(dmg, weapon)
 		_slam_effects(at, radius * 0.75)
 		GroundImpactVFX.spawn(c.player.get_tree().current_scene, at, 1.7 * _melee_size(), 1.8)
+		_trail_power = 1.7
 		_emit_trails(0.2)
-		AudioManager.play("slam_boom", 2.0, 0.85)
-		AudioManager.play("impact_blunt", -4.0, 0.5)
+		AudioManager.play("slam_boom", 0.0, 0.85)
+		AudioManager.play("mace_ground", 2.0, 0.85)
 		HitFeedback.shake(0.8)
 		HitFeedback.freeze(0.08)
 
@@ -2007,21 +2009,21 @@ class GreatswordStrategy extends ComboMeleeStrategy:
 		GroundImpactVFX._ensure_assets()
 		hits = {
 			"gs1": {"size": Vector3(3.6, 2.4, 4.0), "center": Vector3(0.0, 0.9, -1.9), "dmg": 1.0,
-				"kb": 9.0, "shake": 0.3, "stun": 0.15, "sfx": ["swing_sweep", -2.0, 0.8]},
+				"kb": 9.0, "shake": 0.3, "stun": 0.15, "sfx": ["great_swing", -1.0, 1.0]},
 			"gs2": {"size": Vector3(5.6, 2.2, 3.8), "center": Vector3(0.0, 0.9, -1.5), "dmg": 1.1,
-				"kb": 11.0, "shake": 0.3, "stun": 0.2, "sfx": ["swing_sweep", -1.0, 0.7]},
+				"kb": 11.0, "shake": 0.3, "stun": 0.2, "sfx": ["great_swing", -1.0, 0.94]},
 			# Martillazo vertical: cierra el combo (más daño y aturdimiento)
 			"gs3": {"size": Vector3(3.2, 2.6, 4.2), "center": Vector3(0.0, 0.9, -2.0), "dmg": 1.7,
-				"kb": 13.0, "shake": 0.5, "stun": 0.4, "sfx": ["slam_boom", -3.0, 1.05]},
+				"kb": 13.0, "shake": 0.5, "stun": 0.4, "sfx": ["great_heavy", 0.0, 1.0]},
 			# Estocada con carrerilla (ataque_si_va_corriendo): larga y estrecha
 			"gs_run": {"size": Vector3(2.8, 2.4, 5.0), "center": Vector3(0.0, 0.9, -2.5), "dmg": 1.5,
-				"kb": 12.0, "shake": 0.4, "stun": 0.25, "sfx": ["swing_spin", -2.0, 0.75]},
+				"kb": 12.0, "shake": 0.4, "stun": 0.25, "sfx": ["great_heavy", -1.0, 1.1]},
 		}
 
 	func _emit_trails(duration: float) -> void:
 		var t: BladeTrail = c.player.weapon_visuals.greatsword_trail if c.player.weapon_visuals else null
 		if is_instance_valid(t) and t.is_visible_in_tree():
-			t.emit(duration)
+			t.emit(duration, _trail_power)
 
 	func _on_strike(anim_name: String, h: Dictionary) -> void:
 		if not GROUND_HIT.has(anim_name):
@@ -2055,20 +2057,354 @@ class SwordStrategy extends ComboMeleeStrategy:
 		weapon = WeaponData.WeaponType.SWORD
 		hits = {
 			"sw1": {"size": Vector3(3.0, 2.2, 3.0), "center": Vector3(0.0, 0.9, -1.4), "dmg": 1.0,
-				"kb": 7.0, "shake": 0.22, "stun": 0.1, "sfx": ["swing_sweep", -3.0, 1.1]},
+				"kb": 7.0, "shake": 0.22, "stun": 0.1, "sfx": ["sword_swing", -2.0, 1.04]},
 			"sw2": {"size": Vector3(3.4, 2.2, 3.0), "center": Vector3(0.0, 0.9, -1.4), "dmg": 1.0,
-				"kb": 7.0, "shake": 0.22, "stun": 0.1, "sfx": ["swing_sweep", -3.0, 1.0]},
+				"kb": 7.0, "shake": 0.22, "stun": 0.1, "sfx": ["sword_swing", -2.0, 0.97]},
 			"sw3": {"size": Vector3(3.4, 2.2, 3.2), "center": Vector3(0.0, 0.9, -1.5), "dmg": 1.1,
-				"kb": 8.0, "shake": 0.25, "stun": 0.12, "sfx": ["swing_sweep", -2.0, 1.05]},
+				"kb": 8.0, "shake": 0.25, "stun": 0.12, "sfx": ["sword_swing", -1.0, 1.0]},
 			# Cierre del combo: más daño y empuje
 			"sw4": {"size": Vector3(3.0, 2.4, 3.8), "center": Vector3(0.0, 0.9, -1.8), "dmg": 1.45,
-				"kb": 11.0, "shake": 0.4, "stun": 0.25, "sfx": ["swing_spin", -2.0, 0.95]},
+				"kb": 11.0, "shake": 0.4, "stun": 0.25, "sfx": ["sword_heavy", -1.0, 1.0]},
 			# Embestida corriendo: larga y estrecha
 			"sw_run": {"size": Vector3(2.6, 2.4, 4.4), "center": Vector3(0.0, 0.9, -2.2), "dmg": 1.35,
-				"kb": 10.0, "shake": 0.35, "stun": 0.2, "sfx": ["swing_spin", -2.0, 0.9]},
+				"kb": 10.0, "shake": 0.35, "stun": 0.2, "sfx": ["sword_heavy", -1.0, 1.06]},
 		}
 
 	func _emit_trails(duration: float) -> void:
 		var t: BladeTrail = c.player.weapon_visuals.sword_trail if c.player.weapon_visuals else null
 		if is_instance_valid(t) and t.is_visible_in_tree():
-			t.emit(duration)
+			t.emit(duration, _trail_power)
+
+
+class KatanaStrategy extends ComboMeleeStrategy:
+	## Katana de Sangre (mítica): tajo (kt1), el mismo tajo al revés (kt2), y los dos golpes del clip "2 golpes"
+	## (kt3, kt4); corriendo, el ataque con carrerilla (kt_run). Guardia y locomoción del espadón (anda y corre
+	## como él). Clic derecho: tajo especial (kt_special), fuerte y con avance; cuesta energía y tiene enfriamiento.
+	const SPECIAL := "kt_special"
+	const SPECIAL_COOLDOWN := 3.0
+	var _special_ready_at := 0.0
+
+	func _init(controller: PlayerCombatController) -> void:
+		super(controller)
+		weapon = WeaponData.WeaponType.KATANA
+		var slash := {"size": Vector3(3.4, 2.2, 3.2), "center": Vector3(0.0, 0.9, -1.5), "dmg": 1.0,
+			"kb": 7.0, "shake": 0.22, "stun": 0.1, "sfx": ["sword_swing", -2.0, 1.1]}
+		hits = {
+			"kt1": slash,
+			"kt2": slash.merged({"sfx": ["sword_swing", -2.0, 1.0]}, true),
+			"kt3": {"size": Vector3(3.6, 2.2, 3.3), "center": Vector3(0.0, 0.9, -1.5), "dmg": 1.1,
+				"kb": 8.0, "shake": 0.25, "stun": 0.12, "sfx": ["sword_swing", -1.0, 1.05]},
+			# Cierre del combo (dos tajos): más daño y empuje
+			"kt4": {"size": Vector3(3.6, 2.4, 3.8), "center": Vector3(0.0, 0.9, -1.8), "dmg": 1.35,
+				"kb": 10.0, "shake": 0.35, "stun": 0.22, "sfx": ["sword_heavy", -1.0, 1.05]},
+			"kt_run": {"size": Vector3(2.8, 2.4, 4.6), "center": Vector3(0.0, 0.9, -2.3), "dmg": 1.35,
+				"kb": 10.0, "shake": 0.35, "stun": 0.2, "sfx": ["sword_heavy", -1.0, 1.1]},
+			"kt_special": {"size": Vector3(4.2, 2.6, 5.0), "center": Vector3(0.0, 0.9, -2.4), "dmg": 2.0,
+				"kb": 13.0, "shake": 0.5, "stun": 0.35, "sfx": ["sword_heavy", 0.0, 0.9]},
+		}
+
+	func _emit_trails(duration: float) -> void:
+		var t: BladeTrail = c.player.weapon_visuals.katana_trail if c.player.weapon_visuals else null
+		if is_instance_valid(t) and t.is_visible_in_tree():
+			t.emit(duration, _trail_power)
+
+	func special_cooldown_left() -> float:
+		return maxf(_special_ready_at - Time.get_ticks_msec() / 1000.0, 0.0)
+
+	func katana_special() -> bool:
+		var now := Time.get_ticks_msec() / 1000.0
+		if now < _special_ready_at or (c.player.movement_controller and c.player.movement_controller.is_dodging()):
+			return false
+		var ac = c.player.animation_controller
+		var lib: AnimationLibrary = ac.anim_player.get_animation_library("") if ac and ac.anim_player else null
+		if lib == null or not lib.has_animation(SPECIAL):
+			return false
+		if not _pay_special():
+			return false
+		_special_ready_at = now + SPECIAL_COOLDOWN
+		_connect_animation_signals()
+		_face(_dungeon_aim(), 0.4)
+		ac.play_melee_special(SPECIAL)
+		var speed: float = float(PlayerAnimationController.COMBOS[weapon]["speeds"].get(SPECIAL, 1.0))
+		c.attack_cooldown = maxf(c.attack_cooldown, lib.get_animation(SPECIAL).length / speed * 0.8)
+		return true
+
+	func _on_strike(anim_name: String, _h: Dictionary) -> void:
+		if anim_name == SPECIAL:
+			HitFeedback.freeze(0.06)
+
+
+class BowStrategy extends WeaponStrategy:
+	## Arco (mazmorra). Ataques:
+	##  - Clic: combo de tres disparos (bow_shot_1/2/3, sin pasar CHAIN_RESET s entre ellos). Los dos primeros son
+	##    flechas rápidas; el tercero, en postura baja, es UNA flecha potente (más daño, empuje y atraviesa a uno).
+	##  - Clic derecho mantenido: tensa (se anda despacio, la flecha encajada retrocede con la carga); al soltar sale la
+	##    FLECHA CARGADA: más daño, más rápida, recta, atraviesa enemigos y, a carga completa, los aturde.
+	##  - Remate (PlayerFinisherController): flecha a quemarropa (finisher_shot).
+	## La flecha sale en el fotograma en que el clip suelta la cuerda: el inicio de la ventana del clip que suena
+	## (PlayerAnimationController.ATTACK_WINDOWS / attack_windows.json, editable en el editor de agarre).
+	const W := WeaponData.WeaponType.BOW
+	const SHOT_SPEED := 1.3              ## velocidad de bow_shot (el clip de Mixamo, si faltan los del combo)
+	const COMBO_SPEEDS := [1.2, 1.2, 1.0] ## velocidad de bow_shot_1/2/3
+	const RELEASE_FALLBACK := 0.183      ## s de clip hasta la suelta si no hay ventana
+	const HEAVY_EVERY := 3
+	const HEAVY_DAMAGE := 1.7            ## × daño de la flecha potente (3.er disparo)
+	const HEAVY_SPEED := 1.25            ## × velocidad de esa flecha
+	const CHAIN_RESET := 1.3
+	const CHARGE_TIME := 1.0             ## s hasta la carga completa
+	const CHARGE_MIN := 0.15             ## por debajo, la carga sale como una flecha normal
+	const CHARGE_DAMAGE := Vector2(1.4, 3.2)
+	const CHARGE_SPEED := Vector2(1.15, 1.7)
+	const CHARGE_STUN := 0.45            ## aturdimiento extra a carga completa
+	const CHARGE_MOVE := 0.45            ## velocidad al andar tensando
+	const FINISHER_SPEED := 40.0
+	const ASSIST_DEG := 6.0              ## ayuda de apuntado alrededor de la mira (sin objetivo fijado)
+	var charge := -1.0                   ## s tensando (-1 = no)
+	var _chain := 0
+	var _last_shot := -10.0
+	var _pending: Dictionary = {}        ## disparo que espera a la suelta de la cuerda
+	var _anim_connected := false
+	var _full_played := false
+
+	func _connect_animation_signals() -> void:
+		if _anim_connected:
+			return
+		var ac = c.player.animation_controller if (c.player and is_instance_valid(c.player)) else null
+		if ac and ac.has_signal("hit_window_opened"):
+			ac.hit_window_opened.connect(_on_release)
+			_anim_connected = true
+
+	func _now() -> float:
+		return Time.get_ticks_msec() / 1000.0
+
+	func _anim():
+		return c.player.animation_controller
+
+	## ¿Tiene el personaje el clip `anim_name`? (Si no, la flecha sale al momento.)
+	func _has_clip(anim_name: String = PlayerAnimationController.BOW_SHOT) -> bool:
+		var ac = _anim()
+		return GameData.game_mode == "dungeon" and ac != null and ac.anim_player != null \
+			and ac.anim_player.has_animation(anim_name)
+
+	func _moving() -> bool:
+		return Vector2(c.player.velocity.x, c.player.velocity.z).length() > 1.0
+
+	## s de clip hasta que `anim_name` suelta la cuerda.
+	static func release_time(anim_name: String = PlayerAnimationController.BOW_SHOT) -> float:
+		var w: Array = PlayerAnimationController.attack_windows(anim_name)
+		return float(w[0][0]) if not w.is_empty() else RELEASE_FALLBACK
+
+	func _vis() -> PlayerWeaponVisuals:
+		return c.player.weapon_visuals
+
+	# ───────────── Disparo rápido ─────────────
+
+	func attack(cd_mult: float) -> void:
+		_connect_animation_signals()
+		c.attack_cooldown = c.player.get_weapon_data(W).base_cooldown * cd_mult
+		if charge >= 0.0:
+			return
+		var now := _now()
+		_chain = (_chain + 1) if now - _last_shot < CHAIN_RESET else 1
+		_last_shot = now
+		var step := (_chain - 1) % HEAVY_EVERY       # 0, 1, 2: disparo del combo
+		_face(_dungeon_aim(), 0.5)
+		var shot := {"kind": "heavy" if step == HEAVY_EVERY - 1 else "quick"}
+		var clip: String = PlayerAnimationController.BOW_COMBO[step]
+		var speed: float = COMBO_SPEEDS[step]
+		if not _has_clip(clip):
+			clip = PlayerAnimationController.BOW_SHOT
+			speed = SHOT_SPEED
+		if not _has_clip(clip):
+			_fire(shot)
+			return
+		_pending = shot
+		_anim().play_bow_shot(speed, 0.0, _moving(), clip)
+		if _vis():
+			_vis().set_bow_draw(1.0)
+		AudioManager.play("swing_light", -10.0, 1.6)
+
+	## La cuerda se suelta (se abre la "ventana" de bow_shot): sale lo que esperaba.
+	func _on_release(_attack_id: int, anim_name: String) -> void:
+		if not anim_name in PlayerAnimationController.BOW_ACTIONS or _pending.is_empty():
+			return
+		if not is_instance_valid(c.player) or c.player.current_weapon() != W:
+			_pending = {}
+			return
+		var shot := _pending
+		_pending = {}
+		_fire(shot)
+
+	# ───────────── Disparo cargado ─────────────
+
+	func start_charge() -> bool:
+		if GameData.game_mode != "dungeon" or charge >= 0.0 or c.attack_cooldown > 0.0:
+			return false
+		var mc = c.player.movement_controller
+		if mc and mc.is_dodging():
+			return false
+		var res = c.player.get("resources")
+		if res and not res.spend(W, true):
+			return false
+		_connect_animation_signals()
+		_pending = {}
+		charge = 0.0
+		_full_played = false
+		if _anim():
+			_anim().play_bow_draw(_moving())
+		AudioManager.play("swing_light", -12.0, 0.7)
+		return true
+
+	func update_charge(delta: float) -> void:
+		if charge < 0.0:
+			return
+		if c.player.current_weapon() != W:
+			cancel_charge()
+			return
+		charge += delta
+		var power := clampf(charge / CHARGE_TIME, 0.0, 1.0)
+		_face(_dungeon_aim(), 0.2)
+		var mc = c.player.movement_controller
+		if mc:
+			mc.slow_until = _now() + 0.1
+			mc.slow_mult = CHARGE_MOVE
+		if _vis():
+			_vis().set_bow_draw(power)
+		if power >= 1.0 and not _full_played:
+			_full_played = true
+			AudioManager.play("impact_zap", -9.0, 1.5)
+			HitFeedback.shake(0.08)
+
+	func release_charge() -> void:
+		if charge < 0.0:
+			return
+		var power := clampf(charge / CHARGE_TIME, 0.0, 1.0)
+		charge = -1.0
+		c.attack_cooldown = maxf(c.attack_cooldown, 0.35)
+		_chain = 0
+		var shot := {"kind": "charged" if power >= CHARGE_MIN else "quick", "power": power}
+		if not _has_clip():
+			_fire(shot)
+			return
+		_pending = shot
+		if _has_clip(PlayerAnimationController.BOW_CHARGE_RELEASE):
+			# La suelta propia empieza en la pose de tensado sostenido
+			_anim().play_bow_shot(1.0, 0.0, _moving(), PlayerAnimationController.BOW_CHARGE_RELEASE)
+			return
+		# Sin ella, bow_shot desde justo antes de la suelta: el personaje ya estaba tensando
+		var from := maxf(release_time() - 0.06, 0.0)
+		_anim().play_bow_shot(1.0, from, _moving())
+
+	func cancel_charge() -> void:
+		charge = -1.0
+		_pending = {}
+		if _vis():
+			_vis().set_bow_draw(-1.0)
+
+	# ───────────── Remate ─────────────
+
+	## Flecha a quemarropa contra `target`. Devuelve los s de juego hasta que la flecha le llega (el impacto del
+	## remate), o -1 si no se pudo.
+	func finisher_shot(target: Node3D) -> float:
+		if not is_instance_valid(target):
+			return -1.0
+		_connect_animation_signals()
+		cancel_charge()
+		var to := target.global_position - c.player.global_position
+		to.y = 0.0
+		if to.length_squared() > 0.0001:
+			_face(to.normalized(), 1.0)
+		var dist := to.length()
+		var shot := {"kind": "finisher", "target": target}
+		if not _has_clip():
+			_fire(shot)
+			return dist / FINISHER_SPEED
+		var ac = _anim()
+		ac.cancel_action()
+		_pending = shot
+		ac.play_bow_shot(1.0, 0.0, false)
+		if _vis():
+			_vis().set_bow_draw(1.0)
+		AudioManager.play("swing_light", -8.0, 1.2)
+		return release_time() + maxf(dist - 0.6, 0.0) / FINISHER_SPEED
+
+	# ───────────── Flechas ─────────────
+
+	## Dónde sale la flecha: en el arco (la empuñadura), o a la altura del pecho si no hay modelo.
+	func _origin() -> Vector3:
+		var holder: Node3D = _vis().bow_holder() if _vis() else null
+		if holder and holder.is_inside_tree() and holder.is_visible_in_tree():
+			return holder.global_position
+		return c.player.global_position + Vector3(0, 1.4, 0)
+
+	## Dirección 3D hacia la mira; sin objetivo fijado, engancha al enemigo más alineado con ella (cono pequeño).
+	func _aim_dir(from: Vector3) -> Vector3:
+		var dir: Vector3 = _dungeon_shot_dir(from) if GameData.game_mode == "dungeon" else c.player.get_attack_forward_dir()
+		var lock = c.player.get("target_lock")
+		if lock and lock.has_target():
+			return dir
+		var e = c.aim_assist_enemy(ASSIST_DEG, c.player.get_weapon_data(W).weapon_range)
+		if e:
+			var chest: Vector3 = (e as Node3D).global_position + Vector3(0, EnemyQuery.height_of(e) * 0.55, 0)
+			var d: Vector3 = chest - from
+			if d.length_squared() > 0.01:
+				return d.normalized()
+		return dir
+
+	func _fire(shot: Dictionary) -> void:
+		if not is_instance_valid(c.player) or not c.player.is_inside_tree():
+			return
+		var data = c.player.get_weapon_data(W)
+		var mods: Dictionary = c.player.get_weapon_modifiers(W)
+		var dmg: float = c.player._weapon_damage(W)
+		if c.player.has_method("parry_bonus_mult"):
+			dmg *= c.player.parry_bonus_mult()
+		var from := _origin()
+		var dir := _aim_dir(from)
+		var speed: float = data.projectile_speed
+		var reach: float = data.weapon_range
+		var pierce := int(mods.get("pierce_bonus", 0))
+		var color := BowModels.skin_color(c.player.bow_skin()) if c.player.has_method("bow_skin") else Color(1, 0.85, 0.5)
+		var root := c.player.get_parent()
+		var extra := int(mods.get("quantity_bonus", 0))
+		match String(shot["kind"]):
+			"heavy":
+				# 3.er disparo del combo: una flecha potente (más las de quantity_bonus, en abanico estrecho)
+				for i in 1 + extra:
+					var ang := deg_to_rad(5.0 * (float(i) - float(extra) * 0.5)) if extra > 0 else 0.0
+					BowArrow.shoot(root, from, dir.rotated(Vector3.UP, ang) * speed * HEAVY_SPEED, dmg * HEAVY_DAMAGE,
+						{"kb": 7.0, "range": reach * 1.2, "pierce": 1 + pierce, "color": color, "glow": 2.0, "player": c.player})
+				AudioManager.play("spear_throw", -3.0, 1.2)
+				HitFeedback.shake(0.1)
+				c.player.apply_camera_recoil(0.03, 0.0, 0.1)
+			"charged":
+				var p := float(shot.get("power", 1.0))
+				var full := p >= 1.0
+				BowArrow.shoot(root, from, dir * speed * lerpf(CHARGE_SPEED.x, CHARGE_SPEED.y, p),
+					dmg * lerpf(CHARGE_DAMAGE.x, CHARGE_DAMAGE.y, p),
+					{"kb": lerpf(5.0, 12.0, p), "range": reach * 1.4, "gravity": 0.0, "pierce": -1 if full else 2 + pierce,
+					"stun": CHARGE_STUN if full else 0.1 * p, "color": color, "glow": 2.0 + 2.0 * p, "player": c.player})
+				AudioManager.play("spear_throw", -1.0, 1.1 if full else 1.3)
+				HitFeedback.shake(0.25 if full else 0.12)
+				c.player.apply_camera_recoil(0.05 if full else 0.03, 0.0, 0.15)
+				if _vis() and is_instance_valid(_vis().bow_trail):
+					_vis().bow_trail.emit(0.25)
+			"finisher":
+				var t: Node3D = shot.get("target")
+				if is_instance_valid(t):
+					var chest := t.global_position + Vector3(0, EnemyQuery.height_of(t) * 0.55, 0)
+					dir = (chest - from).normalized() if (chest - from).length_squared() > 0.01 else dir
+				# Solo se ve: el daño lo pone el remate al llegar (PlayerFinisherController)
+				BowArrow.shoot(root, from, dir * FINISHER_SPEED, 0.0,
+					{"kb": 0.0, "range": 8.0, "gravity": 0.0, "pierce": 0, "color": PlayerFinisherController.COLOR,
+					"glow": 4.0, "player": null})
+				AudioManager.play("spear_throw", 0.0, 0.9)
+			_:
+				for i in 1 + extra:
+					var ang := deg_to_rad(5.0 * (float(i) - float(extra) * 0.5)) if extra > 0 else 0.0
+					BowArrow.shoot(root, from, dir.rotated(Vector3.UP, ang) * speed, dmg,
+						{"kb": 3.5, "range": reach, "pierce": pierce, "color": color, "player": c.player})
+				AudioManager.play("spear_throw", -6.0, 1.6)
+				c.player.apply_camera_recoil(0.012, 0.0, 0.05)
+		if _vis():
+			_vis().set_bow_draw(-1.0)

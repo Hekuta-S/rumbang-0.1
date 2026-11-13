@@ -149,7 +149,7 @@ func _gui_input(event: InputEvent) -> void:
 		_yaw_drag += event.relative.x * 0.012
 	elif event is InputEventMouseButton and event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
 		# Rueda: acerca a la cara / aleja al cuerpo entero
-		focus("face" if event.button_index == MOUSE_BUTTON_WHEEL_UP else "full")
+		focus(zoom_shot if event.button_index == MOUSE_BUTTON_WHEEL_UP else "full")
 
 # ───────────────────────────── cámara ─────────────────────────────
 ## Planos de cámara: [punto mirado (y), distancia, fov]. El modelo mide MODEL_HEIGHT (1.62 m).
@@ -157,8 +157,11 @@ const SHOTS := {
 	"full": [0.86, 4.2, 32.0],
 	"torso": [1.18, 2.2, 32.0],
 	"face": [1.50, 1.05, 30.0],
+	"legs": [0.62, 2.0, 32.0],
 	"feet": [0.22, 1.7, 32.0],
 }
+## Plano al que acerca la rueda (lo fija quien edita según la zona: torso, piernas, pies...).
+var zoom_shot := "face"
 var _cam: Camera3D
 var _shot := "full"
 var _cam_tween: Tween
@@ -168,7 +171,7 @@ func _apply_cam_shot(s: Array) -> void:
 	_cam.position = Vector3(0.0, float(s[0]) + 0.08, float(s[1]))
 	_cam.look_at(Vector3(0.0, float(s[0]), 0.0))
 
-## Acerca la cámara a una zona: "full", "torso", "face" o "feet".
+## Acerca la cámara a una zona: "full", "torso", "face", "legs" o "feet".
 func focus(shot: String) -> void:
 	if not SHOTS.has(shot) or _cam == null or shot == _shot:
 		return

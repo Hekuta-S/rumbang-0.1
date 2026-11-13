@@ -37,17 +37,17 @@
 			"pool": [
 				{
 					"type": 1,
-					"weight": 75,
+					"weight": 92,
 					"is_zombie": false
 				},
 				{
 					"type": 0,
-					"weight": 5,
+					"weight": 1,
 					"is_zombie": false
 				},
 				{
 					"type": 2,
-					"weight": 8,
+					"weight": 2,
 					"is_zombie": false
 				}
 			]
@@ -57,22 +57,22 @@
 			"pool": [
 				{
 					"type": 1,
-					"weight": 54,
+					"weight": 70,
 					"is_zombie": false
 				},
 				{
 					"type": 2,
-					"weight": 14,
+					"weight": 8,
 					"is_zombie": false
 				},
 				{
 					"type": 0,
-					"weight": 4,
+					"weight": 2,
 					"is_zombie": false
 				},
 				{
 					"type": 4,
-					"weight": 10,
+					"weight": 8,
 					"is_zombie": true
 				}
 			]
@@ -82,17 +82,17 @@
 			"pool": [
 				{
 					"type": 1,
-					"weight": 51,
+					"weight": 62,
 					"is_zombie": false
 				},
 				{
 					"type": 2,
-					"weight": 15,
+					"weight": 10,
 					"is_zombie": false
 				},
 				{
 					"type": 0,
-					"weight": 3,
+					"weight": 2,
 					"is_zombie": false
 				},
 				{
@@ -102,13 +102,19 @@
 				},
 				{
 					"type": 4,
-					"weight": 12,
+					"weight": 10,
 					"is_zombie": true
 				},
 				{
 					"type": 5,
-					"weight": 3,
+					"weight": 2,
 					"is_zombie": false
+				},
+				{
+					"type": 1,
+					"weight": 3,
+					"is_zombie": false,
+					"trait": "splitter"
 				}
 			]
 		},
@@ -144,8 +150,101 @@
 					"type": 5,
 					"weight": 4,
 					"is_zombie": false
+				},
+				{
+					"type": 1,
+					"weight": 6,
+					"is_zombie": false,
+					"trait": "splitter"
 				}
 			]
 		}
-	]
+	],
+	"director": {
+		"comment": "Línea temporal escrita a mano: t (s) -> interval (s entre lotes), batch (enemigos por lote), cap (0..1 del tope de vivos de la calidad). Interpolación lineal entre puntos. Cada block_s segundos se repite el pulso build/peak/calm (desde pulse_from).",
+		"timeline": [
+			{
+				"t": 0,
+				"interval": 2.4,
+				"batch": 1,
+				"cap": 0.0
+			},
+			{
+				"t": 30,
+				"interval": 2.0,
+				"batch": 1,
+				"cap": 0.05
+			},
+			{
+				"t": 60,
+				"interval": 1.6,
+				"batch": 2,
+				"cap": 0.12
+			},
+			{
+				"t": 120,
+				"interval": 1.2,
+				"batch": 2,
+				"cap": 0.25
+			},
+			{
+				"t": 180,
+				"interval": 0.9,
+				"batch": 3,
+				"cap": 0.4
+			},
+			{
+				"t": 240,
+				"interval": 0.7,
+				"batch": 3,
+				"cap": 0.55
+			},
+			{
+				"t": 300,
+				"interval": 0.5,
+				"batch": 4,
+				"cap": 0.7
+			},
+			{
+				"t": 360,
+				"interval": 0.35,
+				"batch": 5,
+				"cap": 0.85
+			},
+			{
+				"t": 430,
+				"interval": 0.25,
+				"batch": 6,
+				"cap": 1.0
+			}
+		],
+		"block_s": 30.0,
+		"pulse_from": 45.0,
+		"phases": [
+			{
+				"name": "build",
+				"until": 0.68,
+				"interval_mult": 1.0,
+				"batch_mult": 1.0
+			},
+			{
+				"name": "peak",
+				"until": 0.88,
+				"interval_mult": 0.6,
+				"batch_mult": 1.5
+			},
+			{
+				"name": "calm",
+				"until": 1.0,
+				"interval_mult": 3.0,
+				"batch_mult": 0.35
+			}
+		],
+		"power": {
+			"expected_level_per_s": 0.0625,
+			"per_level": 0.02,
+			"min": 0.8,
+			"max": 1.35
+		}
+	}
 }

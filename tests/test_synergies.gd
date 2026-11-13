@@ -55,9 +55,9 @@ func _ready() -> void:
 	assert(not WeaponSynergies.can_evolve(winv, p.inventory, W.SPEAR_LANCE), "Sin nivel ni catalizador no evoluciona")
 	for i in WeaponSynergies.EVOLVE_LEVEL:
 		winv.upgrade_weapon(W.SPEAR_LANCE)
-	assert(not WeaponSynergies.can_evolve(winv, p.inventory, W.SPEAR_LANCE), "Sin catalizador no evoluciona")
-	p.inventory.add_item("colmillo_jaguar")
-	assert(WeaponSynergies.can_evolve(winv, p.inventory, W.SPEAR_LANCE), "Nivel %d + Colmillo de Jaguar → puede evolucionar" % winv.get_weapon_level(W.SPEAR_LANCE))
+	assert(not WeaponSynergies.can_evolve(winv, p.inventory, W.SPEAR_LANCE), "Sin su tomo no evoluciona")
+	p.stat_block.add_tome("zancada", TomeDB.Rarity.COMMON)
+	assert(WeaponSynergies.can_evolve(winv, p.inventory, W.SPEAR_LANCE), "Nivel %d + Tomo de Zancada → puede evolucionar" % winv.get_weapon_level(W.SPEAR_LANCE))
 	var hand := UpgradeChoiceUI_build(p)
 	assert(hand[0]["type"] == "evolution" and hand[0]["weapon"] == W.SPEAR_LANCE, "La evolución sale la primera (%s)" % [hand[0]])
 	var before: Dictionary = p.get_weapon_modifiers(W.SPEAR_LANCE)
@@ -108,6 +108,29 @@ func _ready() -> void:
 	GameState.get_instance().reset_session()
 	assert(gs.card_rerolls == GameState.CARD_REROLLS + MetaProgress.bonus_rerolls() and gs.banished_cards.is_empty(), "Nueva partida: usos y descartes reiniciados")
 	print("CHECK 5 PASSED: volver a tirar, descartar y reinicio por partida")
+
+	# 6. Tomos: salen como carta, se aplican con su rareza y respetan los 4 huecos
+	GameState.get_instance().reset_session()
+	var saw_tome := false
+	for i in 40:
+		if UpgradeChoiceUI_build(p).any(func(c): return c["type"] == "tome"):
+			saw_tome = true
+			break
+	assert(saw_tome, "Las cartas de tomo salen en el sorteo")
+	var dmg0: float = p.stat_block.damage_mult()
+	ui_mgr._on_upgrade_choice_made("tome", "poder:%d" % TomeDB.Rarity.EPIC)
+	assert(is_equal_approx(p.stat_block.damage_mult(), dmg0 + 0.08 * 2.0), "Tomo de Poder épico: +16%% daño (%.3f → %.3f)" % [dmg0, p.stat_block.damage_mult()])
+	var hp0: float = p.max_hp
+	ui_mgr._on_upgrade_choice_made("tome", "vitalidad:%d" % TomeDB.Rarity.RARE)
+	assert(is_equal_approx(p.max_hp, hp0 + 15.0 * 1.5), "Vitalidad rara: +22,5 vida máxima")
+	for id in ["celeridad", "area", "iman"]:
+		ui_mgr._on_upgrade_choice_made("tome", "%s:0" % id)
+	assert(TomeDB.owned().size() == TomeDB.SLOTS, "Cuatro tomos ocupan los huecos")
+	for i in 20:
+		for c in UpgradeChoiceUI_build(p):
+			if c["type"] == "tome":
+				assert(TomeDB.level(c["upgrade_id"]) > 0, "Con los huecos llenos solo salen tomos que ya tienes")
+	print("CHECK 6 PASSED: tomos")
 
 	print("ALL SYNERGY CHECKS PASSED")
 	get_tree().quit(0)

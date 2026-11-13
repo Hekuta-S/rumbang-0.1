@@ -42,13 +42,22 @@ const COMBOS := {
 	# Espada: ataque1, ataque2 y los dos golpes del clip "combo" (cortado en el fotograma 40)
 	WeaponData.WeaponType.SWORD: {
 		"combo": ["sw1", "sw2", "sw3", "sw4"],
-		"speed": 1.15,
-		"speeds": {"sw1": 1.2, "sw2": 1.2, "sw3": 1.1, "sw4": 1.1, "sw_run": 1.1}
+		# Bastante más ágil que la maza y el espadón (antes 1.1-1.2: el primer tajo tardaba 0.7 s, casi como la maza)
+		"speed": 1.6,
+		"speeds": {"sw1": 1.75, "sw2": 1.75, "sw3": 1.6, "sw4": 1.5, "sw_run": 1.4}
+	},
+	# Katana (mítica): el primer tajo, el mismo tajo en espejo y los dos golpes del clip
+	# "2 golpes" (cortado en el fotograma 28). Guardia y locomoción del espadón.
+	WeaponData.WeaponType.KATANA: {
+		"combo": ["kt1", "kt2", "kt3", "kt4"],
+		"speed": 1.4,
+		"speeds": {"kt1": 1.45, "kt2": 1.45, "kt3": 1.35, "kt4": 1.3, "kt_run": 1.25, "kt_special": 1.15}
 	},
 }
 ## Armas con carrera (espadón y espada): el clic mientras corren lanza este ataque, y los golpes siguientes
 ## continúan el combo desde el segundo.
-const RUN_ATTACKS := {WeaponData.WeaponType.GREATSWORD: "gs_run", WeaponData.WeaponType.SWORD: "sw_run"}
+const RUN_ATTACKS := {WeaponData.WeaponType.GREATSWORD: "gs_run", WeaponData.WeaponType.SWORD: "sw_run",
+	WeaponData.WeaponType.KATANA: "kt_run"}
 ## Espadón. Con él se anda despacio y se pasa a correr tras GS_RUN_DELAY s sin atacar, recibir daño ni rodar
 ## (PlayerMovementController); el clic mientras se corre lanza GS_RUN_ATTACK (ataque_si_va_corriendo) y los
 ## golpes siguientes continúan el combo desde el segundo.
@@ -63,6 +72,10 @@ const GS_GAIT_SPEED := {"walk": 1.0, "run": 4.0, "strafe": 1.2}
 const WEAPON_GAIT_SPEED := {
 	WeaponData.WeaponType.GREATSWORD: GS_GAIT_SPEED,
 	WeaponData.WeaponType.SWORD: {"walk": 1.37, "run": 3.9, "strafe": 1.5},
+	WeaponData.WeaponType.KATANA: GS_GAIT_SPEED,   # mismos clips de locomoción que el espadón
+	# Arco: sin carrera propia (la del personaje usa GAIT_SPEED). Estimado del paso de Mixamo; volver a medir con
+	# tools/measure_foot_slip.tscn -- arco
+	WeaponData.WeaponType.BOW: {"walk": 1.35, "strafe": 1.25},
 }
 ## Tope de aceleración de los clips del arma. Antes llegaba a 1,7: 5-6 pasos/s al correr, se veía embalado.
 ## Con el tope, a la carrera del espadón le queda algo de deslizamiento (~10 %), menos visible que la cadencia.
@@ -70,7 +83,30 @@ const GS_GAIT_MAX_SCALE := {"walk": 1.5, "run": 1.25, "strafe": 1.5}
 ## Todas las acciones de golpe de combo (las que cuentan como "atacando").
 const MELEE_ACTIONS := ["attack1", "attack2", "attack3", "attack4",
 	"dagger1", "dagger2", "dagger3", "mace1", "mace2", "mace3", "mace4", "gs1", "gs2", "gs3", "gs_run",
-	"sw1", "sw2", "sw3", "sw4", "sw_run"]
+	"sw1", "sw2", "sw3", "sw4", "sw_run", "kt1", "kt2", "kt3", "kt4", "kt_run", "kt_special"]
+## Acciones del arco (no cuentan como golpes cuerpo a cuerpo). BOW_SHOT es el disparo de Mixamo (lo usa el remate);
+## BOW_COMBO son los tres disparos seguidos del clic (blender_sources/bow_anims.blend). BOW_DRAW es la acción de
+## tensado mientras se carga: encajar y tensar (bow_charge_draw) y luego el bucle de sostener (bow_charge_hold),
+## montada al vuelo; sin esos clips, el principio de bow_shot sostenido. BOW_CHARGE_RELEASE es la suelta del cargado.
+const BOW_SHOT := "bow_shot"
+const BOW_COMBO := ["bow_shot_1", "bow_shot_2", "bow_shot_3"]
+const BOW_DRAW := "bow_draw"
+const BOW_CHARGE_DRAW := "bow_charge_draw"
+const BOW_CHARGE_HOLD := "bow_charge_hold"
+const BOW_CHARGE_RELEASE := "bow_charge_release"
+const BOW_ACTIONS := ["bow_shot", "bow_shot_1", "bow_shot_2", "bow_shot_3", "bow_charge_release"]
+## Segundos que dura la acción de tensado montada (encajar + bucle de sostener repetido): más de lo que se aguanta.
+const BOW_DRAW_LENGTH := 20.0
+## Remate de cada arma: el golpe más contundente de su combo. El impacto del remate sale en el fotograma en que se
+## abre la ventana de golpe de este clip (hit_window_opened), no a un tiempo fijo.
+const FINISHER_ANIMS := {
+	WeaponData.WeaponType.SPEAR_LANCE: "attack3",
+	WeaponData.WeaponType.DAGGERS: "dagger3",
+	WeaponData.WeaponType.MACE: "mace1",
+	WeaponData.WeaponType.GREATSWORD: "gs3",
+	WeaponData.WeaponType.SWORD: "sw4",
+	WeaponData.WeaponType.KATANA: "kt4",
+}
 ## Acciones especiales de las dagas y la maza (sin ventanas de golpe: el golpe lo pone la estrategia).
 const DAGGER_DASH := "dagger_dash"
 const MACE_SLAM := "mace_slam"
@@ -171,6 +207,21 @@ const ATTACK_WINDOWS := {
 	"sw3": [[0.50, 0.82], [1.00, 1.27]],
 	"sw4": [0.85, 1.15],
 	"sw_run": [0.27, 0.66],
+	# Katana (tiempos de clip, velocidad de la mano: tools/measure_sword_clips.tscn). kt2 es kt1 en espejo: mismos
+	# tiempos. kt4 (fotogramas 28-98 de "2 golpes") lleva dos tajos.
+	"kt1": [0.40, 0.73],
+	"kt2": [0.40, 0.73],
+	"kt3": [0.37, 0.73],
+	"kt4": [[0.27, 0.73], [1.07, 1.50]],
+	"kt_run": [[0.40, 0.67], [0.87, 1.13]],
+	"kt_special": [[0.40, 0.67], [0.87, 1.13]],
+	# Arco: aquí la "ventana" no es de daño cuerpo a cuerpo: su inicio es el fotograma en que se suelta la cuerda y
+	# sale la flecha (BowStrategy). Se retoca en el editor de agarre (categoría Arcos) como las demás.
+	"bow_shot": [0.183, 0.25],
+	"bow_shot_1": [0.167, 0.23],
+	"bow_shot_2": [0.167, 0.23],
+	"bow_shot_3": [0.267, 0.33],
+	"bow_charge_release": [0.067, 0.13],
 }
 ## Ajustes de las ventanas de golpe hechos con el editor (tools/melee_grip_editor.tscn): {anim: [[ini_s, fin_s], ...]}.
 ## Lo que haya en el JSON sustituye a ATTACK_WINDOWS para esa animación.
@@ -232,11 +283,19 @@ const LINK_WINDOWS := {
 	"sw2": [0.92, 1.45],
 	"sw3": [1.15, 1.40],
 	"sw_run": [0.70, 1.25],
+	"kt1": [0.78, 1.20],
+	"kt2": [0.78, 1.20],
+	"kt3": [0.76, 0.93],
+	"kt_run": [1.25, 1.90],
 }
 
 var current_attack_id: int = 0
 var active_attack_name: String = ""
 var _current_action_name: String = ""
+## Golpe cuya ventana de impacto ya se cerró ("" al empezar una acción nueva). Ver can_cancel_for_dodge.
+var _struck_action: String = ""
+## Armas cuyo golpe no se cancela con la esquiva hasta que ha golpeado (su punto débil).
+const COMMIT_WEAPONS := [WeaponData.WeaponType.MACE]
 var _action_elapsed: float = 0.0   ## en tiempo del clip (ya escalado por _action_speed)
 var _action_speed: float = 1.0
 
@@ -665,6 +724,18 @@ func play_attack() -> void:
 	_fire_action(anim_name)
 	_schedule_dash(anim_name)
 
+## Golpe especial cuerpo a cuerpo (katana): fuera del combo, con sus ventanas de golpe; reinicia el combo.
+func play_melee_special(anim_name: String) -> bool:
+	var lib := anim_player.get_animation_library("") if anim_player else null
+	if lib == null or not lib.has_animation(anim_name):
+		return false
+	light_hits = 0
+	_combo_index = 0
+	_combo_timer = 0.0
+	_fire_action(anim_name)
+	_schedule_dash(anim_name)
+	return true
+
 ## ¿Se completaron los cuatro golpes ligeros y el combo sigue vivo? Entonces el especial es el clavado.
 func can_slam() -> bool:
 	if not is_instance_valid(anim_player) or not anim_player.get_animation_library("").has_animation(SLAM):
@@ -678,6 +749,90 @@ func play_slam() -> void:
 	_combo_timer = 0.0
 	_fire_action(SLAM)
 	_schedule_dash(SLAM)
+
+## ── Remates (PlayerFinisherController) ──
+## Durante un remate el lunge del golpe (ATTACK_DASH) no sale: el remate ya lanza al personaje hasta el enemigo.
+var suppress_hit_dash := false
+
+## Lanza el golpe de remate del arma activa. Devuelve {"anim": nombre, "hit": s de juego hasta que se abre su ventana
+## de golpe, "length": s de juego que dura}, o {} si el arma no tiene un golpe con ventanas (el remate usa su reloj).
+func play_finisher() -> Dictionary:
+	var w: int = player.current_weapon() if player and player.has_method("current_weapon") else -1
+	var lib := anim_player.get_animation_library("") if anim_player else null
+	if lib == null:
+		return {}
+	var anim_name: String = FINISHER_ANIMS.get(w, "")
+	if anim_name == "" or not lib.has_animation(anim_name) or attack_windows(anim_name).is_empty():
+		return {}
+	light_hits = 0
+	_combo_index = 0
+	_combo_timer = 0.0
+	_fire_action(anim_name)
+	var speed := maxf(_action_speed, 0.01)
+	return {"anim": anim_name, "hit": float(attack_windows(anim_name)[0][0]) / speed,
+		"length": lib.get_animation(anim_name).length / speed}
+
+## ── Arco ──
+var _upper_filter_ready := false
+
+## Disparo del arco desde `from_time` (s del clip). `upper_only`: solo de cintura para arriba (cadera incluida), las
+## piernas siguen andando; parado se reproduce entero.
+func play_bow_shot(speed: float = 1.0, from_time: float = 0.0, upper_only: bool = false, anim_name: String = BOW_SHOT) -> void:
+	_fire_action(anim_name, from_time if from_time > 0.0 else -1.0, speed, upper_only)
+
+## ¿Está cargado el clip `anim_name`?
+func has_clip(anim_name: String) -> bool:
+	var lib := anim_player.get_animation_library("") if anim_player else null
+	return lib != null and lib.has_animation(anim_name)
+
+## Tensado sostenido (carga del disparo). Se monta la primera vez: encajar y tensar, y el bucle de sostener repetido
+## hasta BOW_DRAW_LENGTH. Sin esos clips, la pose del principio de bow_shot congelada.
+func play_bow_draw(upper_only: bool = false) -> void:
+	var lib := anim_player.get_animation_library("") if anim_player else null
+	if lib == null or not lib.has_animation(BOW_SHOT):
+		return
+	if not lib.has_animation(BOW_DRAW):
+		if lib.has_animation(BOW_CHARGE_DRAW) and lib.has_animation(BOW_CHARGE_HOLD):
+			lib.add_animation(BOW_DRAW, _make_draw_hold(lib.get_animation(BOW_CHARGE_DRAW), lib.get_animation(BOW_CHARGE_HOLD), BOW_DRAW_LENGTH))
+		else:
+			lib.add_animation(BOW_DRAW, _make_hold_pose(lib.get_animation(BOW_SHOT), 0.1))
+	_fire_action(BOW_DRAW, -1.0, 1.0, upper_only)
+	_suppress_hit_window = true
+
+## `intro` seguido de `loop` repetido hasta `total` s (pistas comunes por ruta y tipo). El bucle empieza y acaba en la
+## misma pose, así que las costuras no saltan. Para acciones del OneShot que deben sostenerse (no pueden ir en bucle).
+static func _make_draw_hold(intro: Animation, loop: Animation, total: float) -> Animation:
+	var a: Animation = intro.duplicate(true)
+	var period := maxf(loop.length, 0.05)
+	for i in a.get_track_count():
+		var j := loop.find_track(a.track_get_path(i), a.track_get_type(i))
+		if j < 0:
+			continue
+		var t0 := intro.length
+		while t0 < total:
+			for k in loop.track_get_key_count(j):
+				var t := loop.track_get_key_time(j, k)
+				if k == 0 and t <= 0.0001:
+					continue      # la misma pose que el final de la vuelta anterior
+				a.track_insert_key(i, t0 + t, loop.track_get_key_value(j, k))
+			t0 += period
+	a.length = total
+	a.loop_mode = Animation.LOOP_NONE
+	return a
+
+## Filtro del OneShot para las acciones de cintura para arriba: todos los huesos menos los de las piernas.
+func _ensure_upper_filter() -> void:
+	if _upper_filter_ready:
+		return
+	var skel := _find_first_node_of_type(model, "Skeleton3D") as Skeleton3D
+	if skel == null:
+		return
+	_upper_filter_ready = true
+	var shot := _shot_node()
+	for b in skel.get_bone_count():
+		var bone := skel.get_bone_name(b)
+		if not (bone.trim_prefix("mixamorig_") in LEG_BONES):
+			shot.set_filter_path(NodePath(str(_skel_path) + ":" + bone), true)
 
 ## Impulso hacia delante sincronizado con el golpe de la animación.
 func _schedule_dash(anim_name: String) -> void:
@@ -716,24 +871,45 @@ func _inject_hit_method_tracks(anim: Animation, anim_name: String) -> void:
 	anim.track_set_path(track_idx, my_path)
 	for window in windows:
 		anim.track_insert_key(track_idx, float(window[0]), {"method": "_on_anim_hit_on", "args": [anim_name]})
-		anim.track_insert_key(track_idx, float(window[1]), {"method": "_on_anim_hit_off", "args": [anim_name]})
+		anim.track_insert_key(track_idx, float(window[1]), {"method": "_on_anim_hit_window_end", "args": [anim_name]})
+
+## Duración real mínima de una ventana de golpe (s). Algunas ventanas duran 1 fotograma del clip (sw2: 0.033 s);
+## acelerado, se abría y cerraba en el mismo fotograma y la zona de golpe desaparecía antes de que la física la viera.
+const MIN_HIT_WINDOW := 0.07
+var _hit_opened_at := 0.0
 
 func _on_anim_hit_on(anim_name: String) -> void:
 	# (el golpe anterior del combo sigue sonando unos instantes en la otra ranura durante el fundido)
 	if _suppress_hit_window or anim_name != _current_action_name:
 		return
 	current_attack_id += 1
+	_hit_opened_at = Time.get_ticks_msec() / 1000.0
 	active_attack_name = anim_name
 	if GameData.game_mode == "dungeon":
 		_trigger_hit_dash(anim_name)
 	hit_window_opened.emit(current_attack_id, anim_name)
 
+## Fin de la ventana marcado en el clip: si se abrió hace menos de MIN_HIT_WINDOW, se cierra un poco después
+## (siempre que siga siendo el mismo golpe; un golpe nuevo o una cancelación la cierran con _on_anim_hit_off).
+func _on_anim_hit_window_end(anim_name: String) -> void:
+	var left := MIN_HIT_WINDOW - (Time.get_ticks_msec() / 1000.0 - _hit_opened_at)
+	if left <= 0.0 or not is_inside_tree():
+		_on_anim_hit_off(anim_name)
+		return
+	var id := current_attack_id
+	get_tree().create_timer(left, false, true).timeout.connect(func():
+		if is_instance_valid(self) and current_attack_id == id:
+			_on_anim_hit_off(anim_name))
+
 func _on_anim_hit_off(anim_name: String) -> void:
 	if active_attack_name != "" and anim_name == active_attack_name:
 		hit_window_closed.emit(current_attack_id)
 		active_attack_name = ""
+		_struck_action = anim_name
 
 func _trigger_hit_dash(anim_name: String) -> void:
+	if suppress_hit_dash:
+		return
 	var mc = player.get("movement_controller")
 	if not ATTACK_DASH.has(anim_name) or mc == null or not mc.has_method("add_dash"):
 		return
@@ -767,6 +943,10 @@ func advance_combo() -> void:
 func can_cancel_for_dodge() -> bool:
 	if active_attack_name != "":
 		return false
+	# Punto débil de la maza: desde que arranca el golpe hasta que cierra su ventana de impacto no se puede
+	# esquivar ni poner la guardia (la anticipación compromete). La recuperación sí se corta.
+	if is_attacking() and _struck_action != _current_action_name and player and player.has_method("current_weapon") 			and player.current_weapon() in COMMIT_WEAPONS:
+		return false
 	return not (is_attacking() and _current_action_name == ATTACKS[2])
 
 ## Corta la acción de cuerpo entero en curso (recuperación de un golpe, pose de carga...).
@@ -777,14 +957,19 @@ func cancel_action() -> void:
 	_current_action_name = ""
 	_action_started = ""
 
-func _fire_action(anim_name: String, from_time: float = -1.0, speed: float = -1.0) -> void:
+func _fire_action(anim_name: String, from_time: float = -1.0, speed: float = -1.0, upper_only: bool = false) -> void:
 	if not is_instance_valid(anim_tree) or _action_node == null:
 		return
 	if not anim_player.get_animation_library("").has_animation(anim_name):
 		return
 	net_action.emit(anim_name, from_time, speed)
+	# Acciones de cintura para arriba (disparo del arco andando): el OneShot solo mezcla los huesos del filtro
+	if upper_only:
+		_ensure_upper_filter()
+	_shot_node().filter_enabled = upper_only and _upper_filter_ready
 	_current_action_name = anim_name
-	if anim_name in MELEE_ACTIONS or anim_name == ACTION_ROLL or anim_name == ACTION_PARRY:
+	_struck_action = ""
+	if anim_name in MELEE_ACTIONS or anim_name in BOW_ACTIONS or anim_name in [ACTION_ROLL, ACTION_PARRY, BOW_DRAW]:
 		_note_combat()
 	# ¿Hay una acción en curso (aunque el OneShot ya esté desvaneciéndose hacia la locomoción)? Entonces la nueva
 	# entra en la otra ranura y se funde desde ella: el OneShot sigue activo con el clip nuevo y no hay corte. Si
@@ -899,6 +1084,8 @@ func _set_spine_in_upper(on: bool) -> void:
 ## ── Espadón: locomoción propia, root motion y carrera ──
 const LOCO_ANIM := "loco_%s_%d"           ## clips de locomoción del arma en la biblioteca: loco_walk_17...
 var _gs_loco := false                     ## ahora se anima con la locomoción del espadón
+var _loco_back := ""                      ## clip propio de retroceso del arma (LOCO "back"), "" si no tiene
+var _loco_walk := StringName()            ## clip de andar puesto por _apply_weapon_loco (para volver tras retroceder)
 var _loco_weapon := -1
 var _loco_built := {}
 
@@ -934,25 +1121,28 @@ func _apply_weapon_loco(weapon_type: int) -> void:
 	var lib: AnimationLibrary = anim_player.get_animation_library("")
 	var own_idle: bool = want and lib.has_animation(LOCO_ANIM % ["idle", weapon_type])
 	var own_strafe: bool = want and lib.has_animation(LOCO_ANIM % ["strafe", weapon_type])
+	var own_strafe_l: bool = own_strafe and lib.has_animation(LOCO_ANIM % ["strafe_l", weapon_type])
+	_loco_back = (LOCO_ANIM % ["back", weapon_type]) if (want and lib.has_animation(LOCO_ANIM % ["back", weapon_type])) else ""
 	for state in [STATE_IDLE, STATE_WALK, STATE_RUN]:
 		if sm.has_node(state):
-			var own: bool = want and (state != STATE_IDLE or own_idle)
+			var own: bool = want and lib.has_animation(LOCO_ANIM % [state, weapon_type])
 			(sm.get_node(state) as AnimationNodeAnimation).animation = (LOCO_ANIM % [state, weapon_type]) if own else state
 	if root.has_node("calm_idle"):
 		(root.get_node("calm_idle") as AnimationNodeAnimation).animation = (LOCO_ANIM % ["idle", weapon_type]) if own_idle else STATE_IDLE
 	if root.has_node("strafe_l"):
 		var sl := root.get_node("strafe_l") as AnimationNodeAnimation
 		var sr := root.get_node("strafe_r") as AnimationNodeAnimation
-		sl.animation = (LOCO_ANIM % ["strafe", weapon_type]) if own_strafe else STRAFE_ANIM
+		sl.animation = (LOCO_ANIM % ["strafe_l" if own_strafe_l else "strafe", weapon_type]) if own_strafe else STRAFE_ANIM
 		sr.animation = (LOCO_ANIM % ["strafe", weapon_type]) if own_strafe else STRAFE_ANIM
-		# El clip del arma es el paso a la derecha: a la izquierda se reproduce al revés
-		sl.play_mode = AnimationNodeAnimation.PLAY_MODE_BACKWARD if own_strafe else AnimationNodeAnimation.PLAY_MODE_FORWARD
+		# El clip del arma es el paso a la derecha: a la izquierda se reproduce al revés (salvo que traiga el suyo)
+		sl.play_mode = AnimationNodeAnimation.PLAY_MODE_BACKWARD if (own_strafe and not own_strafe_l) else AnimationNodeAnimation.PLAY_MODE_FORWARD
 		sr.play_mode = AnimationNodeAnimation.PLAY_MODE_FORWARD if own_strafe else AnimationNodeAnimation.PLAY_MODE_BACKWARD
 	# Andar/correr hacia delante otra vez (si se retrocedía, _update_backpedal lo vuelve a poner al revés)
 	for state in [STATE_WALK, STATE_RUN, STATE_FAST]:
 		if sm.has_node(state):
 			(sm.get_node(state) as AnimationNodeAnimation).play_mode = AnimationNodeAnimation.PLAY_MODE_FORWARD
 	_backpedal = false
+	_loco_walk = (sm.get_node(STATE_WALK) as AnimationNodeAnimation).animation if sm.has_node(STATE_WALK) else StringName()
 
 func _ensure_loco(weapon_type: int) -> bool:
 	if _loco_built.has(weapon_type):
@@ -960,7 +1150,7 @@ func _ensure_loco(weapon_type: int) -> bool:
 	var lib: AnimationLibrary = anim_player.get_animation_library("")
 	var skel := _find_first_node_of_type(model, "Skeleton3D") as Skeleton3D
 	var clips: Dictionary = WeaponAnimSets.build_loco(weapon_type, skel, _skel_path) if skel else {}
-	var ok := clips.has("walk") and clips.has("run")
+	var ok := clips.has("walk")   # la carrera es opcional (el arco usa la del personaje)
 	if ok:
 		for clip in clips:
 			var anim_name: String = LOCO_ANIM % [clip, weapon_type]
@@ -1188,9 +1378,10 @@ func _process(delta: float) -> void:
 	var just_jumped = _was_on_floor and not is_on_floor
 	
 	var horiz_velocity := Vector2(player.velocity.x, player.velocity.z).length()
-	var moving := horiz_velocity > 1.0
+	var moving := horiz_velocity > LOCO_MIN_SPEED
 	# Corre en cuanto va más rápido de lo que el clip de andar aguanta sin patinar
 	var running: bool = horiz_velocity > (GS_WALK_TO_RUN if _gs_loco else WALK_TO_RUN)
+	running = running and _moving_forward(Vector3(player.velocity.x, 0.0, player.velocity.z))
 	var current := playback.get_current_node()
 	var fast_available: bool = sm.has_node(STATE_FAST)
 	var is_fast: bool = fast_available and player.get("is_riva_fast") == true   # RemotePlayer no tiene la propiedad (bool(null) falla)
@@ -1235,6 +1426,9 @@ func _process(delta: float) -> void:
 ## "embalado".
 const GAIT_SPEED := {"walk": 1.64, "run": 4.5, "fast": 4.4, "strafe": 1.5}
 const WALK_TO_RUN := 2.4
+## Por debajo se anima el reposo. Antes 1,0: con arco/espada/espadón de lado o atrás se iba a ~0,9-1,0 m/s y se
+## quedaba en reposo patinando por el suelo.
+const LOCO_MIN_SPEED := 0.4
 ## Cuánto se calman los brazos (0 = los del clip, 1 = los del reposo) en cada estado de locomoción
 const ARM_CALM := {"walk": 0.3, "run": 0.55, "fast": 0.55}
 const ARM_BONES := ["LeftShoulder", "LeftArm", "LeftForeArm", "LeftHand", "RightShoulder", "RightArm", "RightForeArm", "RightHand"]
@@ -1242,15 +1436,16 @@ var _arm_calm := 0.0
 const GAIT_MAX_SCALE := 1.2
 
 func _gait_scale(speed: float, clip: String) -> float:
-	if _gs_loco:
-		var gait: Dictionary = WEAPON_GAIT_SPEED.get(_loco_weapon, GS_GAIT_SPEED)
-		return clampf(speed / float(gait.get(clip, GAIT_SPEED[clip])), 0.7, float(GS_GAIT_MAX_SCALE.get(clip, 1.5)))
+	var gait: Dictionary = WEAPON_GAIT_SPEED.get(_loco_weapon, GS_GAIT_SPEED)
+	# Clips propios del arma; los que no trae (la carrera del arco) son los del personaje
+	if _gs_loco and gait.has(clip):
+		return clampf(speed / float(gait[clip]), 0.7, float(GS_GAIT_MAX_SCALE.get(clip, 1.5)))
 	return clampf(speed / float(GAIT_SPEED[clip]), 0.7, GAIT_MAX_SCALE)
 
 func _update_gait_scale(speed: float, on_floor: bool) -> void:
 	var cur := String(playback.get_current_node())
 	var s := 1.0
-	if on_floor and GAIT_SPEED.has(cur) and (not _gs_loco or (WEAPON_GAIT_SPEED.get(_loco_weapon, GS_GAIT_SPEED) as Dictionary).has(cur)):
+	if on_floor and GAIT_SPEED.has(cur):
 		s = _gait_scale(speed, cur)
 	anim_tree.set("parameters/loco_scale/scale", s)
 	# Los brazos del espadón van como en su clip (agarran la empuñadura): sin mezclar con el reposo
@@ -1299,6 +1494,21 @@ func _keep_leg_tracks(anim: Animation) -> void:
 ## reproducen al revés para que los pies no patinen hacia delante. Con histéresis para no parpadear al
 ## moverse de lado.
 var _backpedal := false
+var _fwd_run := true
+
+## La carrera solo se anima hacia delante respecto a donde mira el cuerpo: de lado o hacia atrás se anda (con el
+## paso lateral / al revés). Con histéresis para no parpadear en diagonales.
+func _moving_forward(vel: Vector3) -> bool:
+	var mesh_node = player.get("mesh")
+	if not (mesh_node is Node3D) or vel.length_squared() < 0.0001:
+		return true
+	var facing: Vector3 = -(mesh_node as Node3D).global_transform.basis.z
+	facing.y = 0.0
+	if facing.length_squared() < 0.0001:
+		return true
+	var d := vel.normalized().dot(facing.normalized())
+	_fwd_run = d > 0.35 if _fwd_run else d > 0.55
+	return _fwd_run
 
 func _update_backpedal(vel: Vector3) -> void:
 	var mesh_node = player.get("mesh")
@@ -1319,6 +1529,11 @@ func _update_backpedal(vel: Vector3) -> void:
 			var n := sm.get_node(state) as AnimationNodeAnimation
 			if n:
 				n.play_mode = mode
+	# El arma trae su propio clip de retroceso (arco): andar hacia atrás lo usa hacia delante
+	if _loco_back != "" and sm.has_node(STATE_WALK):
+		var w := sm.get_node(STATE_WALK) as AnimationNodeAnimation
+		w.animation = StringName(_loco_back) if want else _loco_walk
+		w.play_mode = AnimationNodeAnimation.PLAY_MODE_FORWARD
 
 func _add_transition(sm: AnimationNodeStateMachine, from: String, to: String, xfade: float) -> void:
 	for i in range(sm.get_transition_count()):
