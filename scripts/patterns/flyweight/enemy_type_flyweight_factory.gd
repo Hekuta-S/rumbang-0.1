@@ -11,11 +11,16 @@ static var _pool: Dictionary = {}
 ## que tiene una tabla aparte de la de supervivencia.
 const DUNGEON_KEY_OFFSET := 1000
 
+## Beta: los magos de supervivencia (mago, francotirador y mortero) hacen este múltiplo del daño base.
+const MAGE_DAMAGE_MULT := 1.5
+
 static func get_flyweight(type: int) -> EnemyTypeFlyweight:
 	var dungeon: bool = GameData.game_mode == "dungeon"
 	var key: int = type + (DUNGEON_KEY_OFFSET if dungeon else 0)
 	if not _pool.has(key):
 		_pool[key] = _create_dungeon(type) if dungeon else _create(type)
+		if not dungeon and type in [EnemyData.EnemyType.GOBLIN_RANGED, EnemyData.EnemyType.SNIPER_GOBLIN, EnemyData.EnemyType.MORTAR_GOBLIN]:
+			(_pool[key] as EnemyTypeFlyweight).damage *= MAGE_DAMAGE_MULT
 	return _pool[key]
 
 ## Nº de flyweights distintos creados (evidencia para la sustentación).
@@ -25,7 +30,7 @@ static func pool_size() -> int:
 static func _create(type: int) -> EnemyTypeFlyweight:
 	match type:
 		EnemyData.EnemyType.GOBLIN_RANGED:
-			return EnemyTypeFlyweight.new(28.0, 2.2, 14.0, 3.0, 6)
+			return EnemyTypeFlyweight.new(28.0, 2.2, 14.0, 3.0, 6)     # (daño de los magos: ver MAGE_DAMAGE_MULT)
 		EnemyData.EnemyType.NORMAL_GOBLIN:
 			return EnemyTypeFlyweight.new(35.0, 3.0, 1.1, 2.5, 8)
 		EnemyData.EnemyType.HEAVY_BRUTE:

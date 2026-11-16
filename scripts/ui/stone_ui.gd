@@ -65,13 +65,18 @@ static func _closed(pts: PackedVector2Array) -> PackedVector2Array:
 ## Placa de piedra con marco de hierro (tres bandas), brillo arriba a la izquierda y remaches en las esquinas.
 static func draw_plate(ci: CanvasItem, rect: Rect2, tint: Color, chamfer: float = 14.0) -> void:
 	var pts := chamfer_points(rect, chamfer)
+	# sombra dura de tinta (cómic)
+	var shadow := PackedVector2Array()
+	for p in pts:
+		shadow.append(p + Vector2(4.0, 5.0))
+	ci.draw_colored_polygon(shadow, Color(OUTLINE, 0.8))
 	var uvs := PackedVector2Array()
 	for p in pts:
 		uvs.append(p / TILE)
 	ci.draw_colored_polygon(pts, tint, uvs, stone_texture())
 	# sombra interior (da relieve a la piedra)
 	ci.draw_polyline(_closed(chamfer_points(rect.grow(-9.0), maxf(chamfer - 9.0, 3.0))), Color(0, 0, 0, 0.35), 5.0, true)
-	var bands := [[1.5, OUTLINE, 3.0], [5.0, IRON, 4.0], [8.5, IRON_DARK, 2.0]]
+	var bands := [[2.0, OUTLINE, 4.5], [6.0, IRON, 4.0], [9.5, IRON_DARK, 2.0]]
 	for b in bands:
 		var inset: float = b[0]
 		ci.draw_polyline(_closed(chamfer_points(rect.grow(-inset), maxf(chamfer - inset, 3.0))), b[1], b[2], true)
@@ -103,8 +108,8 @@ static func draw_iron_ring(ci: CanvasItem, c: Vector2, inner: float, outer: floa
 	ci.draw_arc(c, inner + band * 0.5, 0.0, TAU, 56, Color(IRON, a), band, true)
 	ci.draw_arc(c, inner + band * 0.78, PI * 0.85, PI * 1.65, 24, Color(IRON_LIGHT, 0.85 * a), maxf(1.5, band * 0.22), true)
 	ci.draw_arc(c, inner + band * 0.3, -PI * 0.15, PI * 0.65, 24, Color(0, 0, 0, 0.45 * a), maxf(1.5, band * 0.22), true)
-	ci.draw_arc(c, outer - 0.8, 0.0, TAU, 56, Color(OUTLINE, a), 1.6, true)
-	ci.draw_arc(c, inner, 0.0, TAU, 56, Color(OUTLINE, a), 1.6, true)
+	ci.draw_arc(c, outer - 1.0, 0.0, TAU, 56, Color(OUTLINE, a), 2.8, true)
+	ci.draw_arc(c, inner, 0.0, TAU, 56, Color(OUTLINE, a), 2.2, true)
 	for k in notches:
 		var dir := Vector2.RIGHT.rotated(k * TAU / notches)
 		ci.draw_line(c + dir * (inner + band * 0.15), c + dir * (outer - band * 0.1), Color(IRON_LIGHT, a), maxf(1.5, band * 0.18))
@@ -113,15 +118,15 @@ static func draw_iron_ring(ci: CanvasItem, c: Vector2, inner: float, outer: floa
 static func draw_diamond(ci: CanvasItem, c: Vector2, r: float) -> void:
 	var d := PackedVector2Array([c + Vector2(0, -r), c + Vector2(r * 1.5, 0), c + Vector2(0, r), c + Vector2(-r * 1.5, 0)])
 	ci.draw_colored_polygon(d, IRON)
-	ci.draw_polyline(_closed(d), OUTLINE, 1.5, true)
+	ci.draw_polyline(_closed(d), OUTLINE, 2.4, true)
 	ci.draw_circle(c, r * 0.28, IRON_LIGHT)
 
 # ───────────────────────────── tarjeta de información ─────────────────────────────
 
-static func _label(t: String, size: int, color: Color, wrap: bool = true) -> Label:
+static func _label(t: String, size: int, color: Color, do_wrap: bool = true) -> Label:
 	var l := Label.new()
 	l.text = t
-	if wrap:
+	if do_wrap:
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", color)
@@ -224,17 +229,21 @@ static func style_button(b: Button, font_size: int = 11) -> void:
 	var mk := func(bg: Color, border: Color) -> StyleBoxFlat:
 		var s := StyleBoxFlat.new()
 		s.bg_color = bg
-		s.set_border_width_all(2)
+		s.set_border_width_all(3)
 		s.border_color = border
 		s.set_corner_radius_all(2)
 		s.content_margin_left = 12
 		s.content_margin_right = 12
 		s.content_margin_top = 5
 		s.content_margin_bottom = 5
-		s.shadow_color = Color(0, 0, 0, 0.5)
-		s.shadow_size = 2
+		if bg.a > 0.01:
+			s.shadow_color = Color(OUTLINE, 0.8)       # sombra dura de tinta (cómic)
+			s.shadow_size = 1
+			s.shadow_offset = Vector2(3, 4)
 		return s
-	b.add_theme_stylebox_override("normal", mk.call(Color(0.12, 0.105, 0.10), Color(0.42, 0.40, 0.38)))
+	b.add_theme_color_override("font_outline_color", OUTLINE)
+	b.add_theme_constant_override("outline_size", 5)
+	b.add_theme_stylebox_override("normal", mk.call(Color(0.12, 0.105, 0.10), OUTLINE))
 	b.add_theme_stylebox_override("hover", mk.call(Color(0.20, 0.15, 0.11), AMBER))
 	b.add_theme_stylebox_override("pressed", mk.call(Color(0.28, 0.14, 0.08), AMBER))
 	b.add_theme_stylebox_override("focus", mk.call(Color(0, 0, 0, 0), AMBER))
@@ -276,8 +285,8 @@ class Rail extends Control:
 		_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		_label.add_theme_font_size_override("font_size", font_size)
 		_label.add_theme_color_override("font_color", StoneUI.AMBER)
-		_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-		_label.add_theme_constant_override("outline_size", 5)
+		_label.add_theme_color_override("font_outline_color", StoneUI.OUTLINE)
+		_label.add_theme_constant_override("outline_size", 7)
 		_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(_label)
 
@@ -290,8 +299,12 @@ class Rail extends Control:
 		var tip := h * 0.7
 		var pts := PackedVector2Array([Vector2(0, h / 2.0), Vector2(tip, 1), Vector2(size.x - tip, 1),
 			Vector2(size.x, h / 2.0), Vector2(size.x - tip, h - 1), Vector2(tip, h - 1)])
+		var sh := PackedVector2Array()
+		for q in pts:
+			sh.append(q + Vector2(3.0, 4.0))
+		draw_colored_polygon(sh, Color(StoneUI.OUTLINE, 0.8))                  # sombra dura de tinta
 		draw_colored_polygon(pts, Color(0.07, 0.06, 0.06))
-		draw_polyline(StoneUI._closed(pts), StoneUI.OUTLINE, 3.0, true)
+		draw_polyline(StoneUI._closed(pts), StoneUI.OUTLINE, 4.0, true)
 		var inner := PackedVector2Array([Vector2(7, h / 2.0), Vector2(tip + 1, 4.5), Vector2(size.x - tip - 1, 4.5),
 			Vector2(size.x - 7, h / 2.0), Vector2(size.x - tip - 1, h - 4.5), Vector2(tip + 1, h - 4.5)])
 		draw_polyline(StoneUI._closed(inner), StoneUI.IRON, 3.0, true)

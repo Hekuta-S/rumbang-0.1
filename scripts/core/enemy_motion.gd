@@ -55,6 +55,10 @@ static func reset() -> void:
 	_hs = PackedFloat32Array()
 	_hside = 0
 	_built = false
+	_mesas.clear()
+	_player_mesa = -1
+	_climb_half = 0.0
+	_bridges.clear()
 
 static func _build() -> void:
 	_built = true
@@ -87,6 +91,143 @@ static func _build() -> void:
 				cur.append_array(packed)
 				grid[k] = cur
 	_flatten_obstacles(grid)
+
+	# Mesetas (ProceduralMap): copia empaquetada para el enrutado hacia las rampas
+	_mesas.clear()
+	if _map.has_method("get_mesas"):
+		for m in _map.get_mesas():
+			var dirs: Array = []
+			for rp in m["ramps"]:
+				dirs.append([rp["dir"], float(rp["len"])])
+			_mesas.append([m["c"], float(m["r"]), float(m["top"]), int(m["parent"]), dirs, float(m["base"])])
+	_route_frame = -1
+	_player_mesa = -1
+	_climb_half = float(_map.get("play_half")) - 1.0 if not _mesas.is_empty() and _map.get("play_half") != null else 0.0
+	_bridges.clear()
+	if _map.has_method("get_bridges"):
+		for br in _map.get_bridges():
+			_bridges.append([br["a"], br["b"], float(br["ya"]), float(br["yb"]), float(br["half"])])
+
+# ───────────────────────────── Puentes ─────────────────────────────
+## Otra capa de suelo sobre el relieve: quien entra desde la cima (a la altura de la tabla) camina por
+## la tabla, sin salirse por las barandillas, hasta el otro extremo. Por debajo se pasa como siempre.
+## [a: Vector2, b: Vector2, altura en a, altura en b, media anchura]
+static var _bridges: Array = []
+const BRIDGE_ENTER_TOL := 0.7          ## diferencia de altura con la tabla para subirse
+
+## Un paso con puentes: Vector4(x, z, altura, puente en que queda o -1).
+static func step_layers(np: Vector2, step: Vector2, h_now: float, bridge_i: int) -> Vector4:
+	if not _built:
+		_build()
+	if bridge_i >= 0 and bridge_i < _bridges.size():
+		var br: Array = _bridges[bridge_i]
+		var a: Vector2 = br[0]
+		var ab: Vector2 = (br[1] as Vector2) - a
+		var blen := ab.length()
+		var d := ab / blen
+		var side := Vector2(-d.y, d.x)
+		var target := np + step
+		var rel := target - a
+		var lim := float(br[4]) - ENEMY_RADIUS
+		var lat := clampf(rel.dot(side), -lim, lim)          # las barandillas no dejan salir
+		var along := rel.dot(d)
+		target = a + d * along + side * lat
+		var t := along / blen
+		if t < 0.0 or t > 1.0:
+			return Vector4(target.x, target.y, height_at(target.x, target.y), -1)   # baja en la cima
+		return Vector4(target.x, target.y, lerpf(float(br[2]), float(br[3]), t), bridge_i)
+	var r := resolve_step(np, step, h_now)
+	var q := Vector2(r.x, r.y)
+	for k in _bridges.size():
+		var br: Array = _bridges[k]
+		var a: Vector2 = br[0]
+		var ab: Vector2 = (br[1] as Vector2) - a
+		var t := (q - a).dot(ab) / ab.length_squared()
+		if t < 0.0 or t > 1.0 or absf((q - a).dot(Vector2(-ab.y, ab.x).normalized())) > float(br[4]) - ENEMY_RADIUS:
+			continue
+		var deck := lerpf(float(br[2]), float(br[3]), t)
+		if absf(deck - h_now) < BRIDGE_ENTER_TOL:
+			return Vector4(q.x, q.y, deck, k)
+	return Vector4(r.x, r.y, r.z, -1)
+
+# ───────────────────────────── Mesetas ─────────────────────────────
+## Los enemigos van en línea recta y trepan las paredes (CLIMB_MULT). Aquí solo se sabe si el jugador
+## está arriba de una meseta (ventaja de altura, aviso de RunEvents).
+
+## [centro: Vector2, radio, altura de la cima, piso de abajo (-1), [[dir: Vector2, largo], ...], altura del pie]
+static var _mesas: Array = []
+static var _route_frame: int = -1
+static var _player_mesa: int = -1
+## Dentro del radio + esto y a la altura de la cima = está arriba (el borde real es irregular, ±7 %:
+## lo que decide es la altura)
+const MESA_ON_MARGIN := 2.0
+const MESA_TOP_TOL := 1.4              ## m por debajo de la cima que aún cuentan como "arriba"
+const RAMP_HALF := 2.6                 ## = ProceduralMap.RAMP_HALF_W
+
+## ¿Está arriba de la meseta i? Para el jugador (`ramp_top`) también cuenta la mitad alta de una rampa:
+## desde ahí ya domina a los de abajo. Para los enemigos solo la cima, así terminan de subir la rampa.
+static func _on_mesa(i: int, p: Vector2, y: float, ramp_top: bool = false) -> bool:
+	var m: Array = _mesas[i]
+	if y < float(m[2]) - MESA_TOP_TOL:
+		return false
+	if p.distance_to(m[0]) < float(m[1]) + MESA_ON_MARGIN:
+		return true
+	if not ramp_top:
+		return false
+	var ramp := _ramp_at(i, p, y)
+	return ramp >= 0 and (p - (m[0] as Vector2)).dot(m[4][ramp][0]) < float(m[1]) + float(m[4][ramp][1]) * 0.5
+
+## Rampa de la meseta i en cuyo pasillo está p, a la altura y de su superficie (índice en m[4]); -1 si
+## en ninguna. Quien va pegado al lateral, por debajo, no cuenta: tiene que ir al pie.
+static func _ramp_at(i: int, p: Vector2, y: float) -> int:
+	var m: Array = _mesas[i]
+	var rel: Vector2 = p - (m[0] as Vector2)
+	var r: float = m[1]
+	var ramps: Array = m[4]
+	for k in ramps.size():
+		var d: Vector2 = ramps[k][0]
+		var u := rel.dot(d)
+		var rlen: float = ramps[k][1]
+		# Solo la parte llana del pasillo: en el borde, el lateral cae en pendiente
+		if u > r - 3.0 and u < r + rlen + 1.5 and absf(rel.cross(d)) < RAMP_HALF - 0.3:
+			var mid: Vector2 = (m[0] as Vector2) + d * u          # superficie: línea central a la misma altura de rampa
+			if y >= height_at(mid.x, mid.y) - 0.45:
+				return k
+	return -1
+
+## Meseta en la que está el jugador (la más alta), calculada una vez por tick de física.
+static func _update_player_mesa(player_pos: Vector3) -> void:
+	var f := Engine.get_physics_frames()
+	if f == _route_frame:
+		return
+	_route_frame = f
+	_player_mesa = -1
+	var pp := Vector2(player_pos.x, player_pos.z)
+	var best := -INF
+	for i in _mesas.size():
+		if float(_mesas[i][2]) > best and _on_mesa(i, pp, player_pos.y, true):
+			best = float(_mesas[i][2])
+			_player_mesa = i
+
+## Altura de la tabla del puente i a la altura de p.
+static func bridge_deck(i: int, p: Vector2) -> float:
+	var br: Array = _bridges[i]
+	var a: Vector2 = br[0]
+	var ab: Vector2 = (br[1] as Vector2) - a
+	return lerpf(float(br[2]), float(br[3]), clampf((p - a).dot(ab) / ab.length_squared(), 0.0, 1.0))
+
+## true si el mapa tiene mesetas (relieve jugable).
+static func has_relief() -> bool:
+	if not _built and available():
+		_build()
+	return not _mesas.is_empty()
+
+## Índice de la meseta en la que está el jugador (-1 = abajo). Barato: se calcula una vez por tick.
+static func player_mesa(player_pos: Vector3) -> int:
+	if not has_relief():
+		return -1
+	_update_player_mesa(player_pos)
+	return _player_mesa
 
 static func _clear_obstacles() -> void:
 	_obs = PackedFloat32Array()
@@ -143,8 +284,37 @@ static func height_at(x: float, z: float) -> float:
 	var b := _hs[i1] + (_hs[i1 + 1] - _hs[i1]) * tx
 	return a + (b - a) * tz
 
+## Paredes de meseta: los enemigos las trepan, a esta fracción de su velocidad (en las rampas van normal).
+## Los acantilados del borde del mapa (fuera de _climb_half) siguen sin poder subirse.
+const CLIMB_MULT := 0.4
+static var _climb_half: float = 0.0     ## 0 = no se trepa (mapa sin mesetas)
+
+## Un paso `step` desde `np` (altura `h_now`) contra el relieve: Vector3(x, z, altura nueva).
+## Pendiente suave: avanza. Pared de meseta: trepa a CLIMB_MULT. Acantilado del borde: desliza por un eje.
+static func resolve_step(np: Vector2, step: Vector2, h_now: float) -> Vector3:
+	if not _built:
+		_build()
+	var max_rise := maxf(step.length() * 1.3, 0.03)   # pendiente máx. ~50°
+	var target := np + step
+	var h_t := height_at(target.x, target.y)
+	if h_t - h_now <= max_rise:
+		return Vector3(target.x, target.y, h_t)
+	if absf(target.x) < _climb_half and absf(target.y) < _climb_half:
+		var c := np + step * CLIMB_MULT                  # pared de meseta: trepa, más despacio
+		return Vector3(c.x, c.y, height_at(c.x, c.y))
+	# Pendiente demasiado dura: se intenta deslizar por un eje
+	var tx := Vector2(np.x + step.x, np.y)
+	var h_x := height_at(tx.x, tx.y)
+	if h_x - h_now <= max_rise:
+		return Vector3(tx.x, tx.y, h_x)
+	var tz := Vector2(np.x, np.y + step.y)
+	var h_z := height_at(tz.x, tz.y)
+	if h_z - h_now <= max_rise:
+		return Vector3(tz.x, tz.y, h_z)
+	return Vector3(np.x, np.y, h_now)
+
 ## Mueve al enemigo con su velocidad actual durante `delta` segundos (horizontal; la altura la da el mapa).
-static func move(e, vel: Vector3, delta: float, player_pos: Vector3) -> void:
+static func move(e: EnemyData, vel: Vector3, delta: float, player_pos: Vector3) -> void:
 	if not _built:
 		_build()
 	var p: Vector3 = e.global_position
@@ -152,31 +322,16 @@ static func move(e, vel: Vector3, delta: float, player_pos: Vector3) -> void:
 	var np := Vector2(p.x, p.z)
 	var h_new: float = e.ground_y            # altura donde está ahora (se guarda para no recalcularla)
 	if step.length_squared() > 0.0000001:
-		var h_now: float = h_new
-		var max_rise := maxf(step.length() * 1.3, 0.03)   # pendiente máx. ~50°
-		var target := np + step
-		var h_t := height_at(target.x, target.y)
-		if h_t - h_now <= max_rise:
-			np = target
-			h_new = h_t
-		else:
-			# Pendiente demasiado dura: se intenta deslizar por un eje
-			var tx := Vector2(np.x + step.x, np.y)
-			var tz := Vector2(np.x, np.y + step.y)
-			var h_x := height_at(tx.x, tx.y)
-			if h_x - h_now <= max_rise:
-				np = tx
-				h_new = h_x
-			else:
-				var h_z := height_at(tz.x, tz.y)
-				if h_z - h_now <= max_rise:
-					np = tz
-					h_new = h_z
+		var r := step_layers(np, step, h_new, e.bridge_i)
+		np = Vector2(r.x, r.y)
+		h_new = r.z
+		e.bridge_i = int(r.w)
 		var before := np
-		np = _push_out_of_obstacles(np)
+		if e.bridge_i < 0:
+			np = _push_out_of_obstacles(np)              # en la tabla no hay props (los pilotes quedan debajo)
 		np = _push_out_of_player(np, player_pos)
 		if np != before:
-			h_new = height_at(np.x, np.y)
+			h_new = height_at(np.x, np.y) if e.bridge_i < 0 else bridge_deck(e.bridge_i, np)
 	e.global_position = Vector3(np.x, h_new, np.y)
 	e.ground_y = h_new
 

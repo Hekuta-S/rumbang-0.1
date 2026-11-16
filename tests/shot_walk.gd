@@ -9,6 +9,7 @@ extends Node
 ## fotogramas de lado repartidos en 1,8 s; con "<arma>_quieto", 12 fotogramas en reposo (guardia); con
 ## "<arma>_combo", 18 fotogramas en 5,4 s pulsando atacar sin parar (el combo entero encadenado); con
 ## "espadon_correr" / "espada_correr", el arma tras 3 s andando (ya corre); "espadon_golpe" / "espadon_combo" como el resto;
+## con "<arma>_especial", el especial (clic derecho) en 12 fotogramas repartidos en 2,4 s;
 ## con "maza_crater", el golpe al suelo (mace1) y después el mazazo con salto, desde arriba, para ver los cráteres.
 
 class FixedMove extends MovementSource:
@@ -50,7 +51,7 @@ func _run() -> void:
 		names = String(args[1]).split(",")
 	var push := float(args[2]) if args.size() > 2 else 1.0
 	var W := WeaponData.WeaponType
-	var by_name := {"maza": W.MACE, "dagas": W.DAGGERS, "espalanza": W.SPEAR_LANCE, "espadon": W.GREATSWORD, "espada": W.SWORD, "arco": W.BOW, "katana": W.KATANA}
+	var by_name := {"maza": W.MACE, "dagas": W.DAGGERS, "espalanza": W.SPEAR_LANCE, "espadon": W.GREATSWORD, "espada": W.SWORD, "arco": W.BOW, "katana": W.KATANA, "punos": W.FISTS}
 	var cam := Camera3D.new()
 	cam.fov = 35.0
 	_main.add_child(cam)
@@ -84,6 +85,18 @@ func _run() -> void:
 			player.resources.energy = PlayerResources.ENERGY_MAX
 			player.combat_controller.attack_cooldown = 0.0
 			player.attack()
+		elif mode == "especial":
+			player.resources.energy = PlayerResources.ENERGY_MAX
+			player._on_alt_attack_pressed()
+		elif mode == "corriendo":
+			# Clic corriendo: arranca a correr y golpea al alcanzar la carrera (ataque con carrerilla)
+			player.input_controller._direct_sources.append(mover)
+			await get_tree().create_timer(0.8).timeout
+			player.resources.energy = PlayerResources.ENERGY_MAX
+			player.combat_controller.attack_cooldown = 0.0
+			player.attack()
+			player.input_controller._direct_sources.erase(mover)
+			print("  corriendo -> %s" % player.animation_controller._current_action_name)
 		var shots := 18 if mode == "combo" else 12
 		if mode == "crater":
 			player.resources.energy = PlayerResources.ENERGY_MAX
@@ -132,8 +145,10 @@ func _run() -> void:
 				print("ANDAR %s: %.2f m/s, estado %s" % [nm, Vector2(player.velocity.x, player.velocity.z).length(),
 					player.animation_controller.playback.get_current_node()])
 			var step := 1.0 / 12.0
-			if mode == "golpe":
+			if mode == "golpe" or mode == "corriendo":
 				step = 1.8 / 12.0
+			elif mode == "especial":
+				step = 2.4 / 12.0
 			elif mode == "combo":
 				step = 0.3
 			elif mode == "crater":

@@ -114,7 +114,8 @@ func _run() -> void:
 	# 7. Yunque: equipar la maza (se guarda y es el arma inicial en la mazmorra)
 	hub.use_station("yunque")
 	assert(hub.state == "panel" and hub.panels.current == "yunque", "Se abre el yunque")
-	assert(hub.panels._cards.size() == 5, "Espalanza, dagas, maza, espadón y espada")
+	assert(hub.panels._cards.size() >= GameData.DUNGEON_WEAPONS.size(), "Listado con todas las armas del yunque")
+	assert(hub.panels._tab_buttons.has("nivel"), "Pestaña NIVEL (SoulStats)")
 	hub.panels.equip(WeaponData.WeaponType.MACE)
 	assert(GameData.dungeon_weapon == WeaponData.WeaponType.MACE, "Maza equipada")
 	GameData.dungeon_weapon = WeaponData.WeaponType.SPEAR_LANCE

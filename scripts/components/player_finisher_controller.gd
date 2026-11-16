@@ -10,7 +10,7 @@ extends Node
 ##    cámara lenta justo antes y la imagen congelada con onda, chispas y temblor fuerte;
 ##  - el arco remata con una flecha a quemarropa al soltar la cuerda (BowStrategy.finisher_shot);
 ##  - los enemigos normales mueren en el acto; los jefes pierden finish_damage_frac de su vida;
-##  - cura HEAL_FRACTION de la vida máxima y es invulnerable mientras dura.
+##  - cura HEAL_FRACTION de la vida máxima, devuelve ENERGY_RESTORE de energía y es invulnerable mientras dura.
 ## Mientras dura no se puede atacar, esquivar ni hacer parry (lo comprueba Player).
 
 const RANGE := 3.2
@@ -22,7 +22,8 @@ const STAND_OFF := 1.0                ## distancia a la que se queda del enemigo
 const BOW_STAND_OFF := 2.2            ## el arco remata desde algo más lejos (flecha a quemarropa)
 const SLOWMO_SCALE := 0.4
 const SLOWMO_TIME := 0.32             ## s reales de cámara lenta que terminan en el impacto
-const HEAL_FRACTION := 0.12
+const HEAL_FRACTION := 0.06              ## poca al principio: el Tomo del Verdugo la sube
+const ENERGY_RESTORE := 25.0           ## energía que devuelve cada remate
 const RETARGET_TIME := 4.0            ## no remata dos veces al mismo (las copias en red tardan en enterarse)
 const COLOR := Color(1.0, 0.82, 0.3)
 const FloatingDamage = preload("res://scripts/objects/floating_damage.gd")
@@ -200,6 +201,9 @@ func _strike() -> void:
 	AudioManager.play_at("impact_blunt", at, 0.0, 0.5)
 	if player.has_method("heal") and player.get("health_comp"):
 		player.heal(player.health_comp.max_hp * (HEAL_FRACTION + DungeonRunes.finisher_heal_bonus()))
+	var res: Node = player.get("resources")
+	if res and res.has_method("add_energy"):
+		res.add_energy(ENERGY_RESTORE)
 	var root := player.get_tree().current_scene
 	if root == null:
 		return

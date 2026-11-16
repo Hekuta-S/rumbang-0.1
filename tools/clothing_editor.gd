@@ -6,12 +6,23 @@ extends Node
 ##
 ## Vista (como un editor 3D): clic derecho + arrastrar = orbitar · botón central (o Mayús + clic derecho) = desplazar ·
 ## rueda = zoom · F = centrar en la prenda · 1 / 3 / 7 = frente / lado / arriba.
+##
+## Con `profile = "goblin"` (tools/goblin_armor_editor.tscn) el mismo editor coloca las ARMADURAS y cascos de los goblins
+## normales (assets/models/entities/enemigos/goblins/armaduras/*.glb) sobre el goblin y guarda
+## resources/goblin_armor_fit.json (ver ClothingFit.PROFILES y DungeonGoblin._wear_armor).
 ## Gizmo sobre la prenda seleccionada: W = mover, E = rotar, R = escalar (ejes: flechas / anillos / cubos; el centro
 ## mueve en el plano de la pantalla o escala por igual). X = ejes locales / globales. Ctrl (o la casilla Imán) = saltos
 ## de 2 cm, 5° y 0,05. Clic en una prenda = seleccionarla. Ctrl+Z / Ctrl+Y = deshacer / rehacer. Ctrl+S = guardar.
 
 const MODEL_PATH := "res://assets/models/riva/riva-base.fbx"
 const STATE_PATH := "res://resources/clothing_editor_state.json"
+const GOBLIN_MODEL_PATH := "res://assets/models/entities/enemigos/goblins/idle_normal_goblin.fbx"
+const GOBLIN_TEXTURE := "res://assets/textures/enemigos/texture_normal_goblin.png"
+const GOBLIN_STATE_PATH := "res://resources/goblin_armor_editor_state.json"
+const RIVA_ARMOR_STATE_PATH := "res://resources/riva_armor_editor_state.json"
+
+## Cuerpo sobre el que se trabaja: "riva" (ropa del personaje) o "goblin" (armaduras de los goblins normales).
+@export var profile := ClothingFit.PROFILE_RIVA
 const SIDEBAR_W := 360.0
 const UI_MARGIN := 12.0
 const GIZMO_K := 0.11        ## tamaño del gizmo = distancia a la cámara × GIZMO_K (así mide siempre lo mismo en pantalla)
@@ -154,10 +165,10 @@ var _status_dot: Panel
 var _subtitle: Label
 
 func _ready() -> void:
-	get_window().title = "Rumbang · Editor de ropa"
+	get_window().title = "Rumbang · " + _title()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	_fits = ClothingFit.load_all()
-	_ids = ClothingFit.garment_ids()
+	_fits = ClothingFit.load_all(profile)
+	_ids = ClothingFit.garment_ids(profile)
 	_build_world()
 	if not _build_character():
 		get_tree().quit(1)
@@ -178,7 +189,7 @@ func _ready() -> void:
 	if first != "":
 		select_garment(first)
 	else:
-		_set_status("No hay prendas en %s" % ClothingFit.DIR, C_WARN)
+		_set_status("No hay prendas en %s" % ClothingFit.dir_of(profile), C_WARN)
 	if state.has("cam"):
 		var c: Array = state["cam"]
 		if c.size() >= 6:
@@ -247,7 +258,27 @@ func _build_grid(y: float) -> void:
 	mi.material_override = mat
 	add_child(mi)
 
+## Cuerpo del goblin (perfil "goblin"); el resto usa a Riva.
+func _goblin() -> bool:
+	return ClothingFit.body_of(profile) == "goblin"
+
+## Piezas de armadura Uruk (perfiles "goblin" y "riva_armor") en vez de ropa.
+func _armor_mode() -> bool:
+	return ClothingFit.is_armor(profile)
+
+func _state_path() -> String:
+	if profile == ClothingFit.PROFILE_RIVA_ARMOR:
+		return RIVA_ARMOR_STATE_PATH
+	return GOBLIN_STATE_PATH if _goblin() else STATE_PATH
+
+func _title() -> String:
+	if profile == ClothingFit.PROFILE_RIVA_ARMOR:
+		return "Armaduras Uruk (Riva)"
+	return "Armaduras del goblin" if _goblin() else "Editor de ropa"
+
 func _build_character() -> bool:
+	if _goblin():
+		return _build_goblin()
 	var scene := load(MODEL_PATH) as PackedScene
 	if scene == null:
 		push_error("No se pudo cargar " + MODEL_PATH)
@@ -273,6 +304,31 @@ func _build_character() -> bool:
 	look.pants = CharacterLook.PANTS_NONE
 	CharacterLookApplier.apply_to(_model, look)
 	_strip_underwear(body)
+	return true
+
+## Goblin normal en pose T, con su textura (sin armadura: aquí solo la que se prueba). Escala: ClothingFit.body_height.
+func _build_goblin() -> bool:
+	var scene := load(GOBLIN_MODEL_PATH) as PackedScene
+	if scene == null:
+		push_error("No se pudo cargar " + GOBLIN_MODEL_PATH)
+		return false
+	_model = scene.instantiate() as Node3D
+	add_child(_model)
+	var ap := _model.find_child("AnimationPlayer", true, false)
+	if ap:
+		ap.queue_free()
+	_skel = _model.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
+	var body := CharacterLookApplier.body_mesh(_model)
+	var aabb := body.mesh.get_aabb()
+	_ms = ClothingFit.body_height(profile) / maxf(aabb.size.y, 0.0001)
+	_model.scale = Vector3.ONE * _ms
+	_build_grid(aabb.position.y * _ms)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = load(GOBLIN_TEXTURE) as Texture2D
+	mat.roughness = 0.85
+	body.material_override = mat
+	_target = Vector3(0, 0.75, 0)
+	_dist = 2.6
 	return true
 
 ## El personaje del editor va siempre desnudo: se hacen invisibles los calzones y su elástico (superficies del cuerpo).
@@ -345,7 +401,7 @@ func _pose_delta(bone: String) -> Transform3D:
 func _ensure_item(id: String) -> Item:
 	if _items.has(id):
 		return _items[id]
-	var n := ClothingFit.normalized(id)
+	var n := ClothingFit.normalized(id, profile)
 	if n.is_empty():
 		_set_status("No se pudo cargar la prenda " + id, C_ERR)
 		return null
@@ -362,9 +418,9 @@ func _ensure_item(id: String) -> Item:
 		it.rot = e["rot"]
 		it.scl = e["scale"]
 		it.arms = e["arms"]
-		it.slot = ClothingFit.slot_of(id, _fits[id])
+		it.slot = ClothingFit.slot_of(id, _fits[id], profile)
 	else:
-		it.slot = ClothingFit.slot_of(id)
+		it.slot = ClothingFit.slot_of(id, {}, profile)
 		_default_fit(it)
 	it.box = _make_box(it.extent)
 	it.root.add_child(it.box)
@@ -375,6 +431,18 @@ func _ensure_item(id: String) -> Item:
 func _default_fit(it: Item) -> void:
 	var e := it.extent
 	it.rot = Basis.IDENTITY
+	if it.slot == ClothingFit.SLOT_HELMET:
+		# Casco: sobre la cabeza del goblin, ~34 cm de ancho
+		var head := _skel.find_bone(ClothingFit.HELMET_BONE)
+		var hp := _skel.global_transform * _skel.get_bone_global_rest(head).origin if head >= 0 else Vector3(0, 1.0, 0)
+		it.bone = ClothingFit.HELMET_BONE
+		var hk := 1.0   # mismo tamaño de partida en el goblin y en Riva (cabezas de ancho parecido)
+		it.scl = Vector3.ONE * (0.34 * hk / maxf(e.x, 0.01))
+		it.pos = hp + Vector3(0, 0.14, 0.02) * hk
+		return
+	if _armor_mode():
+		_goblin_default(it, e)
+		return
 	if it.slot == ClothingFit.SLOT_SHOES:
 		_shoe_default(it, e)
 		return
@@ -402,6 +470,27 @@ func _default_fit(it: Item) -> void:
 	it.scl = Vector3.ONE * s
 	var thin := it.extent.min_axis_index()   # eje local del grosor: se engrosa para tapar el torso
 	it.scl[thin] = s * 1.6
+
+## Primer ajuste de una pieza de armadura (escala uniforme, a ojo): peto en el pecho, cada hombrera en su hombro,
+## taparrabo en la cadera. Medidas en metros sobre el goblin de 1,35 m (en Riva, en proporción a su altura).
+func _goblin_default(it: Item, e: Vector3) -> void:
+	var k := ClothingFit.body_height(profile) / 1.35
+	var bone_pos := func(b: String) -> Vector3:
+		var i := _skel.find_bone(b)
+		return _skel.global_transform * _skel.get_bone_global_rest(i).origin if i >= 0 else Vector3(0, 0.8, 0)
+	if it.id.begins_with("hombrera"):
+		var left := it.id.ends_with(ClothingFit.SIDE_L)
+		it.bone = "mixamorig_LeftArm" if left else "mixamorig_RightArm"
+		it.scl = Vector3.ONE * (0.2 * k / maxf(e.y, 0.01))
+		it.pos = bone_pos.call(it.bone) + Vector3(0.0, 0.03, 0.0) * k
+	elif it.slot == ClothingFit.SLOT_PANTS:
+		it.bone = "mixamorig_Hips"
+		it.scl = Vector3.ONE * (0.42 * k / maxf(e.x, 0.01))
+		it.pos = bone_pos.call(it.bone) + Vector3(0.0, -0.14, 0.02) * k
+	else:
+		it.bone = "mixamorig_Spine2"
+		it.scl = Vector3.ONE * (0.4 * k / maxf(e.x, 0.01))
+		it.pos = (bone_pos.call("mixamorig_Spine1") + bone_pos.call("mixamorig_Neck")) * 0.5 + Vector3(0.0, 0.0, 0.02) * k
 
 ## Primer ajuste de un zapato. Si su pareja ya está colocada, este es su espejo; si no, el pie correspondiente
 ## (el original al izquierdo, el gemelo al derecho) con el lado largo hacia delante y ~29 cm de largo.
@@ -444,9 +533,13 @@ func _mirror_from(it: Item, src: Item) -> void:
 ## Botón "Espejar": este zapato queda como reflejo de su pareja.
 func _on_mirror_pair() -> void:
 	var it := _selected()
-	if it == null or it.slot != ClothingFit.SLOT_SHOES:
+	if it == null:
 		return
-	var other: Item = _ensure_item(ClothingFit.twin_id(it.id))
+	var other_id := ClothingFit.twin_id(it.id) if it.slot == ClothingFit.SLOT_SHOES else ClothingFit.side_twin(it.id)
+	if other_id == "" or not _ids.has(other_id):
+		_set_status("Esta pieza no tiene pareja del otro lado", C_WARN)
+		return
+	var other: Item = _ensure_item(other_id)
 	if other == null:
 		return
 	_push_undo()
@@ -513,7 +606,7 @@ func _sync_skin(it: Item) -> void:
 	if not it.shown or _skin_check == null or not _skin_check.button_pressed:
 		return
 	var body := CharacterLookApplier.body_mesh(_model)
-	for mi in ClothingFit.build_skinned(it.id, ClothingFit.entry_to_json(it.bone, it.pos, it.rot, it.scl, it.arms, it.slot), body, _ms):
+	for mi in ClothingFit.build_skinned(it.id, ClothingFit.entry_to_json(it.bone, it.pos, it.rot, it.scl, it.arms, it.slot), body, _ms, profile):
 		_skel.add_child(mi)
 		it.skin.append(mi)
 
@@ -545,7 +638,8 @@ func select_garment(id: String) -> void:
 	# La rueda acerca hacia donde se trabaja: camisa al torso/cuerpo, pantalón a las piernas, zapato a los pies
 	if it.slot != _focus_slot:
 		_focus_slot = it.slot
-		_target = Vector3(0.0, {ClothingFit.SLOT_PANTS: 0.55, ClothingFit.SLOT_SHOES: 0.1}.get(it.slot, 1.05), 0.0)
+		var focus := {ClothingFit.SLOT_PANTS: 0.55, ClothingFit.SLOT_SHOES: 0.1, ClothingFit.SLOT_HELMET: 1.1}
+		_target = Vector3(0.0, focus.get(it.slot, 0.75 if _goblin() else 1.05), 0.0)
 	it.shown = true
 	it.box.visible = true
 	_sync_skin(it)
@@ -1187,7 +1281,7 @@ func _build_ui() -> void:
 
 	var title_row := HBoxContainer.new()
 	var title := Label.new()
-	title.text = "Editor de ropa"
+	title.text = _title()
 	title.add_theme_font_size_override("font_size", 19)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_row.add_child(title)
@@ -1255,9 +1349,8 @@ func _build_ui() -> void:
 	box.add_child(_section("TIPO DE PRENDA"))
 	_slot_select = OptionButton.new()
 	_slot_select.focus_mode = Control.FOCUS_NONE
-	_slot_select.add_item("Camiseta")
-	_slot_select.add_item("Pantalón")
-	_slot_select.add_item("Zapato")
+	for label in (ClothingFit.GOBLIN_SLOT_NAMES if _armor_mode() else ["Camiseta", "Pantalón", "Zapato"]):
+		_slot_select.add_item(label)
 	_slot_select.item_selected.connect(_on_slot_selected)
 	box.add_child(_slot_select)
 
@@ -1301,7 +1394,7 @@ func _build_ui() -> void:
 	turns.add_child(_button("Girar 90° Y", "Gira la prenda 90° sobre su eje Y", _turn.bind(Vector3.UP, 90.0)))
 	turns.add_child(_button("Girar 90° Z", "Gira la prenda 90° sobre su eje Z", _turn.bind(Vector3.BACK, 90.0)))
 	turns.add_child(_button("Dar la vuelta", "Gira 180° sobre el eje vertical (delante ↔ detrás)", _turn.bind(Vector3.UP, 180.0)))
-	turns.add_child(_button("Espejar pareja", "Zapatos: este pie queda como reflejo del otro (hueso, posición y giro)", _on_mirror_pair))
+	turns.add_child(_button("Espejar pareja", "Zapatos / hombreras: esta pieza queda como reflejo de su pareja del otro lado (hueso, posición y giro)", _on_mirror_pair))
 	turns.add_child(_button("Reencajar", "Vuelve al ajuste automático inicial (sin guardar)", _on_refit))
 	box.add_child(turns)
 
@@ -1535,7 +1628,7 @@ func _show_fields() -> void:
 	var idx := _bone_names.find(it.bone)
 	if idx >= 0:
 		_bone_select.select(idx)
-	_slot_select.select(ClothingFit.SLOTS.find(it.slot))
+	_slot_select.select(ClothingFit.slots(profile).find(it.slot))
 	_syncing = false
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1601,10 +1694,10 @@ func _on_slot_selected(index: int) -> void:
 	if _syncing:
 		return
 	var it := _selected()
-	if it == null or index < 0 or index >= ClothingFit.SLOTS.size():
+	if it == null or index < 0 or index >= ClothingFit.slots(profile).size():
 		return
 	_push_undo()
-	it.slot = ClothingFit.SLOTS[index]
+	it.slot = ClothingFit.slots(profile)[index]
 	it.touched = true
 	_mark_dirty()
 
@@ -1825,7 +1918,7 @@ func hide_ui() -> void:
 ## Estado de la sesión (pose de los brazos, prendas visibles, selección y cámara): se guarda aparte del ajuste de las
 ## prendas y se recupera al abrir el editor.
 func _load_state() -> Dictionary:
-	var txt := FileAccess.get_file_as_string(STATE_PATH)
+	var txt := FileAccess.get_file_as_string(_state_path())
 	var parsed: Variant = JSON.parse_string(txt) if txt != "" else null
 	return parsed if parsed is Dictionary else {}
 
@@ -1840,7 +1933,7 @@ func _save_state() -> void:
 		"arms": arms, "shown": shown, "selected": _sel,
 		"cam": [_yaw, _pitch, _dist, _target.x, _target.y, _target.z],
 	}
-	var f := FileAccess.open(STATE_PATH, FileAccess.WRITE)
+	var f := FileAccess.open(_state_path(), FileAccess.WRITE)
 	if f:
 		f.store_string(JSON.stringify(state, "\t") + "\n")
 		f.close()
@@ -1897,22 +1990,23 @@ func _notification(what: int) -> void:
 
 func _on_save() -> void:
 	_save_state()
-	var all := ClothingFit.load_all()
+	var all := ClothingFit.load_all(profile)
 	for id in _items:
 		var it: Item = _items[id]
 		if it.touched or all.has(id):
 			all[id] = ClothingFit.entry_to_json(it.bone, it.pos, it.rot, it.scl, it.arms, it.slot)
-	var err := ClothingFit.save_all(all)
+	var err := ClothingFit.save_all(all, profile)
 	if err != OK:
-		_set_status("ERROR al escribir %s: %s" % [ClothingFit.PATH, error_string(err)], C_ERR)
+		_set_status("ERROR al escribir %s: %s" % [ClothingFit.path_of(profile), error_string(err)], C_ERR)
 		push_error(_status.text)
 		return
 	_fits = all
 	_dirty = false
-	_set_status("Guardado · " + ClothingFit.PATH, C_OK)
+	ClothingFit.reload_fits()
+	_set_status("Guardado · " + ClothingFit.path_of(profile), C_OK)
 
 func _on_reload() -> void:
-	_fits = ClothingFit.load_all()
+	_fits = ClothingFit.load_all(profile)
 	for id in _items:
 		var it: Item = _items[id]
 		it.touched = false

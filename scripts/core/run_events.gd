@@ -49,8 +49,16 @@ const SHRINE_RESPAWN := 45.0
 const SHRINE_HEAL := 0.15
 const SHRINE_AMBUSH := 6
 const SHRINE_COLOR := Color(0.3, 0.95, 1.0)
+## Santuario en lo alto de una meseta (si el mapa tiene): sale con esta probabilidad y da oro y XP de más.
+const SHRINE_HIGH_CHANCE := 0.6
+const SHRINE_HIGH_EXTRA := ["gold", "xp"]
+const HIGH_GROUND_COLOR := Color(1.0, 0.85, 0.45)
 
 const ItemPickupScene := preload("res://scenes/objects/item_pickup.tscn")
+## Dado del destino (FateDice): el primero a los DICE_FIRST s y luego cada DICE_EVERY (más un azar)
+const DICE_FIRST := 45.0
+const DICE_EVERY := Vector2(60.0, 100.0)
+const DICE_DIST := Vector2(9.0, 15.0)
 
 var waves: WaveManager
 var player: Node3D
@@ -63,6 +71,9 @@ var _elites: Array = []              ## [{enemy, max_hp, marker}]
 var _shrines: Array = []             ## [{node, ring_mat, label, progress, ambushed}]
 var _shrine_respawn: Array = []      ## instantes (s de partida) en que reaparecen
 var _banner: Label
+var _high_ground_told := false
+var _mesa_check_t := 0.0
+var _next_dice_t := DICE_FIRST
 
 func start(p_player: Node3D) -> void:
 	player = p_player
@@ -79,6 +90,9 @@ func start(p_player: Node3D) -> void:
 			s["node"].queue_free()
 	_shrines.clear()
 	_shrine_respawn.clear()
+	_high_ground_told = false
+	_next_dice_t = DICE_FIRST
+	FateDice.clear_mods()
 	for i in SHRINES:
 		_spawn_shrine()
 
@@ -100,6 +114,11 @@ func _process(delta: float) -> void:
 	_drain_queue()
 	_update_elites()
 	_update_shrines(delta)
+	_check_high_ground(delta)
+	if t >= _next_dice_t:
+		_next_dice_t = t + randf_range(DICE_EVERY.x, DICE_EVERY.y)
+		if get_tree().get_nodes_in_group("fate_dice").is_empty():
+			spawn_dice()
 	for i in range(_shrine_respawn.size() - 1, -1, -1):
 		if t >= float(_shrine_respawn[i]):
 			_shrine_respawn.remove_at(i)
@@ -320,14 +339,48 @@ func _give_reward(r: String, spot: Vector3, i: int) -> void:
 
 # ───────────────────────────── Santuarios ─────────────────────────────
 
+## Primera vez que el jugador sube a una meseta: se explica la ventaja de altura.
+func _check_high_ground(delta: float) -> void:
+	if _high_ground_told:
+		return
+	_mesa_check_t -= delta
+	if _mesa_check_t > 0.0:
+		return
+	_mesa_check_t = 0.5
+	if EnemyMotion.player_mesa(player.global_position) >= 0:
+		_high_ground_told = true
+		announce("TERRENO ALTO", HIGH_GROUND_COLOR, "+%d %% de daño a los enemigos de abajo · trepan la pared despacio" % int(round((EnemyData.HIGH_GROUND_MULT - 1.0) * 100.0)))
+
+## Cimas de meseta libres (sin santuario cerca y lejos del jugador).
+func _free_vantage_points() -> Array:
+	var out: Array = []
+	var map := get_tree().get_first_node_in_group("procedural_map")
+	if map == null or not map.has_method("get_vantage_points"):
+		return out
+	for v: Vector3 in map.get_vantage_points():
+		var taken := false
+		for s in _shrines:
+			if is_instance_valid(s["node"]) and (s["node"] as Node3D).global_position.distance_to(v) < 6.0:
+				taken = true
+				break
+		if not taken and (not is_instance_valid(player) or Vector2(v.x - player.global_position.x, v.z - player.global_position.z).length() > 20.0):
+			out.append(v)
+	return out
+
 func _spawn_shrine() -> void:
 	var pos := Vector3.ZERO
-	for attempt in 12:
-		pos = Vector3(randf_range(WaveManager.PLAYABLE_MIN_X + 10.0, WaveManager.PLAYABLE_MAX_X - 10.0), 0,
-			randf_range(WaveManager.PLAYABLE_MIN_Z + 10.0, WaveManager.PLAYABLE_MAX_Z - 10.0))
-		if not is_instance_valid(player) or Vector2(pos.x - player.global_position.x, pos.z - player.global_position.z).length() > 20.0:
-			break
-	pos = _ground(pos)
+	var high := false
+	var spots := _free_vantage_points()
+	if not spots.is_empty() and randf() < SHRINE_HIGH_CHANCE:
+		pos = spots.pick_random()
+		high = true
+	else:
+		for attempt in 12:
+			pos = Vector3(randf_range(WaveManager.PLAYABLE_MIN_X + 10.0, WaveManager.PLAYABLE_MAX_X - 10.0), 0,
+				randf_range(WaveManager.PLAYABLE_MIN_Z + 10.0, WaveManager.PLAYABLE_MAX_Z - 10.0))
+			if not is_instance_valid(player) or Vector2(pos.x - player.global_position.x, pos.z - player.global_position.z).length() > 20.0:
+				break
+		pos = _ground(pos)
 	var node := Node3D.new()
 	var ring := MeshInstance3D.new()
 	var torus := TorusMesh.new()
@@ -357,12 +410,12 @@ func _spawn_shrine() -> void:
 	pillar.material_override = pmat
 	pillar.position.y = 1.1
 	node.add_child(pillar)
-	var lbl := _label3d("SANTUARIO", SHRINE_COLOR, 22)
+	var lbl := _label3d("SANTUARIO ALTO" if high else "SANTUARIO", SHRINE_COLOR, 22)
 	lbl.position.y = 3.0
 	node.add_child(lbl)
 	get_tree().current_scene.add_child(node)
 	node.global_position = pos
-	_shrines.append({"node": node, "ring_mat": mat, "label": lbl, "progress": 0.0, "ambushed": false})
+	_shrines.append({"node": node, "ring_mat": mat, "label": lbl, "progress": 0.0, "ambushed": false, "high": high})
 
 func _update_shrines(delta: float) -> void:
 	for i in range(_shrines.size() - 1, -1, -1):
@@ -381,7 +434,8 @@ func _update_shrines(delta: float) -> void:
 		s["progress"] = clampf(float(s["progress"]) + (delta if inside else -delta * 0.5) / SHRINE_CHARGE, 0.0, 1.0)
 		var p: float = s["progress"]
 		(s["ring_mat"] as StandardMaterial3D).albedo_color = Color(SHRINE_COLOR.lerp(Color.WHITE, p), 0.55 + 0.45 * p)
-		(s["label"] as Label3D).text = "SANTUARIO %d%%" % int(p * 100.0) if p > 0.0 else "SANTUARIO"
+		var title := "SANTUARIO ALTO" if s.get("high", false) else "SANTUARIO"
+		(s["label"] as Label3D).text = "%s %d%%" % [title, int(p * 100.0)] if p > 0.0 else title
 		if p >= 1.0:
 			_activate_shrine(s)
 			_shrines.remove_at(i)
@@ -393,7 +447,11 @@ func _activate_shrine(s: Dictionary) -> void:
 		player.heal(player.health_comp.max_hp * SHRINE_HEAL)
 	NecroVFX.shockwave(get_tree().current_scene, node.global_position, SHRINE_RADIUS * 2.0, SHRINE_COLOR)
 	AudioManager.play("kill_burst", -4.0, 1.3)
-	announce("SANTUARIO ACTIVADO", SHRINE_COLOR, "Vida recuperada y un objeto")
+	if s.get("high", false):
+		announce("SANTUARIO ALTO ACTIVADO", SHRINE_COLOR, "Vida, un objeto, oro y XP")
+		_grant_rewards(node.global_position, SHRINE_HIGH_EXTRA)
+	else:
+		announce("SANTUARIO ACTIVADO", SHRINE_COLOR, "Vida recuperada y un objeto")
 	_spawn_item(player.global_position)
 	node.queue_free()
 	_shrine_respawn.append(_elapsed() + SHRINE_RESPAWN)
@@ -424,6 +482,14 @@ func _label3d(text: String, col: Color, size: int) -> Label3D:
 	l.outline_modulate = Color(0.05, 0.02, 0.05)
 	l.no_depth_test = true
 	return l
+
+## Dado del destino a unos metros del jugador (también lo usan las pruebas).
+func spawn_dice() -> FateDice:
+	var a := randf() * TAU
+	var at := _ground(player.global_position + Vector3(cos(a), 0, sin(a)) * randf_range(DICE_DIST.x, DICE_DIST.y))
+	var d := FateDice.spawn(get_tree().current_scene, at, FateDice.LIFETIME_SURVIVAL)
+	announce("DADO DEL DESTINO", FateDice.GOLD_COLOR, "Ha aparecido un dado cerca: ¿te atreves a tirarlo?")
+	return d
 
 ## Cartel grande arriba (también lo usa main.gd para el modo infinito).
 func announce(title: String, col: Color, sub: String) -> void:

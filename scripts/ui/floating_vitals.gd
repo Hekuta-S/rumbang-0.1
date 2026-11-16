@@ -58,9 +58,13 @@ func _ready() -> void:
 	_font = ThemeDB.fallback_font
 	_plate = StyleBoxFlat.new()
 	_plate.bg_color = Color(0.0, 0.0, 0.0, 0.6)
-	_plate.set_corner_radius_all(5)
-	_plate.shadow_color = Color(0, 0, 0, 0.28)
-	_plate.shadow_size = 5
+	_plate.set_corner_radius_all(4)
+	_plate.set_border_width_all(2)
+	_plate.border_color = HudDraw.INK
+	# sombra dura de tinta (cómic)
+	_plate.shadow_color = Color(HudDraw.INK, 0.7)
+	_plate.shadow_size = 1
+	_plate.shadow_offset = Vector2(3, 4)
 
 ## Pura: sitio de la barra en pantalla. `center` y `side` son el personaje y el punto a su izquierda ya
 ## proyectados; `move` es su velocidad en pantalla (m/s, derecha y abajo positivos): la barra se queda atrás.
@@ -126,8 +130,7 @@ func _process(delta: float) -> void:
 func _text(pos: Vector2, s: String, fs: int, color: Color, right_align: bool = true) -> float:
 	var w := _font.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 	var p := Vector2(pos.x - w, pos.y) if right_align else pos
-	draw_string_outline(_font, p, s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 4, Color(0, 0, 0, 0.88))
-	draw_string(_font, p, s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, color)
+	HudDraw.text(self, _font, p, s, fs, color)
 	return w
 
 ## Columna fina (maná, balas) que se llena de abajo arriba, con su número encima.
@@ -136,6 +139,7 @@ func _thin(x: float, top: float, h: float, ratio: float, color: Color, label: St
 	ratio = clampf(ratio, 0.0, 1.0)
 	if ratio > 0.001:
 		draw_rect(Rect2(x, top + h * (1.0 - ratio), THIN_W, h * ratio), color)
+	draw_rect(Rect2(x, top, THIN_W, h), HudDraw.INK, false, 1.5)
 	_text(Vector2(x + THIN_W, label_y), label, 10, color.lightened(0.3))
 
 func _draw() -> void:
@@ -195,6 +199,7 @@ func _draw() -> void:
 		draw_rect(Rect2(f.position, Vector2(2.0, f.size.y)), Color(1, 1, 1, 0.28))                # filo de luz
 		if disp < 0.999:
 			draw_rect(Rect2(f.position, Vector2(f.size.x, 2.0)), Color(1, 1, 1, 0.6))             # borde de avance
+			draw_rect(Rect2(f.position - Vector2(0.0, 1.5), Vector2(f.size.x, 1.5)), HudDraw.INK)    # y su tinta
 	# Marcas: muescas cortas cada TICK y cortes de ancho completo cada TICK_MAJOR (hasta ~24 marcas)
 	var max_hp: float = maxf(v._max_hp, 1.0)
 	var tick := TICK
@@ -208,6 +213,7 @@ func _draw() -> void:
 		else:
 			draw_rect(Rect2(r.end.x - HP_W * 0.4, y - 0.5, HP_W * 0.4, 1.0), Color(0, 0, 0, 0.42))
 		tv += tick
+	draw_rect(r, HudDraw.INK, false, 2.5)                     # contorno de tinta de la vida (cómic)
 	# Energía: pips apilados (uno cada ENERGY_PIP puntos), se gastan de arriba abajo
 	if res:
 		var tired: bool = res.is_exhausted()
@@ -224,6 +230,7 @@ func _draw() -> void:
 				# Pip lleno: brillante; pip a medias: más apagado (se está recargando)
 				draw_rect(Rect2(en_x, py + pip_h * (1.0 - fill), EN_W, pip_h * fill), ecol if fill >= 0.999 else Color(ecol, 0.6))
 				draw_rect(Rect2(en_x, py + pip_h * (1.0 - fill), 2.0, pip_h * fill), Color(1, 1, 1, 0.22))
+			draw_rect(Rect2(en_x, py, EN_W, pip_h), HudDraw.INK, false, 1.5)
 		var k := 0
 		var label_y := top - 8.0
 		if _bars._show_mana:

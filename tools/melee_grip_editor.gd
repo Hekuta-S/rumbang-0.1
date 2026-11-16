@@ -31,10 +31,13 @@ const CAT_MACE := 2
 const CAT_SWORD := 3
 const CAT_BOW := 4
 const CAT_KATANA := 5
-const CAT_COUNT := 6
-const CAT_NAMES := ["Espadones", "Dagas", "Mazas", "Espadas", "Arcos", "Katanas"]
+## Puños: sin modelo ni agarre (solo se editan sus fotogramas de daño); las funciones de agarre no hacen nada con ella.
+const CAT_FISTS := 6
+const CAT_COUNT := 7
+const CAT_NAMES := ["Espadones", "Dagas", "Mazas", "Espadas", "Arcos", "Katanas", "Puños"]
 ## Prefijo de las acciones de combo de cada categoría (PlayerAnimationController.MELEE_ACTIONS).
-const CAT_ANIM_PREFIX := ["gs", "dagger", "mace", "sw", "bow", "kt"]
+const CAT_ANIM_PREFIX := ["gs", "dagger", "mace", "sw", "bow", "kt", "fs"]
+const FISTS_ENTRY := {"pos": Vector3.ZERO, "rot": Vector3.ZERO, "scale": Vector3.ONE}
 const SPEEDS := [["0,25×", 0.25], ["0,5×", 0.5], ["1× (juego)", 1.0]]
 
 # Paleta
@@ -882,6 +885,8 @@ func _model_count(cat: int) -> int:
 			return BowModels.count()
 		CAT_KATANA:
 			return KatanaModels.count()
+		CAT_FISTS:
+			return 1
 		_:
 			return MaceModels.count()
 
@@ -897,6 +902,8 @@ func _model_name(cat: int, skin: int) -> String:
 			return BowModels.skin_name(skin)
 		CAT_KATANA:
 			return KatanaModels.skin_name(skin)
+		CAT_FISTS:
+			return "Manos desnudas"
 		_:
 			return MaceModels.skin_name(skin)
 
@@ -912,6 +919,8 @@ func _cat_weapon(cat: int) -> int:
 			return WeaponData.WeaponType.BOW
 		CAT_KATANA:
 			return WeaponData.WeaponType.KATANA
+		CAT_FISTS:
+			return WeaponData.WeaponType.FISTS
 		_:
 			return WeaponData.WeaponType.MACE
 
@@ -927,6 +936,8 @@ func _config_path(cat: int) -> String:
 			return PlayerWeaponVisuals.BOW_GRIP_CONFIG_PATH
 		CAT_KATANA:
 			return PlayerWeaponVisuals.KATANA_GRIP_CONFIG_PATH
+		CAT_FISTS:
+			return ""
 		_:
 			return PlayerWeaponVisuals.MACE_GRIP_CONFIG_PATH
 
@@ -953,6 +964,8 @@ func _active_holder() -> Node3D:
 			return _vis.bow_holder()
 		CAT_KATANA:
 			return _vis.katana_holder()
+		CAT_FISTS:
+			return null
 		_:
 			return _vis.mace_holder()
 
@@ -984,6 +997,8 @@ func _load_values(cat: int = -1) -> void:
 		CAT_KATANA:
 			for i in KatanaModels.count():
 				_values[cat][i] = PlayerWeaponVisuals.katana_grip_values(i)
+		CAT_FISTS:
+			_values[cat][0] = FISTS_ENTRY.duplicate()
 
 func _current_values() -> Dictionary:
 	return {
@@ -1019,6 +1034,8 @@ func _apply_entry() -> void:
 		return
 	var value := _current_entry()
 	match _cat:
+		CAT_FISTS:
+			pass   # sin arma que colocar
 		CAT_GS:
 			_vis.set_greatsword_grip(value["pos"], value["rot"], value.get("scale", Vector3.ONE))
 		CAT_DAGGER:
@@ -1362,7 +1379,7 @@ func _on_category_selected(index: int) -> void:
 		_skin = _player.sword_skin()
 	elif _cat == CAT_BOW:
 		_skin = _player.bow_skin()
-	elif _cat == CAT_KATANA:
+	elif _cat == CAT_KATANA or _cat == CAT_FISTS:
 		_skin = 0
 	else:
 		_skin = _player.mace_skin()
@@ -1491,6 +1508,8 @@ func _save_windows() -> bool:
 	return true
 
 func _save_category(cat: int) -> bool:
+	if cat == CAT_FISTS:
+		return true   # sin agarre que guardar
 	var path := _config_path(cat)
 	var config: Dictionary = {}
 	var existing := FileAccess.get_file_as_string(path)

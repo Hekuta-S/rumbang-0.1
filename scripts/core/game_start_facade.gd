@@ -55,7 +55,27 @@ func start_game() -> void:
 		_setup_day_night()
 	else:
 		_setup_dungeon_encounter()
+	_setup_map_life()
 	_reveal_world()
+
+## Vida del mapa: sonido ambiente (MapAmbience) y reacciones al jugador (MapReactions). Se crean una vez por
+## escena; al reiniciar o cambiar de nivel solo se les vuelve a pasar el mapa y el jugador.
+func _setup_map_life() -> void:
+	var map := _scene_root.get_node_or_null("ProceduralMap") as Node3D
+	if map == null or Net.is_dedicated():
+		return
+	var ambience := _scene_root.get_node_or_null("MapAmbience") as MapAmbience
+	if ambience == null:
+		ambience = MapAmbience.new()
+		ambience.name = "MapAmbience"
+		_scene_root.add_child(ambience)
+	ambience.setup(map, _player)
+	var reactions := _scene_root.get_node_or_null("MapReactions") as MapReactions
+	if reactions == null:
+		reactions = MapReactions.new()
+		reactions.name = "MapReactions"
+		_scene_root.add_child(reactions)
+	reactions.setup(map, _player)
 
 ## Supervivencia: empieza de día y se oscurece hasta la noche del jefe (DayNightCycle).
 ## Se crea una vez por escena; la fase sale del tiempo de partida, así que al reiniciar vuelve a ser de día.
@@ -248,6 +268,8 @@ func _apply_character_data() -> void:
 	var eq = _player.get("equipment")
 	if eq:
 		eq.start_run()
+	if GameData.game_mode == "dungeon":
+		SoulStats.start_run()
 	var sb = _player.get("stat_block")
 	if sb and sb.has_method("rebase_equipment_hp"):
 		sb.rebase_equipment_hp()

@@ -32,6 +32,9 @@ const STYLES := {
 		"core_from": 0.7, "core_gain": 1.6, "flow": 40.0, "ripple": 26.0, "tail_pow": 1.6},
 	"mace": {"life": 0.3, "tail": 0.45, "taper": 1.0, "energy": 1.25, "band": 0.15, "core_from": 0.3,
 		"core_gain": 0.5, "streaks": 5.0, "streak_amt": 0.55, "tear": 0.3, "tail_pow": 1.0, "flow": 10.0},
+	# Puños: cinta corta y ancha (del antebrazo a los nudillos) que se apaga rápido, con líneas de velocidad
+	"fist": {"life": 0.2, "tail": 0.3, "taper": 1.3, "energy": 1.5, "band": 0.25, "core_from": 0.5,
+		"core_gain": 1.1, "streaks": 4.0, "streak_amt": 0.45, "tail_pow": 1.2, "flow": 18.0},
 	"spear": {"life": 0.2, "tail": 0.1, "taper": 1.8, "energy": 1.6, "band_from": 0.3, "band": 0.35,
 		"core_from": 0.65, "core_gain": 1.4, "streaks": 2.0, "streak_amt": 0.2},
 }

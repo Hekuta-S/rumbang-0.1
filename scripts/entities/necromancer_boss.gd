@@ -312,11 +312,11 @@ func _add_transition(sm: AnimationNodeStateMachine, from: String, to: String, xf
 	for i in range(sm.get_transition_count()):
 		if sm.get_transition_from(i) == from and sm.get_transition_to(i) == to:
 			return
-	var tr := AnimationNodeStateMachineTransition.new()
-	tr.switch_mode = 0
-	tr.advance_mode = 1
-	tr.xfade_time = xfade
-	sm.add_transition(from, to, tr)
+	var transition := AnimationNodeStateMachineTransition.new()
+	transition.switch_mode = 0
+	transition.advance_mode = 1
+	transition.xfade_time = xfade
+	sm.add_transition(from, to, transition)
 
 func play_animation(anim_name: String):
 	if playback:

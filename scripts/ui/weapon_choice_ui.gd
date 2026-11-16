@@ -16,6 +16,7 @@ const DESCRIPTIONS := {
 	WeaponData.WeaponType.MACE: "Maza enorme a dos manos: golpes lentos y brutales que aturden. Click derecho: salto y mazazo al suelo con onda expansiva.",
 	WeaponData.WeaponType.GREATSWORD: "Espadón a dos manos: tres tajos pesados encadenados. Se anda despacio y se corre tras un rato sin combatir: el ataque al correr embiste.",
 	WeaponData.WeaponType.BOW: "Arco: flechas rápidas a distancia (la tercera seguida sale triple). Mantén el clic derecho para tensar: la flecha cargada atraviesa enemigos y, a tope, los aturde.",
+	WeaponData.WeaponType.FISTS: "A puño limpio: combo de seis golpes rápidos (izquierda y derecha) con remate. Al pelear se pone en guardia. Click derecho: lluvia de golpes.",
 	WeaponData.WeaponType.SWORD: "Espada de una mano: combo de cuatro golpes rápidos. Como el espadón, se anda y se corre tras un rato sin combatir, y el ataque al correr embiste.",
 	WeaponData.WeaponType.FLAME_THROWER: "Chorro de fuego continuo. Click derecho: explosión que empuja a todos (y a ti).",
 	WeaponData.WeaponType.SPORE_BAZOOKA: "Proyectil de esporas que estalla en una nube corrosiva. Click derecho: perdigonazo.",
@@ -139,13 +140,13 @@ func _card(weapon_type: int, number: int) -> Button:
 	b.add_child(col)
 	var icon_path: String = ICONS.get(weapon_type, "")
 	if icon_path != "" and ResourceLoader.exists(icon_path):
-		var tr := TextureRect.new()
-		tr.texture = load(icon_path)
-		tr.custom_minimum_size = Vector2(110, 110)
-		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		col.add_child(tr)
+		var icon_rect := TextureRect.new()
+		icon_rect.texture = load(icon_path)
+		icon_rect.custom_minimum_size = Vector2(110, 110)
+		icon_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		col.add_child(icon_rect)
 	else:
 		var em := Label.new()
 		em.text = str(WeaponData.weapon_icons.get(weapon_type, "?"))

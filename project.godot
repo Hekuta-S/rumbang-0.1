@@ -125,3 +125,11 @@ enemy_tick_dt={
 "type": "float",
 "value": 0.033
 }
+world_actor_pos={
+"type": "vec3",
+"value": Vector3(0, -1000, 0)
+}
+world_pulse={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}

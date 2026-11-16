@@ -2134,6 +2134,111 @@ class KatanaStrategy extends ComboMeleeStrategy:
 			HitFeedback.freeze(0.06)
 
 
+class FistsStrategy extends ComboMeleeStrategy:
+	## Puños: combo de seis golpes alternando manos (fs1 derecha, fs2 = fs1 en espejo, fs3, fs4, fs5 = fs4 en espejo)
+	## y el remate fs6; corriendo, el puñetazo con carrerilla (fs_run). Zonas cortas: hay que pegarse al enemigo.
+	## El personaje espera con su reposo normal y pasa a la guardia de pelea al golpear (PlayerAnimationController).
+	## Clic derecho: lluvia de golpes (fs_special, el clip "golpe especial" dos veces): diez puñetazos, cada uno su
+	## propio golpe; cuesta energía y tiene enfriamiento.
+	const SPECIAL := "fs_special"
+	const SPECIAL_COOLDOWN := 4.0
+	var _special_ready_at := 0.0
+
+	func _init(controller: PlayerCombatController) -> void:
+		super(controller)
+		weapon = WeaponData.WeaponType.FISTS
+		var jab := {"size": Vector3(2.2, 2.0, 2.4), "center": Vector3(0.0, 1.0, -1.1), "dmg": 1.0,
+			"kb": 4.0, "shake": 0.14, "stun": 0.08, "sfx": ["swing_light", -3.0, 1.1]}
+		hits = {
+			"fs1": jab,
+			"fs2": jab.merged({"sfx": ["swing_light", -3.0, 1.18]}, true),
+			"fs3": jab.merged({"dmg": 1.05, "sfx": ["swing_light", -3.0, 1.0]}, true),
+			"fs4": jab.merged({"dmg": 1.1, "kb": 5.0, "stun": 0.1, "sfx": ["swing_light", -2.0, 1.05]}, true),
+			"fs5": jab.merged({"dmg": 1.1, "kb": 5.0, "stun": 0.1, "sfx": ["swing_light", -2.0, 1.12]}, true),
+			# Remate del combo: más daño, empuje y aturdimiento
+			"fs6": {"size": Vector3(2.6, 2.2, 2.8), "center": Vector3(0.0, 1.0, -1.3), "dmg": 1.6,
+				"kb": 10.0, "shake": 0.35, "stun": 0.25, "sfx": ["swing_sweep", -1.0, 0.95]},
+			"fs_run": {"size": Vector3(2.4, 2.2, 3.4), "center": Vector3(0.0, 1.0, -1.6), "dmg": 1.3,
+				"kb": 8.0, "shake": 0.28, "stun": 0.18, "sfx": ["swing_sweep", -2.0, 1.05]},
+			# Cada puñetazo de la lluvia: poco daño y casi sin empuje (el enemigo se queda delante para el siguiente)
+			"fs_special": {"size": Vector3(2.4, 2.2, 2.6), "center": Vector3(0.0, 1.0, -1.2), "dmg": 0.6,
+				"kb": 1.2, "shake": 0.12, "stun": 0.06, "sfx": ["swing_light", -4.0, 1.25]},
+		}
+
+	func _on_strike(anim_name: String, _h: Dictionary) -> void:
+		if anim_name == "fs6":
+			HitFeedback.freeze(0.05)
+
+	## Mano que pega en cada golpe (las estelas): "R", "L" o "RL". fs2/fs5 son espejos (izquierda); en golpe2 y en
+	## la lluvia se mueven las dos.
+	const TRAIL_HANDS := {"fs1": "R", "fs2": "L", "fs3": "RL", "fs4": "R", "fs5": "L", "fs6": "R", "fs_run": "R",
+		"fs_special": "RL"}
+	const TRAIL_LEAD := 0.14     ## s de clip antes de la ventana de golpe: la estela dibuja el recorrido del puño
+	const TRAIL_AFTER := 0.06    ## s de clip después de cerrarse
+	var _trail_hooked := false
+
+	## La estela se enciende con la acción, un poco antes de cada ventana de golpe (al abrirse la ventana el puño ya
+	## está estirado y solo se vería la vuelta).
+	func _connect_animation_signals() -> void:
+		super()
+		var ac = c.player.animation_controller if (c.player and is_instance_valid(c.player)) else null
+		if not _trail_hooked and ac and ac.has_signal("net_action"):
+			ac.net_action.connect(_on_action_started)
+			_trail_hooked = true
+
+	func _emit_trails(_duration: float) -> void:
+		pass     # las enciende _on_action_started
+
+	func _on_action_started(anim_name: String, _from: float, speed: float) -> void:
+		if not TRAIL_HANDS.has(anim_name) or not is_instance_valid(c.player) or c.player.current_weapon() != weapon:
+			return
+		var ac = c.player.animation_controller
+		var spd: float = speed if speed > 0.0 else ac._combo_action_speed(anim_name)
+		for w in PlayerAnimationController.attack_windows(anim_name):
+			var at := maxf(float(w[0]) - TRAIL_LEAD, 0.0) / spd
+			var dur := (float(w[1]) - float(w[0]) + TRAIL_LEAD + TRAIL_AFTER) / spd
+			var power := clampf(float(hits.get(anim_name, {}).get("dmg", 1.0)), 0.9, 1.6)
+			if at <= 0.0:
+				_emit_fist(anim_name, dur, power)
+			else:
+				c.player.get_tree().create_timer(at).timeout.connect(_emit_fist_if.bind(anim_name, dur, power))
+
+	func _emit_fist_if(anim_name: String, dur: float, power: float) -> void:
+		if is_instance_valid(c.player) and c.player.animation_controller._current_action_name == anim_name:
+			_emit_fist(anim_name, dur, power)
+
+	func _emit_fist(anim_name: String, dur: float, power: float) -> void:
+		var vis = c.player.weapon_visuals
+		if vis == null:
+			return
+		var hands: String = TRAIL_HANDS[anim_name]
+		for i in vis.fist_trails.size():
+			var t: BladeTrail = vis.fist_trails[i]
+			if hands.contains("R" if i == 0 else "L") and is_instance_valid(t) and t.is_visible_in_tree():
+				t.emit(dur, power)
+
+	func special_cooldown_left() -> float:
+		return maxf(_special_ready_at - Time.get_ticks_msec() / 1000.0, 0.0)
+
+	func fists_special() -> bool:
+		var now := Time.get_ticks_msec() / 1000.0
+		if now < _special_ready_at or (c.player.movement_controller and c.player.movement_controller.is_dodging()):
+			return false
+		var ac = c.player.animation_controller
+		var lib: AnimationLibrary = ac.anim_player.get_animation_library("") if ac and ac.anim_player else null
+		if lib == null or not lib.has_animation(SPECIAL):
+			return false
+		if not _pay_special():
+			return false
+		_special_ready_at = now + SPECIAL_COOLDOWN
+		_connect_animation_signals()
+		_face(_dungeon_aim(), 0.4)
+		ac.play_melee_special(SPECIAL)
+		var speed: float = float(PlayerAnimationController.COMBOS[weapon]["speeds"].get(SPECIAL, 1.0))
+		c.attack_cooldown = maxf(c.attack_cooldown, lib.get_animation(SPECIAL).length / speed * 0.8)
+		return true
+
+
 class BowStrategy extends WeaponStrategy:
 	## Arco (mazmorra). Ataques:
 	##  - Clic: combo de tres disparos (bow_shot_1/2/3, sin pasar CHAIN_RESET s entre ellos). Los dos primeros son

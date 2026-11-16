@@ -51,7 +51,29 @@ var minimap: Minimap
 var pause_button: Button
 var _mobile := false
 
+## Contorno de tinta (cómic) de la tira de armas y de sus iconos (scripts/ui/ink_outline.gdshader).
+const INK_OUTLINE := preload("res://scripts/ui/ink_outline.gdshader")
+
+func _ink_strip() -> void:
+	var hub := get_node_or_null("Control/HubImage") as TextureRect
+	if hub == null:
+		return
+	var m := ShaderMaterial.new()
+	m.shader = INK_OUTLINE
+	m.set_shader_parameter("ink_px", 6.0)          # la imagen es grande (2172 px): 6 px de textura ≈ 2 en pantalla
+	m.set_shader_parameter("shadow_px", Vector2(7.0, 9.0))
+	hub.material = m
+	var icon_mat := ShaderMaterial.new()
+	icon_mat.shader = INK_OUTLINE
+	icon_mat.set_shader_parameter("ink_px", 14.0)  # iconos de 648 px dibujados a ~45: hace falta más grosor
+	icon_mat.set_shader_parameter("shadow_px", Vector2(10.0, 14.0))
+	for icon in weapon_slots:
+		if icon is CanvasItem:
+			(icon as CanvasItem).material = icon_mat
+
 func _ready() -> void:
+	_ink_strip()
+	add_to_group("hud")
 	# Ya no hay pisos: se oculta el panel de nivel (el cronómetro es la referencia)
 	if floor_label:
 		floor_label.get_parent().get_parent().visible = false
@@ -135,6 +157,14 @@ func _process(delta: float) -> void:
 		fps_label.text = "FPS: %d" % Engine.get_frames_per_second()
 	if GameData.game_mode == "dungeon" and stats_panel and stats_panel.visible:
 		_follow_player_with_stats(delta)
+	if GameData.game_mode == "dungeon" and crosshair:
+		crosshair.visible = wants_crosshair()
+
+## Mazmorra con cámara centrada (estilo Elden Ring): la mira solo sale con el arco en la mano.
+func wants_crosshair() -> bool:
+	var player := get_tree().get_first_node_in_group("player")
+	return player != null and player.has_method("current_weapon") \
+		and int(player.current_weapon()) == WeaponData.WeaponType.BOW
 
 ## Mazmorra: no hay experiencia, así que se oculta su barra y la barra de armas baja hasta tapar ese hueco
 ## (la franja de la XP queda fuera de pantalla). HubImage está anclado abajo al centro, así que basta moverlo.
@@ -375,6 +405,25 @@ func play_level_up_confetti() -> void:
 	cleanup.tween_callback(overlay.queue_free)
 
 var _shown_gold := -1
+var _souls_label: Label
+
+## Almas de la partida en curso (mazmorra, SoulStats). La etiqueta se crea al primer uso junto al oro.
+func update_souls(souls: int) -> void:
+	if _souls_label == null:
+		_souls_label = Label.new()
+		_souls_label.name = "SoulsLabel"
+		_souls_label.add_theme_font_size_override("font_size", 12)
+		_souls_label.add_theme_color_override("font_color", Color(0.75, 0.85, 1.0))
+		_souls_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+		_souls_label.add_theme_constant_override("outline_size", 4)
+		_souls_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		var gold_panel := gold_label.get_parent().get_parent() if gold_label else null
+		if vitals_row and gold_panel and gold_panel.get_parent() == vitals_row:
+			vitals_row.add_child(_souls_label)
+			vitals_row.move_child(_souls_label, gold_panel.get_index() + 1)
+		else:
+			$Control.add_child(_souls_label)
+	_souls_label.text = "ALMAS %d" % souls
 
 func update_gold(gold: int) -> void:
 	if gold_label:

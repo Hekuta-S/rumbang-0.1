@@ -21,12 +21,17 @@ var camera_pivot: Node3D
 
 ## Mazmorra: brazo con esfera de colisión (no atraviesa paredes), regreso suave tras chocar,
 ## zoom con la rueda y seguimiento del objetivo fijado (TargetLockController).
-## Estilo God of War (2018): cámara muy cerca, a la altura del hombro derecho, con campo de visión
-## cerrado; el personaje ocupa el tercio izquierdo y el punto de mira queda libre en el centro.
-const DUNGEON_SPRING_LENGTH := 1.9
-const DUNGEON_MIN_LENGTH := 1.4
-const DUNGEON_MAX_LENGTH := 3.8
-const DUNGEON_START_PITCH := -0.1    ## empieza mirando un poco hacia abajo (el horizonte queda sobre el crosshair)
+## Estilo Elden Ring: cámara centrada detrás del personaje, algo por encima de la cabeza y más lejos
+## que la antigua al hombro (God of War); se ve al personaje entero y el espacio a su alrededor.
+const DUNGEON_SPRING_LENGTH := 3.4
+const DUNGEON_MIN_LENGTH := 2.2
+const DUNGEON_MAX_LENGTH := 5.5
+const DUNGEON_START_PITCH := -0.14   ## empieza mirando un poco hacia abajo
+## Cámara centrada: sin desplazamiento lateral; algo por encima del pivote del brazo (pecho) para que la
+## cabeza quede justo bajo el centro de la pantalla y el cuerpo entero por encima de la barra de armas.
+const DUNGEON_CENTER := Vector3(0.0, 0.55, 0.0)
+## true = cámara al hombro (SHOULDER, la de antes); false = centrada (DUNGEON_CENTER).
+const USE_SHOULDER := false
 ## Supervivencia: camara algo mas alta que la de la escena (inclinacion -20 grados y 5,2 m): mas vista del campo.
 const SURVIVAL_START_PITCH := -0.66
 const SURVIVAL_SPRING_LENGTH := 6.0
@@ -68,7 +73,7 @@ func _ready() -> void:
 		spring_arm.shape = sphere
 		target_spring_length = DUNGEON_SPRING_LENGTH
 		spring_arm.spring_length = target_spring_length
-		camera_offset = SHOULDER
+		camera_offset = SHOULDER if USE_SHOULDER else DUNGEON_CENTER
 		camera.fov = FOV_BASE
 		target_pitch = DUNGEON_START_PITCH
 		spring_arm.rotation.x = target_pitch
@@ -126,7 +131,8 @@ func _physics_process(delta: float) -> void:
 		else:
 			_cam_len = lerpf(_cam_len, hit, 1.0 - exp(-ARM_RETURN_SPEED * delta))
 		arm_pull = _cam_len - hit
-		_update_shoulder(delta)
+		if USE_SHOULDER:
+			_update_shoulder(delta)
 		var mc = player.movement_controller
 		var rolling: bool = mc != null and mc.is_dodging()
 		var sprinting: bool = mc != null and mc.has_method("gs_running") and mc.gs_running()

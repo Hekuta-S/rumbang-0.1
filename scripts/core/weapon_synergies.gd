@@ -40,6 +40,7 @@ const TAGS := {
 	W.GREATSWORD: ["filo"],
 	W.SWORD: ["filo"],
 	W.KATANA: ["filo", "fuego"],
+	W.FISTS: ["arcano"],
 	W.BOW: ["filo", "naturaleza"],
 }
 

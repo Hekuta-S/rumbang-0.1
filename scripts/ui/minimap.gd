@@ -4,7 +4,9 @@ extends Control
 ## Minimapa de la mazmorra (arriba a la derecha, ver HudLayout). Compacto: sigue al jugador en una ventana de unos
 ## 80 m. Expandido (M o tocarlo): muestra toda la zona explorada. Niebla de exploración: solo se dibujan las
 ## celdas que algún jugador ha pisado de cerca. Marca jugadores, cofres, portal y altar (los enemigos no aparecen).
-## El mapa se pinta en una textura de 1 píxel por celda (se actualiza solo al descubrir celdas nuevas).
+## El mapa se pinta en una textura de 1 píxel por celda (se actualiza solo al descubrir celdas nuevas) y se
+## dibuja con minimap_ink.gdshader: bordes suaves con contorno de tinta y sombra (cómic), no pixel art.
+## Capas dentro del recorte: _map_layer (el mapa, con el shader) y encima _view (marcas y ayuda).
 
 const COMPACT := HudLayout.MAP_COMPACT   ## lado del panel compacto (px; 150 en pantallas estrechas)
 const MAX_EXPANDED := 600.0           ## lado máximo del panel expandido
@@ -15,16 +17,21 @@ const MARGIN := HudLayout.MAP_MARGIN
 const INSET := 6.0
 const EXPAND_SPEED := 9.0
 
-const FLOOR_COL := Color(0.56, 0.5, 0.66, 0.95)
-const CORRIDOR_COL := Color(0.42, 0.4, 0.52, 0.95)
+const FLOOR_COL := Color(0.56, 0.5, 0.66, 1.0)
+const CORRIDOR_COL := Color(0.42, 0.4, 0.52, 1.0)
+const INK_PX := 2.5                   ## grosor del contorno de tinta del mapa (px de pantalla)
+const INK_SHADER := preload("res://scripts/ui/minimap_ink.gdshader")
 const ALTAR_COL := Color(1.0, 0.25, 0.25)
 const CHEST_COL := Color(1.0, 0.8, 0.25)
 const PORTAL_COL := Color(0.85, 0.35, 1.0)
 const ME_COL := Color(0.25, 0.95, 1.0)
 const MATE_COL := Color(0.4, 1.0, 0.5)
 
-var _view: Control
+var _clip: Control                    ## recorta el mapa al panel
+var _map_layer: Control               ## el mapa (shader de tinta)
+var _view: Control                    ## marcas y texto, encima del mapa
 var _map: DungeonMap
+var _enc: DungeonEncounter           ## para el portal; se busca a la vez que el mapa (no en cada dibujo)
 var _map_id := -1
 var _find_t := 0.0
 var _reveal_t := 0.0
@@ -43,13 +50,28 @@ func _ready() -> void:
 	visible = GameData.game_mode == "dungeon"
 	# Pulsable en las dos plataformas (en escritorio el ratón suele estar capturado: ahí manda la M)
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	_clip = Control.new()
+	_clip.name = "Clip"
+	_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_clip.clip_contents = true
+	add_child(_clip)
+	_map_layer = Control.new()
+	_map_layer.name = "MapInk"
+	_map_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_map_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_map_layer.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR     # el shader corta el alfa: bordes suaves
+	var ink := ShaderMaterial.new()
+	ink.shader = INK_SHADER
+	ink.set_shader_parameter("ink_px", INK_PX)
+	_map_layer.material = ink
+	_map_layer.draw.connect(_draw_map)
+	_clip.add_child(_map_layer)
 	_view = Control.new()
 	_view.name = "View"
 	_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_view.clip_contents = true
-	_view.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_view.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_view.draw.connect(_draw_view)
-	add_child(_view)
+	_clip.add_child(_view)
 	apply_layout(Quality.is_mobile())
 
 ## Arriba a la derecha en las dos plataformas; se guarda la plataforma para los textos de ayuda.
@@ -88,8 +110,8 @@ func _layout() -> void:
 	offset_left = -MARGIN - side
 	offset_top = MARGIN
 	offset_bottom = MARGIN + side
-	_view.position = Vector2(INSET, INSET)
-	_view.size = Vector2(side - INSET * 2.0, side - INSET * 2.0)
+	_clip.position = Vector2(INSET, INSET)
+	_clip.size = Vector2(side - INSET * 2.0, side - INSET * 2.0)
 
 static func _ease(t: float) -> float:
 	return t * t * (3.0 - 2.0 * t)
@@ -101,10 +123,15 @@ func _process(delta: float) -> void:
 	if not is_equal_approx(_t, target):
 		_t = move_toward(_t, target, delta * EXPAND_SPEED * 0.5)
 		_layout()
+		queue_redraw()                    # el fondo del panel solo cambia al ampliarse/encogerse
 	_find_t -= delta
-	if not is_instance_valid(_map) and _find_t <= 0.0:
+	# find_child recorre todo el árbol: solo cada 0,5 s y mientras falte el mapa o el encuentro
+	if (not is_instance_valid(_map) or not is_instance_valid(_enc)) and _find_t <= 0.0:
 		_find_t = 0.5
-		_map = get_tree().root.find_child("ProceduralMap", true, false) as DungeonMap
+		if not is_instance_valid(_map):
+			_map = get_tree().root.find_child("ProceduralMap", true, false) as DungeonMap
+		if not is_instance_valid(_enc):
+			_enc = get_tree().root.find_child("DungeonEncounter", true, false) as DungeonEncounter
 	if not is_instance_valid(_map) or _map._cells.is_empty():
 		return
 	# Mapa nuevo (otro nivel): nueva textura y niebla
@@ -116,7 +143,7 @@ func _process(delta: float) -> void:
 	if _reveal_t <= 0.0:
 		_reveal_t = 0.12
 		_reveal()
-	queue_redraw()
+	_map_layer.queue_redraw()
 	_view.queue_redraw()
 
 func _rebuild() -> void:
@@ -179,23 +206,27 @@ func _draw_view() -> void:
 	var prm := _view_params()
 	var s: float = prm["scale"]
 	var off: Vector2 = prm["offset"]
-	_view.draw_texture_rect(_tex, Rect2(off, Vector2(_dim) * s), false)
 	var dot := clampf(s * 0.9, 2.5, 5.0)
 	# Cofres y portal (solo si ya se ha descubierto su celda)
 	for ch in get_tree().get_nodes_in_group("treasure_chests"):
 		var cp := ch as TreasureChest
 		if cp != null and is_seen_world(cp.global_position):
 			_diamond(off + _px(cp.global_position) * s, dot * 1.6, Color(0.5, 0.45, 0.35) if cp.is_open else CHEST_COL)
-	var enc := get_tree().root.find_child("DungeonEncounter", true, false) as DungeonEncounter
+	var enc := _enc if is_instance_valid(_enc) else null
 	if enc != null and is_instance_valid(enc.portal) and is_seen_world(enc.portal.global_position):
 		var pp := off + _px(enc.portal.global_position) * s
+		_view.draw_arc(pp, dot * 1.8, 0.0, TAU, 14, HudDraw.INK, 5.0, true)
 		_view.draw_arc(pp, dot * 1.8, 0.0, TAU, 14, PORTAL_COL, 2.0, true)
+		_view.draw_circle(pp, dot * 0.8 + 1.5, HudDraw.INK)
 		_view.draw_circle(pp, dot * 0.8, PORTAL_COL)
 	for i in _map.rooms.size():
 		if _map.rooms[i]["type"] == "end" and is_seen_world(_map.room_center(i)):
 			var ep := off + _px(_map.room_center(i)) * s
-			_view.draw_line(ep + Vector2(-1, -1) * dot * 1.3, ep + Vector2(1, 1) * dot * 1.3, ALTAR_COL, 2.0, true)
-			_view.draw_line(ep + Vector2(1, -1) * dot * 1.3, ep + Vector2(-1, 1) * dot * 1.3, ALTAR_COL, 2.0, true)
+			for pass_i in 2:              # primero la tinta (más gruesa), luego el color
+				var xc: Color = HudDraw.INK if pass_i == 0 else ALTAR_COL
+				var xw := 6.0 if pass_i == 0 else 2.5
+				_view.draw_line(ep + Vector2(-1, -1) * dot * 1.3, ep + Vector2(1, 1) * dot * 1.3, xc, xw, true)
+				_view.draw_line(ep + Vector2(1, -1) * dot * 1.3, ep + Vector2(-1, 1) * dot * 1.3, xc, xw, true)
 	# Jugadores (el local en cian y con flecha de dirección)
 	var local := get_tree().get_first_node_in_group("player")
 	for p in NetPlayers.all():
@@ -210,12 +241,30 @@ func _draw_view() -> void:
 			var dir := Vector2(f.x, f.z).normalized() if Vector2(f.x, f.z).length() > 0.01 else Vector2.UP
 			var side := Vector2(-dir.y, dir.x)
 			var r := dot * 1.9
-			_view.draw_colored_polygon(PackedVector2Array([pp2 + dir * r * 1.3, pp2 - dir * r * 0.8 + side * r * 0.8, pp2 - dir * r * 0.3, pp2 - dir * r * 0.8 - side * r * 0.8]), ME_COL)
+			# flecha con contorno de tinta: dos triángulos (la flecha es cóncava por detrás)
+			var tip := pp2 + dir * r * 1.3
+			var notch := pp2 - dir * r * 0.3
+			var wing_a := pp2 - dir * r * 0.8 + side * r * 0.8
+			var wing_b := pp2 - dir * r * 0.8 - side * r * 0.8
+			var back := pp2 - dir * r * 1.15
+			_view.draw_colored_polygon(PackedVector2Array([tip + dir * 2.5, wing_a + (side - dir) * 2.2, back, wing_b - (side + dir) * 2.2]), HudDraw.INK)
+			_view.draw_colored_polygon(PackedVector2Array([tip, wing_a, notch]), ME_COL)
+			_view.draw_colored_polygon(PackedVector2Array([tip, notch, wing_b]), ME_COL.darkened(0.22))
 		else:
+			_view.draw_circle(pp2, dot * 1.1 + 1.8, HudDraw.INK)
 			_view.draw_circle(pp2, dot * 1.1, MATE_COL)
 	var hint := hint_text()
 	var hw := _font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x
 	HudDraw.text(_view, _font, Vector2(_view.size.x - hw - 6.0, _view.size.y - 6.0), hint, 10, Color(1, 1, 1, 0.55))
+
+## El mapa explorado, con bordes suaves y contorno de tinta (minimap_ink.gdshader).
+func _draw_map() -> void:
+	if _tex == null or not is_instance_valid(_map):
+		return
+	var prm := _view_params()
+	var r := Rect2(prm["offset"], Vector2(_dim) * float(prm["scale"]))
+	(_map_layer.material as ShaderMaterial).set_shader_parameter("uv_per_px", Vector2.ONE / r.size)
+	_map_layer.draw_texture_rect(_tex, r, false)
 
 ## Ayuda de la esquina: compacto "M · TOCA" (solo "TOCA" en móvil); ampliado "TOCA PARA CERRAR" (+ "M" en escritorio).
 func hint_text() -> String:
@@ -224,4 +273,4 @@ func hint_text() -> String:
 	return "TOCA" if _mobile else "M · TOCA"
 
 func _diamond(c: Vector2, r: float, col: Color) -> void:
-	_view.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -r), c + Vector2(r, 0), c + Vector2(0, r), c + Vector2(-r, 0)]), col)
+	HudDraw.inked_polygon(_view, PackedVector2Array([c + Vector2(0, -r), c + Vector2(r, 0), c + Vector2(0, r), c + Vector2(-r, 0)]), col)

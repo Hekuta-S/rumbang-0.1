@@ -29,8 +29,8 @@ const MANA_MAX := 100.0
 const MANA_REGEN := 5.0
 const MANA_DELAY := 1.4
 
-const DODGE_COST := 25.0
-const JUMP_COST := 14.0
+const DODGE_COST := 12.5
+const JUMP_COST := 7.0
 const SLAM_COST := 40.0              ## clavado con salto de la espalanza
 const CHARGE_COST := 20.0            ## lanzamiento cargado de la espalanza
 
@@ -45,6 +45,7 @@ const TABLE := {
 	W.GREATSWORD: {"kind": Kind.ENERGY, "cost": 19.0, "alt": 0.0},      ## tres tajos pesados; sin especial
 	W.SWORD: {"kind": Kind.ENERGY, "cost": 11.0, "alt": 0.0},           ## cuatro golpes ligeros; sin especial
 	W.KATANA: {"kind": Kind.ENERGY, "cost": 12.0, "alt": 30.0},         ## cuatro tajos y el tajo especial
+	W.FISTS: {"kind": Kind.ENERGY, "cost": 6.0, "alt": 30.0},           ## puñetazos baratos; la lluvia de golpes
 	W.BOW: {"kind": Kind.ENERGY, "cost": 6.0, "alt": 22.0},             ## flechas baratas; tensar el disparo cargado
 	W.SERPENTS: {"kind": Kind.MANA, "cost": 14.0, "alt": 25.0},
 	W.DUSTS: {"kind": Kind.MANA, "cost": 10.0, "alt": 14.0},

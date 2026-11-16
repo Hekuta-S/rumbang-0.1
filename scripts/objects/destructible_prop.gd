@@ -166,6 +166,11 @@ static func _pieces_for(p_kind: String, file: String, mesh: Mesh, mesh_xf: Trans
 	var mat := mesh.surface_get_material(0)
 	var path := PIECES_DIR + file + "_pieces.glb"
 	var has_glb := ResourceLoader.exists(path)
+	# Prop con textura cartoon horneada: sus piezas tienen su propio atlas (<archivo>_pieces.png)
+	if has_glb and ProceduralMap.is_toon_material(mat):
+		var piece_mat := ProceduralMap.toon_prop_material(file + "_pieces")
+		if piece_mat != null:
+			mat = piece_mat
 	# Partir la malla / sacar los cascos tarda segundos (GDScript): el resultado se guarda en
 	# resources/baked y las siguientes cargas lo leen de ahí.
 	var vsig := _mesh_signature(mesh, path if has_glb else "")
@@ -201,6 +206,9 @@ static func _mesh_signature(mesh: Mesh, glb_path: String) -> int:
 	var arr := mesh.surface_get_arrays(0)
 	var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 	var h := v.size()
+	# Con o sin UV de textura horneada: las piezas guardadas antes de tenerla no valen (saldrían negras)
+	if arr[Mesh.ARRAY_TEX_UV] != null:
+		h = h * 31 + 7
 	if glb_path != "":
 		var f := FileAccess.open(glb_path, FileAccess.READ)
 		if f:
@@ -261,6 +269,7 @@ static func _split_components(mesh: Mesh, mesh_xf: Transform3D, mat: Material) -
 	var nrm = arr[Mesh.ARRAY_NORMAL]
 	var col = arr[Mesh.ARRAY_COLOR]
 	var uv2 = arr[Mesh.ARRAY_TEX_UV2]           # clase de detalle (ProceduralMap.detail_class)
+	var uv1 = arr[Mesh.ARRAY_TEX_UV]            # UV de la textura horneada (prop_toon), si la hay
 	var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
 	var parent := PackedInt32Array()
 	parent.resize(v.size())
@@ -292,6 +301,7 @@ static func _split_components(mesh: Mesh, mesh_xf: Transform3D, mat: Material) -
 		var nn := PackedVector3Array()
 		var nc := PackedColorArray()
 		var nu := PackedVector2Array()
+		var nt := PackedVector2Array()
 		var ni := PackedInt32Array()
 		for t in tris:
 			for k in 3:
@@ -305,6 +315,8 @@ static func _split_components(mesh: Mesh, mesh_xf: Transform3D, mat: Material) -
 						nc.append(col[src])
 					if uv2 != null:
 						nu.append(uv2[src])
+					if uv1 != null:
+						nt.append(uv1[src])
 				ni.append(remap[src])
 		var a := []
 		a.resize(Mesh.ARRAY_MAX)
@@ -315,6 +327,8 @@ static func _split_components(mesh: Mesh, mesh_xf: Transform3D, mat: Material) -
 			a[Mesh.ARRAY_COLOR] = nc
 		if not nu.is_empty():
 			a[Mesh.ARRAY_TEX_UV2] = nu
+		if not nt.is_empty():
+			a[Mesh.ARRAY_TEX_UV] = nt
 		a[Mesh.ARRAY_INDEX] = ni
 		var m := ArrayMesh.new()
 		m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, a)
@@ -474,6 +488,9 @@ func _spawn_dust(pos: Vector3) -> void:
 	dmat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	dmat.vertex_color_use_as_albedo = true
 	dmat.albedo_texture = _dust_texture()
+	var toon := ToonFX.puff_material(dmat)              # nubes dibujadas (cómic) si está la textura
+	if toon:
+		ToonFX.vary(dust)
 	quad.material = dmat
 	dust.mesh = quad
 	dust.one_shot = true
@@ -496,8 +513,11 @@ func _spawn_dust(pos: Vector3) -> void:
 	curve.add_point(Vector2(1.0, 1.8))
 	dust.scale_amount_curve = curve
 	var grad := Gradient.new()
-	grad.set_color(0, Color(0.5, 0.45, 0.38, 0.55))
-	grad.set_color(1, Color(0.5, 0.45, 0.38, 0.0))
+	var dcol := Color(0.78, 0.72, 0.63) if toon else Color(0.5, 0.45, 0.38)
+	grad.set_color(0, Color(dcol.r, dcol.g, dcol.b, 0.9 if toon else 0.55))
+	if toon:
+		grad.add_point(0.6, Color(dcol.r, dcol.g, dcol.b, 0.8))    # se mantiene y se apaga al final
+	grad.set_color(grad.get_point_count() - 1, Color(dcol.r, dcol.g, dcol.b, 0.0))
 	dust.color_ramp = grad
 	dust.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	get_parent().add_child(dust)

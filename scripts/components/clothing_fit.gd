@@ -17,28 +17,71 @@ const PATH := "res://resources/clothing_fit.json"
 const BODY_HEIGHT := 1.7
 const DEFAULT_BONE := "mixamorig_Spine2"
 
-## Ids de las prendas que hay en DIR (nombre del .glb sin extensión), ordenados.
-static func garment_ids() -> Array[String]:
+## Perfiles de cuerpo: el mismo sistema (editor + piel por vecindad) sirve para la ropa de Riva y para las
+## armaduras de los goblins normales (mismo esqueleto Mixamo). Cada perfil tiene su carpeta de modelos, su JSON
+## de ajustes y la altura del cuerpo en metros. Todas las funciones con `profile` usan Riva por defecto.
+## "riva_armor": las MISMAS piezas Uruk que llevan los goblins, ajustadas sobre Riva (el botín del jugador:
+## EquipmentDB "uruk", CharacterLookApplier._apply_uruk). "armor" = el perfil usa las ranuras de armadura (GOBLIN_SLOTS).
+const PROFILE_RIVA := "riva"
+const PROFILE_GOBLIN := "goblin"
+const PROFILE_RIVA_ARMOR := "riva_armor"
+const ARMOR_DIR := "res://assets/models/entities/enemigos/goblins/armaduras/"
+const PROFILES := {
+	PROFILE_RIVA: {"dir": DIR, "path": PATH, "height": BODY_HEIGHT, "body": "riva", "armor": false},
+	PROFILE_GOBLIN: {"dir": ARMOR_DIR, "path": "res://resources/goblin_armor_fit.json", "height": 1.35,
+			"body": "goblin", "armor": true},
+	PROFILE_RIVA_ARMOR: {"dir": ARMOR_DIR, "path": "res://resources/riva_armor_fit.json", "height": BODY_HEIGHT,
+			"body": "riva", "armor": true},
+}
+
+## Cuerpo del perfil: "riva" o "goblin".
+static func body_of(profile: String = PROFILE_RIVA) -> String:
+	return String(PROFILES.get(profile, PROFILES[PROFILE_RIVA])["body"])
+
+## El perfil trabaja con piezas de armadura (pechera / taparrabo / casco) en vez de ropa.
+static func is_armor(profile: String = PROFILE_RIVA) -> bool:
+	return bool(PROFILES.get(profile, PROFILES[PROFILE_RIVA])["armor"])
+
+static func dir_of(profile: String = PROFILE_RIVA) -> String:
+	return String(PROFILES.get(profile, PROFILES[PROFILE_RIVA])["dir"])
+
+static func path_of(profile: String = PROFILE_RIVA) -> String:
+	return String(PROFILES.get(profile, PROFILES[PROFILE_RIVA])["path"])
+
+static func body_height(profile: String = PROFILE_RIVA) -> float:
+	return float(PROFILES.get(profile, PROFILES[PROFILE_RIVA])["height"])
+
+## Ranuras que ofrece cada perfil (el goblin: armadura de cuerpo y casco).
+static func slots(profile: String = PROFILE_RIVA) -> Array:
+	return GOBLIN_SLOTS if is_armor(profile) else SLOTS
+
+## Ids de las prendas que hay en la carpeta del perfil (nombre del .glb sin extensión), ordenados.
+static func garment_ids(profile: String = PROFILE_RIVA) -> Array[String]:
 	var out: Array[String] = []
-	for f in ResourceLoader.list_directory(DIR):
+	for f in ResourceLoader.list_directory(dir_of(profile)):
 		var file := String(f)
 		if file.ends_with(".glb"):
 			out.append(file.get_basename())
 	out.sort()
 	# Cada zapato trae un solo pie: se añade su gemelo espejado para colocar el otro
-	var all := load_all()
+	var all := load_all(profile)
 	var with_twins: Array[String] = []
 	for id in out:
 		with_twins.append(id)
-		if slot_of(id, all.get(id, {})) == SLOT_SHOES:
+		if slot_of(id, all.get(id, {}), profile) == SLOT_SHOES:
 			with_twins.append(id + TWIN)
 	return with_twins
 
 static var _cache: Dictionary = {}
 static var _cache_loaded := false
+static var _profile_caches: Dictionary = {}   ## perfil (que no sea Riva) -> ajustes guardados
 
 ## Ajustes guardados (con caché): es lo que usa el juego. El editor usa load_all() para ver siempre lo último.
-static func fits() -> Dictionary:
+static func fits(profile: String = PROFILE_RIVA) -> Dictionary:
+	if profile != PROFILE_RIVA:
+		if not _profile_caches.has(profile):
+			_profile_caches[profile] = load_all(profile)
+		return _profile_caches[profile]
 	if not _cache_loaded:
 		_cache = load_all()
 		_cache_loaded = true
@@ -46,6 +89,7 @@ static func fits() -> Dictionary:
 
 static func reload_fits() -> void:
 	_cache_loaded = false
+	_profile_caches.clear()
 
 const SLOT_SHIRT := "shirt"
 const SLOT_PANTS := "pants"
@@ -57,14 +101,48 @@ const TWIN := "__der"
 const SHOE_WORDS := ["zapato", "shoe", "converse", "bota", "sneaker", "tenis"]
 const PANTS_BONE := "mixamorig_Hips"
 const PANTS_WORDS := ["pantalon", "pants", "jean", "short", "falda", "trouser"]
+## Goblin (piezas "<pieza>_<set>[_izq|_der]", ver tools/blender_goblin_armor.py):
+##   "shirt"  = pechera: peto_<set> + hombrera_<set>_izq/_der, un SET que se pone entero pero cada pieza tiene su ajuste
+##   "pants"  = taparrabo_<set> (cinturón + faldón)
+##   "helmet" = casco_* (colgado de la cabeza)
+const SLOT_HELMET := "helmet"
+const GOBLIN_SLOTS := [SLOT_SHIRT, SLOT_PANTS, SLOT_HELMET]
+const GOBLIN_SLOT_NAMES := ["Pechera (peto / hombreras)", "Taparrabo", "Casco"]
+const HELMET_WORDS := ["casco", "helmet", "yelmo"]
+const LOINCLOTH_WORDS := ["taparrabo", "faldon"]
+const HELMET_BONE := "mixamorig_Head"
+const SIDE_L := "_izq"
+const SIDE_R := "_der"
+
+## Set de una pieza del goblin: "peto_uruk" y "hombrera_uruk_izq" -> "uruk" (el nombre sin la pieza ni el lado).
+static func armor_set(id: String) -> String:
+	var base := id.trim_suffix(SIDE_L).trim_suffix(SIDE_R)
+	var cut := base.find("_")
+	return base.substr(cut + 1) if cut >= 0 else base
+
+## La pieza del otro lado (hombrera izquierda <-> derecha), o "" si no tiene lado.
+static func side_twin(id: String) -> String:
+	if id.ends_with(SIDE_L):
+		return id.trim_suffix(SIDE_L) + SIDE_R
+	if id.ends_with(SIDE_R):
+		return id.trim_suffix(SIDE_R) + SIDE_L
+	return ""
 
 ## Ranura de una prenda: la que dice su ajuste ("slot") o, si no la trae, la que sugiere el nombre del .glb
 ## (pantalon_*, jeans_*, short_*… = pantalones; lo demás = camiseta).
-static func slot_of(id: String, entry: Dictionary = {}) -> String:
+static func slot_of(id: String, entry: Dictionary = {}, profile: String = PROFILE_RIVA) -> String:
 	var s := String(entry.get("slot", ""))
-	if SLOTS.has(s):
+	if slots(profile).has(s):
 		return s
 	id = base_id(id).to_lower()
+	if is_armor(profile):
+		for w in HELMET_WORDS:
+			if id.contains(w):
+				return SLOT_HELMET
+		for w in LOINCLOTH_WORDS:
+			if id.contains(w):
+				return SLOT_PANTS
+		return SLOT_SHIRT
 	for w in SHOE_WORDS:
 		if id.contains(w):
 			return SLOT_SHOES
@@ -86,12 +164,12 @@ static func twin_id(id: String) -> String:
 
 ## Prendas con ajuste guardado y modelo disponible: son las que se pueden elegir en el juego.
 ## `slot` ("shirt"/"pants") filtra por ranura; vacío = todas.
-static func fitted_ids(slot: String = "") -> Array[String]:
+static func fitted_ids(slot: String = "", profile: String = PROFILE_RIVA) -> Array[String]:
 	var out: Array[String] = []
-	var all := fits()
+	var all := fits(profile)
 	for id in all:
-		if ResourceLoader.exists(DIR + String(id) + ".glb") \
-				and (slot == "" or slot_of(String(id), all[id]) == slot):
+		if ResourceLoader.exists(dir_of(profile) + String(id) + ".glb") \
+				and (slot == "" or slot_of(String(id), all[id], profile) == slot):
 			out.append(String(id))
 	out.sort()
 	return out
@@ -101,13 +179,13 @@ static func pretty(id: String) -> String:
 	return n + " (pie der.)" if is_twin(id) else n
 
 ## Lee todos los ajustes guardados: id -> entrada (diccionario vacío si no hay archivo).
-static func load_all() -> Dictionary:
-	var txt := FileAccess.get_file_as_string(PATH)
+static func load_all(profile: String = PROFILE_RIVA) -> Dictionary:
+	var txt := FileAccess.get_file_as_string(path_of(profile))
 	var parsed: Variant = JSON.parse_string(txt) if txt != "" else null
 	return parsed if parsed is Dictionary else {}
 
-static func save_all(all: Dictionary) -> Error:
-	var file := FileAccess.open(PATH, FileAccess.WRITE)
+static func save_all(all: Dictionary, profile: String = PROFILE_RIVA) -> Error:
+	var file := FileAccess.open(path_of(profile), FileAccess.WRITE)
 	if file == null:
 		return FileAccess.get_open_error()
 	var keys := all.keys()
@@ -159,18 +237,18 @@ static func skeleton_transform(entry: Dictionary, ms: float) -> Transform3D:
 
 ## Carga una prenda y la devuelve en un Node3D cuya malla queda centrada en el origen y con su lado mayor = 1.
 ## Devuelve {"node": Node3D, "extent": Vector3 (tamaño normalizado)} o {} si no se puede cargar.
-static func normalized(id: String) -> Dictionary:
-	var path := DIR + base_id(id) + ".glb"
+static func normalized(id: String, profile: String = PROFILE_RIVA) -> Dictionary:
+	var path := dir_of(profile) + base_id(id) + ".glb"
 	var res: Variant = load(path) if ResourceLoader.exists(path) else null
 	if not (res is PackedScene):
 		return {}
 	var inst := (res as PackedScene).instantiate() as Node3D
-	var wrap := Node3D.new()
-	wrap.name = "Prenda_" + id
-	wrap.add_child(inst)
+	var wrapper := Node3D.new()
+	wrapper.name = "Prenda_" + id
+	wrapper.add_child(inst)
 	var box := _tree_aabb(inst)
 	if box.size == Vector3.ZERO:
-		wrap.free()
+		wrapper.free()
 		return {}
 	var k := 1.0 / maxf(box.size[box.get_longest_axis_index()], 0.0001)
 	if is_twin(id):
@@ -179,7 +257,7 @@ static func normalized(id: String) -> Dictionary:
 		inst.transform = Transform3D(Basis.from_scale(m * k), m * (-box.get_center() * k))
 	else:
 		inst.transform = Transform3D(Basis.from_scale(Vector3.ONE * k), -box.get_center() * k)
-	return {"node": wrap, "extent": box.size * k}
+	return {"node": wrapper, "extent": box.size * k}
 
 # ───────────── Prenda "pegada" al cuerpo (skinning por vecindad) ─────────────
 ## Las prendas son mallas rígidas: para que sigan al cuerpo y a los brazos se coloca la malla con su ajuste y a cada
@@ -196,22 +274,23 @@ static var _skin_cache: Dictionary = {}
 
 ## Malla(s) de la prenda `id` con su ajuste `entry` y los pesos del cuerpo `body` (MeshInstance3D con Skin).
 ## `ms` = metros por unidad del esqueleto. Devuelve MeshInstance3D sueltos (sin añadir al árbol); se cachea la malla.
-static func build_skinned(id: String, entry: Dictionary, body: MeshInstance3D, ms: float) -> Array[MeshInstance3D]:
+static func build_skinned(id: String, entry: Dictionary, body: MeshInstance3D, ms: float, profile: String = PROFILE_RIVA) -> Array[MeshInstance3D]:
 	var out: Array[MeshInstance3D] = []
 	if body == null or body.mesh == null or body.skin == null:
 		return out
 	var t := skeleton_transform(entry, ms)
 	var arms: Dictionary = parse_entry(entry)["arms"]
-	if arms.is_empty() and slot_of(id, entry) == SLOT_SHOES:
+	if arms.is_empty() and slot_of(id, entry, profile) == SLOT_SHOES:
 		# Un pie sin pose guardada se colocó con las piernas como las dejó su pareja (el editor conserva la pose)
-		arms = parse_entry(fits().get(twin_id(id), {}))["arms"]
+		arms = parse_entry(fits(profile).get(twin_id(id), {}))["arms"]
 	var arms_key := JSON.stringify(arms, "", true)
-	var key := "%s|%s|%s|%s" % [id, str(t), arms_key, body.mesh.get_instance_id()]
+	var key := "%s|%s|%s|%s|%s" % [profile, id, str(t), arms_key, body.mesh.get_instance_id()]
 	if not _skin_cache.has(key):
-		var disk := "%s_%s" % [id, ("v%d|%s|%s|%d" % [SKIN_VERSION, str(t), arms_key, (body.mesh.get_aabb().size.y * 1000000.0)]).md5_text().substr(0, 12)]
+		var pre := id if profile == PROFILE_RIVA else profile + "_" + id
+		var disk := "%s_%s" % [pre, ("v%d|%s|%s|%d" % [SKIN_VERSION, str(t), arms_key, (body.mesh.get_aabb().size.y * 1000000.0)]).md5_text().substr(0, 12)]
 		var meshes := _load_baked(disk)
 		if meshes.is_empty():
-			meshes = _skin_meshes(id, t, body, arms, String(parse_entry(entry)["bone"]) if slot_of(id, entry) == SLOT_SHOES else "")
+			meshes = _skin_meshes(id, t, body, arms, String(parse_entry(entry)["bone"]) if slot_of(id, entry, profile) == SLOT_SHOES else "", profile)
 			_save_baked(disk, meshes)
 		_skin_cache[key] = meshes
 	for m in _skin_cache[key]:
@@ -253,21 +332,21 @@ static func _save_baked(name: String, meshes: Array) -> void:
 ## Con pose de brazos (`arms`, la del editor al ajustar la prenda): la prenda se colocó sobre el cuerpo con los brazos en
 ## esa pose, así que los pesos se toman del cuerpo EN ESA POSE y cada vértice se lleva luego a la pose de reposo
 ## deshaciendo su mezcla de huesos (inversa del skinning). Así las mangas quedan pegadas a los brazos y no al torso.
-static func _skin_meshes(id: String, t: Transform3D, body: MeshInstance3D, arms: Dictionary = {}, shoe_bone: String = "") -> Array:
-	var n := normalized(id)
+static func _skin_meshes(id: String, t: Transform3D, body: MeshInstance3D, arms: Dictionary = {}, shoe_bone: String = "", profile: String = PROFILE_RIVA) -> Array:
+	var n := normalized(id, profile)
 	if n.is_empty():
 		return []
-	var wrap: Node3D = n["node"]
+	var wrapper: Node3D = n["node"]
 	# Zapatos: siempre se deshace la mezcla de huesos del reposo (los pesos del cuerpo no son la identidad en reposo)
 	var pose := _arm_pose(body, arms, shoe_bone != "")
 	var data := _body_data(body, pose)
 	var mats: Array = pose.get("mats", [])
 	var meshes: Array = []
-	for node in wrap.find_children("*", "MeshInstance3D", true, false):
+	for node in wrapper.find_children("*", "MeshInstance3D", true, false):
 		var mi := node as MeshInstance3D
 		if mi.mesh == null:
 			continue
-		var xf := t * _path_xf(mi, wrap)
+		var xf := t * _path_xf(mi, wrapper)
 		var nb := xf.basis.inverse().transposed()
 		var am := ArrayMesh.new()
 		for s in mi.mesh.get_surface_count():
@@ -331,7 +410,7 @@ static func _skin_meshes(id: String, t: Transform3D, body: MeshInstance3D, arms:
 			am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
 			am.surface_set_material(am.get_surface_count() - 1, mi.mesh.surface_get_material(s))
 		meshes.append(am)
-	wrap.free()
+	wrapper.free()
 	return meshes
 
 ## Miembros que se pueden posar: brazos ("Left"/"Right") y piernas ("LeftLeg"/"RightLeg").

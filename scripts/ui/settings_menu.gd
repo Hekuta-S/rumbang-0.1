@@ -162,7 +162,7 @@ func _on_music_changed(v: float) -> void:
 const TOUCH_NAMES := {
 	"attack": "Ataque", "jump": "Salto", "dodge": "Rodar", "alt": "Ataque especial",
 	"target": "Fijar objetivo", "skill": "Habilidad", "parry": "Parar",
-	"reload": "Recargar", "weapon": "Cambiar arma",
+	"reload": "Recargar", "weapon": "Cambiar arma", "slide": "Deslizarse (supervivencia)",
 }
 
 func _add_submenu_button(parent: Control, text: String, fill: Callable) -> void:

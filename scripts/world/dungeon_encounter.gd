@@ -294,9 +294,9 @@ func _apply_elites(room: int, spawned: Array) -> void:
 	if not lines.is_empty():
 		_show_banner("\n".join(lines))
 
-## Cuántos élites lleva la caverna (0 en red o en la arena).
+## Cuántos élites lleva la caverna (0 en la arena; en red los elige el anfitrión y NetWorld los copia).
 func elite_count(room: int) -> int:
-	if not structure_enabled() or room == map.arena_index or _starter_rooms.has(room):
+	if Net.is_client() or room == map.arena_index or _starter_rooms.has(room):
 		return 0
 	var n := 0
 	if randf() < float(ELITE_CHANCE[clampi(level, 1, ELITE_CHANCE.size()) - 1]) + DungeonRun.elite_bonus():
@@ -332,7 +332,7 @@ func _spawn_at(room: int, pos: Vector3, kind: String = "goblin") -> DungeonGobli
 ## Cuenta un enemigo vivo de la caverna; los que nacen de él (DungeonSlug al dividirse) también.
 func _track(room: int, g: DungeonGoblin) -> void:
 	_alive[room] = _alive.get(room, 0) + 1
-	g.died.connect(func(dead): _on_goblin_died(room, dead); _drop_resources(dead); _award_gold(dead); EquipmentPickup.drop_for_enemy(get_parent(), dead); _notify_kill(); LootHits.on_kill(dead); RunLog.kill())
+	g.died.connect(func(dead): _on_goblin_died(room, dead); _drop_resources(dead); _award_gold(dead); _award_souls(dead); EquipmentPickup.drop_for_enemy(get_parent(), dead); _notify_kill(); LootHits.on_kill(dead); RunLog.kill())
 	if g.has_signal("spawned"):
 		g.spawned.connect(func(child): _track(room, child))
 
@@ -788,6 +788,10 @@ func _setup_level_extras() -> void:
 			n.queue_free()
 	scroll_room = -1
 	cursed_chest = null
+	for d in _dice:
+		if is_instance_valid(d):
+			d.queue_free()
+	_dice.clear()
 	for p in get_tree().get_nodes_in_group("run_pickups"):
 		p.queue_free()
 	if not structure_enabled():
@@ -852,6 +856,17 @@ func _award_gold(dead) -> void:
 	var amount := int(round(g * DungeonRun.gold_mult()))
 	_add_gold(amount)
 	RewardJuice.gold_burst(get_parent(), dead.global_position, amount, player)
+
+## Almas de cada baja (SoulStats): se ingresan al acabar la partida y se gastan en el yunque del Salón.
+func _award_souls(dead) -> void:
+	if not structure_enabled() or not is_instance_valid(dead):
+		return
+	var elite := String(dead.get("elite")) != "" if dead.get("elite") != null else false
+	var amount := SoulStats.kill_souls(dead is DungeonNecromancer, elite, level)
+	SoulStats.add_run_souls(amount)
+	var hud: Node = get_tree().get_first_node_in_group("hud") if is_inside_tree() else null
+	if hud and hud.has_method("update_souls"):
+		hud.update_souls(SoulStats.run_souls)
 
 func _add_gold(amount: int) -> void:
 	var gs := GameState.get_instance()
@@ -966,9 +981,32 @@ func _setup_run_extras(normal: Array) -> void:
 	if not free.is_empty():
 		scroll_room = free[0]
 		_scroll_mark = _room_mark(scroll_room, "📜 PERGAMINO", Color(0.95, 0.85, 0.5), 2.6)
+	_spawn_level_dice(free)
 	if level >= DungeonRun.CURSED_CHEST_FROM and (DungeonRun.heat() > 0 or randf() < DungeonRun.CURSED_CHEST_CHANCE):
 		var room: int = free[free.size() - 1] if not free.is_empty() else _start_room()
 		spawn_cursed_chest(_free_spot(map.room_center(room), 3.0, randf() * 360.0))
+
+## Dados del destino (FateDice) del nivel: DICE_CHANCE de uno y DICE_SECOND_CHANCE de otro, en cavernas
+## normales distintas de la del pergamino. Solo en partidas locales (el resultado no se sincroniza en red).
+const DICE_CHANCE := 0.7
+const DICE_SECOND_CHANCE := 0.2
+var _dice: Array = []
+
+func _spawn_level_dice(rooms_free: Array) -> void:
+	for d in _dice:
+		if is_instance_valid(d):
+			d.queue_free()
+	_dice.clear()
+	if Net.is_online():
+		return
+	var pool: Array = rooms_free.filter(func(r): return r != scroll_room)
+	if pool.is_empty():
+		pool = rooms_free.duplicate()
+	pool.shuffle()
+	var n := (1 if randf() < DICE_CHANCE else 0) + (1 if randf() < DICE_SECOND_CHANCE else 0)
+	for i in mini(n, pool.size()):
+		var at := _free_spot(map.room_center(pool[i]), 2.5, randf() * 360.0)
+		_dice.append(FateDice.spawn(get_parent(), Vector3(at.x, 0.0, at.z)))
 
 func _room_mark(room: int, text: String, col: Color, height: float) -> Label3D:
 	var mark := Label3D.new()

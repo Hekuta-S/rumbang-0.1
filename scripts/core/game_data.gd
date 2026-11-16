@@ -272,11 +272,13 @@ func _ready() -> void:
 # ───────────── Yunque del salón: arma inicial de la mazmorra (personaje personalizable) ─────────────
 ## Armas que se pueden equipar en el yunque del Salón (DungeonHub). La espalanza es la de siempre.
 const DUNGEON_WEAPONS: Array[int] = [WeaponData.WeaponType.SPEAR_LANCE, WeaponData.WeaponType.DAGGERS, WeaponData.WeaponType.MACE,
-	WeaponData.WeaponType.GREATSWORD, WeaponData.WeaponType.SWORD, WeaponData.WeaponType.BOW, WeaponData.WeaponType.KATANA]
+	WeaponData.WeaponType.GREATSWORD, WeaponData.WeaponType.SWORD, WeaponData.WeaponType.BOW, WeaponData.WeaponType.KATANA,
+	WeaponData.WeaponType.FISTS]
 ## Armas que por ahora no salen en supervivencia (sí en la mazmorra): dagas, maza, espadón,
 ## espada y arco. La espalanza y el resto de armas siguen disponibles.
 const SURVIVAL_HIDDEN_WEAPONS: Array[int] = [WeaponData.WeaponType.DAGGERS, WeaponData.WeaponType.MACE,
-	WeaponData.WeaponType.GREATSWORD, WeaponData.WeaponType.SWORD, WeaponData.WeaponType.BOW, WeaponData.WeaponType.KATANA]
+	WeaponData.WeaponType.GREATSWORD, WeaponData.WeaponType.SWORD, WeaponData.WeaponType.BOW, WeaponData.WeaponType.KATANA,
+	WeaponData.WeaponType.FISTS]
 
 ## ¿Se puede ofrecer esta arma en la partida actual? En supervivencia se ocultan las de
 ## SURVIVAL_HIDDEN_WEAPONS; en la mazmorra todas siguen disponibles.

@@ -96,6 +96,24 @@ const ACTION_SETS := {
 		"kt_run": {"path": "res://assets/models/katana/kt_run_attack.fbx", "root_motion": true, "leg_scale": true},
 		"kt_special": {"path": "res://assets/models/katana/kt_special.fbx", "root_motion": true, "leg_scale": true},
 	},
+	# Puños (Mixamo, sin root motion: los clips son en el sitio). Combo: golpe1 (derecha), golpe1 en espejo
+	# (izquierda), golpe2, golpe3, golpe3 en espejo y golpe4 de remate. Corriendo, la zancada con directo (fs_run).
+	WeaponData.WeaponType.FISTS: {
+		"fs1": {"path": "res://assets/models/fists/fist_punch1.fbx", "leg_scale": true},
+		"fs2": {"path": "res://assets/models/fists/fist_punch1.fbx", "mirror": true, "leg_scale": true},
+		"fs3": {"path": "res://assets/models/fists/fist_punch2.fbx", "leg_scale": true},
+		"fs4": {"path": "res://assets/models/fists/fist_punch3.fbx", "leg_scale": true},
+		"fs5": {"path": "res://assets/models/fists/fist_punch3.fbx", "mirror": true, "leg_scale": true},
+		"fs6": {"path": "res://assets/models/fists/fist_punch4.fbx", "leg_scale": true},
+		# Corriendo: "Punch To Elbow Combo" solo hasta el fotograma 43 (zancada y directo de derecha). Este sí avanza:
+		# root motion.
+		"fs_run": {"path": "res://assets/models/fists/fist_run_elbow.fbx", "from": 0, "to": 43, "root_motion": true,
+			"leg_scale": true},
+		# Especial (clic derecho): lluvia de golpes = "golpe especial" dos veces seguidas. La primera pasada se corta al
+		# acabar los puñetazos (fotograma 30, sin la recuperación) y la segunda entra en el 4 y termina entera.
+		"fs_special": {"path": "res://assets/models/fists/fist_special.fbx", "segments": [[0, 30], [4, 44]], "seam": 0.1,
+			"leg_scale": true},
+	},
 	# Arco (Mixamo, pack de arco largo): tensado completo en el fotograma 0, suelta la cuerda en el 5-6 y baja el arco
 	# hasta el reposo. Se reproduce por encima de las piernas si se anda (PlayerAnimationController.play_bow_shot).
 	WeaponData.WeaponType.BOW: {
@@ -177,6 +195,25 @@ const LOCO := {
 	},
 }
 
+## Guardia de combate (bucle de cuerpo entero) del arma: no sustituye al reposo. El personaje espera con su reposo
+## normal y, al golpear, PlayerAnimationController funde a esta guardia; tras un rato sin pelear vuelve al reposo.
+const GUARD := {
+	WeaponData.WeaponType.FISTS: {"path": "res://assets/models/fists/fist_idle.fbx", "leg_scale": true},
+}
+
+static func has_guard(weapon_type: int) -> bool:
+	return GUARD.has(weapon_type)
+
+## La guardia del arma adaptada al esqueleto `dst`, en bucle (null si el arma no tiene).
+static func build_guard(weapon_type: int, dst: Skeleton3D, skel_path: NodePath) -> Animation:
+	if not GUARD.has(weapon_type):
+		return null
+	var out: Dictionary = _build_actions_from({"guard": GUARD[weapon_type]}, dst, skel_path)
+	var anim: Animation = out.get("guard")
+	if anim != null:
+		anim.loop_mode = Animation.LOOP_LINEAR
+	return anim
+
 ## Alarga (k > 1) o acorta el clip en el tiempo, multiplicando la hora de cada key. Para bucles de
 ## locomoción, donde el nodo del AnimationTree no tiene velocidad propia.
 static func stretch_time(anim: Animation, k: float) -> void:
@@ -199,8 +236,8 @@ static func build_loco(weapon_type: int, dst: Skeleton3D, skel_path: NodePath) -
 	var out: Dictionary = _build_actions_from(specs, dst, skel_path)
 	for clip in out:
 		var spec: Variant = specs.get(clip)
-		var pingpong: bool = spec is Dictionary and bool((spec as Dictionary).get("pingpong", false))
-		(out[clip] as Animation).loop_mode = Animation.LOOP_PINGPONG if pingpong else Animation.LOOP_LINEAR
+		var is_pingpong: bool = spec is Dictionary and bool((spec as Dictionary).get("pingpong", false))
+		(out[clip] as Animation).loop_mode = Animation.LOOP_PINGPONG if is_pingpong else Animation.LOOP_LINEAR
 		if spec is Dictionary and (spec as Dictionary).has("time_scale"):
 			stretch_time(out[clip] as Animation, float((spec as Dictionary)["time_scale"]))
 		var widen: Variant = (spec as Dictionary).get("stride", STRIDE_WIDEN.get(clip)) if spec is Dictionary else STRIDE_WIDEN.get(clip)
@@ -299,6 +336,8 @@ static func _build_actions_from(paths: Dictionary, dst: Skeleton3D, skel_path: N
 			var anim: Animation = ap.get_animation(ap.get_animation_list()[0]).duplicate(true)
 			if spec is Dictionary and spec.has("from"):
 				slice_animation(anim, float(spec["from"]) / SAMPLE_FPS, float(spec["to"]) / SAMPLE_FPS)
+			if spec is Dictionary and spec.has("segments"):
+				chain_segments(anim, spec["segments"], float(spec.get("seam", 0.1)))
 			if spec is Dictionary and spec.get("reverse", false):
 				reverse_animation(anim)
 			if spec is Dictionary and spec.get("mirror", false):
@@ -342,6 +381,35 @@ static func slice_animation(anim: Animation, t0: float, t1: float) -> void:
 			anim.track_insert_key(i, float(kv[0]), kv[1])
 		anim.track_insert_key(i, t1 - t0, last)
 	anim.length = t1 - t0
+
+## Encadena trozos del clip ([[fotograma_ini, fotograma_fin], ...] a 30 fps) uno detrás de otro: p. ej. el mismo
+## golpe dos veces sin la recuperación del medio. Entre trozo y trozo hay `seam` s de paso interpolado (de la última
+## pose de uno a la primera del siguiente) para que no salte.
+static func chain_segments(anim: Animation, segments: Array, seam: float = 0.1) -> void:
+	var pieces: Array[Animation] = []
+	for seg in segments:
+		var piece: Animation = anim.duplicate(true)
+		slice_animation(piece, float(seg[0]) / SAMPLE_FPS, float(seg[1]) / SAMPLE_FPS)
+		pieces.append(piece)
+	if pieces.is_empty():
+		return
+	for i in anim.get_track_count():
+		if not anim.track_get_type(i) in [Animation.TYPE_POSITION_3D, Animation.TYPE_ROTATION_3D, Animation.TYPE_SCALE_3D]:
+			continue
+		for k in range(anim.track_get_key_count(i) - 1, -1, -1):
+			anim.track_remove_key(i, k)
+	var offset := 0.0
+	for j in pieces.size():
+		var piece := pieces[j]
+		if j > 0:
+			offset += seam
+		for i in anim.get_track_count():
+			if not anim.track_get_type(i) in [Animation.TYPE_POSITION_3D, Animation.TYPE_ROTATION_3D, Animation.TYPE_SCALE_3D]:
+				continue
+			for k in piece.track_get_key_count(i):
+				anim.track_insert_key(i, offset + piece.track_get_key_time(i, k), piece.track_get_key_value(i, k))
+		offset += piece.length
+	anim.length = offset
 
 ## Invierte la animación en el tiempo (la key en t pasa a length - t). Antes de _retarget_bones / root motion: el
 ## avance de la cadera también se invierte, así que el golpe al revés retrocede lo que el original avanzaba.
@@ -402,20 +470,20 @@ static func mirror_animation(anim: Animation, src: Skeleton3D) -> void:
 			var basis := (m * gb * m) * (m * rest_g[tw] * m).inverse() * rest_g[b]
 			mg[b] = Transform3D(basis, m * g.origin)
 		for b in n:
-			var tr: Dictionary = tracks.get(b, {})
-			if tr.is_empty():
+			var bone_tracks: Dictionary = tracks.get(b, {})
+			if bone_tracks.is_empty():
 				continue
 			var parent := src.get_bone_parent(b)
 			var local := mg[b] if parent < 0 else Transform3D(mg[parent].basis, mg[parent].origin).affine_inverse() * mg[b]
-			if tr.has(Animation.TYPE_ROTATION_3D):
+			if bone_tracks.has(Animation.TYPE_ROTATION_3D):
 				if not rot_keys.has(b):
 					rot_keys[b] = []
 				rot_keys[b].append([t, local.basis.orthonormalized().get_rotation_quaternion()])
-			if tr.has(Animation.TYPE_POSITION_3D) and parent < 0:
+			if bone_tracks.has(Animation.TYPE_POSITION_3D) and parent < 0:
 				if not pos_keys.has(b):
 					pos_keys[b] = []
 				# Escala del hueso raíz respecto al esqueleto: se conserva la del original
-				var orig: Vector3 = anim.position_track_interpolate(tr[Animation.TYPE_POSITION_3D], t)
+				var orig: Vector3 = anim.position_track_interpolate(bone_tracks[Animation.TYPE_POSITION_3D], t)
 				pos_keys[b].append([t, Vector3(-orig.x, orig.y, orig.z)])
 	for b in rot_keys:
 		var i: int = tracks[b][Animation.TYPE_ROTATION_3D]
@@ -618,13 +686,13 @@ static func _global_pose(skel: Skeleton3D, bone: int, anim: Animation, tracks: D
 	var pos := rest.origin
 	var rot := rest.basis.get_rotation_quaternion()
 	var scl := rest.basis.get_scale()
-	var tr: Dictionary = tracks.get(bone, {})
-	if tr.has(Animation.TYPE_POSITION_3D):
-		pos = anim.position_track_interpolate(tr[Animation.TYPE_POSITION_3D], t)
-	if tr.has(Animation.TYPE_ROTATION_3D):
-		rot = anim.rotation_track_interpolate(tr[Animation.TYPE_ROTATION_3D], t)
-	if tr.has(Animation.TYPE_SCALE_3D):
-		scl = anim.scale_track_interpolate(tr[Animation.TYPE_SCALE_3D], t)
+	var bone_tracks: Dictionary = tracks.get(bone, {})
+	if bone_tracks.has(Animation.TYPE_POSITION_3D):
+		pos = anim.position_track_interpolate(bone_tracks[Animation.TYPE_POSITION_3D], t)
+	if bone_tracks.has(Animation.TYPE_ROTATION_3D):
+		rot = anim.rotation_track_interpolate(bone_tracks[Animation.TYPE_ROTATION_3D], t)
+	if bone_tracks.has(Animation.TYPE_SCALE_3D):
+		scl = anim.scale_track_interpolate(bone_tracks[Animation.TYPE_SCALE_3D], t)
 	var local := Transform3D(Basis(rot).scaled(scl), pos)
 	var parent := skel.get_bone_parent(bone)
 	var g := local if parent < 0 else _global_pose(skel, parent, anim, tracks, t, cache) * local

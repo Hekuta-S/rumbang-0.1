@@ -56,6 +56,7 @@ const SPAN_MID_DIST := 14.0
 const SPAN_FAR_DIST := 40.0
 const SPAN_NEAR_MIN := 3.0            ## por mucha multitud, a menos de esto se actualiza en cada tick (ataques)
 const SPAN_IDLE_DIST := 60.0          ## sin alertar y más lejos que esto: cada 8 ticks
+const RING_SPAN_MARGIN := 0.5          ## más allá de attack_range + esto, sin token, cada 2 ticks como mínimo
 ## Con mucha multitud las distancias de arriba se dividen por HiveMind.crowd_scale (lo fija la mente
 ## colmena cada tick): solo los más cercanos se actualizan en cada tick; el resto, cada 2 o 4 (el dibujo interpola).
 ## Velocidad de supervivencia (GameData.SURVIVAL_ENEMY_SPEED_MULT), fijada al reactivarse: evita
@@ -70,6 +71,7 @@ var tick_age: int = 0           ## ticks transcurridos desde la última actualiz
 var _sep: Vector3 = Vector3.ZERO
 var _cached_ground_y: float = 0.0
 var ground_y: float = 0.0   ## altura del suelo bajo el enemigo (la mantiene EnemyMotion)
+var bridge_i: int = -1      ## puente por el que camina (EnemyMotion), -1 = en el relieve
 var _last_dist: float = 0.0
 ## Celda de densidad donde lo vio la mente colmena en su última foto (lo escribe HiveMind; -1 = fuera).
 var hive_cell: int = -1
@@ -111,6 +113,16 @@ var vat_idx_seed: int = 0           ## reparte el culling de cámara entre frame
 var vat_phase: float = 0.0
 var vat_walking: bool = false
 var vat_flash: float = 0.0
+
+# --- Habilidades especiales de la beta (ver EnemyBehavior): embestida del goblin, golpe al suelo del bruto,
+#     ráfaga del mago. Estado por enemigo; se limpia al reutilizarlo del pool. ---
+var special_cd: float = 0.0         ## s hasta poder volver a usar su habilidad
+var special_state: int = 0          ## 0 nada · 1 preparándola (avisa) · 2 en marcha
+var special_t: float = 0.0          ## s que quedan del estado actual
+var special_dir: Vector3 = Vector3.ZERO
+var special_hit: bool = false       ## la embestida en marcha ya golpeó
+var lunger: bool = false            ## este goblin sabe embestir (se sortea al aparecer)
+var burst_left: int = 0             ## disparos que le quedan a la ráfaga del mago
 var _offscreen: bool = false
 
 # --- Daño continuo: agrupa números flotantes, sonido y destello ---
@@ -188,6 +200,12 @@ func reactivate(pos: Vector3) -> void:
 	recycled = false
 	trait_id = ""
 	knockback_resistance = 1.0
+	special_cd = 0.0
+	special_state = 0
+	special_t = 0.0
+	special_hit = false
+	lunger = false
+	burst_left = 0
 	global_position = pos
 	prev_position = pos
 	_reset_stats()
@@ -210,6 +228,7 @@ func reactivate(pos: Vector3) -> void:
 	vat_flash = 0.0
 	_cached_ground_y = pos.y
 	ground_y = EnemyMotion.height_at(pos.x, pos.z) if EnemyMotion.available() else pos.y
+	bridge_i = -1
 	_mode_speed_mult = GameData.SURVIVAL_ENEMY_SPEED_MULT if GameData.game_mode == "survival" else 1.0
 	EnemyRegistry.register(self)
 	if EnemyVisuals.instance != null:
@@ -241,6 +260,8 @@ func update(delta: float) -> void:
 
 	if attack_cooldown > 0.0:
 		attack_cooldown -= delta
+	if special_cd > 0.0:
+		special_cd -= delta
 	if token_wait > 0.0:
 		token_wait -= delta
 	if slow_timer > 0.0:
@@ -269,6 +290,10 @@ func update(delta: float) -> void:
 		tick_span = 2
 	else:
 		tick_span = 1
+	# Sin turno de ataque solo rodea al jugador en el anillo (movimiento lento y suave): cada 2 ticks
+	# basta, el dibujo interpola. Quien tiene token (o está a distancia de golpe) sigue en cada tick.
+	if tick_span == 1 and not has_token and dist > attack_range + RING_SPAN_MARGIN:
+		tick_span = 2
 
 	_logic_timer -= delta
 	if _logic_timer <= 0.0:
@@ -279,9 +304,12 @@ func update(delta: float) -> void:
 		# Con mapa procedural la altura la mantiene EnemyMotion (ground_y); floor_y solo se usa como respaldo
 		if not EnemyMotion.available():
 			_cached_ground_y = EnemyManager.floor_y(global_position.x, global_position.z)
-		var ts := PerfProbe.begin()
-		_compute_separation()
-		PerfProbe.end("enemigos.separacion", ts)
+		if PerfProbe.enabled:
+			var ts := PerfProbe.begin()
+			_compute_separation()
+			PerfProbe.end("enemigos.separacion", ts)
+		else:
+			_compute_separation()
 
 	if not is_alerted:
 		velocity = knockback_velocity
@@ -294,14 +322,21 @@ func update(delta: float) -> void:
 
 	var effective_speed := speed * slow_multiplier * _mode_speed_mult
 	var next_vel := Vector3.ZERO
-	var ta := PerfProbe.begin()
-	if behavior:
-		next_vel = behavior.process_ai(delta, to_player, dist, effective_speed)
-	PerfProbe.end("enemigos.ia", ta)
-	velocity = next_vel + knockback_velocity + _sep
-	var tm := PerfProbe.begin()
-	_move(delta)
-	PerfProbe.end("enemigos.movimiento", tm)
+	# El perfilador por secciones solo se consulta una vez: sin RUMBANG_PROFILE no cuesta llamadas por enemigo
+	if PerfProbe.enabled:
+		var ta := PerfProbe.begin()
+		if behavior:
+			next_vel = behavior.process_ai(delta, to_player, dist, effective_speed)
+		PerfProbe.end("enemigos.ia", ta)
+		velocity = next_vel + knockback_velocity + _sep
+		var tm := PerfProbe.begin()
+		_move(delta)
+		PerfProbe.end("enemigos.movimiento", tm)
+	else:
+		if behavior:
+			next_vel = behavior.process_ai(delta, to_player, dist, effective_speed)
+		velocity = next_vel + knockback_velocity + _sep
+		_move(delta)
 	vat_walking = Vector2(velocity.x, velocity.z).length_squared() > 0.2
 
 func _move(delta: float) -> void:
@@ -338,9 +373,16 @@ func apply_status(effect_id: String, dps: float, duration: float, source: Node =
 		source_weapon: int = -1, stacks: int = 1) -> void:
 	StatusEffects.apply_to(self, effect_id, dps, duration, source, source_weapon, stacks)
 
+## Ventaja de altura (mapa con mesetas): el jugador que pega desde HIGH_GROUND_DIFF m o más por
+## encima hace HIGH_GROUND_MULT veces el daño.
+const HIGH_GROUND_DIFF := 2.5
+const HIGH_GROUND_MULT := 1.2
+
 func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 	if recycled:
 		return
+	if HiveMind.local_player_pos.y - global_position.y >= HIGH_GROUND_DIFF and EnemyMotion.has_relief():
+		amount *= HIGH_GROUND_MULT
 	RunStats.add_damage(HitFeedback.weapon_tag, minf(amount, maxf(hp, 0.0)))   # resumen de la partida
 	hp -= amount
 	enemy_hit.emit()

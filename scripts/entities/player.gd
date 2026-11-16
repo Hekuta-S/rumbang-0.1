@@ -947,7 +947,7 @@ func throw_spear() -> void:
 
 ## Armas cuyo especial cobra el recurso por su cuenta (PlayerCombatController).
 const SELF_PAID_SPECIALS := [WeaponData.WeaponType.SPEAR_LANCE, WeaponData.WeaponType.DAGGERS, WeaponData.WeaponType.MACE,
-	WeaponData.WeaponType.BOW]
+	WeaponData.WeaponType.BOW, WeaponData.WeaponType.KATANA, WeaponData.WeaponType.FISTS]
 
 func _on_alt_attack_pressed() -> void:
 	# El especial de cada arma cuesta su recurso. La espalanza, las dagas y la maza cobran el suyo dentro
@@ -970,6 +970,8 @@ func _on_alt_attack_pressed() -> void:
 		combat_controller.katana_special()
 	elif current_weapon() == WeaponData.WeaponType.BOW and GameData.game_mode == "dungeon":
 		combat_controller.start_bow_charge()     # tensar: al soltar sale la flecha cargada
+	elif current_weapon() == WeaponData.WeaponType.FISTS and GameData.game_mode == "dungeon":
+		combat_controller.fists_special()
 	elif current_weapon() == WeaponData.WeaponType.GREATSWORD or current_weapon() == WeaponData.WeaponType.SWORD:
 		pass    # el espadón y la espada no tienen especial: su fuerza es andar/correr y el ataque con carrerilla
 	elif current_weapon() == WeaponData.WeaponType.FLAME_THROWER and GameData.game_mode == "dungeon":

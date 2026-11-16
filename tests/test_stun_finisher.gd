@@ -50,7 +50,14 @@ func _ready() -> void:
 	g.take_damage(20.0, Vector3(0, 0, 3))   # pesado: aturde y llena 20
 	g._set_state(DungeonGoblin.State.RECOVER)
 	g.hp = g.max_hp
-	g.take_damage(20.0, Vector3(0, 0, 3))   # castigo en la recuperación: 20 × 1,5 = 30 → 55 ≥ 36
+	g.take_damage(20.0, Vector3(0, 0, 3))   # castigo en la recuperación: 20 × 1,5 = 30
+	assert(absf(g._stun - 55.0) < 0.01, "5 + pesado 20 + castigo 30 = 55 (%s)" % g._stun)
+	var hits := 0
+	while g.state != DungeonGoblin.State.STUNNED and hits < 20:   # más castigos hasta llenar la barra
+		g._set_state(DungeonGoblin.State.RECOVER)
+		g.hp = g.max_hp
+		g.take_damage(20.0, Vector3(0, 0, 3))
+		hits += 1
 	assert(g.state == DungeonGoblin.State.STUNNED, "Barra llena (%.0f / %.0f) → indefenso (estado %d)" % [g._stun, g.stun_max(), g.state])
 	assert(g.can_be_finished(), "Indefenso se puede rematar")
 	g.take_damage(5.0, Vector3.ZERO)

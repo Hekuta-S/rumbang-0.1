@@ -59,6 +59,9 @@ func _run() -> void:
 	hub.panels.equip(WeaponData.WeaponType.DAGGERS)
 	await _wait(0.3)
 	await _shot("yunque")
+	hub.panels.show_anvil_tab("nivel")
+	await _wait(0.3)
+	await _shot("yunque_nivel")
 	hub.panels.close()
 	# mago y portales
 	await _go(hub, DungeonHub.MAGE_POS + Vector3(1.2, 0, 0.4))

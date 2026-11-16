@@ -55,13 +55,13 @@ static func fit_transform(i: int) -> Transform3D:
 	var s := skin(i)
 	var up: Vector3 = (s["up"] as Vector3).normalized()
 	var pommel: Vector3 = s["pommel"]
-	var len: float = float(s["len"])
+	var seg_len: float = float(s["len"])
 	var wide: Vector3 = s["wide"]
 	wide = (wide - up * wide.dot(up)).normalized()
 	var z := wide.cross(up).normalized()
 	var b := Basis(wide, up, z).transposed()
-	b = b.scaled(Vector3.ONE * (float(s["world_len"]) / len))
-	var grip_pt: Vector3 = pommel + up * (float(s["grip"]) * len)
+	b = b.scaled(Vector3.ONE * (float(s["world_len"]) / seg_len))
+	var grip_pt: Vector3 = pommel + up * (float(s["grip"]) * seg_len)
 	return Transform3D(b, -(b * grip_pt))
 
 ## Espada lista para colgar de la mano: solo el nodo de la espada elegida, con su transformación del glb.
@@ -84,4 +84,5 @@ static func build(i: int) -> Node3D:
 		holder.add_child(src)
 		src.transform = keep_xf
 	glb.free()
+	ToonWeapon.apply(root)
 	return root

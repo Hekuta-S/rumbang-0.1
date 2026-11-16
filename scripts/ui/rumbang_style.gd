@@ -28,18 +28,23 @@ const NEON_MAGENTA := Color(1.00, 0.27, 0.78)
 const DANGER       := Color(1.00, 0.28, 0.32)
 
 const SKEW := Vector2(0.18, 0.0)      ## inclinación de los botones (cyberpunk)
+## Bordes de cómic: contorno de tinta en botones, paneles y textos, y sombra dura desplazada
+const INK := Color(0.03, 0.022, 0.05)
+const SHADOW_OFFSET := Vector2(3, 4)
 
 const FONT := preload("res://assets/fonts/PressStart2P-Regular.ttf")
 
 static var _theme: Theme
 
-## Botón: fondo oscuro, borde fino, filo izquierdo ámbar y, en hover/foco, halo neón.
+## Botón: fondo oscuro, contorno de tinta (cómic) con filo izquierdo y, en hover/foco/pulsado, halo neón del
+## color pedido; en reposo, sombra dura de tinta. El estilo de foco (fondo transparente) es solo el aro de color.
 static func button_style(bg: Color, border: Color, radius: int = 3, width: int = 2) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
+	var ring := bg.a < 0.01
 	s.bg_color = bg
-	s.set_border_width_all(width)
-	s.border_width_left = width + 3
-	s.border_color = border
+	s.set_border_width_all(width + 1)
+	s.border_width_left = width + 4
+	s.border_color = border if ring else INK
 	s.set_corner_radius_all(radius)
 	s.skew = SKEW
 	s.anti_aliasing = true
@@ -47,19 +52,23 @@ static func button_style(bg: Color, border: Color, radius: int = 3, width: int =
 	s.content_margin_right = 20
 	s.content_margin_top = 10
 	s.content_margin_bottom = 10
-	# Halo del color del borde cuando es neón (hover / foco / pulsado)
+	# Halo del color pedido cuando es neón (hover / foco / pulsado); si no, sombra dura de tinta
 	if border == NEON_CYAN or border == NEON_MAGENTA or border == ACCENT:
-		s.shadow_color = Color(border, 0.35)
+		s.shadow_color = Color(border, 0.45)
 		s.shadow_size = 8
+	elif not ring:
+		s.shadow_color = Color(INK, 0.85)
+		s.shadow_size = 1
+		s.shadow_offset = SHADOW_OFFSET
 	return s
 
 ## Panel: fondo violáceo profundo, borde ámbar tenue y halo violeta.
 static func panel_style(bg: Color = PANEL, border: Color = BTN_BORDER, radius: int = 4, margin: int = 24) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
 	s.bg_color = bg
-	s.set_border_width_all(2)
-	s.border_color = border
-	s.border_width_top = 3
+	s.set_border_width_all(3)
+	s.border_color = INK
+	s.border_width_top = 4
 	s.set_corner_radius_all(radius)
 	s.set_content_margin_all(margin)
 	s.shadow_color = Color(GLOW, 0.22)
@@ -81,8 +90,8 @@ static func _style_button(b: Button, border: Color) -> void:
 	b.add_theme_color_override("font_pressed_color", Color.WHITE)
 	b.add_theme_color_override("font_focus_color", Color.WHITE)
 	b.add_theme_color_override("font_disabled_color", TEXT_DIM)
-	b.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
-	b.add_theme_constant_override("outline_size", 4)
+	b.add_theme_color_override("font_outline_color", INK)
+	b.add_theme_constant_override("outline_size", 6)
 	var normal_border := ACCENT if border == ACCENT else border
 	b.add_theme_stylebox_override("normal", button_style(BTN_BG, normal_border))
 	b.add_theme_stylebox_override("hover", button_style(BTN_HOVER, NEON_CYAN))
@@ -95,8 +104,8 @@ static func _style_button(b: Button, border: Color) -> void:
 static func style_title(l: Label, size: int = 26, color: Color = TITLE, glow: Color = NEON_MAGENTA) -> void:
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", color)
-	l.add_theme_color_override("font_outline_color", Color(glow, 0.55))
-	l.add_theme_constant_override("outline_size", 6)
+	l.add_theme_color_override("font_outline_color", INK)
+	l.add_theme_constant_override("outline_size", maxi(7, size / 3))
 	l.add_theme_color_override("font_shadow_color", Color(glow, 0.45))
 	l.add_theme_constant_override("shadow_offset_x", 0)
 	l.add_theme_constant_override("shadow_offset_y", 3)
@@ -127,8 +136,8 @@ static func get_theme() -> Theme:
 		t.set_color("font_pressed_color", type, Color.WHITE)
 		t.set_color("font_focus_color", type, Color.WHITE)
 		t.set_color("font_disabled_color", type, TEXT_DIM)
-		t.set_color("font_outline_color", type, Color(0, 0, 0, 0.8))
-		t.set_constant("outline_size", type, 4)
+		t.set_color("font_outline_color", type, INK)
+		t.set_constant("outline_size", type, 6)
 		t.set_stylebox("normal", type, button_style(BTN_BG, BTN_BORDER))
 		t.set_stylebox("hover", type, button_style(BTN_HOVER, NEON_CYAN))
 		t.set_stylebox("pressed", type, button_style(BTN_PRESS, NEON_MAGENTA))
@@ -155,7 +164,7 @@ static func get_theme() -> Theme:
 
 	# Texto
 	t.set_color("font_color", "Label", TEXT)
-	t.set_color("font_outline_color", "Label", Color(0, 0, 0, 0.7))
+	t.set_color("font_outline_color", "Label", INK)
 
 	# Campos de texto y listas
 	t.set_stylebox("normal", "LineEdit", _flat(Color(0.03, 0.02, 0.06), BTN_BORDER))
@@ -205,8 +214,8 @@ static func get_theme() -> Theme:
 	# Barra de progreso
 	var bar_bg := StyleBoxFlat.new()
 	bar_bg.bg_color = Color(0.07, 0.05, 0.11)
-	bar_bg.set_border_width_all(2)
-	bar_bg.border_color = BTN_BORDER
+	bar_bg.set_border_width_all(3)
+	bar_bg.border_color = INK
 	bar_bg.set_corner_radius_all(3)
 	bar_bg.skew = SKEW
 	var bar_fill := StyleBoxFlat.new()

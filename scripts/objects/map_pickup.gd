@@ -26,6 +26,29 @@ const KINDS := {
 	"clock": {"label": "RELOJ", "color": Color(0.85, 0.85, 1.0), "weight": 15.0, "msg": "¡TIEMPO DETENIDO!"},
 }
 
+## Modelos cartoon con la tinta horneada (tools/blender_toon_pickups.py): assets/models/pickups/<archivo>.glb
+## con su textura en assets/textures/toon/props/<archivo>.png (shader prop_toon, una lectura).
+const MODEL_DIR := "res://assets/models/pickups/"
+const MODELS := {"magnet": "pickup_magnet", "bomb": "pickup_bomb", "food": "pickup_food", "clock": "pickup_clock"}
+static var _mesh_cache: Dictionary = {}
+
+## Malla cartoon de un modelo de assets/models/pickups (null si no existe). Se fusiona en una superficie con
+## la textura horneada; se carga una vez por archivo. La usa también FateDice (el dado).
+static func toon_mesh(file: String) -> Mesh:
+	if _mesh_cache.has(file):
+		return _mesh_cache[file]
+	var mesh: Mesh = null
+	var path := MODEL_DIR + file + ".glb"
+	var mat := ProceduralMap.toon_prop_material(file)
+	if ResourceLoader.exists(path) and mat != null:
+		var root := (load(path) as PackedScene).instantiate()
+		for n in root.find_children("*", "MeshInstance3D", true, false):
+			mesh = ProceduralMap.flatten_with((n as MeshInstance3D).mesh, mat)
+			break
+		root.free()
+	_mesh_cache[file] = mesh
+	return mesh
+
 var kind := "magnet"
 var player: Node3D
 var _t := 0.0
@@ -69,6 +92,16 @@ func _ready() -> void:
 	mat.emission = col
 	mat.emission_energy_multiplier = 2.0
 	var gem := MeshInstance3D.new()
+	var toon := toon_mesh(String(MODELS.get(kind, "")))
+	if toon != null:
+		# Modelo cartoon: sus colores y su tinta van en la textura; debajo, un aro del color del objeto
+		gem.mesh = toon
+		gem.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		gem.scale = Vector3.ONE * 1.25
+		gem.position.y = -0.5
+		_holder.add_child(gem)
+		_add_ring(col)
+		return
 	match kind:
 		"bomb":
 			var pm := PrismMesh.new()
@@ -96,6 +129,39 @@ func _ready() -> void:
 	label.modulate = col
 	label.position = Vector3(0, 0.7, 0)
 	_holder.add_child(label)
+
+## Aro en el suelo del color del objeto (se ve de lejos entre la hierba).
+func _add_ring(col: Color) -> void:
+	var ring := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 0.55
+	tm.outer_radius = 0.72
+	tm.rings = 24
+	tm.ring_segments = 4
+	ring.mesh = tm
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = col
+	ring.material_override = m
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	ring.scale = Vector3(1.0, 0.15, 1.0)
+	ring.position.y = 0.06
+	add_child(ring)
+	var ink := MeshInstance3D.new()
+	var tm2 := TorusMesh.new()
+	tm2.inner_radius = 0.5
+	tm2.outer_radius = 0.77
+	tm2.rings = 24
+	tm2.ring_segments = 4
+	ink.mesh = tm2
+	var mi := StandardMaterial3D.new()
+	mi.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mi.albedo_color = Color(0.03, 0.022, 0.05)
+	ink.material_override = mi
+	ink.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	ink.scale = Vector3(1.0, 0.1, 1.0)
+	ink.position.y = 0.04
+	add_child(ink)
 
 func _process(delta: float) -> void:
 	if _done:

@@ -40,7 +40,7 @@ const FOLLOW_LOOK := Vector3(0.0, 1.0, -0.6)
 const STATIONS := {
 	"mago": {"pos": Vector3(-3.05, FLOOR_Y, -0.35), "r": 1.7, "label": "EL MAGO", "h": 2.35, "prompt": "Hablar con el mago",
 		"cam": null},
-	"yunque": {"pos": Vector3(4.5, FLOOR_Y, -1.0), "r": 1.5, "label": "YUNQUE", "h": 1.5, "prompt": "Yunque: armas de la mazmorra",
+	"yunque": {"pos": Vector3(4.5, FLOOR_Y, -1.0), "r": 1.5, "label": "YUNQUE", "h": 1.5, "prompt": "Yunque: armas y subir de nivel",
 		"cam": [Vector3(-2.3, 1.5, 0.6), Vector3(0.4, 0.9, -0.9)]},
 	"arena": {"pos": Vector3(0.0, FLOOR_Y, -12.6), "r": 2.0, "label": "ARENA", "h": 5.6, "prompt": "Arena de supervivencia",
 		"cam": [Vector3(-2.4, 1.7, 3.0), Vector3(0.0, 1.7, -1.4)]},
@@ -145,6 +145,9 @@ var _letterbox: Array[ColorRect] = []
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	# Vuelta de una partida sin morir (menú de pausa): sus almas se ingresan enteras (SoulStats)
+	if SoulStats.run_souls > 0:
+		SoulStats.bank_run(false)
 	_build_world()
 	_build_ui()
 	if force_intro or OS.get_cmdline_user_args().has("--intro"):

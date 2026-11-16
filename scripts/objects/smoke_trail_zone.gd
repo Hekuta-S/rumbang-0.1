@@ -70,11 +70,15 @@ func _build_visual() -> void:
 	smoke_mat.billboard_keep_scale = true
 	smoke_mat.vertex_color_use_as_albedo = true
 	smoke_mat.albedo_texture = _soft_puff_texture()
+	# Bocanadas dibujadas (cómic): más opacas y algo más claras para que se lea el contorno
+	var toon := ToonFX.puff_material(smoke_mat)
+	if toon:
+		ToonFX.vary(_smoke)
 	_smoke.material_override = smoke_mat
 	var ramp := Gradient.new()
 	ramp.set_color(0, Color(0.9, 0.5, 0.2, 0.0))
-	ramp.add_point(0.15, Color(0.75, 0.45, 0.25, 0.4))
-	ramp.add_point(0.5, Color(0.35, 0.3, 0.28, 0.32))
+	ramp.add_point(0.15, Color(0.95, 0.62, 0.36, 0.8) if toon else Color(0.75, 0.45, 0.25, 0.4))
+	ramp.add_point(0.5, Color(0.6, 0.56, 0.54, 0.65) if toon else Color(0.35, 0.3, 0.28, 0.32))
 	ramp.set_color(ramp.get_point_count() - 1, Color(0.2, 0.2, 0.2, 0.0))
 	_smoke.color_ramp = ramp
 	var grow := Curve.new()
