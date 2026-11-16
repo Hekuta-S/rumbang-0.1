@@ -72,8 +72,6 @@ MIT — [localkeep.ai](https://localkeep.ai)
 ### Tercera entrega - Patrones de diseño creacionales y estructurales
 
 Tecnologías: Godot 4.7 (Forward Plus), GDScript. Ejecución: abrir la carpeta en Godot 4.7+ y pulsar F5 (escena principal `scenes/ui/main_menu.tscn`).
-Documentación completa en [`docs/entrega3/`](docs/entrega3/): control de cambios (PE-01..PE-09), informe con código antes/después, diagramas UML y guion de sustentación.
-
 | ID | Patrón | Tipo | Clases principales |
 |----|--------|------|--------------------|
 | PE-01 | Factory Method | Creacional | `EnemyCreator`, `BossCreator`, `NecromancerBossCreator` |

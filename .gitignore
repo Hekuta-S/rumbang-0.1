@@ -31,3 +31,13 @@ build/
 # Backups de Blender y caches locales
 *.blend1
 graphify-out/cache/
+
+# Copias de seguridad de Blender (git ya guarda el historial)
+blender_sources/backup/
+blender_sources/glb_backup_pre_toon/
+
+# Vídeos del reel, capturas de comparación y caches de Python
+reel/
+docs/toon_preview/
+__pycache__/
+*.pyc
