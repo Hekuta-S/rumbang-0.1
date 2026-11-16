@@ -39,6 +39,7 @@ const PROFILES := {
 	W.MACE:           {"color": Color(0.3, 1.0, 0.55),  "kind": "shard", "count": 18, "speed": 7.0,  "kb": 1.8, "shake": 0.45, "stop": 0.07, "sfx": "impact_mace"},
 	W.SWORD:          {"color": Color(1.0, 0.9, 0.6),   "kind": "spark", "count": 12, "speed": 9.5,  "kb": 1.2, "shake": 0.25, "stop": 0.045, "sfx": "impact_sword"},
 	W.KATANA:         {"color": Color(1.0, 0.2, 0.12),  "kind": "spark", "count": 14, "speed": 10.0, "kb": 1.25, "shake": 0.28, "stop": 0.05, "sfx": "impact_sword"},
+	W.FISTS:          {"color": Color(1.0, 0.92, 0.75), "kind": "puff",  "count": 8,  "speed": 5.0,  "kb": 1.0, "shake": 0.18, "stop": 0.04, "sfx": "impact_blunt"},
 	W.GREATSWORD:     {"color": Color(1.0, 0.85, 0.55), "kind": "spark", "count": 14, "speed": 9.0,  "kb": 1.4, "shake": 0.35, "stop": 0.06, "sfx": "impact_great"},
 	W.BOW:            {"color": Color(1.0, 0.9, 0.6),   "kind": "shard", "count": 8,  "speed": 8.0,  "kb": 0.7, "shake": 0.12, "stop": 0.03, "sfx": "impact_pierce"},
 }
@@ -65,6 +66,7 @@ var _slow_until_us: int = 0
 var _slow_scale: float = 1.0
 var _last_sfx_ms: int = 0
 var _last_us: int = 0
+var _words: ComicWords            ## onomatopeyas de cómic (¡ZAS!, SLASH!...) según el arma
 
 ## Perfil de "feel" según el modo:
 ##   "full"  — mazmorra: todo (hitstop, reacción, marcas, FOV, pantalla...).
@@ -155,6 +157,9 @@ static func _instance() -> HitFeedback:
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_last_us = Time.get_ticks_usec()
+	_words = ComicWords.new()
+	_words.name = "ComicWords"
+	add_child(_words)
 
 func _exit_tree() -> void:
 	Engine.time_scale = 1.0
@@ -186,6 +191,7 @@ func _hit(enemy, amount: float, kb_dir: Vector3, killed: bool) -> void:
 	# 1. Flash + marca de impacto orientada (corte, punzada o anillo según el arma)
 	_flash(pos, col, 0.9 + 0.6 * power)
 	_mark(pos, col, dir, _mark_mode(String(p["sfx"])), 0.8 + 0.5 * power)
+	_words.pop(weapon_tag, pos, dir, power, killed, false)
 	# 2. Sonido: impacto con tono que sube en la racha + capa grave en golpes pesados/remates
 	var now := Time.get_ticks_msec()
 	if now - _last_sfx_ms >= SFX_GAP_MS:
@@ -729,7 +735,24 @@ void fragment() {
 }
 """
 
+## Estrella de impacto DIBUJADA (cómic): picos con contorno de tinta y núcleo claro
+## (res://assets/textures/toon/fx/impact.png, de tools/make_toon_fx.py), teñida con el color del arma.
+## Sustituye al destello aditivo del shader; si falta la textura, se usa el destello de siempre.
+const IMPACT_TEX_PATH := "res://assets/textures/toon/fx/impact.png"
+const IMPACT_PIXEL := 0.0062               ## 128 px de celda ≈ 0.8 m a escala 1
+var _stars: Array[Sprite3D] = []
+var _star_idx := 0
+var _impact_tex: Texture2D
+var _impact_checked := false
+
 func _flash(pos: Vector3, col: Color, size: float) -> void:
+	if not _impact_checked:
+		_impact_checked = true
+		if ResourceLoader.exists(IMPACT_TEX_PATH):
+			_impact_tex = load(IMPACT_TEX_PATH)
+	if _impact_tex != null:
+		_star(pos, col, size)
+		return
 	if _flashes.is_empty():
 		var sh := Shader.new()
 		sh.code = FLASH_SHADER_CODE
@@ -758,6 +781,42 @@ func _flash(pos: Vector3, col: Color, size: float) -> void:
 	tw.tween_property(f, "scale", Vector3.ONE * size * 1.3, 0.1).set_ease(Tween.EASE_OUT)
 	tw.tween_method(func(a: float): mat.set_shader_parameter("alpha", a), 1.0, 0.0, 0.12)
 	tw.chain().tween_callback(func(): f.visible = false)
+
+func _star(pos: Vector3, col: Color, size: float) -> void:
+	if _stars.is_empty():
+		for i in FLASH_POOL:
+			var sp := Sprite3D.new()
+			sp.texture = _impact_tex
+			sp.hframes = 2
+			sp.vframes = 2
+			sp.pixel_size = IMPACT_PIXEL
+			sp.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			sp.shaded = false
+			sp.no_depth_test = true            # por delante del enemigo, como una viñeta
+			sp.render_priority = 10
+			sp.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+			sp.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			sp.visible = false
+			sp.top_level = true
+			add_child(sp)
+			_stars.append(sp)
+	var st := _stars[_star_idx]
+	_star_idx = (_star_idx + 1) % FLASH_POOL
+	var prev = st.get_meta(&"tw") if st.has_meta(&"tw") else null
+	if prev is Tween and (prev as Tween).is_valid():
+		(prev as Tween).kill()
+	st.frame = randi() % 4
+	st.modulate = Color(col.lerp(Color.WHITE, 0.2), 1.0)
+	st.global_position = pos
+	st.scale = Vector3.ONE * size * 0.35
+	st.visible = true
+	var tw := st.create_tween().set_ignore_time_scale(true)
+	st.set_meta(&"tw", tw)
+	# golpe de escala (entra grande), se queda un instante y se apaga
+	tw.tween_property(st, "scale", Vector3.ONE * size * 1.15, 0.06).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(st, "scale", Vector3.ONE * size * 0.95, 0.06)
+	tw.parallel().tween_property(st, "modulate:a", 0.0, 0.08).set_delay(0.05)
+	tw.tween_callback(func(): st.visible = false)
 
 # ───────────────────────────── Marca de impacto ─────────────────────────────
 
@@ -893,13 +952,22 @@ func _make_emitter(kind: String) -> CPUParticles3D:
 			cp.scale_amount_min = 0.5
 			cp.scale_amount_max = 1.4
 		"puff":
-			var s2 := SphereMesh.new()
-			s2.radius = 0.15
-			s2.height = 0.3
-			s2.radial_segments = 6
-			s2.rings = 3
-			cp.mesh = s2
 			mat.blend_mode = BaseMaterial3D.BLEND_MODE_MIX
+			if ToonFX.puff_material(mat):
+				# Nube dibujada (cómic): un cuadrado con la textura entintada, una de cuatro al azar
+				var q2 := QuadMesh.new()
+				q2.size = Vector2(0.42, 0.42)
+				cp.mesh = q2
+				ToonFX.vary(cp)
+				cp.angle_min = -25.0
+				cp.angle_max = 25.0
+			else:
+				var s2 := SphereMesh.new()
+				s2.radius = 0.15
+				s2.height = 0.3
+				s2.radial_segments = 6
+				s2.rings = 3
+				cp.mesh = s2
 			cp.lifetime = 0.55
 			cp.spread = 80.0
 			cp.gravity = Vector3(0, 0.6, 0)
@@ -1144,6 +1212,7 @@ func _hit_light(enemy, amount: float, kb_dir: Vector3, killed: bool) -> void:
 		_fx_count += 1
 		_flash(pos, col, 0.6 + 0.4 * power)
 		_burst(p, pos, dir, maxi(int(float(p["count"]) * 0.5), 3))
+		_words.pop(weapon_tag, pos, dir, power, killed, true)
 	var now := Time.get_ticks_msec()
 	if now - _last_sfx_ms >= LIGHT_SFX_GAP_MS:
 		_chain = _chain + 1 if now - _last_sfx_ms <= CHAIN_WINDOW_MS else 0

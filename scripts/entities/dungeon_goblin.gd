@@ -48,6 +48,12 @@ const TEXTURE := "res://assets/textures/enemigos/texture_normal_goblin.png"
 const TELEGRAPH_SHADER: Shader = preload("res://assets/shaders/enemy_telegraph.gdshader")
 const FloatingDamage = preload("res://scripts/objects/floating_damage.gd")
 const MODEL_HEIGHT := 1.35
+## Armaduras de los goblins normales (pack Uruk, ajustadas en tools/goblin_armor_editor.tscn → resources/goblin_armor_fit.json):
+## cada goblin normal se pone, al azar, una pechera (set peto + hombreras), un taparrabo y/o un casco de los que
+## tengan ajuste guardado.
+const ARMOR_CHANCE := 0.6
+const LOINCLOTH_CHANCE := 0.5
+const HELMET_CHANCE := 0.5
 ## Contraste con la cueva: los enemigos casi desaparecían contra la roca en penumbra. Un contorno de luz
 ## (fresnel, aditivo y sin iluminar: se ve aunque no le llegue ninguna antorcha) recorta su silueta, y su
 ## textura brilla un poco por sí sola (SELF_LIT) para que se lean los colores en la oscuridad.
@@ -105,6 +111,7 @@ const GUARD_RANGED := Color(0.35, 0.65, 1.0)
 
 # ── Aturdimiento y remate ──
 const STUN_HIT_MULT := 0.5            ## un golpe normal llena la barra con la mitad de su daño
+const STUN_TOUGHNESS := 1.25         ## aguante extra de todos los enemigos (más golpes hasta aturdirlos)
 const STUN_HEAVY_MULT := 1.0          ## un golpe pesado (los que aturden), con todo su daño
 const STUN_PUNISH_MULT := 1.5         ## × extra si está en RECOVER (castigar el ataque fallado)
 const STUN_DECAY_DELAY := 2.5         ## s sin recibir golpes antes de que la barra se vacíe
@@ -123,7 +130,9 @@ void vertex() {
 	MODELVIEW_MATRIX = VIEW_MATRIX * mat4(INV_VIEW_MATRIX[0], INV_VIEW_MATRIX[1], INV_VIEW_MATRIX[2], MODEL_MATRIX[3]);
 }
 void fragment() {
-	float edge = step(UV.x, 0.025) + step(0.975, UV.x) + step(UV.y, 0.14) + step(0.86, UV.y);
+	// Borde de cómic: contorno de tinta grueso y una línea de tinta donde acaba el relleno
+	float edge = step(UV.x, 0.04) + step(0.96, UV.x) + step(UV.y, 0.22) + step(0.78, UV.y);
+	edge += step(abs(UV.x - fill), 0.012) * step(0.04, fill) * step(fill, 0.96);
 	vec3 bar = mix(tint, vec3(1.0, 1.0, 0.85), pulse);
 	vec3 c = UV.x < fill ? bar : vec3(0.08, 0.06, 0.04);
 	ALBEDO = mix(c, vec3(0.0), clamp(edge, 0.0, 1.0));
@@ -279,6 +288,11 @@ var _death_vy := 0.0                  ## impulso vertical pendiente al morir
 const DEATH_HOP := 3.2                ## m/s hacia arriba al morir (mazmorra)
 var _facing := Vector3.FORWARD
 var _model: Node3D
+## Armadura y casco que lleva (ids de ClothingFit con perfil goblin; "" = nada). Solo goblins normales.
+var worn_armor := ""      ## set de la pechera ("uruk"…)
+var worn_loincloth := ""  ## id del taparrabo
+var worn_helmet := ""
+static var armor_enabled := false     ## DESACTIVADO por ahora (2026-11-13): ningún goblin sale con armadura. true = vuelven
 var _anim: AnimationPlayer
 var _meshes: Array[MeshInstance3D] = []
 var _flash_mat: ShaderMaterial
@@ -338,6 +352,7 @@ func _ready() -> void:
 		var nw := get_tree().current_scene.get_node_or_null("NetWorld")
 		if nw:
 			nw.register_enemy(self)
+	_wear_armor()   # después del registro: con net_id, anfitrión y clientes eligen la misma
 
 # ───────────────────────────── Modelo y animaciones ─────────────────────────────
 
@@ -468,6 +483,79 @@ func _build_model() -> void:
 			a.loop_mode = Animation.LOOP_LINEAR if clip == "walk" else Animation.LOOP_NONE
 			_clip_cache[key] = a
 		lib.add_animation(clip, a)
+
+## Elige (con net_id como semilla en red, al azar si no) y se pone pechera (set peto + hombreras), taparrabo y casco.
+## Las mallas se pegan al esqueleto con los pesos del cuerpo (ClothingFit.build_skinned, cacheado en memoria y en
+## disco) y entran en _meshes para el destello de golpe, el contorno y la disolución al morir.
+func _wear_armor() -> void:
+	if not armor_enabled or enemy_type != EnemyData.EnemyType.NORMAL_GOBLIN or idle_model != IDLE_MODEL or _meshes.is_empty():
+		return
+	var rng := RandomNumberGenerator.new()
+	if net_id > 0:
+		rng.seed = hash("goblin_armor_%d" % net_id)
+	else:
+		rng.randomize()
+	# Siempre las mismas tiradas en el mismo orden (aunque falten piezas): anfitrión y clientes coinciden
+	var rolls := [rng.randf(), rng.randf(), rng.randf()]
+	var picks := [rng.randi(), rng.randi(), rng.randi()]
+	var chances := [ARMOR_CHANCE, LOINCLOTH_CHANCE, HELMET_CHANCE]
+	var prof := ClothingFit.PROFILE_GOBLIN
+	for k in ClothingFit.GOBLIN_SLOTS.size():
+		var opts: Array[String] = []
+		for id in ClothingFit.fitted_ids(ClothingFit.GOBLIN_SLOTS[k], prof):
+			var key := ClothingFit.armor_set(id) if k == 0 else id   # la pechera se sortea por set, no por pieza
+			if not opts.has(key):
+				opts.append(key)
+		if not opts.is_empty() and float(rolls[k]) < float(chances[k]):
+			var pick := opts[int(picks[k]) % opts.size()]
+			put_on_armor(_set_piece(pick) if k == 0 else pick)
+
+## Una pieza con ajuste del set de pechera `set_name` (para pasársela a put_on_armor, que pone el set entero).
+func _set_piece(set_name: String) -> String:
+	for id in ClothingFit.fitted_ids(ClothingFit.SLOT_SHIRT, ClothingFit.PROFILE_GOBLIN):
+		if ClothingFit.armor_set(id) == set_name:
+			return id
+	return ""
+
+## Se pone una pieza del perfil goblin y sustituye lo que llevara en esa ranura. Una pieza de pechera pone su SET
+## entero (peto + hombreras del mismo set que tengan ajuste guardado).
+func put_on_armor(id: String) -> void:
+	var prof := ClothingFit.PROFILE_GOBLIN
+	var fits := ClothingFit.fits(prof)
+	if not fits.has(id) or _meshes.is_empty():
+		return
+	var slot := ClothingFit.slot_of(id, fits[id], prof)
+	var pieces: Array[String] = [id]
+	if slot == ClothingFit.SLOT_SHIRT:
+		pieces = []
+		for other in ClothingFit.fitted_ids(slot, prof):
+			if ClothingFit.armor_set(other) == ClothingFit.armor_set(id):
+				pieces.append(other)
+	var body := _meshes[0]
+	var skel := _model.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
+	var tag := "Armor_%s_" % slot
+	for old in skel.get_children():
+		if old is MeshInstance3D and String(old.name).begins_with(tag):
+			_meshes.erase(old)
+			skel.remove_child(old)
+			old.queue_free()
+	var ms := ClothingFit.body_height(prof) / maxf(body.mesh.get_aabb().size.y, 0.0001)
+	for piece in pieces:
+		var parts := ClothingFit.build_skinned(piece, fits[piece], body, ms, prof)
+		for k in parts.size():
+			var mi := parts[k]
+			mi.name = "%s%s_%d" % [tag, piece, k]
+			skel.add_child(mi)
+			_lift_fbx_materials(mi)   # algo de brillo propio, como el resto del goblin: se lee en la cueva
+			mi.material_overlay = _flash_mat
+			_meshes.append(mi)
+	match slot:
+		ClothingFit.SLOT_HELMET:
+			worn_helmet = id
+		ClothingFit.SLOT_PANTS:
+			worn_loincloth = id
+		_:
+			worn_armor = ClothingFit.armor_set(id)
 
 func _fit_model() -> void:
 	if _meshes.is_empty() or _meshes[0].mesh == null:
@@ -684,7 +772,7 @@ func _make_head_bar(size: Vector2, height: float, tint: Color) -> MeshInstance3D
 	return bar
 
 func stun_max() -> float:
-	return maxf(max_hp * stun_ratio, 1.0)
+	return maxf(max_hp * stun_ratio * STUN_TOUGHNESS, 1.0)
 
 ## 0..1 (lo envía NetWorld a las copias de los clientes).
 func stun_fraction() -> float:

@@ -65,17 +65,17 @@ static func fit_transform(i: int) -> Transform3D:
 	var s := skin(i)
 	var up: Vector3 = (s["up"] as Vector3).normalized()
 	var pommel: Vector3 = s["pommel"]
-	var len: float = float(s["len"])
+	var seg_len: float = float(s["len"])
 	if bool(s.get("flip", false)):
-		pommel += up * len
+		pommel += up * seg_len
 		up = -up
 	var wide: Vector3 = s["wide"]
 	wide = (wide - up * wide.dot(up)).normalized()
 	var z := wide.cross(up).normalized()
 	var b := Basis(wide, up, z).transposed()
-	var k: float = float(s["world_len"]) / len
+	var k: float = float(s["world_len"]) / seg_len
 	b = b.scaled(Vector3.ONE * k)
-	var grip_pt: Vector3 = pommel + up * (float(s["grip"]) * len)
+	var grip_pt: Vector3 = pommel + up * (float(s["grip"]) * seg_len)
 	return Transform3D(b, -(b * grip_pt))
 
 static func build(i: int) -> Node3D:
@@ -87,4 +87,5 @@ static func build(i: int) -> Node3D:
 	var model := scene.instantiate() as Node3D
 	model.transform = fit_transform(i)
 	root.add_child(model)
+	ToonWeapon.apply(root)
 	return root

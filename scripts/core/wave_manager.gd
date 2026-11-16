@@ -55,6 +55,16 @@ var endless: bool = false
 var events: RunEvents
 var _curse_until: float = 0.0
 
+## Beta: si ningún enemigo está a menos de ISOLATED_DIST m del jugador (se ha alejado de la horda o los ha
+## ido matando), los siguientes aparecen CERCA (a NEAR_RING m, no a 16–24) y el tope de vivos no los frena.
+const ISOLATED_DIST := 34.0
+const ISOLATED_FROM := 8.0           ## s de partida antes de aplicarlo (el arranque ya es tranquilo)
+const NEAR_RING := Vector2(9.0, 14.0)
+const ISOLATED_MIN_BATCH := 3
+const ISOLATED_INTERVAL_MULT := 0.5
+var _near_pending: int = 0           ## apariciones pendientes que salen en el anillo cercano
+var _near_scratch: Array = []
+
 func _ready() -> void:
 	spawn_timer = Timer.new()
 	spawn_timer.one_shot = true
@@ -91,6 +101,7 @@ func start_run(p_player: Node3D) -> void:
 			enemy.queue_free()
 	_boss = null
 	_boss_spawned = false
+	_near_pending = 0
 	endless = false
 	_curse_until = 0.0
 	_running = true
@@ -227,19 +238,38 @@ func _on_spawn_tick() -> void:
 
 	var alive := EnemyRegistry.count() + _pending_spawns
 	var cap := _alive_cap() + (RunEvents.CURSE_CAP_BONUS if is_cursed() else 0)
-	for i in range(_current_batch()):
+	var isolated := is_player_isolated()
+	var batch := _current_batch()
+	if isolated:
+		batch = maxi(batch, ISOLATED_MIN_BATCH)
+		cap += batch                    # los lejanos no deben impedir que aparezcan cerca
+	for i in range(batch):
 		if alive >= cap:
 			break
 		_pending_spawns += 1
 		alive += 1
-	spawn_timer.start(_current_interval())
+		if isolated:
+			_near_pending += 1
+	spawn_timer.start(_current_interval() * (ISOLATED_INTERVAL_MULT if isolated else 1.0))
+
+## ¿No hay ningún enemigo cerca del jugador? (la rejilla de EnemyRegistry; una consulta por tick de aparición)
+func is_player_isolated() -> bool:
+	if player == null or not is_instance_valid(player) or _elapsed() < ISOLATED_FROM:
+		return false
+	if _boss_alive():
+		return false
+	EnemyRegistry.query_radius_into(player.global_position, ISOLATED_DIST, _near_scratch)
+	return _near_scratch.is_empty()
 
 func _random_spawn_pos() -> Vector3:
 	var player_pos = player.global_position if player else Vector3.ZERO
 	var main_node = get_tree().current_scene
-	# Anillo perimetral de 16 a 24 m en 360° alrededor del jugador
+	# Anillo perimetral de 16 a 24 m en 360° alrededor del jugador (de 9 a 14 m si está aislado)
 	var theta := randf_range(0.0, TAU)
 	var dist := randf_range(16.0, 24.0)
+	if _near_pending > 0:
+		_near_pending -= 1
+		dist = randf_range(NEAR_RING.x, NEAR_RING.y)
 	var px: float = clamp(player_pos.x + cos(theta) * dist, PLAYABLE_MIN_X, PLAYABLE_MAX_X)
 	var pz: float = clamp(player_pos.z + sin(theta) * dist, PLAYABLE_MIN_Z, PLAYABLE_MAX_Z)
 	var py: float = (main_node.get_floor_y(px, pz) if main_node.has_method("get_floor_y") else 0.0)

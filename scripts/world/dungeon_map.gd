@@ -50,8 +50,9 @@ const TEX_DIR := "res://assets/textures/dungeon/"
 const ROCK_SHADER: Shader = preload("res://assets/shaders/cave_rock.gdshader")
 const FLOOR_SHADER: Shader = preload("res://assets/shaders/cave_floor.gdshader")
 const DETAIL_SHADER: Shader = preload("res://assets/shaders/prop_detail.gdshader")
-## Textura estilizada de la roca, sacada del escaneo de la gruta (tools/make_cave_scan_texture.py)
-const ROCK_TEX := "cave_scan"
+## Textura de la roca: tallada en facetas con la tinta dibujada y su normal map por faceta
+## (tools/make_toon_textures.py, make_cave). Antes "cave_scan", la del escaneo de la gruta, que sigue en disco.
+const ROCK_TEX := "cave_toon"
 const WALL_CHUNK := 48.0              ## lado de cada trozo de pared (m)
 ## Props con detalle de piedra (el resto, madera)
 const STONE_PROPS := ["rock_a", "rock_b", "stalagmite", "altar", "pillar", "wall", "grave_a", "grave_b",
@@ -141,6 +142,11 @@ func palette() -> Dictionary:
 var _torch_anchors: Array = []
 var _shell_mat: ShaderMaterial           ## material de la carcasa (para activar la luz horneada)
 var _bake_sources: Array = []            ## [pos, energía, alcance, atenuación] de antorchas y braseros
+## Carcasa en cálculo (ver _start_cave_shell) y su tarea del WorkerThreadPool (-1 = ninguna).
+var _pending_shell: CaveShell = null
+var _shell_task: int = -1
+## RUMBANG_SHELL_THREAD=0 calcula la carcasa en el hilo principal (comparativas / depuración).
+static var SHELL_THREADED: bool = OS.get_environment("RUMBANG_SHELL_THREAD") != "0"
 var _cave_shell: CaveShell            # la carcasa de este mapa (alturas del techo para las estalactitas)
 var _cliff_spots := {}                # celda de 8 m -> [posiciones de acantilados] (sin antorchas encima)
 var _torch_spots := {}                # celda de 8 m -> [posiciones de antorchas de pared]
@@ -204,6 +210,8 @@ func generate(p_seed: int = 0) -> void:
 	_carve()
 	_find_walls()
 	_compute_wall_dist()
+	# La carcasa de la cueva (lo más caro de la generación) se calcula en otro hilo mientras se hace el suelo
+	_start_cave_shell()
 	_build_floor()
 	_build_walls()
 	for i in rooms.size():
@@ -709,7 +717,7 @@ func _floor_material() -> Material:
 	mat.shader = FLOOR_SHADER
 	mat.set_shader_parameter("albedo_tex", load(TEX_DIR + "ground_albedo.png"))
 	mat.set_shader_parameter("normal_tex", load(TEX_DIR + "ground_normal.png"))
-	mat.set_shader_parameter("use_normal_map", Quality.level() != Quality.Level.LOW)
+	mat.set_shader_parameter("use_normal_map", _relief_maps())
 	return mat
 
 ## Material de los props: detalle de madera o de piedra (uno compartido por cada tipo).
@@ -727,7 +735,7 @@ static func detail_material(kind: String) -> ShaderMaterial:
 			mat.set_shader_parameter(t + "_tex", load(TEX_DIR + t + "_albedo.png"))
 			mat.set_shader_parameter(t + "_normal", load(TEX_DIR + t + "_normal.png"))
 		mat.set_shader_parameter("roughness_value", 0.9 if tex == "stone" else 0.8)
-		mat.set_shader_parameter("use_normal_map", Quality.level() != Quality.Level.LOW)
+		mat.set_shader_parameter("use_normal_map", _relief_maps())
 		mat.set_shader_parameter("hide_emissive", key == "fire")
 		_detail_mats[key] = mat
 	return _detail_mats[key]
@@ -758,6 +766,7 @@ func _add_flame(base: Vector3, height: float) -> void:
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.position = base + Vector3(0.0, height * 0.5, 0.0)
 	add_child(mi)
+	add_ambient_point("fire", base + Vector3(0.0, height * 0.4, 0.0))
 
 ## Las mallas de los props llevan el material de detalle en vez del plano (prop_flat).
 func _prop_chunk_size(kind: String) -> float:
@@ -766,14 +775,23 @@ func _prop_chunk_size(kind: String) -> float:
 func _prop_def(kind: String) -> Dictionary:
 	return CAVE_PROPS[kind] if CAVE_PROPS.has(kind) else super(kind)
 
+## ¿Se leen los normal maps? En calidad baja y en móvil no: el relieve y la tinta ya van horneados en el
+## albedo (tools/toonify_dungeon_textures.py), así que se ahorran 1–3 lecturas de textura por píxel.
+static func _relief_maps() -> bool:
+	return Quality.level() != Quality.Level.LOW and not (Quality.is_mobile() or OS.has_feature("mobile"))
+
 func _load_kind(kind: String) -> Mesh:
 	if kind in TEXTURED_PROPS:
 		return _load_textured(kind)
 	var fresh := not _mesh_cache.has(kind)
 	var mesh := super(kind)
-	if fresh and mesh != null:
+	# Los que tienen textura cartoon horneada (una lectura) ya la traen; el resto, detalle en triplanar
+	if fresh and mesh != null and not is_toon_material(mesh.surface_get_material(0)):
 		mesh.surface_set_material(0, detail_material(kind))
 	return mesh
+
+func _toon_hides_flame(kind: String) -> bool:
+	return kind in FIRE_PROPS
 
 ## Malla de un prop con sus materiales del .glb (texturas), sin aplanar.
 func _load_textured(kind: String) -> Mesh:
@@ -808,7 +826,7 @@ static func mushroom_material() -> ShaderMaterial:
 		_mush_mat.set_shader_parameter("albedo_tex", load(MUSH_TEX_DIR + "mushroom_albedo.png"))
 		_mush_mat.set_shader_parameter("normal_tex", load(MUSH_TEX_DIR + "hongo_normal.png"))
 		_mush_mat.set_shader_parameter("glow_tex", load(MUSH_TEX_DIR + "mushroom_glow.png"))
-		_mush_mat.set_shader_parameter("use_normal_map", Quality.level() != Quality.Level.LOW)
+		_mush_mat.set_shader_parameter("use_normal_map", _relief_maps())
 	return _mush_mat
 
 ## Material de roca de las piezas del pack: el de las paredes (textura de la gruta en triplanar) con el
@@ -819,12 +837,12 @@ static func pack_rock_material() -> ShaderMaterial:
 		_pack_mat.shader = ROCK_SHADER
 		_pack_mat.set_shader_parameter("albedo_tex", load(TEX_DIR + ROCK_TEX + "_albedo.png"))
 		_pack_mat.set_shader_parameter("normal_tex", load(TEX_DIR + ROCK_TEX + "_normal.png"))
-		_pack_mat.set_shader_parameter("tile_m", 4.0)
+		_pack_mat.set_shader_parameter("tile_m", 6.0)
 		_pack_mat.set_shader_parameter("tint_gain", 2.8)     # algo más claras que la pared: que no queden en silueta negra
 		_pack_mat.set_shader_parameter("top_light_h", 1000.0)
 		_pack_mat.set_shader_parameter("use_vertex_color", false)
 		_pack_mat.set_shader_parameter("base_dark_h", 0.3)   # rocas y columnas: pie oscuro corto
-		_pack_mat.set_shader_parameter("use_normal_map", Quality.level() != Quality.Level.LOW)
+		_pack_mat.set_shader_parameter("use_normal_map", _relief_maps())
 	return _pack_mat
 
 ## Acantilados del pack delante de la pared (hasta 3 por caverna): rompen la silueta lisa de la carcasa.
@@ -1002,6 +1020,7 @@ func _place_mushrooms() -> void:
 
 func _mushroom_cluster(center: Vector2, with_big: bool, glow: Color) -> void:
 	_reserve(center, 1.6 if with_big else 1.0)
+	add_ambient_point("mush_big" if with_big else "mush", Vector3(center.x, 0.4, center.y))
 	if with_big:
 		_add("mush_big", center, -1.0, -1.0, 0.0, true)
 		_add_light(Vector3(center.x, 1.3, center.y), glow, 0.9, 5.0, 1.3)
@@ -1113,33 +1132,57 @@ func _floor_color(c: Vector2i) -> Color:
 	return col
 
 func _build_walls() -> void:
-	_build_wall_visuals()
+	# Colisiones primero: así siguen solapándose con el cálculo de la carcasa (_start_cave_shell)
 	_build_wall_colliders()
+	_build_wall_visuals()
 
-## Paredes y techo: una carcasa continua (CaveShell) con el relieve del escaneo de la Gruta do Janelão,
-## texturizada en triplanar con cave_rock (textura estilizada del mismo escaneo).
-func _build_wall_visuals() -> void:
-	var low_q := Quality.level() == Quality.Level.LOW
-	var mat := ShaderMaterial.new()
-	mat.shader = ROCK_SHADER
-	mat.set_shader_parameter("albedo_tex", load(TEX_DIR + ROCK_TEX + "_albedo.png"))
-	mat.set_shader_parameter("normal_tex", load(TEX_DIR + ROCK_TEX + "_normal.png"))
-	mat.set_shader_parameter("tile_m", 5.0)
-	mat.set_shader_parameter("tint_gain", 2.2)
-	mat.set_shader_parameter("top_light_h", 1000.0)      # sin cresta clara: la parte alta la oscurece el color
-	mat.set_shader_parameter("use_normal_map", not low_q)
-	# Anti-repetición = 3 lecturas más por píxel en toda la pared y el techo: no en móvil
-	mat.set_shader_parameter("break_tiling", not low_q and not _mobile)
-	_shell_mat = mat
+## true si el mapa usa la carcasa continua (CaveShell); SewerMap hace sus paredes de ladrillo y no la usa.
+func _uses_cave_shell() -> bool:
+	return true
+
+## Prepara la CaveShell y lanza compute() en el WorkerThreadPool: solo lee _cells/_walls/_wall_dist (que no
+## cambian hasta _build_wall_visuals) y crea ArrayMesh sin nodos. _build_wall_visuals espera y crea los nodos.
+func _start_cave_shell() -> void:
+	_shell_task = -1
+	_pending_shell = null
+	if not _uses_cave_shell():
+		return
 	var shell := CaveShell.new()
 	shell.cell = CELL
 	shell.chunk = WALL_CHUNK if _mobile else LIT_CHUNK
 	shell.rock_color = palette()["rock"]
-	if low_q or _mobile:
+	if Quality.level() == Quality.Level.LOW or _mobile:
 		shell.spacing = 1.7
 		shell.rings = 7
 	shell.setup(_cells, _walls, _wall_dist, used_seed)
-	shell.compute()
+	_pending_shell = shell
+	if SHELL_THREADED:
+		_shell_task = WorkerThreadPool.add_task(shell.compute, true, "CaveShell.compute")
+
+## Paredes y techo: una carcasa continua (CaveShell) con el relieve del escaneo de la Gruta do Janelão,
+## texturizada en triplanar con cave_rock (textura estilizada del mismo escaneo).
+func _build_wall_visuals() -> void:
+	var mat := ShaderMaterial.new()
+	mat.shader = ROCK_SHADER
+	mat.set_shader_parameter("albedo_tex", load(TEX_DIR + ROCK_TEX + "_albedo.png"))
+	mat.set_shader_parameter("normal_tex", load(TEX_DIR + ROCK_TEX + "_normal.png"))
+	mat.set_shader_parameter("tile_m", 8.0)              # 7 facetas por lado: cada una ≈ 1.1 m
+	mat.set_shader_parameter("tint_gain", 2.2)
+	mat.set_shader_parameter("top_light_h", 1000.0)      # sin cresta clara: la parte alta la oscurece el color
+	mat.set_shader_parameter("use_normal_map", _relief_maps())
+	# Sin anti-repetición: mezclar dos lecturas a distinta escala duplicaría las líneas de tinta (y son 3
+	# lecturas menos por píxel en toda la pared y el techo).
+	mat.set_shader_parameter("break_tiling", false)
+	_shell_mat = mat
+	if _pending_shell == null:
+		_start_cave_shell()               # llamada suelta (sin generate): se calcula aquí mismo
+	var shell := _pending_shell
+	_pending_shell = null
+	if _shell_task >= 0:
+		WorkerThreadPool.wait_for_task_completion(_shell_task)
+		_shell_task = -1
+	else:
+		shell.compute()
 	add_child(shell.make_nodes(mat, not _mobile))
 	_torch_anchors = shell.anchors
 	_cave_shell = shell
@@ -1430,6 +1473,10 @@ func _scatter_grass(r: Dictionary) -> void:
 		var p := Vector2(c.x * CELL, c.y * CELL) + Vector2(_rng.randf_range(-1.0, 1.0), _rng.randf_range(-1.0, 1.0))
 		var basis := Basis.from_euler(Vector3(0.0, _rng.randf() * TAU, 0.0)).scaled(Vector3.ONE * _rng.randf_range(0.6, 1.3))
 		_grass.append(Transform3D(basis, Vector3(p.x, 0.0, p.y)))
+
+## Mechones de hierba del mapa (MapReactions: roce al cruzarlos).
+func grass_transforms() -> Array[Transform3D]:
+	return _grass
 
 func _build_grass() -> void:
 	if _grass.is_empty():

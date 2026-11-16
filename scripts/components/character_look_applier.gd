@@ -20,6 +20,8 @@ const HAIR_PREFIX := "Pelo_"
 const SKIN_SHADER := preload("res://assets/shaders/riva_skin.gdshader")
 const HAIR_SHADER := preload("res://assets/shaders/riva_hair.gdshader")
 const EYE_SHADER := preload("res://assets/shaders/riva_eye.gdshader")
+## Pelo macizo del modelo base: color plano, opaco y sin texturas
+const HAIR_SOLID_SHADER := preload("res://assets/shaders/riva_hair_solid.gdshader")
 const ACC_DIR := "res://assets/models/riva/accesorios/"
 const SHIN_FRACTION := 0.35   ## igual que en tools/blender_riva_accessories.py
 ## Cascos del equipo (assets/models/riva/cascos/<id>.glb, normalizados por tools/blender_riva_helmets.py) y su ajuste
@@ -63,10 +65,12 @@ const LEG_BONES := {"L": "mixamorig_LeftLeg", "R": "mixamorig_RightLeg"}
 
 ## Material del modelo base -> [shader, ranura de color, texturas (albedo, normal, oclusión)]
 const SURFACES := {
-	"rb_Piel": ["skin", "skin", ["piel.png", "piel_n.png", "piel_ao.png", "piel_mask.png"]],
-	"rb_Calzones": ["cloth", "underwear", []],
-	"rb_Elastico": ["cloth", "waistband", []],
-	"rb_Ojos": ["eye", "eyes", ["ojos.png"]],
+	# piel_toon.png: detalle × sombra cel con la tinta horneada, cejas en el alfa (tools/make_riva_toon_textures.py).
+	# La ropa interior comparte la UV del cuerpo: usa la misma textura para llevar su sombra y su tinta.
+	"rb_Piel": ["skin", "skin", ["piel_toon.png"]],
+	"rb_Calzones": ["cloth", "underwear", ["piel_toon.png"]],
+	"rb_Elastico": ["cloth", "waistband", ["piel_toon.png"]],
+	"rb_Ojos": ["eye", "eyes", ["ojos_toon.png"]],
 	"rb_Cejas": ["hair", "hair", ["cejas.png"]],
 	"rb_Pestanas": ["lash", "", ["pestanas.png"]],
 }
@@ -104,6 +108,10 @@ var _pants_nodes: Array[Node3D] = []
 var _armor: Dictionary = {}          ## pieza ("pechera") -> set pedido ("" = ninguno)
 var _armor_shown: Dictionary = {}    ## pieza -> set colgado ahora mismo
 var _armor_nodes: Dictionary = {}    ## pieza -> Array[Node3D]
+var _uruk_shown: Dictionary = {}     ## ranura ("casco"/"pechera"/"pantalones") -> valor Uruk colgado ("uruk:…")
+var _uruk_nodes: Dictionary = {}     ## ranura -> Array[Node3D]
+const URUK_SLOTS := ["casco", "pechera", "pantalones"]
+const URUK_NET_BASE := 100           ## índices de red >= 100: piezas Uruk (EquipmentDB.uruk_values)
 
 static var _helmet_fit: Dictionary = {}
 static var _hair_fit: Dictionary = {}
@@ -187,10 +195,43 @@ static func armor_fit() -> Dictionary:
 	return _armor_fit
 
 static func armor_net_index(set_id: String) -> int:
+	if set_id.begins_with(EquipmentDB.URUK_PREFIX):
+		return _uruk_net_index(set_id)
 	return ARMOR_SETS.find(set_id) + 1
 
 static func armor_from_net_index(i: int) -> String:
+	if i >= URUK_NET_BASE:
+		return _uruk_from_net_index(i)
 	return String(ARMOR_SETS[i - 1]) if i >= 1 and i <= ARMOR_SETS.size() else ""
+
+static func _uruk_net_index(value: String) -> int:
+	var k := EquipmentDB.uruk_values().find(value)
+	return URUK_NET_BASE + k if k >= 0 else 0
+
+static func _uruk_from_net_index(i: int) -> String:
+	var all := EquipmentDB.uruk_values()
+	return String(all[i - URUK_NET_BASE]) if i - URUK_NET_BASE < all.size() else ""
+
+## Piezas Uruk (ids de ClothingFit, perfil riva_armor, con ajuste guardado) de un valor "uruk:…" en una ranura:
+## la pechera pone su set entero (peto + hombreras); casco y taparrabo, su pieza.
+static func uruk_pieces(value: String, slot: String) -> Array[String]:
+	var out: Array[String] = []
+	if not value.begins_with(EquipmentDB.URUK_PREFIX):
+		return out
+	var x := value.trim_prefix(EquipmentDB.URUK_PREFIX)
+	var prof := ClothingFit.PROFILE_RIVA_ARMOR
+	if slot == "pechera":
+		for id in ClothingFit.fitted_ids(ClothingFit.SLOT_SHIRT, prof):
+			if ClothingFit.armor_set(id) == x:
+				out.append(id)
+	elif ClothingFit.fitted_ids("", prof).has(x):
+		out.append(x)
+	return out
+
+## Valor Uruk pedido en una ranura ("" si lo equipado no es Uruk o aún no tiene ajuste sobre Riva).
+func _uruk_wanted(slot: String) -> String:
+	var v := _helmet_id if slot == "casco" else String(_armor.get(slot, ""))
+	return v if not uruk_pieces(v, slot).is_empty() else ""
 
 ## Set pedido para una pieza ("" si no hay, no es un set conocido o falta su ajuste).
 func _armor_wanted(piece: String) -> String:
@@ -216,9 +257,13 @@ static func helmet_ids() -> Array:
 	return ids
 
 static func helmet_net_index(helmet_id: String) -> int:
+	if helmet_id.begins_with(EquipmentDB.URUK_PREFIX):
+		return _uruk_net_index(helmet_id)
 	return helmet_ids().find(helmet_id) + 1
 
 static func helmet_from_net_index(i: int) -> String:
+	if i >= URUK_NET_BASE:
+		return _uruk_from_net_index(i)
 	var ids := helmet_ids()
 	return String(ids[i - 1]) if i >= 1 and i <= ids.size() else ""
 
@@ -226,6 +271,8 @@ func _helmet_active() -> bool:
 	return _helmet_id != "" and helmet_fit().has(_helmet_id) and ResourceLoader.exists(HELMET_DIR + _helmet_id + ".glb")
 
 func _helmet_hides_hair() -> bool:
+	if _uruk_wanted("casco") != "":
+		return true   # los cascos Uruk tapan toda la cabeza
 	return _helmet_active() and bool(helmet_fit()[_helmet_id].get("hides_hair", true))
 
 # ───────────────────────────── material ─────────────────────────────
@@ -252,7 +299,7 @@ func _apply_material() -> void:
 		for i in mi.mesh.get_surface_count():
 			var m := mi.get_surface_override_material(i) as ShaderMaterial
 			if m == null:
-				m = _make_material("hair", ["pelo_%s.png" % id, "pelo_%s_n.png" % id])
+				m = _make_material("hair_solid", [])
 				mi.set_surface_override_material(i, m)
 			_tint(m, "hair", "hair")
 
@@ -269,16 +316,16 @@ static func _make_material(kind: String, textures: Array) -> ShaderMaterial:
 	match kind:
 		"skin", "cloth":
 			m.shader = SKIN_SHADER
-			m.set_shader_parameter("use_detail", kind == "skin")
-			var names := ["albedo_tex", "normal_tex", "ao_tex", "mask_tex"]
-			for k in textures.size():
-				var t := _tex(textures[k])
-				if t:
-					m.set_shader_parameter(names[k], t)
+			var t: Texture2D = _tex(textures[0]) if not textures.is_empty() else null
+			m.set_shader_parameter("use_detail", t != null)
+			if t:
+				m.set_shader_parameter("albedo_tex", t)
 		"eye":
 			m.shader = EYE_SHADER
 			if not textures.is_empty() and _tex(textures[0]):
 				m.set_shader_parameter("eye_tex", _tex(textures[0]))
+		"hair_solid":
+			m.shader = HAIR_SOLID_SHADER
 		"hair", "lash":
 			m.shader = HAIR_SHADER
 			if not textures.is_empty() and _tex(textures[0]):
@@ -331,7 +378,7 @@ func _apply_accessories() -> void:
 		_hair_shown = hair_wanted
 		if _hair_shown != "":
 			_attach_hair(_hair_shown, regions["head"])
-	var hat_wanted: String = "ninguno" if _helmet_active() else look.hat   # el casco sustituye al gorro
+	var hat_wanted: String = "ninguno" if _helmet_active() or _uruk_wanted("casco") != "" else look.hat   # el casco sustituye al gorro
 	if hat_wanted != _hat_id or look.hair_style != _hat_hair:
 		_free_all(_hat_nodes)
 		_hat_id = hat_wanted
@@ -353,6 +400,16 @@ func _apply_accessories() -> void:
 			_armor_shown[piece] = armor_wanted
 			if armor_wanted != "":
 				_attach_armor(piece, armor_wanted, regions)
+	for slot in URUK_SLOTS:
+		var uruk_wanted := _uruk_wanted(slot)
+		if uruk_wanted != String(_uruk_shown.get(slot, "")):
+			var old_u: Array[Node3D] = _uruk_nodes.get(slot, [] as Array[Node3D])
+			_free_all(old_u)
+			_uruk_shown[slot] = uruk_wanted
+			var list: Array[Node3D] = []
+			for piece in uruk_pieces(uruk_wanted, slot):
+				_attach_uruk(piece, slot, list)
+			_uruk_nodes[slot] = list
 	var shirt_wanted: String = look.shirt if ClothingFit.fitted_ids(ClothingFit.SLOT_SHIRT).has(look.shirt) else ""
 	if shirt_wanted != _shirt_shown:
 		_free_all(_shirt_nodes)
@@ -581,6 +638,19 @@ func _attach_armor(piece: String, set_id: String, regions: Dictionary) -> void:
 ## tools/clothing_editor.tscn: va rígida sobre el hueso elegido (ver ClothingFit.skeleton_transform).
 func _attach_shirt(id: String) -> void:
 	_attach_garment(id, "shirt", _shirt_nodes)
+
+## Pieza Uruk pegada al cuerpo (como la ropa, con el ajuste del perfil riva_armor). Nodos Acc_uruk_<ranura>_<id>_<n>.
+func _attach_uruk(id: String, slot: String, into: Array[Node3D]) -> void:
+	var prof := ClothingFit.PROFILE_RIVA_ARMOR
+	var entry: Dictionary = ClothingFit.fits(prof).get(id, {})
+	var ms := ClothingFit.body_height(prof) / maxf(mesh_instance.mesh.get_aabb().size.y, 0.0001)
+	var parts := ClothingFit.build_skinned(id, entry, mesh_instance, ms, prof)
+	for k in parts.size():
+		var mi := parts[k]
+		mi.name = "Acc_uruk_%s_%s_%d" % [slot, id, k]
+		skeleton.add_child(mi)
+		mi.set_meta("look_acc", true)
+		into.append(mi)
 
 ## Prenda pegada al cuerpo (camiseta o pantalón): la malla lleva los pesos de hueso del cuerpo, así sigue
 ## los brazos, el torso y las piernas. Los nodos se llaman Acc_<ranura>_<id>_<n>.

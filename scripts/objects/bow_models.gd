@@ -88,6 +88,7 @@ static func build(i: int) -> Node3D:
 		var pts: Array = s["string"]
 		var f := fit_transform(i)
 		root.add_child(_string_mesh(f * (pts[0] as Vector3), f * (pts[1] as Vector3)))
+	ToonWeapon.apply(root)
 	return root
 
 ## Cuerda fina entre dos puntos (ejes ya normalizados).

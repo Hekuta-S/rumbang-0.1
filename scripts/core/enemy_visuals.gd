@@ -304,7 +304,7 @@ func _fill_vat(now: float, frac: float, cam: Camera3D) -> void:
 #   12 fase de animación  13 caminando  14 ralentizado  15 (libre)
 
 ## Reserva casilla al enemigo (al activarse). Sin sitio queda sin dibujar (vis_slot = -1).
-func attach(e) -> void:
+func attach(e: EnemyData) -> void:
 	e.vis_slot = -1
 	var model: int = e.vat_idx
 	if model < 0 or model >= _slot_lists.size():
@@ -320,7 +320,7 @@ func attach(e) -> void:
 	write(e, float(EnemyManager.tick))
 
 ## Libera la casilla (al reciclarse): el último enemigo del cubo ocupa su lugar.
-func detach(e) -> void:
+func detach(e: EnemyData) -> void:
 	var slot: int = e.vis_slot
 	if slot < 0:
 		return
@@ -339,7 +339,7 @@ func detach(e) -> void:
 	_dirty[model] = true
 
 ## Escribe el estado actual del enemigo en su casilla (lo llama EnemyManager tras cada actualización).
-func write(e, tick_f: float) -> void:
+func write(e: EnemyData, tick_f: float) -> void:
 	var slot: int = e.vis_slot
 	if slot < 0:
 		return
@@ -366,7 +366,7 @@ func write(e, tick_f: float) -> void:
 	_dirty[model] = true
 
 ## Marca el instante del último golpe (el shader hace el destello de FLASH_S segundos).
-func flash(e) -> void:
+func flash(e: EnemyData) -> void:
 	var slot: int = e.vis_slot
 	if slot < 0:
 		return

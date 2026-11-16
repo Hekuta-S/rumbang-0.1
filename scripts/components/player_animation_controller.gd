@@ -53,11 +53,19 @@ const COMBOS := {
 		"speed": 1.4,
 		"speeds": {"kt1": 1.45, "kt2": 1.45, "kt3": 1.35, "kt4": 1.3, "kt_run": 1.25, "kt_special": 1.15}
 	},
+	# Puños: golpe1 (derecha), golpe1 en espejo (izquierda), golpe2, golpe3, golpe3 en espejo y golpe4 de remate.
+	# Reposo normal del personaje; al golpear pasa a la guardia de pelea (WeaponAnimSets.GUARD).
+	WeaponData.WeaponType.FISTS: {
+		"combo": ["fs1", "fs2", "fs3", "fs4", "fs5", "fs6"],
+		"speed": 1.55,
+		# ~20 % más rápidos que al principio (el especial no cambia)
+		"speeds": {"fs1": 1.75, "fs2": 1.75, "fs3": 1.55, "fs4": 1.55, "fs5": 1.55, "fs6": 1.4, "fs_run": 1.8, "fs_special": 1.1}
+	},
 }
 ## Armas con carrera (espadón y espada): el clic mientras corren lanza este ataque, y los golpes siguientes
 ## continúan el combo desde el segundo.
 const RUN_ATTACKS := {WeaponData.WeaponType.GREATSWORD: "gs_run", WeaponData.WeaponType.SWORD: "sw_run",
-	WeaponData.WeaponType.KATANA: "kt_run"}
+	WeaponData.WeaponType.KATANA: "kt_run", WeaponData.WeaponType.FISTS: "fs_run"}
 ## Espadón. Con él se anda despacio y se pasa a correr tras GS_RUN_DELAY s sin atacar, recibir daño ni rodar
 ## (PlayerMovementController); el clic mientras se corre lanza GS_RUN_ATTACK (ataque_si_va_corriendo) y los
 ## golpes siguientes continúan el combo desde el segundo.
@@ -83,7 +91,8 @@ const GS_GAIT_MAX_SCALE := {"walk": 1.5, "run": 1.25, "strafe": 1.5}
 ## Todas las acciones de golpe de combo (las que cuentan como "atacando").
 const MELEE_ACTIONS := ["attack1", "attack2", "attack3", "attack4",
 	"dagger1", "dagger2", "dagger3", "mace1", "mace2", "mace3", "mace4", "gs1", "gs2", "gs3", "gs_run",
-	"sw1", "sw2", "sw3", "sw4", "sw_run", "kt1", "kt2", "kt3", "kt4", "kt_run", "kt_special"]
+	"sw1", "sw2", "sw3", "sw4", "sw_run", "kt1", "kt2", "kt3", "kt4", "kt_run", "kt_special",
+	"fs1", "fs2", "fs3", "fs4", "fs5", "fs6", "fs_run", "fs_special"]
 ## Acciones del arco (no cuentan como golpes cuerpo a cuerpo). BOW_SHOT es el disparo de Mixamo (lo usa el remate);
 ## BOW_COMBO son los tres disparos seguidos del clic (blender_sources/bow_anims.blend). BOW_DRAW es la acción de
 ## tensado mientras se carga: encajar y tensar (bow_charge_draw) y luego el bucle de sostener (bow_charge_hold),
@@ -106,6 +115,7 @@ const FINISHER_ANIMS := {
 	WeaponData.WeaponType.GREATSWORD: "gs3",
 	WeaponData.WeaponType.SWORD: "sw4",
 	WeaponData.WeaponType.KATANA: "kt4",
+	WeaponData.WeaponType.FISTS: "fs6",
 }
 ## Acciones especiales de las dagas y la maza (sin ventanas de golpe: el golpe lo pone la estrategia).
 const DAGGER_DASH := "dagger_dash"
@@ -118,6 +128,11 @@ const SPEAR_ATTACK_SPEED := 0.8
 const ACTION_SCALE_PARAM := "parameters/action_scale/scale"
 const ACTION_PARRY := "parry"
 const ACTION_ROLL := "roll"
+## Deslizamiento (supervivencia, PlayerMovementController): entra agachándose y se queda en la pose hasta
+## que acaba. Solo Mikeura tiene el clip por ahora (SLIDE_CHARS).
+const ACTION_SLIDE := "slide"
+const SLIDE_CLIP := "res://assets/models/mikeura/mikeura_slide.fbx"
+const SLIDE_CHARS := ["mikeura"]
 const SHOT_PARAM := "parameters/shot/request"
 const SEEK_PARAM := "parameters/seek/seek_request"
 ## Ranuras de acción (ver setup_model) y fundido entre un golpe y el siguiente del combo (s, tiempo de acción).
@@ -176,7 +191,10 @@ var held_fire_until := 0.0   ## la estrategia del arma lo renueva al disparar (s
 ## (estilo God of War: el peso lo pone la animación, no el deslizamiento).
 const ATTACK_DASH := {"attack1": [0.14, 6.0], "attack2": [0.15, 2.5], "attack3": [0.2, 7.0], "attack4": [0.2, 3.0],
 	"dagger1": [0.08, 6.0], "dagger2": [0.08, 6.0], "dagger3": [0.13, 2.0],
-	"mace1": [0.62, 5.0], "mace2": [0.58, 3.0], "mace3": [0.55, 1.5], "mace4": [0.62, 4.0]}   # (el espadón avanza con el clip: root motion)
+	"mace1": [0.62, 5.0], "mace2": [0.58, 3.0], "mace3": [0.55, 1.5], "mace4": [0.62, 4.0],
+	# Puños: los clips del combo son en el sitio (sin root motion); el paso adelante del golpe lo pone este impulso
+	"fs1": [0.0, 2.5], "fs2": [0.0, 2.5], "fs3": [0.0, 2.0], "fs4": [0.0, 2.5], "fs5": [0.0, 2.5], "fs6": [0.0, 4.0],
+	"fs_special": [0.0, 1.2]}   # fs_run avanza con su root motion   # (el espadón avanza con el clip: root motion)
 
 ## Ventanas activas de golpe por animación: [inicio_s, fin_s] o una lista de ellas.
 ## attack1 = estocada, attack2 = dos tajos horizontales (una ventana por tajo), attack3 = salto y clavado.
@@ -215,6 +233,19 @@ const ATTACK_WINDOWS := {
 	"kt4": [[0.27, 0.73], [1.07, 1.50]],
 	"kt_run": [[0.40, 0.67], [0.87, 1.13]],
 	"kt_special": [[0.40, 0.67], [0.87, 1.13]],
+	# Puños (tiempos de clip, velocidad de la mano que golpea: tools/measure_fist_clips.tscn). fs2/fs5 son fs1/fs4 en
+	# espejo (pega la izquierda): mismos tiempos. fs_run: directo de derecha (fotogramas 28-32).
+	"fs1": [0.77, 0.97],
+	"fs2": [0.77, 0.97],
+	"fs3": [0.33, 0.50],
+	"fs4": [0.63, 0.80],
+	"fs5": [0.63, 0.80],
+	"fs6": [1.00, 1.27],
+	"fs_run": [0.90, 1.10],
+	# Lluvia de golpes: cinco puñetazos por pasada (fotogramas ~7, 11, 15, 20 y 24 del clip). La segunda pasada empieza
+	# en 1,1 s (30 fotogramas + 0,1 s de paso) desde el fotograma 4.
+	"fs_special": [[0.22, 0.30], [0.35, 0.43], [0.49, 0.57], [0.65, 0.73], [0.79, 0.87],
+		[1.17, 1.25], [1.31, 1.39], [1.44, 1.52], [1.61, 1.69], [1.75, 1.85]],
 	# Arco: aquí la "ventana" no es de daño cuerpo a cuerpo: su inicio es el fotograma en que se suelta la cuerda y
 	# sale la flecha (BowStrategy). Se retoca en el editor de agarre (categoría Arcos) como las demás.
 	"bow_shot": [0.183, 0.25],
@@ -287,6 +318,12 @@ const LINK_WINDOWS := {
 	"kt2": [0.78, 1.20],
 	"kt3": [0.76, 0.93],
 	"kt_run": [1.25, 1.90],
+	"fs1": [0.97, 1.45],
+	"fs2": [0.97, 1.45],
+	"fs3": [0.50, 1.25],
+	"fs4": [0.80, 1.15],
+	"fs5": [0.80, 1.15],
+	"fs_run": [1.10, 1.43],
 }
 
 var current_attack_id: int = 0
@@ -582,6 +619,7 @@ func setup_model() -> void:
 	root.connect_node("arms_calm", 0, loco)
 	root.connect_node("arms_calm", 1, "calm_idle")
 	loco = "arms_calm"
+	loco = _add_guard_nodes(root, loco)
 	if _held_layer:
 		# Torso sujetando el lanzallamas (mezcla sostener/disparar) sobre las piernas de la locomoción
 		var hold_node := AnimationNodeAnimation.new()
@@ -624,14 +662,24 @@ func setup_model() -> void:
 	_setup_foot_ik()
 	_ensure_common_actions()
 
-## Guardia del parry y voltereta de la esquiva (solo mazmorra), adaptadas a este esqueleto.
+## Guardia del parry y voltereta de la esquiva (solo mazmorra), adaptadas a este esqueleto. En
+## supervivencia, el deslizamiento (solo los personajes de SLIDE_CHARS).
 func _ensure_common_actions() -> void:
-	if GameData.game_mode != "dungeon" or not anim_player:
+	if not anim_player:
 		return
 	var skel := _find_first_node_of_type(model, "Skeleton3D") as Skeleton3D
 	if skel == null:
 		return
 	var lib: AnimationLibrary = anim_player.get_animation_library("")
+	if GameData.game_mode == "survival" and _char_id() in SLIDE_CHARS:
+		var slide: Animation = WeaponAnimSets._build_actions_from({ACTION_SLIDE: SLIDE_CLIP}, skel, _skel_path).get(ACTION_SLIDE)
+		if slide:
+			if lib.has_animation(ACTION_SLIDE):
+				lib.remove_animation(ACTION_SLIDE)
+			# Entra hasta la pose y la sostiene (el deslizamiento dura lo que dure)
+			lib.add_animation(ACTION_SLIDE, _make_hold_pose(slide, slide.length))
+	if GameData.game_mode != "dungeon":
+		return
 	var actions := WeaponAnimSets.build_common_actions(skel, _skel_path)
 	for action_name in actions:
 		if lib.has_animation(action_name):
@@ -647,6 +695,22 @@ func play_action(action_name: String) -> void:
 func play_parry() -> void:
 	_fire_action(ACTION_PARRY)
 	_suppress_hit_window = true
+
+## Deslizamiento: true si este personaje tiene el clip (si no, se desliza sin animación propia).
+func play_slide() -> bool:
+	var lib := anim_player.get_animation_library("") if anim_player else null
+	if lib == null or not lib.has_animation(ACTION_SLIDE):
+		return false
+	_fire_action(ACTION_SLIDE, -1.0, 1.4)
+	_suppress_hit_window = true
+	return true
+
+func stop_slide() -> void:
+	if _current_action_name == ACTION_SLIDE:
+		cancel_action()
+
+func is_sliding_anim() -> bool:
+	return _current_action_name == ACTION_SLIDE
 
 ## Voltereta de la esquiva, ajustada para que dure `duration` segundos.
 func play_roll(duration: float) -> void:
@@ -712,7 +776,7 @@ func play_attack() -> void:
 		_combo_index = 0
 	# Espadón corriendo: embiste con el ataque de carrera, que cuenta como primer golpe del combo
 	var run_name: String = RUN_ATTACKS.get(player.current_weapon(), "") if player and player.has_method("current_weapon") else ""
-	var run_attack: bool = run_name != "" and lib.has_animation(run_name) and not is_attacking() and _gs_is_running()
+	var run_attack: bool = run_name != "" and lib.has_animation(run_name) and not is_attacking() and _running_for_attack()
 	var anim_name: String = run_name if run_attack else str(combo[_combo_index])
 	_combo_index = (1 if run_attack else _combo_index + 1) % combo.size()
 	light_hits = mini(light_hits + 1, combo.size()) if _combo_timer > 0.0 else 1
@@ -971,6 +1035,8 @@ func _fire_action(anim_name: String, from_time: float = -1.0, speed: float = -1.
 	_struck_action = ""
 	if anim_name in MELEE_ACTIONS or anim_name in BOW_ACTIONS or anim_name in [ACTION_ROLL, ACTION_PARRY, BOW_DRAW]:
 		_note_combat()
+		if _guard_weapon != -1:
+			_guard_timer = GUARD_HOLD
 	# ¿Hay una acción en curso (aunque el OneShot ya esté desvaneciéndose hacia la locomoción)? Entonces la nueva
 	# entra en la otra ranura y se funde desde ella: el OneShot sigue activo con el clip nuevo y no hay corte. Si
 	# no, el OneShot arranca de nuevo desde la locomoción. (tools/measure_combo_pops.tscn mide los saltos.)
@@ -1049,6 +1115,7 @@ func play_held_blast() -> void:
 func set_held_weapon(weapon_type: int) -> void:
 	_ensure_weapon_actions(weapon_type)
 	_apply_weapon_loco(weapon_type)
+	_apply_weapon_guard(weapon_type)
 	# Arma que se lleva con una postura de torso propia (la maza al hombro): misma capa, sin ancla ni IK
 	if _held_layer and WeaponAnimSets.has_carry(weapon_type) and _ensure_carry(weapon_type):
 		if held_weapon_type != weapon_type:
@@ -1081,6 +1148,95 @@ func _set_spine_in_upper(on: bool) -> void:
 	for b in SPINE_BONES:
 		upper.set_filter_path(NodePath(str(_skel_path) + ":mixamorig_" + b), on)
 
+## ── Guardia de combate (puños) ──
+## El arma con guardia (WeaponAnimSets.GUARD) no cambia el reposo: el personaje espera con el suyo y, al golpear
+## (o parar/rodar), se funde a la guardia de pelea de cuerpo entero; tras GUARD_HOLD s sin combatir vuelve al reposo.
+## Andando o corriendo en guardia, solo el torso y los brazos la mantienen (GUARD_MOVING_WEIGHT): las piernas siguen
+## la locomoción. Dos nodos de animación con el mismo clip (una salida no puede ir a dos entradas del árbol).
+const GUARD_ANIM := "guard_%d"
+const GUARD_HOLD := 4.0                ## s en guardia tras el último golpe
+const GUARD_RATE := 4.0                ## 1/s: lo rápido que entra y sale la guardia
+const GUARD_MOVE_RATE := 8.0
+const GUARD_MOVING_WEIGHT := 0.7       ## peso de la guardia en torso y brazos mientras se mueve
+const GUARD_FULL_PARAM := "parameters/guard_full/blend_amount"
+const GUARD_UPPER_PARAM := "parameters/guard_upper/blend_amount"
+var _guard_weapon := -1                ## arma con guardia equipada ahora (-1 si ninguna)
+var _guard_timer := 0.0
+var _guard := 0.0                      ## peso actual de la guardia (0 = reposo normal)
+var _guard_move := 0.0                 ## 0 quieto, 1 moviéndose (suavizado)
+var _guard_built := {}
+
+func _add_guard_nodes(root: AnimationNodeBlendTree, loco: String) -> String:
+	var up_anim := AnimationNodeAnimation.new()
+	up_anim.animation = STATE_IDLE
+	root.add_node("guard_anim_upper", up_anim, Vector2(-200, 700))
+	var upper := AnimationNodeBlend2.new()
+	upper.filter_enabled = true
+	for b in UPPER_BONES:
+		upper.set_filter_path(NodePath(str(_skel_path) + ":mixamorig_" + b), true)
+	root.add_node("guard_upper", upper, Vector2(200, -120))
+	root.connect_node("guard_upper", 0, loco)
+	root.connect_node("guard_upper", 1, "guard_anim_upper")
+	var full_anim := AnimationNodeAnimation.new()
+	full_anim.animation = STATE_IDLE
+	root.add_node("guard_anim_full", full_anim, Vector2(-200, 800))
+	root.add_node("guard_full", AnimationNodeBlend2.new(), Vector2(220, -160))
+	root.connect_node("guard_full", 0, "guard_upper")
+	root.connect_node("guard_full", 1, "guard_anim_full")
+	return "guard_full"
+
+## ¿Está ahora en guardia de combate (peso apreciable)?
+func in_combat_guard() -> bool:
+	return _guard > 0.5
+
+## Pone la guardia del arma (o la quita si no tiene). La guardia se adapta a este esqueleto la primera vez.
+func _apply_weapon_guard(weapon_type: int) -> void:
+	if not is_instance_valid(anim_tree) or anim_player == null:
+		return
+	var want: bool = GameData.game_mode == "dungeon" and WeaponAnimSets.has_guard(weapon_type) and _ensure_guard(weapon_type)
+	var which := weapon_type if want else -1
+	if which == _guard_weapon:
+		return
+	_guard_weapon = which
+	_guard_timer = 0.0
+	if not want:
+		_guard = 0.0
+		_set_guard_weights()
+		return
+	var root := anim_tree.tree_root as AnimationNodeBlendTree
+	for n in ["guard_anim_upper", "guard_anim_full"]:
+		if root.has_node(n):
+			(root.get_node(n) as AnimationNodeAnimation).animation = GUARD_ANIM % weapon_type
+
+func _ensure_guard(weapon_type: int) -> bool:
+	if _guard_built.has(weapon_type):
+		return _guard_built[weapon_type]
+	var lib: AnimationLibrary = anim_player.get_animation_library("")
+	var skel := _find_first_node_of_type(model, "Skeleton3D") as Skeleton3D
+	var anim: Animation = WeaponAnimSets.build_guard(weapon_type, skel, _skel_path) if skel else null
+	var ok := anim != null
+	if ok:
+		var anim_name: String = GUARD_ANIM % weapon_type
+		if lib.has_animation(anim_name):
+			lib.remove_animation(anim_name)
+		lib.add_animation(anim_name, anim)
+	_guard_built[weapon_type] = ok
+	return ok
+
+func _update_guard(delta: float, moving: bool) -> void:
+	_guard_timer = maxf(_guard_timer - delta, 0.0)
+	var target := 1.0 if (_guard_weapon != -1 and _guard_timer > 0.0) else 0.0
+	_guard = move_toward(_guard, target, GUARD_RATE * delta)
+	_guard_move = move_toward(_guard_move, 1.0 if moving else 0.0, GUARD_MOVE_RATE * delta)
+	_set_guard_weights()
+
+func _set_guard_weights() -> void:
+	if not is_instance_valid(anim_tree):
+		return
+	var g := smoothstep(0.0, 1.0, _guard)
+	anim_tree.set(GUARD_FULL_PARAM, g * (1.0 - _guard_move))
+	anim_tree.set(GUARD_UPPER_PARAM, g * _guard_move * GUARD_MOVING_WEIGHT)
+
 ## ── Espadón: locomoción propia, root motion y carrera ──
 const LOCO_ANIM := "loco_%s_%d"           ## clips de locomoción del arma en la biblioteca: loco_walk_17...
 var _gs_loco := false                     ## ahora se anima con la locomoción del espadón
@@ -1099,6 +1255,14 @@ func _gs_is_running() -> bool:
 	if mc != null and mc.has_method("gs_running"):
 		return mc.gs_running()
 	return player != null and Vector2(player.velocity.x, player.velocity.z).length() > GS_WALK_TO_RUN
+
+## ¿Lanza el ataque con carrerilla? Las armas con paso propio (PlayerMovementController.GAITS) corren tras un rato sin
+## combatir; las demás (puños) usan la carrera normal del personaje.
+func _running_for_attack() -> bool:
+	var w: int = player.current_weapon() if player and player.has_method("current_weapon") else -1
+	if PlayerMovementController.GAITS.has(w):
+		return _gs_is_running()
+	return player != null and Vector2(player.velocity.x, player.velocity.z).length() > WALK_TO_RUN
 
 ## Cualquier golpe, parada o rodada interrumpe la carrera del espadón (vuelve a andar).
 func _note_combat() -> void:
@@ -1389,6 +1553,7 @@ func _process(delta: float) -> void:
 		_update_backpedal(Vector3(player.velocity.x, 0.0, player.velocity.z))
 	_update_strafe(delta, Vector3(player.velocity.x, 0.0, player.velocity.z), moving and is_on_floor)
 	_update_gait_scale(horiz_velocity, is_on_floor)
+	_update_guard(delta, moving or not is_on_floor)
 
 	if not is_on_floor:
 		if (current != STATE_JUMP or just_jumped) and sm.has_node(STATE_JUMP):

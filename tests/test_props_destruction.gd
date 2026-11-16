@@ -54,7 +54,9 @@ func _ready() -> void:
 
 	# 2. Props con detalle de madera/piedra y piezas preparadas
 	var barrel_mesh := map._load_kind("barrel")
-	assert((barrel_mesh.surface_get_material(0) as ShaderMaterial).shader == DungeonMap.DETAIL_SHADER, "Los props usan prop_detail")
+	# Barril: textura cartoon horneada (una lectura, prop_toon). La choza, sin hornear, sigue con prop_detail.
+	assert(ProceduralMap.is_toon_material(barrel_mesh.surface_get_material(0)), "El barril usa su textura horneada (prop_toon)")
+	assert((map._load_kind("hut").surface_get_material(0) as ShaderMaterial).shader == DungeonMap.DETAIL_SHADER, "La choza usa prop_detail")
 	for k in ["barrel", "crate", "hut", "totem"]:
 		DestructibleProp.prewarm(k, String(map._prop_def(k)["file"]), map._load_kind(k), map._mesh_xf[k])
 	var nb: int = DestructibleProp._pieces_cache["barrel"].size()

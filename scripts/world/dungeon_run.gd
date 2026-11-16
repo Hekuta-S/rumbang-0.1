@@ -209,10 +209,10 @@ static func elite_bonus() -> float:
 	return HEAT_ELITE * heat()
 
 static func gold_mult() -> float:
-	return 1.0 + HEAT_GOLD * heat()
+	return 1.0 + HEAT_GOLD * heat() + SoulStats.gold_bonus()
 
 static func drop_mult() -> float:
-	return 1.0 + HEAT_DROP * heat()
+	return 1.0 + HEAT_DROP * heat() + SoulStats.drop_bonus()
 
 static func min_rarity() -> int:
 	return 1 if heat() >= HEAT_MIN_RARITY_AT else 0

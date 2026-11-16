@@ -27,6 +27,11 @@ const BASES := {
 		"casco_nordico": {"name": "Casco Nórdico", "helmet": "nordico"},
 		"yelmo_fantasia": {"name": "Yelmo de Fantasía", "helmet": "fantasia"},
 		"yelmo_coronado": {"name": "Yelmo Coronado", "helmet": "coronado", "set": "sombra"},
+		# "uruk": pieza del pack Uruk (las mismas que llevan los goblins), pegada al cuerpo de Riva con su ajuste de
+		# resources/riva_armor_fit.json (tools/riva_armor_editor.tscn; CharacterLookApplier._apply_uruk)
+		"casco_uruk_berserker": {"name": "Casco Berserker Uruk", "uruk": "casco_berserker"},
+		"casco_uruk": {"name": "Casco Uruk", "uruk": "casco_uruk"},
+		"yelmo_uruk": {"name": "Yelmo Uruk Cerrado", "uruk": "casco_uruk_cerrado"},
 	},
 	"pechera": {
 		"ruana_paramo": {"name": "Ruana del Páramo", "set": "arriero"},
@@ -38,6 +43,8 @@ const BASES := {
 		"coraza_fuego": {"name": "Coraza de Fuego", "armor": "fuego", "set": "fuego"},
 		"coraza_escarcha": {"name": "Coraza de Escarcha", "armor": "frio", "set": "frio"},
 		"coraza_natural": {"name": "Coraza Natural", "armor": "natural", "set": "natural"},
+		# Pechera Uruk: el SET de peto + hombreras (cada pieza con su ajuste)
+		"coraza_uruk": {"name": "Coraza Uruk", "uruk": "uruk"},
 	},
 	"pantalones": {
 		"calzas_arriero": {"name": "Calzas de Arriero", "set": "arriero"},
@@ -49,6 +56,7 @@ const BASES := {
 		"grebas_fuego": {"name": "Grebas de Fuego", "armor": "fuego", "set": "fuego"},
 		"grebas_escarcha": {"name": "Grebas de Escarcha", "armor": "frio", "set": "frio"},
 		"grebas_naturales": {"name": "Grebas Naturales", "armor": "natural", "set": "natural"},
+		"taparrabo_uruk": {"name": "Taparrabo Uruk", "uruk": "taparrabo_uruk"},
 	},
 	"talisman": {
 		"amuleto_jaguar": {"name": "Amuleto del Jaguar"},
@@ -107,10 +115,10 @@ static func lootable_bases(kind: String) -> Array:
 		var b: Dictionary = bases[id]
 		match kind:
 			"casco":
-				if b.has("helmet"):
+				if b.has("helmet") or b.has("uruk"):
 					out.append(id)
 			"pechera", "pantalones":
-				if b.has("armor"):   # Fase 2: caen los 4 elementos (fuego, escarcha, selva, sombra)
+				if b.has("armor") or b.has("uruk"):   # Fase 2: caen los 4 elementos (fuego, escarcha, selva, sombra) y lo Uruk
 					out.append(id)
 			_:
 				out.append(id)
@@ -274,6 +282,9 @@ const WEAPON_MODS := {
 	WeaponData.WeaponType.DUSTS: {
 		"nube": {"name": "Nube Densa", "mods": {"size": 0.25}, "desc": "+25% área de los polvos"},
 		"potente": {"name": "Mezcla Potente", "mods": {"damage": 0.2}, "desc": "+20% daño"}},
+	WeaponData.WeaponType.FISTS: {
+		"nudillos": {"name": "Nudillos de Hierro", "mods": {"damage": 0.15}, "desc": "+15% daño"},
+		"rafaga": {"name": "Ráfaga", "mods": {"cooldown": 0.85}, "desc": "-15% tiempo entre golpes"}},
 	WeaponData.WeaponType.SERPENTS: {
 		"hambre": {"name": "Espíritus Hambrientos", "mods": {"lifesteal": 0.04}, "desc": "4% del daño se convierte en vida"},
 		"furia": {"name": "Espíritus Furiosos", "mods": {"damage": 0.15}, "desc": "+15% daño"}},
@@ -391,7 +402,7 @@ const WEAPONS := [
 	WeaponData.WeaponType.SPORE_BAZOOKA, WeaponData.WeaponType.TRI_SHOTGUN,
 	WeaponData.WeaponType.DUSTS, WeaponData.WeaponType.SERPENTS,
 	WeaponData.WeaponType.DAGGERS, WeaponData.WeaponType.MACE, WeaponData.WeaponType.GREATSWORD,
-	WeaponData.WeaponType.SWORD, WeaponData.WeaponType.BOW,
+	WeaponData.WeaponType.SWORD, WeaponData.WeaponType.BOW, WeaponData.WeaponType.FISTS,
 ]
 
 # ───────────────────────────── Sorteo ─────────────────────────────
@@ -513,7 +524,8 @@ static func element_of(item: Dictionary) -> String:
 	if String(item.get("slot", "")) == "arma":
 		var e := String(item.get("element", ""))
 		return e if ELEMENTS.has(e) else ""
-	return armor_of(item)
+	var a := armor_of(item)
+	return a if ELEMENTS.has(a) else ""   # lo Uruk ("uruk:…") no tiene elemento
 
 ## Definición del modificador propio de un arma ({} si no tiene).
 static func wmod_of(item: Dictionary) -> Dictionary:
@@ -723,7 +735,11 @@ static func helmet_of(item: Dictionary) -> String:
 	if String(item.get("slot", "")) != "casco":
 		return ""
 	var base: Variant = BASES["casco"].get(String(item.get("base", "")))
-	return String(base.get("helmet", "")) if base is Dictionary else ""
+	if not (base is Dictionary):
+		return ""
+	if base.has("uruk"):
+		return URUK_PREFIX + String(base["uruk"])
+	return String(base.get("helmet", ""))
 
 ## Set del pack de armaduras de una pechera o de unos pantalones ("" si es otra ranura o su base no tiene modelo).
 static func armor_of(item: Dictionary) -> String:
@@ -731,7 +747,24 @@ static func armor_of(item: Dictionary) -> String:
 	if slot != "pechera" and slot != "pantalones":
 		return ""
 	var base: Variant = BASES[slot].get(String(item.get("base", "")))
-	return String(base.get("armor", "")) if base is Dictionary else ""
+	if not (base is Dictionary):
+		return ""
+	if base.has("uruk"):
+		return URUK_PREFIX + String(base["uruk"])
+	return String(base.get("armor", ""))
+
+## Valores de armadura Uruk: "uruk:<pieza o set>" (lo que devuelven helmet_of / armor_of para las bases "uruk").
+const URUK_PREFIX := "uruk:"
+
+## Todos los valores Uruk por orden estable (la red manda su posición; ver CharacterLookApplier.helmet_net_index).
+static func uruk_values() -> Array:
+	var out: Array = []
+	for kind in ["casco", "pechera", "pantalones"]:
+		for id in BASES[kind]:
+			if BASES[kind][id].has("uruk"):
+				out.append(URUK_PREFIX + String(BASES[kind][id]["uruk"]))
+	out.sort()
+	return out
 
 ## Una pieza leída de JSON (los números vuelven como float) o rota: null si no vale.
 static func sanitize(v: Variant) -> Dictionary:

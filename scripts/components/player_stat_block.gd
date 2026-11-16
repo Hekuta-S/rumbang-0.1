@@ -85,7 +85,14 @@ func _total(stat: String) -> float:
 		t += _equipment.get_stat_addition(stat)
 	if GameData.game_mode != "dungeon":
 		t += TomeDB.stat_total(stat) + MetaShop.stat_total(stat)
-	return t + DungeonRun.focus_stat(stat)
+	else:
+		t += SoulStats.stat_total(stat, _current_weapon())   # niveles del yunque (tipo Dark Souls)
+	return t + DungeonRun.focus_stat(stat) + FateDice.stat_total(stat)   # mejoras/castigos del dado del destino
+
+func _current_weapon() -> int:
+	if _player and _player.has_method("current_weapon"):
+		return int(_player.current_weapon())
+	return WeaponData.WeaponType.SPEAR_LANCE
 
 ## Tras fijar la vida base del personaje (GameData.apply_to_player) se vuelve a sumar la del equipo.
 func rebase_equipment_hp() -> void:
@@ -211,7 +218,8 @@ func _recalculate() -> void:
 func _apply_equipment_hp() -> void:
 	if _equipment == null or _player == null or _player.get("health_comp") == null:
 		return
-	var want := maxf(_equipment.get_stat_addition("max_hp") + DungeonRun.focus_stat("max_hp"), 0.0)
+	var souls_hp := SoulStats.hp_bonus() if GameData.game_mode == "dungeon" else 0.0   # Vigor
+	var want := maxf(_equipment.get_stat_addition("max_hp") + DungeonRun.focus_stat("max_hp") + souls_hp, 0.0)
 	var delta := want - _equip_hp_applied
 	if is_zero_approx(delta):
 		return

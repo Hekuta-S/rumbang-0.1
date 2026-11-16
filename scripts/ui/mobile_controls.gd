@@ -3,6 +3,7 @@ extends CanvasLayer
 ## Controles táctiles: joystick flotante (mover) + botones de acción.
 ## - El joystick aparece donde se toca la mitad izquierda de la pantalla (si no se toca, descansa en
 ##   su sitio habitual).
+## - Supervivencia: SALTO (grande) y DESLIZARSE (mantener = seguir deslizando, como Ctrl).
 ## - Botones abajo a la derecha: ATAQUE (grande, mantener = ataque continuo) rodeado de dos arcos:
 ##   SALTO, RODAR, ESPECIAL y FIJAR objetivo (arco interior); HABILIDAD, PARAR, RECARGAR y ARMA (arco exterior).
 ## - FIJAR: tocar fija/suelta; mantener y deslizar hacia un lado cambia al enemigo de ese lado.
@@ -11,6 +12,7 @@ extends CanvasLayer
 ## - Suelta todo al pausar, al perder el foco o al ocultarse (nada se queda "pegado").
 
 const DEAD_ZONE := 0.12
+const INK_W := 4.0                 ## grosor del contorno de tinta (bordes de cómic) de botones y joystick
 const EDGE_MARGIN := 28.0
 const IDLE_ALPHA := 0.5
 const ACTIVE_ALPHA := 0.95
@@ -26,6 +28,8 @@ const TARGET_SWIPE_RADII := 0.7
 const BUTTONS := [
 	{"key": "attack", "name": "Ataque", "mode": "hold", "color": Color(1.0, 0.35, 0.3), "ring": 0, "angle": 0.0},
 	{"key": "jump", "name": "Salto", "mode": "hold", "color": Color(0.25, 0.85, 0.45), "ring": 1, "angle": 176.0},
+	# Solo en supervivencia (PlayerMovementController: deslizamiento)
+	{"key": "slide", "name": "Deslizarse", "mode": "hold", "color": Color(1.0, 0.62, 0.22), "ring": 1, "angle": 215.0},
 	{"key": "dodge", "name": "Rodar", "mode": "tap", "color": Color(0.35, 0.7, 1.0), "ring": 1, "angle": 214.0},
 	{"key": "alt", "name": "Ataque especial", "mode": "hold", "color": Color(1.0, 0.6, 0.2), "ring": 1, "angle": 252.0},
 	{"key": "target", "name": "Fijar objetivo", "mode": "tap", "color": Color(1.0, 0.3, 0.45), "ring": 1, "angle": 290.0},
@@ -39,13 +43,15 @@ const BUTTONS := [
 ]
 
 ## Botones permitidos por modo (el primero ocupa el botón grande, el segundo el arco interior).
-## "survival": solo caminar (joystick) y saltar. "hub" (salón): caminar, correr e interactuar.
+## "survival": caminar (joystick), saltar y deslizarse. "hub" (salón): caminar, correr e interactuar.
 ## Cualquier otro modo (mazmorra) muestra todos los botones de combate.
 const MODE_KEYS := {
-	"survival": ["jump"],
+	"survival": ["jump", "slide"],
 	"hub": ["interact", "run"],
 }
 const HUB_ONLY := ["run", "interact"]
+## Botones que no salen en la mazmorra (solo en los modos que los piden en MODE_KEYS)
+const NOT_IN_DUNGEON := ["run", "interact", "slide"]
 
 ## "survival", "hub" o "dungeon". Si no se asigna antes de añadir el nodo, se toma de GameData.game_mode.
 var mode := ""
@@ -136,7 +142,7 @@ func _is_unavailable(i: int) -> bool:
 func _in_mode(key: String) -> bool:
 	if MODE_KEYS.has(mode):
 		return (MODE_KEYS[mode] as Array).has(key)
-	return not HUB_ONLY.has(key)
+	return not NOT_IN_DUNGEON.has(key)
 
 func _refresh_ammo_weapon() -> void:
 	var player := get_tree().get_first_node_in_group("player")
@@ -278,7 +284,12 @@ func _draw_controls() -> void:
 		if pressed and b["key"] == "target" and _tgt_drag != Vector2.ZERO:
 			ic += _tgt_drag   # la mira sigue al dedo: guía del cambio de objetivo
 			_overlay.draw_line(c, ic, Color(StoneUI.AMBER, 0.7 * ba), 2.0, true)
-		_draw_icon(String(b["key"]), ic + Vector2(0, 1.5), r * 0.92, Color(0, 0, 0, 0.6 * ba))   # sombra del icono
+		# icono con contorno de tinta (cómic): el icono en tinta corrido en 8 direcciones y una sombra dura
+		var ink_c := Color(StoneUI.OUTLINE, ba)
+		var ink_r := maxf(2.0, r * 0.06)
+		for k in 8:
+			_draw_icon(String(b["key"]), ic + Vector2.from_angle(k * TAU / 8.0) * ink_r, r * 0.92, ink_c)
+		_draw_icon(String(b["key"]), ic + Vector2(ink_r, ink_r * 1.5), r * 0.92, ink_c)
 		_draw_icon(String(b["key"]), ic, r * 0.92, Color(icon_col, ba))
 		if _editing and b["key"] == _edit_sel:
 			_draw_selection(c, r)
@@ -306,21 +317,24 @@ func _draw_joystick(a: float) -> void:
 	var kp := c + _joy_offset
 	var kr := r * 0.42
 	var active := _joy_id != -1
-	_overlay.draw_circle(kp + Vector2(0, kr * 0.12), kr, Color(0, 0, 0, 0.4 * a))   # sombra
+	_overlay.draw_circle(kp + Vector2(3.0, 4.0), kr, Color(StoneUI.OUTLINE, 0.7 * a))   # sombra dura de tinta
 	_overlay.draw_circle(kp, kr, Color(StoneUI.IRON_DARK, 0.95 * a))
 	_overlay.draw_circle(kp, kr * 0.8, Color(StoneUI.IRON, 0.95 * a))
 	_overlay.draw_arc(kp, kr * 0.62, PI * 0.95, PI * 1.55, 20, Color(StoneUI.IRON_LIGHT, 0.7 * a), maxf(2.0, kr * 0.12), true)
-	_overlay.draw_arc(kp, kr, 0.0, TAU, 40, Color(StoneUI.OUTLINE, a), 1.8, true)
+	_overlay.draw_arc(kp, kr, 0.0, TAU, 40, Color(StoneUI.OUTLINE, a), 2.8, true)
 	_overlay.draw_circle(kp, kr * 0.22, Color(StoneUI.AMBER if active else StoneUI.IRON_LIGHT, a))
 	_overlay.draw_circle(kp, kr * 0.1, Color(StoneUI.OUTLINE, a))
 	if active:
 		_overlay.draw_arc(kp, kr + 2.0, 0.0, TAU, 40, Color(StoneUI.AMBER, 0.8 * a), 2.0, true)
+	# Bordes de cómic del joystick: contorno de tinta por fuera del aro y del pomo
+	_overlay.draw_arc(c, r + 1.5, 0.0, TAU, 64, Color(StoneUI.OUTLINE, a), INK_W, true)
+	_overlay.draw_arc(kp, kr + 1.0, 0.0, TAU, 40, Color(StoneUI.OUTLINE, a), INK_W * 0.8, true)
 
 ## Hueco redondo del estilo del inventario. `big` = botón de ataque (anillo doble con remaches).
 func _draw_socket(c: Vector2, r: float, col: Color, a: float, pressed: bool, big: bool) -> void:
 	var band := maxf(5.0, r * (0.17 if big else 0.2))
 	var inner := r - band
-	_overlay.draw_circle(c + Vector2(0, 2.0), r, Color(0, 0, 0, 0.35 * a))   # sombra sobre la escena
+	_overlay.draw_circle(c + Vector2(3.0, 4.0), r + 1.0, Color(StoneUI.OUTLINE, 0.7 * a))   # sombra dura de tinta
 	_overlay.draw_circle(c, inner, Color(0.025, 0.04, 0.04, 0.82 * a))
 	var glow := 0.75 if pressed else 0.5
 	for i in 5:
@@ -333,13 +347,17 @@ func _draw_socket(c: Vector2, r: float, col: Color, a: float, pressed: bool, big
 		# segundo aro exterior con remaches, como la placa del HUD de armas
 		var outer := r + band * 0.55
 		_overlay.draw_arc(c, outer, 0.0, TAU, 64, Color(StoneUI.IRON_DARK, a), band * 0.5, true)
-		_overlay.draw_arc(c, outer + band * 0.25, 0.0, TAU, 64, Color(StoneUI.OUTLINE, a), 1.4, true)
+		_overlay.draw_arc(c, outer + band * 0.25, 0.0, TAU, 64, Color(StoneUI.OUTLINE, a), 2.8, true)
 		for k in 8:
 			var p := c + Vector2.from_angle(PI / 8.0 + k * TAU / 8.0) * outer
 			_overlay.draw_circle(p, maxf(1.8, band * 0.16), Color(StoneUI.IRON_LIGHT, a))
 			_overlay.draw_circle(p, maxf(0.9, band * 0.07), Color(StoneUI.OUTLINE, a))
 	if pressed:
 		_overlay.draw_arc(c, inner - 1.0, 0.0, TAU, 48, Color(StoneUI.AMBER, a), 3.0, true)
+	# Bordes de cómic: contorno grueso de tinta por fuera y aro de tinta en el borde del pozo
+	var rim := (r + band * 0.55 + band * 0.25) if big else r
+	_overlay.draw_arc(c, rim + 1.5, 0.0, TAU, 64, Color(StoneUI.OUTLINE, a), INK_W, true)
+	_overlay.draw_arc(c, inner, 0.0, TAU, 56, Color(StoneUI.OUTLINE, a), INK_W * 0.6, true)
 
 func _draw_selection(c: Vector2, r: float) -> void:
 	var amber := Color(StoneUI.AMBER, 0.95)
@@ -367,6 +385,15 @@ func _draw_icon(key: String, c: Vector2, r: float, col: Color) -> void:
 			o.draw_colored_polygon(PackedVector2Array([
 				c + Vector2(0, -k), c + Vector2(k, k * 0.55), c + Vector2(0, k * 0.1), c + Vector2(-k, k * 0.55),
 			]), col)
+		"slide":    # figura deslizándose: cabeza atrás, cuerpo tumbado hacia delante, suelo y rayas de velocidad
+			o.draw_circle(c + Vector2(-0.55, -0.45) * u, u * 0.24, col)
+			o.draw_line(c + Vector2(-0.45, -0.2) * u, c + Vector2(0.35, 0.35) * u, col, w * 1.7, true)
+			o.draw_line(c + Vector2(0.35, 0.35) * u, c + Vector2(0.95, 0.45) * u, col, w * 1.4, true)
+			o.draw_line(c + Vector2(-0.15, 0.05) * u, c + Vector2(0.3, -0.25) * u, col, w * 1.2, true)
+			o.draw_line(c + Vector2(-0.95, 0.72) * u, c + Vector2(0.95, 0.72) * u, col, w, true)
+			for k in 2:
+				var y := -0.05 + 0.3 * k
+				o.draw_line(c + Vector2(-1.0, y) * u, c + Vector2(-0.7, y) * u, col, w * 0.8, true)
 		"dodge":    # dos chevrones hacia delante (impulso)
 			for dx in [-0.5, 0.25]:
 				o.draw_polyline(PackedVector2Array([
@@ -491,6 +518,7 @@ func _set_button(bi: int, down: bool) -> void:
 	match String(BUTTONS[bi]["key"]):
 		"attack": VirtualInput.is_attacking = down
 		"jump": VirtualInput.is_jumping = down
+		"slide": VirtualInput.is_sliding = down
 		"run": VirtualInput.is_running = down
 		"interact": VirtualInput.just_pressed_interact = down or VirtualInput.just_pressed_interact
 		"alt": VirtualInput.is_alt_attack = down
@@ -579,6 +607,7 @@ func _release_all() -> void:
 	_tgt_was_locked = false
 	VirtualInput.movement_vector = Vector2.ZERO
 	VirtualInput.is_jumping = false
+	VirtualInput.is_sliding = false
 	VirtualInput.is_running = false
 	VirtualInput.is_attacking = false
 	VirtualInput.is_alt_attack = false

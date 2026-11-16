@@ -8,6 +8,8 @@ var attack_aims: bool = false
 ## Igual para el botón especial mientras se carga un tiro (lanzamiento de la espalanza).
 var alt_aims: bool = false
 var is_jumping: bool = false
+## Deslizarse (supervivencia): activo mientras se mantiene el botón táctil; igual que mantener Ctrl.
+var is_sliding: bool = false
 ## Correr (solo en el salón).
 var is_running: bool = false
 ## Interactuar con la estación cercana (solo en el salón).

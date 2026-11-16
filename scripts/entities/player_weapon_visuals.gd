@@ -999,6 +999,12 @@ func attach_axe_to_hand(model: Node3D) -> bool:
 const MELEE_BLADE_DIR := {"mixamorig_RightHand": Vector3(0.5, 0.0, -0.87), "mixamorig_LeftHand": Vector3(-0.5, 0.0, -0.87)}
 const MELEE_GRIP_OFFSET := Vector3(0.0, 0.08, 0.02)    # centro de la palma (como la espalanza)
 var dagger_trails: Array[BladeTrail] = []
+## Estelas de los puños: [0] mano derecha, [1] izquierda (FistsStrategy las enciende con cada golpe).
+var fist_trails: Array[BladeTrail] = []
+const FIST_TRAIL_COLOR := Color(1.0, 0.8, 0.45)
+## Cinta de la estela del puño en ejes del hueso de la mano (+Y hacia los dedos): de la muñeca a los nudillos.
+const FIST_TRAIL_BASE := Vector3(0.0, -0.16, 0.0)
+const FIST_TRAIL_TIP := Vector3(0.0, 0.15, 0.02)
 var mace_trail: BladeTrail
 var _dagger_holder_r: Node3D
 var _dagger_holder_l: Node3D
@@ -1560,6 +1566,25 @@ func set_bow_draw(amount: float) -> void:
 	var z := lerpf(BowModels.brace(_bow_skin), BOW_FULL_DRAW, clampf(amount, 0.0, 1.0))
 	_bow_arrow.position = Vector3(0.0, 0.0, z)
 
+## Estelas de los dos puños (sin modelo: la cinta solo se dibuja mientras se emite).
+func _attach_fist_trails(skel: Skeleton3D) -> void:
+	for t in fist_trails:
+		if is_instance_valid(t) and is_instance_valid(t.get_parent()):
+			t.get_parent().get_parent().queue_free()   # el seguidor del hueso de la vez anterior
+	fist_trails.clear()
+	for side in ["Right", "Left"]:
+		var holder := _make_melee_holder(skel, side + "Hand_Puno", "mixamorig_%sHand" % side, "Puno_" + side)
+		var base := Marker3D.new()
+		base.position = FIST_TRAIL_BASE
+		holder.add_child(base)
+		var tip := Marker3D.new()
+		tip.position = FIST_TRAIL_TIP
+		holder.add_child(tip)
+		var trail := BladeTrail.new()
+		holder.add_child(trail)
+		trail.setup(base, tip, FIST_TRAIL_COLOR, "fist")
+		fist_trails.append(trail)
+
 ## Cuelga las dos dagas (una en cada mano) y la maza (mano derecha) del modelo animado.
 func attach_melee_to_hands(model: Node3D) -> bool:
 	if model == null:
@@ -1577,6 +1602,7 @@ func attach_melee_to_hands(model: Node3D) -> bool:
 	_attach_sword(skel)
 	_attach_katana(skel)
 	_attach_bow(skel)
+	_attach_fist_trails(skel)
 	for pair in [[WeaponData.WeaponType.DAGGERS, _dagger_holder_r], [WeaponData.WeaponType.MACE, _mace_holder],
 			[WeaponData.WeaponType.GREATSWORD, _gs_holder], [WeaponData.WeaponType.SWORD, _sword_holder],
 			[WeaponData.WeaponType.KATANA, _katana_holder],

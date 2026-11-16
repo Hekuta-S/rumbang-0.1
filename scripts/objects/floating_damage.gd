@@ -5,6 +5,23 @@ var gravity: float = 6.0
 var lifetime: float = 0.75
 var time_alive: float = 0.0
 
+## Letra de cómic con la tinta ya dibujada (tools/make_comic_font.py): relleno blanco que tiñe `modulate`,
+## contorno y sombra de tinta. Sin ella (no generada) se usa la de siempre con su contorno.
+const COMIC_FONT_PATH := "res://assets/fonts/comic_dmg.fnt"
+static var _comic_font: Font
+static var _comic_checked := false
+
+static func comic_font() -> Font:
+	if not _comic_checked:
+		_comic_checked = true
+		if ResourceLoader.exists(COMIC_FONT_PATH):
+			var f := load(COMIC_FONT_PATH) as FontFile
+			if f:
+				f.fixed_size_scale_mode = TextServer.FIXED_SIZE_SCALE_ENABLED   # escala a cualquier font_size
+				f.fallbacks = [ThemeDB.fallback_font]                           # letras que no estén en el atlas
+				_comic_font = f
+	return _comic_font
+
 static func spawn(parent: Node, world_pos: Vector3, amount: float, color: Color = Color(1.0, 0.9, 0.2), is_crit: bool = false, custom_text: String = "") -> Label3D:
 	if not parent or not is_instance_valid(parent):
 		return null
@@ -27,9 +44,16 @@ static func spawn(parent: Node, world_pos: Vector3, amount: float, color: Color 
 	label.outline_render_priority = 99
 	
 	label.modulate = color
-	label.outline_modulate = Color(0.02, 0.02, 0.04, 1.0)
-	label.outline_size = 14 if is_crit else 10
-	label.font_size = 46 if is_crit else 34
+	var comic := comic_font()
+	if comic:
+		# la tinta va dibujada en la letra: sin contorno extra (dos dibujos menos por número)
+		label.font = comic
+		label.outline_size = 0
+		label.font_size = 50 if is_crit else 38
+	else:
+		label.outline_modulate = Color(0.02, 0.02, 0.04, 1.0)
+		label.outline_size = 14 if is_crit else 10
+		label.font_size = 46 if is_crit else 34
 	
 	# Slight random offset so numbers don't stack on top of each other
 	var dmg_offset := Vector3(randf_range(-0.35, 0.35), randf_range(0.1, 0.4), randf_range(-0.35, 0.35))

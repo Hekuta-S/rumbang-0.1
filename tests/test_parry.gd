@@ -98,9 +98,9 @@ func _ready() -> void:
 
 	# 6. Guardia sin parar nada: enfriamiento largo
 	await _wait(PlayerParryController.POSE_TIME)
-	assert(parry.cooldown_left() > 2.0, "Si no para nada, enfriamiento de 2,5 s (%.2f)" % parry.cooldown_left())
+	assert(parry.cooldown_left() > PlayerParryController.COOLDOWN_OK, "Si no para nada, enfriamiento largo de %.1f s (%.2f)" % [PlayerParryController.COOLDOWN_FAIL, parry.cooldown_left()])
 	assert(not parry.try_parry(), "Durante el enfriamiento no se puede repetir")
-	print("CHECK 6 PASSED: fallo con 2,5 s de enfriamiento")
+	print("CHECK 6 PASSED: fallo con %.1f s de enfriamiento" % PlayerParryController.COOLDOWN_FAIL)
 
 	# 7. Jefe: el parry cuenta como daño contra su armadura
 	var n := enc.spawn_necromancer()

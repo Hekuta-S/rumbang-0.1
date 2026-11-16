@@ -215,6 +215,10 @@ func _floor_color(c: Vector2i) -> Color:
 	return col
 
 ## Paredes de ladrillo: bloques alineados (sin giro) de altura casi constante.
+## Paredes de ladrillo propias: sin carcasa de cueva (no se lanza su cálculo en otro hilo).
+func _uses_cave_shell() -> bool:
+	return false
+
 func _build_wall_visuals() -> void:
 	var box := BoxMesh.new()
 	box.size = Vector3(CELL, 1.0, CELL)

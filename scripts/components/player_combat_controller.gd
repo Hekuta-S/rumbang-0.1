@@ -77,6 +77,7 @@ func _ready() -> void:
 	_strategies[WeaponData.WeaponType.GREATSWORD] = WeaponStrategy.GreatswordStrategy.new(self)
 	_strategies[WeaponData.WeaponType.SWORD] = WeaponStrategy.SwordStrategy.new(self)
 	_strategies[WeaponData.WeaponType.KATANA] = WeaponStrategy.KatanaStrategy.new(self)
+	_strategies[WeaponData.WeaponType.FISTS] = WeaponStrategy.FistsStrategy.new(self)
 	_strategies[WeaponData.WeaponType.BOW] = WeaponStrategy.BowStrategy.new(self)
 
 
@@ -274,6 +275,11 @@ func dagger_dash() -> bool:
 func mace_slam() -> bool:
 	var strategy = _strategies.get(WeaponData.WeaponType.MACE)
 	return strategy != null and strategy.mace_slam()
+
+## Lluvia de golpes de los puños (click derecho, mazmorra). Cobra su recurso solo si sale.
+func fists_special() -> bool:
+	var strategy = _strategies.get(WeaponData.WeaponType.FISTS)
+	return strategy != null and strategy.fists_special()
 
 ## Tajo especial de la katana (click derecho, mazmorra). Cobra su recurso solo si sale.
 func katana_special() -> bool:

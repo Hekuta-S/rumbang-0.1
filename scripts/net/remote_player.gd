@@ -16,6 +16,7 @@ var net_char_id := ""                 ## lo lee PlayerAnimationController (_char
 var net_look: Dictionary = {}         ## apariencia del personaje personalizable (ídem)
 var net_on_floor := true              ## ídem (no se puede sobrescribir is_on_floor)
 var weapon := -1
+var weapon_skin := 0                  ## skin del arma en la mano (la manda su dueño)
 var hp := 1.0
 var max_hp := 1.0
 var move_speed := 7.0
@@ -82,6 +83,15 @@ func current_weapon() -> int:
 func update_weapon_visuals() -> void:
 	if animation_controller:
 		animation_controller.set_held_weapon(weapon)
+	if weapon_visuals:
+		var W := WeaponData.WeaponType
+		match weapon:
+			W.GREATSWORD: weapon_visuals.set_greatsword_skin(weapon_skin)
+			W.SWORD: weapon_visuals.set_sword_skin(weapon_skin)
+			W.KATANA: weapon_visuals.set_katana_skin(0)
+			W.BOW: weapon_visuals.set_bow_skin(weapon_skin)
+			W.DAGGERS: weapon_visuals.set_dagger_skin(weapon_skin)
+			W.MACE: weapon_visuals.set_mace_skin(weapon_skin)
 	for wt in weapon_models:
 		var m: Node3D = weapon_models[wt]
 		if m != null and is_instance_valid(m):
@@ -89,7 +99,7 @@ func update_weapon_visuals() -> void:
 
 # ───────────────────────────── Estado de la red ─────────────────────────────
 
-## Estado recibido de su dueño: [pos, yaw, vel, en_suelo, arma, hp, max_hp, caído, disparando, casco?, pechera?, pantalones?]
+## Estado recibido de su dueño: [pos, yaw, vel, en_suelo, arma, hp, max_hp, caído, disparando, casco?, pechera?, pantalones?, skin?]
 ## (casco / pechera: CharacterLookApplier.helmet_net_index / armor_net_index; 0 = ninguno; opcionales por compatibilidad).
 func apply_state(s: Array) -> void:
 	if s.size() > 9 and int(s[9]) != _net_helmet and animation_controller and animation_controller.model:
@@ -114,8 +124,10 @@ func apply_state(s: Array) -> void:
 	if bool(s[8]) and animation_controller:
 		# Arma de fuego continua (lanzallamas): mantiene la pose de disparo mientras el dueño dispara
 		animation_controller.held_fire_until = Time.get_ticks_msec() / 1000.0 + 0.3
-	if new_weapon != weapon:
+	var new_skin: int = int(s[12]) if s.size() > 12 else 0
+	if new_weapon != weapon or new_skin != weapon_skin:
 		weapon = new_weapon
+		weapon_skin = new_skin
 		update_weapon_visuals()
 	if not _got_state:
 		_got_state = true

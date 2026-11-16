@@ -69,7 +69,7 @@ func _ready() -> void:
 				_check(EquipmentDB.armor_of(piece) != "" and (EquipmentDB.armor_of(piece) != "sombra" or piece.get("set", "") == "sombra"),
 					"%s de botín: armadura elemental (%s)" % [kind, piece["base"]])
 	_check(seen["casco"].size() == EquipmentDB.lootable_bases("casco").size() and seen["casco"].size() >= 6, "Salen todos los cascos con modelo (%d)" % seen["casco"].size())
-	_check(seen["pechera"].size() == 4 and seen["pantalones"].size() == 4, "Salen las 4 armaduras elementales")
+	_check(seen["pechera"].size() == 5 and seen["pantalones"].size() == 5, "Salen las 4 armaduras elementales + la Uruk")
 	_check(EquipmentDB.SETS.has("sombra") and EquipmentDB.BASES["casco"]["yelmo_coronado"]["set"] == "sombra", "El yelmo coronado es del set Sombra")
 	var tal := EquipmentDB.roll("talisman", 4, rng)
 	var back := EquipmentDB.sanitize(JSON.parse_string(JSON.stringify(tal)))

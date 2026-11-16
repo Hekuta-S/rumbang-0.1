@@ -133,7 +133,18 @@ func _local_state() -> Array:
 	return [player.global_position, player.mesh.rotation.y, player.velocity, player.is_on_floor(), weapon,
 		float(player.get("hp")), float(player.get("max_hp")), bool(player.get_meta("downed", false)), firing,
 		CharacterLookApplier.helmet_net_index(helmet), CharacterLookApplier.armor_net_index(chest),
-		CharacterLookApplier.armor_net_index(legs)]
+		CharacterLookApplier.armor_net_index(legs), _weapon_skin(weapon)]
+
+## Skin del arma en la mano (para que los demás vean el mismo modelo). 0 = la de siempre.
+func _weapon_skin(weapon: int) -> int:
+	var W := WeaponData.WeaponType
+	match weapon:
+		W.GREATSWORD: return player.greatsword_skin() if player.has_method("greatsword_skin") else 0
+		W.SWORD: return player.sword_skin() if player.has_method("sword_skin") else 0
+		W.BOW: return player.bow_skin() if player.has_method("bow_skin") else 0
+		W.DAGGERS: return player.dagger_skin() if player.has_method("dagger_skin") else 0
+		W.MACE: return player.mace_skin() if player.has_method("mace_skin") else 0
+	return 0
 
 @rpc("any_peer", "reliable")
 func _recv_action(anim_name: String, from_time: float, speed: float) -> void:
@@ -198,6 +209,17 @@ func register_enemy(e: DungeonGoblin) -> void:
 
 func _on_enemy_died(id: int) -> void:
 	_enemy_died.rpc(id)
+
+## Lo llama DungeonElites.make en el anfitrión: la copia de cada cliente se vuelve el mismo élite.
+func send_enemy_elite(e: DungeonGoblin, mod: String) -> void:
+	if Net.is_host() and e.net_id > 0 and _enemies.has(e.net_id):
+		_enemy_elite.rpc(e.net_id, mod)
+
+@rpc("authority", "reliable")
+func _enemy_elite(id: int, mod: String) -> void:
+	var e: DungeonGoblin = _enemies.get(id)
+	if is_instance_valid(e):
+		DungeonElites.make(e, mod)
 
 @rpc("authority", "reliable")
 func _spawn_enemy(id: int, kind: String, pos: Vector3, yaw: float) -> void:

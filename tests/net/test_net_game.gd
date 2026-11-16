@@ -70,6 +70,8 @@ func _host() -> void:
 	# 2. Un enemigo del anfitrión aparece como puppet en el cliente
 	var g := _enc.spawn_goblin()
 	g.global_position = _player.global_position + Vector3(0, 0, -6)
+	await get_tree().process_frame
+	DungeonElites.make(g, "veloz")       # el élite se copia al cliente
 	await get_tree().create_timer(3.0).timeout
 	print("HOST goblin net_id=", g.net_id, " hp=", g.hp)
 	assert(g.net_id > 0, "El goblin se registra para la red")
@@ -131,6 +133,9 @@ func _client() -> void:
 	var puppet: DungeonGoblin = EnemyRegistry.all()[0]
 	assert(puppet.puppet, "En el cliente el enemigo es una copia (puppet)")
 	print("CLIENT CHECK 2a PASSED: puppet en ", puppet.global_position)
+	assert(await _wait_for(func(): return puppet.elite == "veloz", 5.0), "La copia es el mismo élite")
+	assert(puppet.get_node_or_null("EliteMarker") != null, "La copia lleva la marca de élite")
+	print("CLIENT CHECK 2b PASSED: élite ", puppet.elite, " max_hp ", puppet.max_hp)
 	await get_tree().create_timer(1.0).timeout
 	puppet.take_damage(10.0, Vector3.ZERO)
 

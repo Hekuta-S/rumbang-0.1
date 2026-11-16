@@ -109,7 +109,14 @@ func _fill_run_summary(screen: Control) -> void:
 		vb.move_child(summary, stats.get_index() + 1)
 	if GameData.game_mode == "dungeon":
 		RunLog.finish()
-		summary.text = "\n".join(RunLog.summary_lines())
+		var lines: Array = RunLog.summary_lines()
+		# Almas (SoulStats): al caer se ingresa solo una parte; se gastan en el yunque del Salón
+		if SoulStats.run_souls > 0:
+			SoulStats.bank_run(screen == hud.game_over_screen)
+		if SoulStats.last_banked > 0 or SoulStats.last_lost > 0:
+			lines.append("ALMAS GUARDADAS: %d" % SoulStats.last_banked + ("   PERDIDAS: %d" % SoulStats.last_lost if SoulStats.last_lost > 0 else ""))
+			lines.append("Sube de nivel en el yunque del Salón (tienes %d)" % SoulStats.souls())
+		summary.text = "\n".join(lines)
 		return
 	summary.text = "
 ".join(RunStats.summary_lines(player.get("weapon_inventory") if is_instance_valid(player) else null))

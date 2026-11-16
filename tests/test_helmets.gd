@@ -52,7 +52,7 @@ func _ready() -> void:
 	var used := {}
 	for base_id in EquipmentDB.BASES["casco"]:
 		var h := EquipmentDB.helmet_of({"slot": "casco", "base": base_id})
-		if h != "":
+		if h != "" and not h.begins_with(EquipmentDB.URUK_PREFIX):   # los Uruk van pegados al cuerpo (test_goblin_armor)
 			used[h] = true
 			_check(fit.has(h), "Ajuste de " + h)
 			_check(ResourceLoader.exists(CharacterLookApplier.HELMET_DIR + h + ".glb"), "Existe el modelo " + h)

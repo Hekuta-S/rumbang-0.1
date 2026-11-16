@@ -32,6 +32,7 @@ func _physics_process(delta: float) -> void:
 	HiveMind.begin_tick(get_tree(), _active.size())
 	var vis := EnemyVisuals.instance
 	var tick_f := float(tick)
+	var prof := PerfProbe.enabled
 	var i := 0
 	while i < _active.size():
 		var e: EnemyData = _active[i]
@@ -42,9 +43,12 @@ func _physics_process(delta: float) -> void:
 			e.tick_age = 0
 			e.update(dt)
 			if vis != null:
-				var tv := PerfProbe.begin()
-				vis.write(e, tick_f)
-				PerfProbe.end("enemigos.dibujo", tv)
+				if prof:
+					var tv := PerfProbe.begin()
+					vis.write(e, tick_f)
+					PerfProbe.end("enemigos.dibujo", tv)
+				else:
+					vis.write(e, tick_f)
 		# Si e (u otro anterior) se recicló durante su update, la lista se desplazó: no se avanza
 		if i < _active.size() and _active[i] == e:
 			i += 1

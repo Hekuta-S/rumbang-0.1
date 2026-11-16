@@ -18,10 +18,10 @@ func _init(id: int, name: String, icon: String, category: String) -> void:
 	weapon.icon = icon
 	weapon.category = category
 
-func set_combat(damage: float, cooldown: float, range: float = 0.0) -> WeaponBuilder:
+func set_combat(damage: float, cooldown: float, attack_range: float = 0.0) -> WeaponBuilder:
 	weapon.base_damage = damage
 	weapon.base_cooldown = cooldown
-	weapon.weapon_range = range
+	weapon.weapon_range = attack_range
 	return self
 
 func set_projectile(speed: float, pellets: int = 1, angle: float = 180.0) -> WeaponBuilder:
@@ -35,10 +35,10 @@ func set_ammo(mag_size: int = 0, reload_time: float = 2.0) -> WeaponBuilder:
 	weapon.reload_time = reload_time
 	return self
 
-func set_heavy_attack(damage: float, cooldown: float, range: float = 0.0, angle: float = 0.0) -> WeaponBuilder:
+func set_heavy_attack(damage: float, cooldown: float, attack_range: float = 0.0, angle: float = 0.0) -> WeaponBuilder:
 	weapon.heavy_damage = damage
 	weapon.heavy_cooldown = cooldown
-	weapon.heavy_range = range
+	weapon.heavy_range = attack_range
 	weapon.heavy_half_angle = angle
 	return self
 

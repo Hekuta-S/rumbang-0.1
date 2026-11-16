@@ -78,6 +78,11 @@ static func make(e: DungeonGoblin, mod: String) -> void:
 			_protectors.append(e)
 			_add_ring(e, PROTECT_RADIUS, m["color"], "ProtectRing")
 	e.died.connect(_on_died.bind(mod), CONNECT_ONE_SHOT)
+	# En red: el anfitrión avisa a los clientes para que su copia (puppet) se vea igual
+	if Net.is_host() and Net.is_online() and not e.puppet and e.is_inside_tree():
+		var world := e.get_tree().current_scene.get_node_or_null("NetWorld") if e.get_tree().current_scene else null
+		if world and world.has_method("send_enemy_elite"):
+			world.send_enemy_elite(e, mod)
 
 ## Multiplicador del daño que recibe `e` por las auras de los protectores cercanos (no la suya).
 static func aura_mult(e: DungeonGoblin) -> float:
@@ -131,15 +136,17 @@ static func on_damaged(e: DungeonGoblin) -> void:
 static func _on_died(dead: DungeonGoblin, mod: String) -> void:
 	if not is_instance_valid(dead) or not dead.is_inside_tree():
 		return
+	if mod == "protector":
+		_protectors.erase(dead)
+	if dead.puppet:
+		return                        # copia en un cliente: botín y explosión los pone el anfitrión
 	var parent := dead.get_parent()
 	var pos := dead.global_position
 	EquipmentPickup.try_drop(parent, pos + Vector3(0.6, 0, 0.6), 1.0, DROP_MIN_RARITY)
 	for i in LootHits.extra_elite_drops(dead):
 		EquipmentPickup.try_drop(parent, pos + Vector3(-0.6, 0, 0.6), 1.0, DROP_MIN_RARITY)
 	DungeonRun.maybe_blueprint(parent, pos + Vector3(0, 0, -0.8), DungeonRun.BLUEPRINT_ELITE_CHANCE)
-	if mod == "protector":
-		_protectors.erase(dead)
-	elif mod == "explosivo":
+	if mod == "explosivo":
 		_spawn_blast(parent, pos)
 
 # ───────────────────────────── Explosión ─────────────────────────────

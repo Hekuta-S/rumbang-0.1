@@ -387,10 +387,10 @@ func _add_perk_line(v: Control, it: Dictionary) -> void:
 			col = EquipmentDB.ELEMENTS[el]["color"]
 		v.add_child(_text(line, 10, col))
 
-func _text(t: String, size: int, color: Color, wrap: bool = true) -> Label:
+func _text(t: String, size: int, color: Color, do_wrap: bool = true) -> Label:
 	var l := Label.new()
 	l.text = t
-	if wrap:
+	if do_wrap:
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", color)

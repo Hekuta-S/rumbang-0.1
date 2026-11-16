@@ -48,97 +48,21 @@ var _step_distance_accum: float = 0.0
 var _last_foot_side: float = 1.0
 
 func _setup_particles() -> void:
-	pass
+	# Un frame después: la cámara del jugador ya existe.
+	(func(): if is_instance_valid(player): FootDustVFX.prewarm(player)).call_deferred()
 
-func _spawn_footstep_puff(pos: Vector3, is_running: bool) -> void:
+## Polvo de una pisada (FootDustVFX). `move_dir`: hacia dónde avanza; al correr el polvo sale hacia atrás.
+func _spawn_footstep_puff(pos: Vector3, is_running: bool, move_dir: Vector3 = Vector3.ZERO) -> void:
 	if not player or not player.is_inside_tree(): return
-	var parent = player.get_parent()
-	if not parent or not is_instance_valid(parent): return
+	FootDustVFX.step(player.get_parent(), pos, move_dir, is_running)
 
-	var puff := CPUParticles3D.new()
-	puff.amount = Quality.count(int(14 if is_running else 8))
-	puff.lifetime = 0.45
-	puff.one_shot = true
-	puff.explosiveness = 0.95
-	puff.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
-	puff.emission_sphere_radius = 0.2
-	puff.direction = Vector3.UP
-	puff.spread = 60.0
-	puff.gravity = Vector3(0, 0.4, 0)
-	puff.initial_velocity_min = 0.6
-	puff.initial_velocity_max = 1.8 if is_running else 1.2
-	puff.scale_amount_min = 0.25
-	puff.scale_amount_max = 0.55 if is_running else 0.4
-
-	var mesh := SphereMesh.new()
-	mesh.radius = 0.05
-	mesh.height = 0.1
-	puff.mesh = mesh
-
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_color = Color(0.85, 0.8, 0.7, 0.65)
-	puff.material_override = mat
-
-	var color_ramp := Gradient.new()
-	color_ramp.set_color(0, Color(0.85, 0.8, 0.7, 0.7))
-	color_ramp.add_point(1.0, Color(0.85, 0.8, 0.7, 0.0))
-	puff.color_ramp = color_ramp
-
-	parent.add_child(puff)
-	puff.global_position = pos
-	puff.restart()
-	puff.emitting = true
-
-	var tw = puff.create_tween()
-	tw.tween_interval(0.55)
-	tw.tween_callback(puff.queue_free)
-
-func _spawn_jump_burst(pos: Vector3) -> void:
+## Despegue del salto desde el suelo (o bocanada en el aire si `airborne`).
+func _spawn_jump_burst(pos: Vector3, airborne: bool = false) -> void:
 	if not player or not player.is_inside_tree(): return
-	var parent = player.get_parent()
-	if not parent or not is_instance_valid(parent): return
-
-	var jump_puff := CPUParticles3D.new()
-	jump_puff.amount = Quality.count(26)
-	jump_puff.lifetime = 0.5
-	jump_puff.one_shot = true
-	jump_puff.explosiveness = 0.98
-	jump_puff.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
-	jump_puff.emission_sphere_radius = 0.35
-	jump_puff.direction = Vector3.UP
-	jump_puff.spread = 85.0
-	jump_puff.initial_velocity_min = 2.0
-	jump_puff.initial_velocity_max = 4.8
-	jump_puff.gravity = Vector3(0, -2.5, 0)
-	jump_puff.scale_amount_min = 0.6
-	jump_puff.scale_amount_max = 1.3
-
-	var mesh := SphereMesh.new()
-	mesh.radius = 0.12
-	mesh.height = 0.24
-	jump_puff.mesh = mesh
-
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_color = Color(0.9, 0.85, 0.75, 0.75)
-	jump_puff.material_override = mat
-
-	var color_ramp := Gradient.new()
-	color_ramp.set_color(0, Color(0.9, 0.85, 0.75, 0.8))
-	color_ramp.add_point(1.0, Color(0.9, 0.85, 0.75, 0.0))
-	jump_puff.color_ramp = color_ramp
-
-	parent.add_child(jump_puff)
-	jump_puff.global_position = pos
-	jump_puff.restart()
-	jump_puff.emitting = true
-
-	var tw = jump_puff.create_tween()
-	tw.tween_interval(0.6)
-	tw.tween_callback(jump_puff.queue_free)
+	if airborne:
+		FootDustVFX.air_jump(player.get_parent(), pos)
+	else:
+		FootDustVFX.takeoff(player.get_parent(), pos)
 
 ## ── Espadón: andar y correr ──
 ## Con el espadón se anda despacio. Tras GS_RUN_DELAY s moviéndose sin atacar, recibir daño ni rodar (note_combat
@@ -209,7 +133,7 @@ func add_dash(v: Vector3, decel: float = DASH_DECEL) -> void:
 	v.y = 0.0
 	dash_velocity = v
 	_dash_decel = decel
-	_spawn_footstep_puff(player.global_position + Vector3(0, 0.05, 0), true)
+	_spawn_footstep_puff(player.global_position + Vector3(0, 0.05, 0), true, v)
 
 const DODGE_COOLDOWN: float = 0.75
 ## La voltereta duraba 0,32 s y se veía acelerada; ahora más lenta pero recorre lo mismo (~2,3 m con
@@ -244,6 +168,7 @@ func perform_dodge() -> void:
 	var res = player.get("resources")
 	if res and not res.spend_energy(PlayerResources.DODGE_COST):
 		return
+	_end_slide()
 	_dodge_cooldown_timer = DODGE_COOLDOWN
 	_dodge_timer = DODGE_DURATION
 	_perfect_used = false
@@ -310,13 +235,318 @@ func _on_land(speed: float) -> void:
 	if player.mesh:
 		HitFeedback.squash(player.mesh, 0.08 + 0.14 * k, 0.24)
 	HitFeedback.kick(Vector3.DOWN, 0.2 + 0.45 * k)
-	if k > 0.15:
-		_spawn_jump_burst(player.global_position + Vector3(0, 0.05, 0))
-	else:
-		_spawn_footstep_puff(player.global_position + Vector3(0, 0.05, 0), true)
+	FootDustVFX.land(player.get_parent(), player.global_position + Vector3(0, 0.05, 0), k)
 	AudioManager.play_at("step", player.global_position, -9.0 + 5.0 * k, 0.8 - 0.15 * k)
 	if k > 0.5:
 		AudioManager.play_at("impact_blunt", player.global_position, -14.0 + 6.0 * k, 0.55)
+
+## ── Golpe de caída (mapa con mesetas) ──
+## Bajar de un salto desde SLAM_MIN_DROP m o más por encima del suelo donde caes, con una caída de
+## SLAM_MIN_FALL m desde lo más alto, revienta el suelo: daño en área (parte de la vida del enemigo, menos a
+## élites) y empujón. Los saltos normales en llano (y el doble salto) no llegan.
+const SLAM_MIN_DROP := 2.0
+const SLAM_MIN_FALL := 3.0
+const SLAM_COLOR := Color(1.0, 0.7, 0.3)
+var _air_start_y: float = 0.0
+var _air_peak_y: float = 0.0
+var _was_airborne: bool = false
+## Vuelo de una runa lanzadora: velocidad horizontal fija hasta aterrizar (el control solo la corrige un poco).
+var _launch_vel: Vector3 = Vector3.ZERO
+var _launch_air: bool = false
+const LAUNCH_STEER := 0.15
+
+## Radio, fracción de vida (normales) y daño mínimo del golpe tras caer `fall` m. Pura.
+static func slam_params(fall: float) -> Dictionary:
+	return {"radius": clampf(2.5 + 0.45 * fall, 3.5, 8.0), "frac": clampf(0.2 + 0.05 * fall, 0.3, 0.75),
+		"min_damage": 8.0 + 4.0 * fall, "knockback": clampf(6.0 + 1.2 * fall, 8.0, 18.0)}
+
+## Golpe de caída en `pos`. Devuelve cuántos enemigos alcanza.
+func ground_slam(pos: Vector3, fall: float) -> int:
+	var prm := slam_params(fall)
+	var radius: float = prm["radius"]
+	var mult: float = player.stat_block.damage_mult() if player and player.stat_block else 1.0
+	var hits := 0
+	HitFeedback.weapon_tag = -1
+	for e in EnemyRegistry.all().duplicate():
+		if not (e is EnemyData) or e.recycled:
+			continue
+		var to_e: Vector3 = e.global_position - pos
+		if absf(to_e.y) > 2.5:
+			continue
+		to_e.y = 0.0
+		var d := to_e.length()
+		if d > radius:
+			continue
+		var frac: float = prm["frac"] * (0.35 if e.xp_reward >= XpCurve.XP_ELITE else 1.0)
+		var dmg := maxf(float(prm["min_damage"]) * mult, e.max_hp * frac) * lerpf(1.0, 0.6, d / radius)
+		var dir := to_e / d if d > 0.05 else Vector3.FORWARD
+		e.take_damage(dmg, dir * float(prm["knockback"]))
+		hits += 1
+	if player and player.is_inside_tree():
+		var scene := player.get_parent()
+		NecroVFX.shockwave(scene, pos + Vector3(0, 0.1, 0), radius * 2.0, SLAM_COLOR)
+		FootDustVFX.land(scene, pos + Vector3(0, 0.05, 0), 1.0)
+		AudioManager.play_at("explosion", pos, -6.0, 0.7)
+		HitFeedback.shake(0.25 + 0.03 * fall)
+		if hits > 0:
+			HitFeedback.slowmo(0.5, 0.12)
+	return hits
+
+## Runa lanzadora: sale despedido con `vel` (la vertical la gasta la gravedad; la horizontal se mantiene).
+func launch(vel: Vector3) -> void:
+	player.velocity.y = vel.y
+	_launch_vel = Vector3(vel.x, 0.0, vel.z)
+	_launch_air = false
+	_spawn_jump_burst(player.global_position + Vector3(0, 0.05, 0))
+
+func is_launched() -> bool:
+	return _launch_vel != Vector3.ZERO
+
+## ── Deslizamiento (solo supervivencia), estilo CoD/Apex ──
+## Ctrl (o la cruceta abajo) corriendo, o en una cuesta abajo, lanza un deslizamiento: arranca con un
+## empujón, la cuesta abajo lo acelera (cuesta arriba lo frena), el roce lo para en llano. Soltar la tecla o
+## saltar lo corta (saltando conserva el impulso). A su paso aparta a los enemigos hacia los lados, más
+## fuerte cuanto más rápido va. La animación (mikeura_slide) solo la tiene Mikeura por ahora.
+const SLIDE_KEY := KEY_CTRL
+const SLIDE_JOY := JOY_BUTTON_DPAD_DOWN
+const SLIDE_MIN_SPEED := 6.0          ## m/s horizontales para empezar en llano
+const SLIDE_DOWNHILL_START := 0.12    ## pendiente a favor (m por m) con la que empieza aunque vaya despacio
+const SLIDE_BOOST := 1.3              ## × velocidad al empezar
+const SLIDE_MIN_START := 9.0
+const SLIDE_MAX_SPEED := 20.0
+const SLIDE_FRICTION := 6.5           ## m/s² de frenado propio
+const SLIDE_SLOPE_GAIN := 0.9         ## fracción de la gravedad a lo largo de la cuesta
+const SLIDE_END_SPEED := 3.0
+const SLIDE_MAX_TIME := 3.5
+const SLIDE_STEER := 1.6              ## rad/s de giro hacia donde se empuja el stick
+const SLIDE_COOLDOWN := 0.4
+const SLIDE_AIR_GRACE := 0.18         ## s en el aire (un bache) antes de cortar el deslizamiento
+const SLIDE_JUMP_DECEL := 9.0         ## frenado del impulso que conserva al saltar o caer de un borde
+const SLIDE_PUSH_RADIUS := 1.7
+const SLIDE_PUSH_MIN_SPEED := 3.5
+const SLIDE_PUSH_GAIN := 1.15         ## fuerza del empujón por m/s de deslizamiento
+const SLIDE_PUSH_MAX := 22.0
+const SLIDE_PUSH_STAGGER := 0.45      ## s que el enemigo apartado queda frenado
+## Beta: al empezar la partida el deslizamiento es más flojo (más corto, más lento, con espera y casi sin
+## empujón) y llega a su fuerza completa a los SLIDE_NERF_RAMP_S s: se "desbloquea" jugando.
+const SLIDE_NERF_START := 0.55        ## fracción de la fuerza de deslizamiento con la partida recién empezada
+const SLIDE_NERF_RAMP_S := 180.0      ## s de partida hasta llegar al 100 %
+const SLIDE_NERF_COOLDOWN := 1.6      ## s extra de espera entre deslizamientos al empezar (se va a 0)
+## Para los tests: fuerza el reloj de la partida (<0 = el de GameState).
+var slide_elapsed_override := -1.0
+var _sliding := false
+var _slide_vel := Vector3.ZERO
+var _slide_t := 0.0
+var _slide_air := 0.0
+var _slide_cd := 0.0
+var _slide_was_pressed := false
+var _slide_pushed := {}               ## enemigos ya apartados en este deslizamiento
+var _slide_dust_t := 0.0
+## Para los tests: fuerza la tecla de deslizar como pulsada.
+var slide_input_override := false
+var _slide_power_now := 1.0           ## fuerza (slide_power) con la que empezó el deslizamiento en curso
+
+func is_sliding() -> bool:
+	return _sliding
+
+func _slide_pressed() -> bool:
+	return slide_input_override or VirtualInput.is_sliding or Input.is_physical_key_pressed(SLIDE_KEY) \
+		or Input.is_joy_button_pressed(0, SLIDE_JOY)
+
+## Pendiente del suelo bajo `pos` (m de subida por m, en x y z); cero sin mapa con relieve.
+static func ground_gradient(pos: Vector3) -> Vector2:
+	if not EnemyMotion.available():
+		return Vector2.ZERO
+	if pos.y - EnemyMotion.height_at(pos.x, pos.z) > 0.8:
+		return Vector2.ZERO                      # sobre un puente (u otra cosa por encima del relieve)
+	var hx := EnemyMotion.height_at(pos.x + 0.5, pos.z) - EnemyMotion.height_at(pos.x - 0.5, pos.z)
+	var hz := EnemyMotion.height_at(pos.x, pos.z + 0.5) - EnemyMotion.height_at(pos.x, pos.z - 0.5)
+	return Vector2(hx, hz)
+
+## Aceleración horizontal (m/s²) que da la cuesta: a favor si se baja. Pura.
+static func slope_accel(grad: Vector2, g: float) -> Vector3:
+	var a := -grad / sqrt(1.0 + grad.length_squared()) * g * SLIDE_SLOPE_GAIN
+	return Vector3(a.x, 0.0, a.y)
+
+## Velocidad nueva tras `delta` s deslizando a `vel` con pendiente `grad`; `friction` multiplica el roce
+## (barro de un tobogán: ProceduralMap.CHUTE_FRICTION). Pura (la usan los tests).
+static func slide_step(vel: Vector3, grad: Vector2, g: float, delta: float, friction: float = 1.0) -> Vector3:
+	var v := vel + slope_accel(grad, g) * delta
+	var spd := v.length()
+	if spd > 0.001:
+		v = v / spd * clampf(spd - SLIDE_FRICTION * friction * delta, 0.0, SLIDE_MAX_SPEED)
+	return v
+
+## Mapa con toboganes (o null).
+var _map_ref: Node = null
+func _proc_map() -> Node:
+	if _map_ref == null or not is_instance_valid(_map_ref):
+		_map_ref = get_tree().get_first_node_in_group("procedural_map") if is_inside_tree() else null
+	return _map_ref if _map_ref and _map_ref.has_method("chute_dir_at") else null
+
+## Dirección de bajada del tobogán bajo el jugador (Vector2.ZERO si no está en uno, o va por encima).
+func _chute_here() -> Vector2:
+	var m := _proc_map()
+	if m == null:
+		return Vector2.ZERO
+	var pos := player.global_position
+	if pos.y - m.get_height_at(pos.x, pos.z) > 0.8:
+		return Vector2.ZERO
+	return m.chute_dir_at(pos.x, pos.z)
+
+## Fuerza del deslizamiento a los `elapsed` s de partida: SLIDE_NERF_START → 1. Pura.
+static func slide_power(elapsed: float) -> float:
+	return lerpf(SLIDE_NERF_START, 1.0, clampf(elapsed / SLIDE_NERF_RAMP_S, 0.0, 1.0))
+
+func _slide_strength() -> float:
+	var t := slide_elapsed_override if slide_elapsed_override >= 0.0 else GameState.get_instance().elapsed_time
+	return slide_power(t)
+
+## Velocidad que basta para que un tobogán te lleve solo (cuesta abajo).
+const CHUTE_AUTO_SPEED := 3.0
+
+## ¿Puede empezar a deslizarse yendo a `vel` (horizontal) con pendiente `grad`? Pura.
+static func can_start_slide(vel: Vector3, grad: Vector2) -> bool:
+	var flat := Vector2(vel.x, vel.z)
+	if flat.length() >= SLIDE_MIN_SPEED:
+		return true
+	if flat.length() < 1.0:
+		return false
+	return -grad.dot(flat.normalized()) >= SLIDE_DOWNHILL_START
+
+## Fuerza del empujón a los enemigos a `speed` m/s (0 si va demasiado lento). Pura.
+static func slide_push_force(speed: float) -> float:
+	if speed < SLIDE_PUSH_MIN_SPEED:
+		return 0.0
+	return minf(speed * SLIDE_PUSH_GAIN, SLIDE_PUSH_MAX)
+
+## Dirección y fuerza del empujón: sobre todo hacia el lado en que está el enemigo, algo hacia delante. Pura.
+static func slide_push_vector(dir: Vector3, to_e: Vector3, force: float) -> Vector3:
+	var side := Vector3(-dir.z, 0.0, dir.x)
+	var s := signf(side.dot(to_e))
+	if s == 0.0:
+		s = 1.0
+	return (side * s * 0.85 + dir * 0.4).normalized() * force
+
+## Aterrizar con la tecla de deslizar pulsada (pulsada en el aire): entra deslizando, y parte de la
+## velocidad de caída pasa al deslizamiento (como en Apex). Con caídas fuertes basta con estar quieto.
+const SLIDE_LAND_FALL_GAIN := 0.4     ## m/s de deslizamiento por m/s de caída
+const SLIDE_LAND_MIN_FALL := 6.0      ## caída mínima (m/s) para que cuente como aterrizaje
+const SLIDE_LAND_STILL_FALL := 11.0   ## caída con la que se desliza aunque no se moviera en horizontal
+var _slide_queued := false            ## Ctrl pulsado en el aire: deslizar al tocar suelo
+
+## Velocidad de un deslizamiento que empieza al aterrizar yendo a `flat` m/s tras caer a `fall` m/s. Pura.
+static func landing_slide_speed(flat: float, fall: float) -> float:
+	return clampf(maxf(flat * SLIDE_BOOST, SLIDE_MIN_START) + maxf(fall, 0.0) * SLIDE_LAND_FALL_GAIN, 0.0, SLIDE_MAX_SPEED)
+
+## ¿Aterrizando a `fall` m/s con velocidad horizontal `flat` se puede entrar deslizando? Pura.
+static func can_landing_slide(flat: float, fall: float) -> bool:
+	if fall < SLIDE_LAND_MIN_FALL:
+		return false
+	return flat >= 1.0 or fall >= SLIDE_LAND_STILL_FALL
+
+func _try_start_slide(land_fall: float = -1.0) -> void:
+	if GameData.game_mode != "survival" or _sliding or _slide_cd > 0.0 or not player.is_on_floor():
+		return
+	if is_dodging() or is_launched():
+		return
+	var flat := Vector3(player.velocity.x, 0.0, player.velocity.z)
+	var grad := ground_gradient(player.global_position)
+	var landing := land_fall >= 0.0
+	if landing:
+		if not can_landing_slide(flat.length(), land_fall):
+			return
+	elif not can_start_slide(flat, grad):
+		return
+	var dir: Vector3 = flat.normalized() if flat.length() >= 1.0 else (-player.mesh.global_transform.basis.z if player.mesh else Vector3.FORWARD)
+	dir.y = 0.0
+	dir = dir.normalized()
+	var downhill := maxf(-grad.dot(Vector2(dir.x, dir.z)), 0.0)
+	var power := _slide_strength()
+	var spd := clampf(((landing_slide_speed(flat.length(), land_fall) if landing else maxf(flat.length() * SLIDE_BOOST, SLIDE_MIN_START)) + downhill * 6.0) * power, 0.0, SLIDE_MAX_SPEED * power)
+	_slide_power_now = power
+	_sliding = true
+	_slide_vel = dir * spd
+	_slide_t = 0.0
+	_slide_air = 0.0
+	_slide_pushed.clear()
+	dash_velocity = Vector3.ZERO
+	var anim = player.get("animation_controller")
+	if anim and anim.has_method("play_slide"):
+		anim.play_slide()
+	HitFeedback.kick(Vector3.DOWN, 0.25)
+	AudioManager.play_at("dodge", player.global_position, -5.0, 0.7)
+	_spawn_footstep_puff(player.global_position + Vector3(0, 0.05, 0), true, _slide_vel)
+
+## Termina el deslizamiento; `carry` conserva el impulso (salto o caída por un borde).
+func _end_slide(carry: bool = false) -> void:
+	if not _sliding:
+		return
+	_sliding = false
+	_slide_cd = SLIDE_COOLDOWN + SLIDE_NERF_COOLDOWN * (1.0 - _slide_power_now) / (1.0 - SLIDE_NERF_START)
+	if carry:
+		add_dash(_slide_vel, SLIDE_JUMP_DECEL)
+	_slide_vel = Vector3.ZERO
+	var anim = player.get("animation_controller")
+	if anim and anim.has_method("stop_slide"):
+		anim.stop_slide()
+
+func _update_slide(delta: float, wish: Vector3) -> void:
+	_slide_t += delta
+	if not player.is_on_floor():
+		_slide_air += delta
+		if _slide_air > SLIDE_AIR_GRACE:
+			_end_slide(true)                    # se cayó por un borde: sigue con el impulso
+			return
+	else:
+		_slide_air = 0.0
+	var chute := _chute_here()
+	_slide_vel = slide_step(_slide_vel, ground_gradient(player.global_position), gravity, delta, ProceduralMap.CHUTE_FRICTION if chute != Vector2.ZERO else 1.0)
+	# Un poco de giro hacia donde se empuja el stick
+	if wish.length_squared() > 0.01 and _slide_vel.length_squared() > 0.01:
+		var cur := atan2(_slide_vel.x, _slide_vel.z)
+		var want := atan2(wish.x, wish.z)
+		var turn := clampf(wrapf(want - cur, -PI, PI), -SLIDE_STEER * delta, SLIDE_STEER * delta)
+		_slide_vel = _slide_vel.rotated(Vector3.UP, turn)
+	var spd := _slide_vel.length()
+	# En un tobogán sigue aunque se suelte la tecla (y sin tope de tiempo)
+	if spd < SLIDE_END_SPEED or (chute == Vector2.ZERO and (_slide_t > SLIDE_MAX_TIME * _slide_power_now or not _slide_pressed())):
+		_end_slide()
+		return
+	player.velocity.x = _slide_vel.x
+	player.velocity.z = _slide_vel.z
+	if player.mesh:
+		player.mesh.rotation.y = lerp_angle(player.mesh.rotation.y, atan2(-_slide_vel.x, -_slide_vel.z), 12.0 * delta)
+	_slide_push(spd)
+	_slide_dust_t -= delta
+	if _slide_dust_t <= 0.0:
+		_slide_dust_t = 0.07
+		_spawn_footstep_puff(player.global_position + Vector3(0, 0.05, 0), true, _slide_vel)
+
+## Aparta hacia los lados a los enemigos que hay delante (una vez a cada uno por deslizamiento).
+func _slide_push(speed: float) -> void:
+	var force := slide_push_force(speed) * _slide_power_now * _slide_power_now      # casi sin empujón al empezar
+	if force <= 0.0:
+		return
+	var pos := player.global_position
+	var dir := _slide_vel / speed
+	for e in EnemyRegistry.all():
+		if not (e is EnemyData) or e.recycled or _slide_pushed.has(e.get_instance_id()):
+			continue
+		var to_e: Vector3 = e.global_position - pos
+		if absf(to_e.y) > 1.5:
+			continue
+		to_e.y = 0.0
+		var d := to_e.length()
+		if d > SLIDE_PUSH_RADIUS * (1.0 + (e.scale.x - 1.0) * 0.5) or (d > 0.3 and to_e.dot(dir) < -0.2 * d):
+			continue
+		_slide_pushed[e.get_instance_id()] = true
+		e.knockback_velocity = slide_push_vector(dir, to_e, force) * e.knockback_resistance
+		e.slow_multiplier = minf(e.slow_multiplier, 0.25)
+		e.slow_timer = maxf(e.slow_timer, SLIDE_PUSH_STAGGER)
+		e.is_alerted = true
+		AudioManager.play_at("impact_blunt", e.global_position, -12.0, randf_range(0.9, 1.1))
+		HitFeedback.shake(0.05)
 
 ## Saltar cuesta energía (solo mazmorra); sin ella no se despega del suelo.
 func _can_pay_jump() -> bool:
@@ -361,7 +591,7 @@ func handle_movement(delta: float) -> void:
 	_update_gs_gait(delta, moving, forward)
 	if _gs_active():
 		current_speed *= _gs_mult
-	if moving and player.is_on_floor():
+	if moving and player.is_on_floor() and not _sliding:
 		var dist_step = current_speed * delta
 		_step_distance_accum += dist_step
 		var step_interval = 0.9 if is_running else 1.4
@@ -374,7 +604,7 @@ func handle_movement(delta: float) -> void:
 			_step_distance_accum = 0.0
 			_last_foot_side = -_last_foot_side
 			var foot_offset = right * (_last_foot_side * 0.25)
-			_spawn_footstep_puff(player.global_position + foot_offset + Vector3(0, 0.05, 0), is_running)
+			_spawn_footstep_puff(player.global_position + foot_offset + Vector3(0, 0.05, 0), is_running, wish)
 	else:
 		_step_distance_accum = 0.0
 		_step_sfx_accum = 0.0
@@ -414,6 +644,31 @@ func handle_movement(delta: float) -> void:
 	var control := 0.25 if dashing else 1.0
 	player.velocity.x = wish.x * current_speed * control + dash_velocity.x + root_motion_velocity.x
 	player.velocity.z = wish.z * current_speed * control + dash_velocity.z + root_motion_velocity.z
+	# Deslizamiento (supervivencia): Ctrl recién pulsado; mientras dura, manda su velocidad
+	_slide_cd = maxf(_slide_cd - delta, 0.0)
+	var slide_down := _slide_pressed()
+	if not player.is_on_floor():
+		# En el aire: pulsar (o mantener) la tecla deja el deslizamiento listo para el aterrizaje
+		if slide_down and not _sliding:
+			_slide_queued = true
+		elif not slide_down:
+			_slide_queued = false
+	elif slide_down and not _slide_was_pressed:
+		_try_start_slide()
+	elif not _sliding and GameData.game_mode == "survival" and player.is_on_floor():
+		# Tobogán: entrar cuesta abajo con algo de velocidad te tumba y te lleva
+		var cd := _chute_here()
+		if cd != Vector2.ZERO and Vector2(player.velocity.x, player.velocity.z).dot(cd) > CHUTE_AUTO_SPEED:
+			_try_start_slide()
+	_slide_was_pressed = slide_down
+	if _sliding:
+		_update_slide(delta, wish)
+	if _launch_vel != Vector3.ZERO:
+		if player.is_on_floor() and _launch_air:
+			_launch_vel = Vector3.ZERO                 # aterrizó
+		else:
+			player.velocity.x = _launch_vel.x + wish.x * current_speed * LAUNCH_STEER
+			player.velocity.z = _launch_vel.z + wish.z * current_speed * LAUNCH_STEER
 	dash_velocity = dash_velocity.move_toward(Vector3.ZERO, _dash_decel * delta)
 
 	# Jump mechanic
@@ -422,9 +677,11 @@ func handle_movement(delta: float) -> void:
 	_jump_was_pressed = jump_pressed
 	var jump_velocity: float = BASE_JUMP_VELOCITY * (player.stat_block.jump_velocity_mult() if player.stat_block else 1.0)
 
-	if player.is_on_floor():
+	if player.is_on_floor() and _launch_vel == Vector3.ZERO:
 		_air_jumps_used = 0
 		if jump_pressed and _can_pay_jump():
+			if _sliding:
+				_end_slide(true)                # salto deslizando: conserva el impulso
 			player.velocity.y = jump_velocity
 			_spawn_jump_burst(player.global_position + Vector3(0, 0.05, 0))
 			# The animation controller will detect the jump automatically
@@ -432,17 +689,33 @@ func handle_movement(delta: float) -> void:
 		# Salto en el aire (objetos con saltos extra)
 		_air_jumps_used += 1
 		player.velocity.y = jump_velocity * 0.92
-		_spawn_jump_burst(player.global_position + Vector3(0, 0.05, 0))
+		_spawn_jump_burst(player.global_position + Vector3(0, 0.05, 0), true)
 
 	# Gravity / grounding
 	if not player.is_on_floor():
 		player.velocity.y -= gravity * delta
-	else:
-		if player.velocity.y <= 0:
-			player.velocity.y = -1.0
+	elif player.velocity.y <= 0:
+		player.velocity.y = -1.0
 
 	var was_floor: bool = player.is_on_floor()
 	var fall_speed: float = -player.velocity.y
 	player.move_and_slide()
+	var gy := player.global_position.y
+	if not player.is_on_floor():
+		if not _was_airborne:
+			_was_airborne = true
+			_air_start_y = gy
+			_air_peak_y = gy
+		_air_peak_y = maxf(_air_peak_y, gy)
+		if _launch_vel != Vector3.ZERO:
+			_launch_air = true
+	elif _was_airborne:
+		_was_airborne = false
+		if _air_start_y - gy >= SLAM_MIN_DROP and _air_peak_y - gy >= SLAM_MIN_FALL and EnemyMotion.has_relief():
+			ground_slam(player.global_position, _air_peak_y - gy)
+		if _slide_queued and _slide_pressed():
+			_slide_cd = 0.0                        # el deslizamiento al aterrizar no espera a la recarga
+			_try_start_slide(fall_speed)
+		_slide_queued = false
 	if not was_floor and player.is_on_floor() and fall_speed >= LAND_MIN_SPEED:
 		_on_land(fall_speed)

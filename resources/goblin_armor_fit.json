@@ -1,0 +1,192 @@
+{
+	"armadura_berserker": {
+		"bone": "mixamorig_Hips",
+		"pos": [
+			0.0,
+			1.1384,
+			0.0
+		],
+		"rot": [
+			0.0,
+			0.0,
+			0.0
+		],
+		"scale": [
+			1.3165,
+			1.5527,
+			1.3165
+		],
+		"slot": "shirt"
+	},
+	"armadura_uruk": {
+		"bone": "mixamorig_Hips",
+		"pos": [
+			0.0,
+			0.3578,
+			0.0
+		],
+		"rot": [
+			0.0,
+			0.0,
+			0.0
+		],
+		"scale": [
+			1.5062,
+			1.2825,
+			1.5062
+		],
+		"slot": "shirt"
+	},
+	"armadura_uruk_escudo": {
+		"bone": "mixamorig_Hips",
+		"pos": [
+			0.0,
+			0.4038,
+			0.0
+		],
+		"rot": [
+			0.0,
+			0.0,
+			0.0
+		],
+		"scale": [
+			1.5913,
+			1.2825,
+			1.5913
+		],
+		"slot": "shirt"
+	},
+	"casco_berserker": {
+		"bone": "mixamorig_Head",
+		"pos": [
+			0.0025,
+			1.0956,
+			-0.0104
+		],
+		"rot": [
+			0.0,
+			0.0,
+			0.0
+		],
+		"scale": [
+			0.6662,
+			0.6408,
+			0.3651
+		],
+		"slot": "helmet"
+	},
+	"casco_uruk": {
+		"bone": "mixamorig_Head",
+		"pos": [
+			0.0025,
+			1.0956,
+			0.0473
+		],
+		"rot": [
+			0.0,
+			0.0,
+			0.0
+		],
+		"scale": [
+			0.5146,
+			0.4464,
+			0.4355
+		],
+		"slot": "helmet"
+	},
+	"casco_uruk_cerrado": {
+		"bone": "mixamorig_Head",
+		"pos": [
+			0.0025,
+			1.1344,
+			-0.0104
+		],
+		"rot": [
+			0.0,
+			0.0,
+			0.0
+		],
+		"scale": [
+			0.3992,
+			0.5535,
+			0.5502
+		],
+		"slot": "helmet"
+	},
+	"hombrera_uruk_der": {
+		"bone": "mixamorig_RightArm",
+		"pos": [
+			-0.2616,
+			0.9298,
+			-0.047
+		],
+		"rot": [
+			0.0,
+			0.0,
+			-33.299
+		],
+		"scale": [
+			0.2367,
+			0.2095,
+			0.2
+		],
+		"slot": "shirt"
+	},
+	"hombrera_uruk_izq": {
+		"bone": "mixamorig_LeftArm",
+		"pos": [
+			0.2589,
+			0.9298,
+			-0.0271
+		],
+		"rot": [
+			0.0,
+			0.0,
+			41.698
+		],
+		"scale": [
+			0.221,
+			0.2294,
+			0.2
+		],
+		"slot": "shirt"
+	},
+	"peto_uruk": {
+		"bone": "mixamorig_Spine2",
+		"pos": [
+			0.0025,
+			0.8141,
+			-0.0036
+		],
+		"rot": [
+			0.0,
+			0.0,
+			0.0
+		],
+		"scale": [
+			0.378,
+			0.372,
+			0.3781
+		],
+		"slot": "shirt"
+	},
+	"taparrabo_berserker": {
+		"bone": "mixamorig_Hips",
+		"pos": [
+			0.0025,
+			0.4264,
+			0.012
+		],
+		"rot": [
+			0.0,
+			0.0,
+			0.0
+		],
+		"scale": [
+			0.6155,
+			0.6155,
+			0.4424
+		],
+		"slot": "pants"
+	}
+}

@@ -64,6 +64,7 @@ enum WeaponType {
 	SWORD = 18,
 	BOW = 19,
 	KATANA = 20,   ## arma mítica: Katana de Sangre (solo como legendaria de rareza Mítica)
+	FISTS = 21,    ## puños: combo de seis golpes; tras golpear pasa a la guardia de pelea
 }
 
 ## ---------------------------------------------------------------------------
@@ -140,6 +141,10 @@ static func _build_weapon_table() -> Dictionary:
 		# Katana (mítica): combo de cuatro tajos rápidos con la guardia y la locomoción del espadón, y un especial.
 		WeaponType.KATANA: WeaponDirector.construct_melee(
 				WeaponBuilder.new(20, "Katana de Sangre", "🗡️", "melee"), 20.0, 0.55, 3.4, 80.0),
+
+		# Puños: golpes flojos y rápidos (combo de seis); el último, el remate, pega más.
+		WeaponType.FISTS: WeaponDirector.construct_melee(
+				WeaponBuilder.new(21, "Puños", "👊", "melee"), 9.0, 0.35, 2.0, 75.0),
 	}
 	return table
 ## ---------------------------------------------
@@ -205,6 +210,7 @@ static var weapon_names: Dictionary = {
 	WeaponType.SWORD: "Espada",
 	WeaponType.BOW: "Arco",
 	WeaponType.KATANA: "Katana de Sangre",
+	WeaponType.FISTS: "Puños",
 }
 
 ## Icono por arma (HUD / señales).
@@ -226,6 +232,7 @@ static var weapon_icons: Dictionary = {
 	WeaponType.SWORD: "🗡️",
 	WeaponType.BOW: "🏹",
 	WeaponType.KATANA: "🗡️",
+	WeaponType.FISTS: "👊",
 }
 
 ## Daño con Berserk aplicado según la ficha (mismos valores que los literales).

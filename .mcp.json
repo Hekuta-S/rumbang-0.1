@@ -3,6 +3,18 @@
     "blender": {
       "command": "C:/Users/cabeu/AppData/Roaming/uv/tools/blender-mcp/Scripts/blender-mcp.exe",
       "args": []
+    },
+    "godot-mcp-toolkit": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@npgamedev/godot-mcp-server"
+      ],
+      "env": {
+        "GODOT_MCP_CONFIG_VERSION": "1"
+      }
     }
   }
 }
