@@ -41,6 +41,8 @@ var _regen := 0.0                     ## escritorio: vida por segundo del jugado
 var _player: Node
 
 var _hp_label: Label
+## Todo el panel en una sola llamada de dibujo (antes ~21: cada polígono y línea es una)
+var _batch := HudBatch.new()
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -135,6 +137,9 @@ func _process(delta: float) -> void:
 			_player = get_tree().get_first_node_in_group("player")
 		var hc: HealthComponent = _player.get("health_comp") as HealthComponent if _player else null
 		_regen = hc.hp_regen if hc else 0.0
+	# Reposo en móvil: nada se anima, no hace falta volver a registrar el dibujo cada frame
+	if _mobile and not is_low() and _shake <= 0.0 and _heal_flash <= 0.0 and _trail_wait <= 0.0 			and _trail <= _hp_ratio:
+		return
 	queue_redraw()
 
 func _draw() -> void:
@@ -150,13 +155,14 @@ func _draw() -> void:
 	var pulse := 0.5 + 0.5 * sin(_t * 9.0)
 	# Marco: esquinas cortadas, borde ámbar y filo neón (rojo latiendo con poca vida)
 	var accent := HP_COLOR_LOW.lerp(RumbangStyle.NEON_MAGENTA, pulse) if low else RumbangStyle.NEON_CYAN
-	HudDraw.panel(self, Rect2(Vector2.ZERO, size), accent)
+	HudDraw.panel(_batch, Rect2(Vector2.ZERO, size), accent)
 	# Corazón (rombo) a la izquierda
 	var c := Vector2(PAD + 7.0, PAD + HP_H * 0.5)
 	var heart := HP_COLOR.lerp(Color.WHITE, 0.25 * pulse) if low else HP_COLOR
-	draw_colored_polygon(PackedVector2Array([c + Vector2(0, -8), c + Vector2(7, 0), c + Vector2(0, 8), c + Vector2(-7, 0)]), heart)
-	draw_colored_polygon(PackedVector2Array([c + Vector2(0, -4), c + Vector2(3, 0), c + Vector2(0, 4), c + Vector2(-3, 0)]), Color(1, 1, 1, 0.6))
+	_batch.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -8), c + Vector2(7, 0), c + Vector2(0, 8), c + Vector2(-7, 0)]), heart)
+	_batch.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -4), c + Vector2(3, 0), c + Vector2(0, 4), c + Vector2(-3, 0)]), Color(1, 1, 1, 0.6))
 	# Vida: barra inclinada con rastro del daño y marcas cada 10 %
 	var hp_col := HP_COLOR.lerp(HP_COLOR_LOW, pulse) if low else HP_COLOR
 	var bar_rect := Rect2(PAD + 20.0, PAD, W - 20.0, HP_H)
-	HudDraw.bar(self, bar_rect, _hp_ratio, hp_col.lerp(Color(0.4, 1.0, 0.45), _heal_flash * 0.7), _trail, 0.1, _heal_flash)
+	HudDraw.bar(_batch, bar_rect, _hp_ratio, hp_col.lerp(Color(0.4, 1.0, 0.45), _heal_flash * 0.7), _trail, 0.1, _heal_flash)
+	_batch.commit(self)

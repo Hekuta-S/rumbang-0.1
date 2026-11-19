@@ -96,7 +96,7 @@ func _build_scene() -> void:
 	key.light_color = Color(1.0, 0.93, 0.84)
 	key.light_energy = 1.7
 	key.rotation_degrees = Vector3(-32.0, 38.0, 0.0)
-	key.shadow_enabled = true
+	key.shadow_enabled = Quality.shadows_enabled()
 	key.shadow_blur = 2.0
 	key.directional_shadow_max_distance = 8.0
 	_viewport.add_child(key)

@@ -41,3 +41,10 @@ reel/
 docs/toon_preview/
 __pycache__/
 *.pyc
+
+# Extensión nativa (C++): fuentes de godot-cpp y objetos de compilación
+native/godot-cpp/
+native/**/*.o
+native/.sconsign*
+bin/*.a
+native/**/*.os

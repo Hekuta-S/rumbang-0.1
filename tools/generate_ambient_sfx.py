@@ -78,7 +78,7 @@ def reverb(x, sec=0.9, mix=0.3, rate=RATE, tone=3500.0):
 
 
 def place(buf, x, at, rate=RATE):
-    i = int(at * rate)
+    i = max(int(at * rate), 0)
     m = min(len(x), len(buf) - i)
     if m > 0:
         buf[i:i + m] += x[:m]
@@ -330,8 +330,89 @@ def fire_whoosh():
     return x * np.sin(np.pi * t / d) ** 1.6
 
 
+# ───────────────────────────── fauna y rutinas de enemigos ─────────────────────────────
+
+def wing_flap(beats=5, rate=11.0):
+    """Aleteo que se aleja: soplos cortos de aire, cada uno más flojo."""
+    out = np.zeros(int((beats / rate + 0.25) * RATE))
+    for i in range(beats):
+        d = 0.07
+        t = tvec(d)
+        puff = band_noise(d, 180.0, 1600.0, RATE, slope=0.8) * np.sin(np.pi * t / d) ** 1.5
+        place(out, puff * (1.0 - i / (beats + 2.0)), i / rate + rng.uniform(-0.006, 0.006))
+    return out
+
+
+def bat_screech(pitch=1.0):
+    out = np.zeros(int(0.45 * RATE))
+    at = 0.01
+    for _ in range(5):
+        d = rng.uniform(0.025, 0.05)
+        t = tvec(d)
+        f = 6200.0 * pitch * (1.0 - 0.25 * t / d)
+        ph = 2.0 * np.pi * np.cumsum(f) / RATE
+        place(out, (np.sin(ph) + 0.4 * np.sin(2.0 * ph)) * np.sin(np.pi * t / d), at)
+        at += d + rng.uniform(0.01, 0.04)
+    return reverb(out, 0.5, 0.3, tone=6000.0)
+
+
+def snore():
+    """Ronquido: inspiración rasposa (ruido grave a pulsos) y soplido de salida."""
+    d_in, d_out = 0.9, 0.8
+    t = tvec(d_in)
+    rattle = 0.55 + 0.45 * np.sign(np.sin(2.0 * np.pi * (26.0 + 6.0 * t) * t))
+    breath_in = band_noise(d_in, 90.0, 520.0, RATE, slope=1.0) * rattle * np.sin(np.pi * t / d_in) ** 1.2
+    t2 = tvec(d_out)
+    breath_out = band_noise(d_out, 300.0, 1500.0, RATE, slope=0.8) * np.sin(np.pi * t2 / d_out) ** 2 * 0.35
+    out = np.zeros(int((d_in + d_out + 0.1) * RATE))
+    place(out, breath_in, 0.0)
+    place(out, breath_out, d_in + 0.05)
+    return out
+
+
+def chatter(syllables=5, base=210.0):
+    """Parloteo goblin: sílabas guturales con dos formantes que cambian (no dice nada, pero suena a charla)."""
+    out = np.zeros(int((syllables * 0.19 + 0.3) * RATE))
+    at = 0.02
+    for _ in range(syllables):
+        d = rng.uniform(0.09, 0.16)
+        t = tvec(d)
+        f0 = base * rng.uniform(0.8, 1.3) * (1.0 + 0.12 * np.sin(np.pi * t / d))
+        ph = 2.0 * np.pi * np.cumsum(f0) / RATE
+        voice = np.sign(np.sin(ph)) * 0.6 + np.sin(ph * 2.0) * 0.4
+        spec = np.fft.rfft(voice)
+        f = np.fft.rfftfreq(len(voice), 1.0 / RATE)
+        f1, f2 = rng.uniform(450.0, 900.0), rng.uniform(1200.0, 2300.0)
+        voice = np.fft.irfft(spec * (np.exp(-((f - f1) / 180.0) ** 2) + 0.6 * np.exp(-((f - f2) / 260.0) ** 2)), len(voice))
+        place(out, voice * np.sin(np.pi * t / d) ** 0.7, at)
+        at += d + rng.uniform(0.01, 0.07)
+    return reverb(out, 0.5, 0.18)
+
+
+def alert_sting():
+    """Golpe de alarma: dos notas agudas a la quinta con ataque seco."""
+    d = 0.5
+    t = tvec(d)
+    x = np.zeros(len(t))
+    for f, at in [(880.0, 0.0), (1318.5, 0.07)]:
+        tt = np.maximum(t - at, 0.0)
+        x += (np.sin(2.0 * np.pi * f * tt) + 0.4 * np.sin(2.0 * np.pi * f * 2.0 * tt)) * np.exp(-tt / 0.11) * (t >= at)
+    click = np.zeros(len(t))
+    place(click, band_noise(0.02, 2000.0, 8000.0) * env_exp(0.02, 0.006, 0.0005), 0.0)
+    return reverb(x + click * 0.6, 0.6, 0.2)
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
+    save("wing_flap", wing_flap(5, 11.0), peak=0.6)
+    save("wing_flap_2", wing_flap(7, 13.0), peak=0.6)
+    save("bat_screech", bat_screech(1.0), peak=0.5)
+    save("bat_screech_2", bat_screech(1.18), peak=0.5)
+    save("goblin_snore", snore(), peak=0.6)
+    save("goblin_chatter", chatter(5, 210.0), peak=0.6)
+    save("goblin_chatter_2", chatter(4, 180.0), peak=0.6)
+    save("goblin_chatter_3", chatter(6, 240.0), peak=0.6)
+    save("alert_sting", alert_sting(), peak=0.7)
     save_loop("amb_wind_day", bed_wind_day())
     save_loop("amb_wind_night", bed_wind_night())
     save_loop("amb_cave", bed_cave())

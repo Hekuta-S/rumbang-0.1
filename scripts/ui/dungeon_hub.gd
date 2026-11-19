@@ -15,6 +15,9 @@ extends Node3D
 
 const Style := preload("res://scripts/ui/rumbang_style.gd")
 const HubPanelsScript := preload("res://scripts/ui/hub_panels.gd")
+## Precargado (no load() en _ready): compilarlo tardaba ~0.2 s y congelaba la entrada al salón. Así se compila
+## con la escena, en el hilo de la pantalla de carga.
+const MobileControlsScript := preload("res://scripts/ui/mobile_controls.gd")
 
 const SALON_PATH := "res://assets/models/salon/salon_trono.glb"
 const KING_PATH := "res://assets/models/salon/rey.glb"
@@ -290,7 +293,7 @@ func _build_world() -> void:
 	fill.look_at_from_position(fill.position, Vector3(0, 1.0, 0))
 	# Móvil: joystick + correr + interactuar (solo visibles al explorar)
 	if Quality.is_mobile():
-		_touch_controls = load("res://scripts/ui/mobile_controls.gd").new()
+		_touch_controls = MobileControlsScript.new()
 		_touch_controls.mode = "hub"
 		_touch_controls.visible = false
 		add_child(_touch_controls)

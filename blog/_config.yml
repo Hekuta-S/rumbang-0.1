@@ -1,0 +1,20 @@
+title: Rumbang Devlog
+description: Diario de desarrollo de Rumbang, un roguelite de acción en tercera persona hecho en Godot.
+lang: es
+url: "https://hekuta-s.github.io"
+baseurl: "/rumbang-0.1"
+repo: "https://github.com/Hekuta-S/rumbang-0.1"
+
+permalink: /:year/:month/:day/:title/
+timezone: America/Bogota
+markdown: kramdown
+kramdown:
+  input: GFM
+
+plugins:
+  - jekyll-feed
+  - jekyll-seo-tag
+
+exclude:
+  - .gdignore
+  - README.md

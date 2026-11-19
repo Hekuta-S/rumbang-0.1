@@ -9,6 +9,8 @@ extends RefCounted
 ## report() devuelve "sección ms/frame (llamadas/frame)" de mayor a menor y reinicia los contadores.
 
 static var enabled: bool = OS.get_environment("RUMBANG_PROFILE") != ""
+## false = solo secciones gruesas (el bucle entero): sin begin/end por enemigo, que en móvil inflan la medida.
+static var detail: bool = true
 static var _usec: Dictionary = {}
 static var _calls: Dictionary = {}
 static var _frames: int = 0

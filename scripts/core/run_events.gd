@@ -198,6 +198,7 @@ func make_elite(en: EnemyData, mod: String) -> void:
 	en.scale *= float(m["scale"])
 	en.hit_radius = 0.45 * en.scale.x
 	en.hit_height = 1.6 * en.scale.y
+	EnemyManager.mark_dirty(en)
 	var col := MINIBOSS_COLOR if mod == "miniboss" else ELITE_COLOR
 	var entry := {"enemy": en, "max_hp": en.max_hp, "marker": _make_marker(en, String(m["label"]), col), "miniboss": mod == "miniboss"}
 	entry["cb"] = _on_elite_died.bind(entry)
@@ -294,9 +295,11 @@ func _spawn_cursed_chest() -> void:
 	chest.body_entered.connect(func(body):
 		if body.is_in_group("player") and is_instance_valid(chest) and not chest.is_queued_for_deletion():
 			_open_cursed_chest(chest))
+	var chest_ref: WeakRef = weakref(chest)
 	get_tree().create_timer(CHEST_LIFETIME).timeout.connect(func():
-		if is_instance_valid(chest):
-			chest.queue_free())
+		var c: Node = chest_ref.get_ref()
+		if c != null:
+			c.queue_free())
 	announce("COFRE MALDITO", CURSE_COLOR, "Gran botín... a un precio")
 
 func _open_cursed_chest(chest: Node3D) -> void:

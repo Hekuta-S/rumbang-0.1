@@ -40,6 +40,7 @@ const EMBER_TINT := Color(1.0, 0.55, 0.15)
 
 var _map: Node3D
 var _player: Node3D
+var critters: AmbientCritters         ## fauna a la que avisar de golpes y esquivas (la pone GameStartFacade)
 var _last_pos := Vector3.INF
 var _was_dodging := false
 var _was_in_water := false
@@ -152,6 +153,12 @@ func _tick_dodge(pos: Vector3) -> void:
 
 ## Algo se ha movido con fuerza en `at` (0..1): tiemblan las llamas cercanas y los hongos sueltan esporas.
 func disturb(at: Vector3, strength: float) -> void:
+	if critters and is_instance_valid(critters):
+		critters.disturb(at, 3.0 + 5.0 * strength)
+	# Los enemigos que aún no han visto al jugador oyen el golpe
+	var enc := get_parent().get_node_or_null("DungeonEncounter") if get_parent() else null
+	if enc and enc.has_method("noise_at"):
+		enc.noise_at(at, 5.0 + 6.0 * strength)
 	if _map.has_method("gust"):
 		_map.gust(at, 5.5 * strength + 1.5, 0.6 * strength)
 	if not ("ambient_points" in _map):

@@ -1,0 +1,25 @@
+---
+layout: default
+title: Inicio
+---
+<section class="hero">
+  <h1>¡RUM<em>BANG!</em></h1>
+  <p>Roguelite de acción en tercera persona con estilo cómic, hecho en Godot.
+     Aquí contamos cómo se construye: armas, mazmorras, hordas y optimización.</p>
+</section>
+
+<ul class="post-list">
+  {% for post in site.posts %}
+  <li class="card">
+    <a href="{{ post.url | relative_url }}">
+      {% if post.cover %}<img src="{{ post.cover | relative_url }}" alt="" loading="lazy">{% endif %}
+      <div class="card-body">
+        {% if post.tag %}<span class="tag">{{ post.tag }}</span>{% endif %}
+        <h2>{{ post.title }}</h2>
+        <time datetime="{{ post.date | date_to_xmlschema }}">{{ post.date | date: "%d/%m/%Y" }}</time>
+        <p>{{ post.excerpt | strip_html | truncatewords: 32 }}</p>
+      </div>
+    </a>
+  </li>
+  {% endfor %}
+</ul>

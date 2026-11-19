@@ -29,6 +29,7 @@ static var ribbon_shader: Shader = preload("res://assets/shaders/ribbon_mesh.gds
 ## Capa física de los enemigos (enemy.tscn: collision_layer = 4). La máscara anterior (3)
 ## solo veía las capas 1-2, así que el brazo nunca detectaba enemigos.
 const ENEMY_MASK := 4
+const ARM_SCENE: PackedScene = preload("res://assets/models/weapons/human_arm_bones.glb")
 
 ## Enemigos ya golpeados en la pasada actual (ida o regreso). Los brazos de un mismo
 ## lanzamiento comparten estas listas (un enemigo recibe un golpe por pasada aunque lo
@@ -68,7 +69,7 @@ func setup(dir: Vector3, dmg: float, p: Node3D):
 
 	# Contenedor visual que rota horizontalmente como un disco / bumerán plano
 	visual = Node3D.new()
-	var arm_scene = load("res://assets/models/weapons/human_arm_bones.glb")
+	var arm_scene = ARM_SCENE
 	if arm_scene:
 		# Nodo pivote para acostar el brazo plano horizontalmente (plano XZ)
 		var arm_pivot = Node3D.new()

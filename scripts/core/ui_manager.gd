@@ -133,7 +133,6 @@ func _on_player_leveled_up(new_level) -> void:
 func _on_upgrade_choice_made(choice_type: String, choice_id: String) -> void:
 	if bg_music and _pending_level_ups == 0:
 		bg_music.volume_db = -12.0
-	print("El jugador eligio: ", choice_type, " - ", choice_id)
 	var w_id = choice_id.to_int()
 	if choice_type == "new_weapon":
 		player.add_weapon(w_id)

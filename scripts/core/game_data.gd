@@ -267,6 +267,7 @@ func get_texture_path(char_id: String) -> String:
 
 func _ready() -> void:
 	selected_index = custom_index()
+	HitchLog.install(self)          # solo si existe user://hitch.txt (medir tirones en el dispositivo)
 	load_armory()
 
 # ───────────── Yunque del salón: arma inicial de la mazmorra (personaje personalizable) ─────────────

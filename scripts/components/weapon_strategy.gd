@@ -1,6 +1,7 @@
 class_name WeaponStrategy
 extends RefCounted
 
+const ZOMBIE_ARM_SCENE: PackedScene = preload("res://scripts/objects/zombie_arm_projectile.tscn")
 const SLASH_VFX = preload("res://scripts/objects/slash_vfx.gd")
 const SPEAR_SLASH_SHADER: Shader = preload("res://assets/shaders/spear_slash.gdshader")
 const DUST_VFX = preload("res://scripts/objects/dust_vfx.gd")
@@ -1660,7 +1661,7 @@ class ZombieArmStrategy extends WeaponStrategy:
 		var dmg = c.player._weapon_damage(WeaponData.WeaponType.ZOMBIE_ARM)
 		var size_mult: float = float(mods["size"]) * _ranged_size()
 		var range_mult: float = float(mods["range"])
-		var proj = load("res://scripts/objects/zombie_arm_projectile.tscn").instantiate()
+		var proj = ZOMBIE_ARM_SCENE.instantiate()
 		c.player.get_parent().add_child(proj)
 		proj.global_position = c.player.muzzle.global_position
 		var dir: Vector3 = base_dir.rotated(Vector3.UP, deg_to_rad(ARM_ANGLES[index]))
@@ -1677,7 +1678,7 @@ class ZombieArmStrategy extends WeaponStrategy:
 		c.player.orient_player_to_aim(aim_point)
 
 		var mods: Dictionary = c.player.get_weapon_modifiers(WeaponData.WeaponType.ZOMBIE_ARM)
-		var proj_scene = load("res://scripts/objects/zombie_arm_projectile.tscn")
+		var proj_scene = ZOMBIE_ARM_SCENE
 		# Vuelo a ras del cañón: el aim_point suele estar en el suelo y un brazo con
 		# componente vertical se hundía bajo tierra sin tocar a los enemigos.
 		var base_dir: Vector3 = aim_point - c.player.muzzle.global_position

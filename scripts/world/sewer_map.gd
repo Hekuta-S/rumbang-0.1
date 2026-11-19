@@ -527,7 +527,8 @@ func _toxic_burst(pos: Vector3) -> void:
 	for other in destructibles:
 		if is_instance_valid(other) and not other.is_broken() and other.kind == "toxic_barrel" \
 				and other.global_position.distance_to(pos) <= TOXIC_RADIUS * 0.8:
-			var target: DestructibleProp = other
+			var target_ref: WeakRef = weakref(other)
 			get_tree().create_timer(TOXIC_CHAIN_DELAY).timeout.connect(func():
-				if is_instance_valid(target) and not target.is_broken():
+				var target: DestructibleProp = target_ref.get_ref()
+				if target != null and not target.is_broken():
 					target.take_damage(999.0, (target.global_position - pos).normalized()))

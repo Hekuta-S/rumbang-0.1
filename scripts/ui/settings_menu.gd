@@ -49,6 +49,8 @@ func _build_ui() -> void:
 	_add_quality_selector(vbox)
 	if Quality.is_mobile():
 		_add_fps_selector(vbox)
+	_add_resolution_selector(vbox)
+	_add_vsync_toggle(vbox)
 	_add_attack_marks_toggle(vbox)
 	_add_submenu_button(vbox, "Sensibilidad", _fill_sensitivity)
 	_add_submenu_button(vbox, "Controles táctiles", _fill_touch)
@@ -112,6 +114,45 @@ func _on_quality_changed(idx: int) -> void:
 		var we := scene.get_node_or_null("WorldEnvironment") as WorldEnvironment
 		if we and we.environment and not Quality.is_mobile():
 			we.environment.glow_enabled = Quality.glow_enabled()
+
+## Resolución: nativa o reducida (todo a 720p y escalado: más FPS, texto algo más suave). Se aplica al momento.
+func _add_resolution_selector(parent: Control) -> void:
+	var hbox = HBoxContainer.new()
+	parent.add_child(hbox)
+	var lbl = Label.new()
+	lbl.text = "Resolución"
+	lbl.custom_minimum_size = Vector2(150, 0)
+	hbox.add_child(lbl)
+	var opt = OptionButton.new()
+	opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for n in ["Nativa", "Reducida (más FPS)"]:
+		opt.add_item(n)
+	opt.selected = SettingsManager.resolution
+	opt.item_selected.connect(func(idx: int):
+		SettingsManager.resolution = idx
+		SettingsManager.save_settings()
+		Quality.apply_resolution(idx))
+	hbox.add_child(opt)
+
+## V-Sync: apagado da más FPS (el frame no espera al refresco). Si el dispositivo no deja apagarlo, se avisa.
+func _add_vsync_toggle(parent: Control) -> void:
+	var check := CheckButton.new()
+	check.text = "V-Sync"
+	check.button_pressed = SettingsManager.vsync
+	parent.add_child(check)
+	var note := Label.new()
+	note.add_theme_font_size_override("font_size", 12)
+	note.add_theme_color_override("font_color", Color(1.0, 0.75, 0.4))
+	note.text = "Tu dispositivo no permite desactivarlo"
+	note.visible = false
+	parent.add_child(note)
+	check.toggled.connect(func(on: bool):
+		var ok := Quality.apply_vsync(on)
+		SettingsManager.vsync = on if ok else true
+		SettingsManager.save_settings()
+		note.visible = not ok
+		if not ok:
+			check.set_pressed_no_signal(true))
 
 ## Marcas en el suelo de los ataques enemigos; se aplica en el siguiente ataque.
 func _add_attack_marks_toggle(parent: Control) -> void:

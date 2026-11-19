@@ -95,7 +95,9 @@ func _ready() -> void:
 			gusted += 1
 	assert(gusted >= 1 or not _any_light_on(map, player.global_position, 5.0), "las luces cercanas acusan la ráfaga")
 	assert(int(reactions.counts.get("ember", 0)) >= 1, "el fuego suelta brasas")
-	await get_tree().create_timer(MapReactions.PULSE_TIME + 0.2).timeout
+	# En supervivencia el jugador sigue atacando solo: la caducidad se comprueba avanzando el reloj de la onda a mano
+	reactions.pulse(player.global_position, 1.0)
+	reactions._tick_pulse(MapReactions.PULSE_TIME + 0.1)
 	pulse = reactions.pulse_now
 	assert(pulse.w == 0.0, "la onda termina")
 	print("CHECK 3 PASSED: onda de golpe, %d luces con ráfaga" % gusted)

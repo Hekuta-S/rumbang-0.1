@@ -34,6 +34,23 @@ static var _hs: PackedFloat32Array = PackedFloat32Array()
 static var _hside: int = 0
 static var _hhalf: float = 0.0
 static var _hcell: float = 1.0
+## Movimiento en C++ (bin/rumbang_native.gdextension, código en native/src/enemy_motion_native.cpp): mismo
+## algoritmo que move() de aquí, unas 10-20 veces más rápido. Si la extensión no está (Web, falta la
+## biblioteca) se usa el GDScript. RUMBANG_NATIVE=0 lo desactiva (comparar).
+static var native_enabled: bool = OS.get_environment("RUMBANG_NATIVE") != "0"
+static var _native: Object = null
+
+## true si el movimiento va por C++ ahora mismo (pruebas / banco).
+static func using_native() -> bool:
+	return _native != null
+
+## EnemyMotionNative del mapa actual (construye los datos si hace falta) o null. Lo usa EnemySimNative.
+static func native_motion() -> Object:
+	if not available():
+		return null
+	if not _built:
+		_build()
+	return _native
 
 ## true si hay mapa procedural con altura (si no, el enemigo usa move_and_slide como antes).
 static func available() -> bool:
@@ -59,6 +76,8 @@ static func reset() -> void:
 	_player_mesa = -1
 	_climb_half = 0.0
 	_bridges.clear()
+	_bpk = PackedFloat32Array()
+	_native = null
 
 static func _build() -> void:
 	_built = true
@@ -107,12 +126,42 @@ static func _build() -> void:
 	if _map.has_method("get_bridges"):
 		for br in _map.get_bridges():
 			_bridges.append([br["a"], br["b"], float(br["ya"]), float(br["yb"]), float(br["half"])])
+	_pack_bridges()
+	_setup_native()
+
+## Pasa al C++ los mismos datos empaquetados (relieve, obstáculos, puentes). Solo con malla de alturas local.
+static func _setup_native() -> void:
+	_native = null
+	if not native_enabled or _hside == 0 or not ClassDB.class_exists(&"EnemyMotionNative"):
+		return
+	_native = ClassDB.instantiate(&"EnemyMotionNative")
+	_native.set_heights(_hs, _hside, _hhalf, _hcell, _climb_half)
+	_native.set_obstacles(_obs, _ocell_start, _ocell_count, _ox0, _oz0, _ow, _oh)
+	_native.set_bridges(_bpk)
 
 # ───────────────────────────── Puentes ─────────────────────────────
 ## Otra capa de suelo sobre el relieve: quien entra desde la cima (a la altura de la tabla) camina por
 ## la tabla, sin salirse por las barandillas, hasta el otro extremo. Por debajo se pasa como siempre.
 ## [a: Vector2, b: Vector2, altura en a, altura en b, media anchura]
 static var _bridges: Array = []
+## Copia plana de _bridges para el bucle caliente de step_layers (cada enemigo en cada paso la recorre):
+## sin Arrays sin tipo ni normalized() por enemigo, y con descarte por caja. BSTRIDE floats por puente:
+## ax, az, abx, abz, 1/|ab|², perp_x, perp_z (unitario), lim lateral, ya, yb, min_x, max_x, min_z, max_z
+const BSTRIDE := 14
+static var _bpk := PackedFloat32Array()
+
+static func _pack_bridges() -> void:
+	_bpk = PackedFloat32Array()
+	for br: Array in _bridges:
+		var a: Vector2 = br[0]
+		var bb: Vector2 = br[1]
+		var ab := bb - a
+		var perp := Vector2(-ab.y, ab.x).normalized()
+		var lim := float(br[4]) - ENEMY_RADIUS
+		var pad := absf(lim)
+		_bpk.append_array(PackedFloat32Array([a.x, a.y, ab.x, ab.y, 1.0 / ab.length_squared(), perp.x, perp.y, lim,
+				float(br[2]), float(br[3]),
+				minf(a.x, bb.x) - pad, maxf(a.x, bb.x) + pad, minf(a.y, bb.y) - pad, maxf(a.y, bb.y) + pad]))
 const BRIDGE_ENTER_TOL := 0.7          ## diferencia de altura con la tabla para subirse
 
 ## Un paso con puentes: Vector4(x, z, altura, puente en que queda o -1).
@@ -137,17 +186,23 @@ static func step_layers(np: Vector2, step: Vector2, h_now: float, bridge_i: int)
 			return Vector4(target.x, target.y, height_at(target.x, target.y), -1)   # baja en la cima
 		return Vector4(target.x, target.y, lerpf(float(br[2]), float(br[3]), t), bridge_i)
 	var r := resolve_step(np, step, h_now)
-	var q := Vector2(r.x, r.y)
-	for k in _bridges.size():
-		var br: Array = _bridges[k]
-		var a: Vector2 = br[0]
-		var ab: Vector2 = (br[1] as Vector2) - a
-		var t := (q - a).dot(ab) / ab.length_squared()
-		if t < 0.0 or t > 1.0 or absf((q - a).dot(Vector2(-ab.y, ab.x).normalized())) > float(br[4]) - ENEMY_RADIUS:
+	var qx := r.x
+	var qz := r.y
+	var bp := _bpk
+	var n := bp.size()
+	var o := 0
+	while o < n:
+		if qx < bp[o + 10] or qx > bp[o + 11] or qz < bp[o + 12] or qz > bp[o + 13]:
+			o += BSTRIDE
 			continue
-		var deck := lerpf(float(br[2]), float(br[3]), t)
-		if absf(deck - h_now) < BRIDGE_ENTER_TOL:
-			return Vector4(q.x, q.y, deck, k)
+		var rx := qx - bp[o]
+		var rz := qz - bp[o + 1]
+		var t := (rx * bp[o + 2] + rz * bp[o + 3]) * bp[o + 4]
+		if t >= 0.0 and t <= 1.0 and absf(rx * bp[o + 5] + rz * bp[o + 6]) <= bp[o + 7]:
+			var deck := lerpf(bp[o + 8], bp[o + 9], t)
+			if absf(deck - h_now) < BRIDGE_ENTER_TOL:
+				return Vector4(qx, qz, deck, o / BSTRIDE)
+		o += BSTRIDE
 	return Vector4(r.x, r.y, r.z, -1)
 
 # ───────────────────────────── Mesetas ─────────────────────────────
@@ -318,6 +373,12 @@ static func move(e: EnemyData, vel: Vector3, delta: float, player_pos: Vector3) 
 	if not _built:
 		_build()
 	var p: Vector3 = e.global_position
+	if _native != null:
+		var r: Vector4 = _native.move(p.x, p.z, vel.x, vel.z, delta, e.ground_y, e.bridge_i, player_pos.x, player_pos.z)
+		e.global_position = Vector3(r.x, r.z, r.y)
+		e.ground_y = r.z
+		e.bridge_i = int(r.w)
+		return
 	var step := Vector2(vel.x, vel.z) * delta
 	var np := Vector2(p.x, p.z)
 	var h_new: float = e.ground_y            # altura donde está ahora (se guarda para no recalcularla)
