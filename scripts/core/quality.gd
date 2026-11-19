@@ -60,17 +60,21 @@ static func level_name() -> String:
 
 ## Multiplicador de cantidad de partículas.
 static func particle_factor() -> float:
+	if is_mobile():
+		return [0.25, 0.5, 0.75][level()]   # CPUParticles: coste en CPU por partícula, el móvil va justo
 	return [0.35, 0.7, 1.0][level()]
 
 ## Máximo de enemigos vivos a la vez al final de la partida. Medido en PC simulando móvil (banco
 ## RUMBANG_BENCH, ver OPTIMIZACION_MOVIL.md): tras la optimización de 2026-11 la IA cuesta ~45 % menos
 ## (reparto por multitud, obstáculos empaquetados, rejilla con claves enteras) y 600 enemigos van a
-## ~58 FPS en PC. Un móvil es 3-5 veces más lento: Medio (el valor por defecto en Android) sube de
-## 160 a 220 y Alto a 320; validar en un dispositivo real antes de subir más.
+## ~58 FPS en PC. Medido en un móvil real (Mali-G57 / Helio G99, 2026-11-17, con el movimiento en C++):
+## 420 enemigos van a 39.4 FPS sin tope frente a 39.9 con 300, y con el tope de 30 FPS se mantienen en
+## 28-30 (en calidad Baja). Todas las calidades llegan a 420; el gobernador quita enemigos si
+## un móvil más lento no da abasto (Quality.crowd_factor).
 static func alive_cap_end() -> int:
 	if is_mobile():
-		return [120, 220, 320][level()]
-	return [150, 300, 500][level()]
+		return [420, 420, 420][level()]
+	return [420, 420, 500][level()]
 
 ## Números de daño flotantes a la vez (PoolManager).
 static func floating_numbers_max() -> int:
@@ -82,19 +86,55 @@ static func xp_orbs_max() -> int:
 
 ## Resolución 3D base (la gobernadora de rendimiento puede bajarla temporalmente).
 static func scale_3d() -> float:
-	if is_mobile():
-		return [0.5, 0.65, 0.85][level()]
-	return [0.7, 0.85, 1.0][level()]
+	var s: float = [0.5, 0.65, 0.85][level()] if is_mobile() else [0.7, 0.85, 1.0][level()]
+	return minf(1.0, s * _res_boost())
 
 ## Resolución mínima que la gobernadora puede aplicar.
 static func scale_3d_floor() -> float:
-	return 0.5 if is_mobile() else 0.7
+	return minf(1.0, (0.5 if is_mobile() else 0.7) * _res_boost())
+
+# ── Resolución de pantalla ─────────────────────────────────────────────
+## 0 = nativa: la interfaz se dibuja a la resolución de la pantalla (stretch "canvas_items").
+## 1 = reducida: TODO (3D e interfaz) se dibuja a la resolución base del proyecto (1280×720, ampliada al
+## formato de la pantalla) y se escala al mostrarlo. En un móvil de 2460×1080 son ~2.2 veces menos píxeles
+## para la interfaz y la copia final; el texto se ve algo más suave.
+## La escala 3D se compensa (_res_boost) para que el 3D no pierda más detalle que en nativa.
+const RES_NATIVE := 0
+const RES_REDUCED := 1
+static var _res_mode := RES_NATIVE
+
+static func resolution_mode() -> int:
+	return _res_mode
+
+static func apply_resolution(mode: int) -> void:
+	_res_mode = RES_REDUCED if mode == RES_REDUCED else RES_NATIVE
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return
+	var win := tree.root
+	win.content_scale_mode = Window.CONTENT_SCALE_MODE_VIEWPORT if _res_mode == RES_REDUCED else Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	win.scaling_3d_scale = scale_3d()
+
+## Cuánto más pequeño es el viewport que la ventana (1 en nativa): la escala 3D se multiplica por esto.
+static func _res_boost() -> float:
+	if _res_mode != RES_REDUCED:
+		return 1.0
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return 1.0
+	var vis := tree.root.get_visible_rect().size.x
+	return maxf(1.0, float(tree.root.size.x) / maxf(vis, 1.0))
 
 static func shadows_enabled() -> bool:
 	return level() == Level.HIGH and not is_mobile()
 
 static func shadow_distance() -> float:
 	return 45.0
+
+## AA de pantalla en móvil: FXAA solo en Alta. Medido en un Mali-G57 (2026-11-16, 300 enemigos, escala 1.0):
+## FXAA + debanding costaban ~9.5 ms por frame (20.0 -> 24.7 FPS al quitarlos). A 396 ppp el dentado apenas se ve.
+static func mobile_aa() -> Viewport.ScreenSpaceAA:
+	return Viewport.SCREEN_SPACE_AA_FXAA if level() == Level.HIGH else Viewport.SCREEN_SPACE_AA_DISABLED
 
 static func glow_enabled() -> bool:
 	return level() == Level.HIGH and not is_mobile()
@@ -111,8 +151,8 @@ static func tune_environment(env: Environment, vp: Viewport = null) -> void:
 		vp.scaling_3d_scale = scale_3d()
 		if is_mobile():
 			vp.msaa_3d = Viewport.MSAA_DISABLED
-			vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
-			vp.use_debanding = true
+			vp.screen_space_aa = mobile_aa()
+			vp.use_debanding = false
 
 ## Sombras de una luz solo donde se permiten (PC en calidad Alta).
 static func tune_light(l: Light3D, wants_shadow: bool = true) -> void:
@@ -157,6 +197,18 @@ static func set_mobile_fps(v: int) -> void:
 		st.call("save_settings")
 	if is_mobile():
 		Engine.max_fps = mobile_max_fps()
+
+## Activa o desactiva el V-Sync. En PC, desactivado = sin V-Sync. En Android se pide "mailbox" (no espera al
+## refresco y no hay tearing): muchos Android no admiten "sin V-Sync" y Godot vuelve a activarlo en silencio
+## aunque window_get_vsync_mode() diga lo contrario (medido en un Helio G99, 2026-11-17: allí mailbox tampoco
+## cambió los FPS). Devuelve false si el modo no quedó aplicado.
+static func apply_vsync(on: bool) -> bool:
+	if on:
+		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED)
+		return true
+	var mode := DisplayServer.VSYNC_MAILBOX if OS.has_feature("mobile") else DisplayServer.VSYNC_DISABLED
+	DisplayServer.window_set_vsync_mode(mode)
+	return DisplayServer.window_get_vsync_mode() == mode
 
 ## FPS objetivo para la resolución dinámica.
 static func target_fps() -> float:

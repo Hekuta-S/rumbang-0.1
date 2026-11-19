@@ -381,11 +381,15 @@ func _process_impostor() -> void:
 	var warm := _warm_frames > 0
 	if warm:
 		_warm_frames -= 1      # los primeros frames se dibuja algo para compilar el shader en la pantalla de carga
+	var sim: Object = EnemyManager.sim     # simulación en C++: las casillas y los búferes viven allí
 	for k in range(_mms.size()):
-		var c: int = (_slot_lists[k] as Array).size()
+		var c: int = sim.vis_count(k) if sim != null else (_slot_lists[k] as Array).size()
 		_counts[k] = c
 		var mm := _mms[k]
-		if _dirty[k]:
+		if sim != null:
+			if sim.vis_take_dirty(k):
+				mm.buffer = sim.vis_buffer(k)
+		elif _dirty[k]:
 			mm.buffer = _bufs[k]
 			_dirty[k] = false
 		var shown: int = maxi(c, 1) if warm else c

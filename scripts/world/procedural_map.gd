@@ -18,6 +18,7 @@ extends Node3D
 signal generated(used_seed: int)
 
 const GROUND_SHADER: Shader = preload("res://assets/shaders/toon_ground.gdshader")
+const GROUND_SHADER_MOBILE: Shader = preload("res://assets/shaders/toon_ground_mobile.gdshader")   ## luz por vértice, sin anisotrópico
 ## Texturas del suelo con la tinta horneada (tools/make_toon_textures.py)
 const GROUND_TEX := {
 	"grass_tex": "res://assets/textures/toon/toon_grass.png",
@@ -186,7 +187,6 @@ func generate(p_seed: int = 0) -> void:
 	_build_bridges()
 	_build_barrels()
 	generated.emit(used_seed)
-	print("[ProceduralMap] semilla=", used_seed, " cuenca=", _basin_center, " props=", _count_instances())
 
 ## Altura del suelo (interpolación bilinear de la malla real).
 func get_height_at(x: float, z: float) -> float:
@@ -538,7 +538,33 @@ func _terrain(x: float, z: float) -> Vector4:
 
 	return Vector4(h, bt, ramp_mask, ct)
 
+## Malla del terreno en C++ (TerrainNative, native/src/terrain_native.cpp): mismo cálculo que _terrain() y los
+## bucles de abajo, unas 20 veces más rápido (generar el mapa congelaba la pantalla ~1 s en un móvil).
+## Sin la extensión (Web) se usa el GDScript. RUMBANG_NATIVE=0 lo desactiva.
+static var native_terrain: bool = OS.get_environment("RUMBANG_NATIVE") != "0"
+
 func _build_terrain() -> void:
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	if native_terrain and ClassDB.class_exists(&"TerrainNative"):
+		var nat: Object = ClassDB.instantiate(&"TerrainNative")
+		var res: Array = nat.build({"half_size": half_size, "cell_size": cell_size, "hill_amplitude": hill_amplitude,
+			"basin_depth": basin_depth, "basin_floor_radius": basin_floor_radius, "basin_rim_radius": basin_rim_radius,
+			"play_half": play_half, "cliff_height": cliff_height, "basin_center": _basin_center,
+			"ramp_end": _ramp_end, "ramp_surface_y": _ramp_surface_y}, _noise_hills, _noise_detail, _mesas, _bridges)
+		_side = res[0]
+		_heights = res[1]
+		arrays[Mesh.ARRAY_VERTEX] = res[2]
+		arrays[Mesh.ARRAY_COLOR] = res[3]
+		arrays[Mesh.ARRAY_TEX_UV] = res[4]
+		arrays[Mesh.ARRAY_NORMAL] = res[5]
+		arrays[Mesh.ARRAY_INDEX] = res[6]
+	else:
+		_build_terrain_arrays(arrays)
+	_finish_terrain(arrays)
+
+## Versión GDScript de la malla (la referencia; TerrainNative la replica).
+func _build_terrain_arrays(arrays: Array) -> void:
 	_side = int(round(half_size * 2.0 / cell_size)) + 1
 	_heights.resize(_side * _side)
 	var colors := PackedColorArray()
@@ -584,18 +610,18 @@ func _build_terrain() -> void:
 			indices[k + 3] = b; indices[k + 4] = d; indices[k + 5] = c
 			k += 6
 
-	var arrays := []
-	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = verts
 	arrays[Mesh.ARRAY_NORMAL] = normals
 	arrays[Mesh.ARRAY_COLOR] = colors
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
 	arrays[Mesh.ARRAY_INDEX] = indices
+
+func _finish_terrain(arrays: Array) -> void:
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 
 	var mat := ShaderMaterial.new()
-	mat.shader = GROUND_SHADER
+	mat.shader = GROUND_SHADER_MOBILE if Quality.is_mobile() else GROUND_SHADER
 	for key in GROUND_TEX:
 		mat.set_shader_parameter(key, load(GROUND_TEX[key]))
 	mesh.surface_set_material(0, mat)

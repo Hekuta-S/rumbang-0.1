@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="{{ site.lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {% seo %}
+  {% feed_meta %}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Nunito:wght@400;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ '/static/css/style.css' | relative_url }}">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="{{ '/' | relative_url }}">RUMBANG<span>devlog</span></a>
+      <nav>
+        <a href="{{ '/' | relative_url }}">Entradas</a>
+        <a href="{{ '/feed.xml' | relative_url }}">RSS</a>
+        <a href="{{ site.repo }}">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    {{ content }}
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      Rumbang · hecho con Godot {{ site.time | date: "%Y" }} · <a href="{{ site.repo }}">código</a>
+    </div>
+  </footer>
+</body>
+</html>

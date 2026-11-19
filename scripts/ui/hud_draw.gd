@@ -16,7 +16,8 @@ const LINE := 3.0                      ## grosor del contorno de tinta
 
 ## Panel de esquinas cortadas (arriba-derecha y abajo-izquierda): sombra dura, fondo, filo ámbar por dentro,
 ## contorno de tinta y el filo neón inferior.
-static func panel(ci: CanvasItem, r: Rect2, accent: Color = RumbangStyle.NEON_CYAN) -> void:
+## `ci`: un CanvasItem (dentro de su _draw) o un HudBatch (todo en una sola llamada de dibujo).
+static func panel(ci, r: Rect2, accent: Color = RumbangStyle.NEON_CYAN) -> void:
 	var p := r.position
 	var e := r.end
 	var pts := PackedVector2Array([
@@ -50,7 +51,7 @@ static func _slant(r: Rect2, x0: float, x1: float) -> PackedVector2Array:
 
 ## Barra inclinada: sombra dura, fondo, rastro (daño reciente), relleno con brillo superior y marcas cada
 ## `segment` (0..1), con línea de tinta donde acaba el relleno y contorno de tinta.
-static func bar(ci: CanvasItem, r: Rect2, ratio: float, color: Color, trail: float = -1.0, segment: float = 0.0, flash: float = 0.0) -> void:
+static func bar(ci, r: Rect2, ratio: float, color: Color, trail: float = -1.0, segment: float = 0.0, flash: float = 0.0) -> void:
 	var sk := r.size.y * 0.55
 	var w := r.size.x - sk
 	ratio = clampf(ratio, 0.0, 1.0)
@@ -86,7 +87,7 @@ static func text(ci: CanvasItem, font: Font, pos: Vector2, s: String, size: int,
 
 ## Figura convexa con contorno de tinta (marcas del minimapa): primero la tinta, engordada desde su centro, y
 ## encima el color.
-static func inked_polygon(ci: CanvasItem, pts: PackedVector2Array, color: Color, ink_px: float = 2.0) -> void:
+static func inked_polygon(ci, pts: PackedVector2Array, color: Color, ink_px: float = 2.0) -> void:
 	var c := Vector2.ZERO
 	for q in pts:
 		c += q

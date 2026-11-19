@@ -61,8 +61,22 @@ const JOY_KEY := "joystick"
 const EDIT_SCALE_MIN := 0.5
 const EDIT_SCALE_MAX := 2.0
 
-var _overlay: Control
+var _overlay: Control                  ## fondo (velo del editor) y padre de las otras dos capas
+var _sprites: Control                  ## joystick y botones: recortes del atlas (1 llamada de dibujo)
+var _top: Control                      ## lo poco que sigue siendo vectorial (guía de FIJAR, selección del editor)
+var _cv: CanvasItem                    ## lienzo sobre el que pintan las funciones vectoriales
 var _touch_available := false
+
+## Atlas: joystick, pomo y cada botón (suelto y pulsado) se pintan UNA vez en un SubViewport. Dibujarlos
+## como vectores en cada redibujado eran ~150 llamadas de dibujo en supervivencia y más en la mazmorra
+## (cada arco, círculo o polígono es una llamada, y cada icono se pinta 10 veces por el contorno de tinta).
+const ATLAS_PAD := 3.0
+const ATLAS_MAX_W := 2048.0            ## px reales por fila
+var _atlas_vp: SubViewport
+var _atlas_canvas: Control
+var _atlas_scale := 1.0                ## px del atlas por unidad de lienzo (estirado de la ventana)
+var _atlas_sig := ""
+var _cells: Dictionary = {}            ## id -> Rect2 en unidades de lienzo dentro del atlas
 
 var _joy_radius := 80.0
 var _joy_rest := Vector2.ZERO          ## centro de reposo del joystick
@@ -112,14 +126,38 @@ func _ready() -> void:
 	_overlay = Control.new()
 	_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_overlay.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED   # textura de piedra del joystick (StoneUI)
-	_overlay.draw.connect(_draw_controls)
+	_overlay.draw.connect(_draw_backdrop)
 	add_child(_overlay)
+	_build_atlas_nodes()
+	_sprites = _layer_control()
+	# El SubViewport transparente deja el color premultiplicado por su alfa: se mezcla tal cual
+	var premult := CanvasItemMaterial.new()
+	premult.blend_mode = CanvasItemMaterial.BLEND_MODE_PREMULT_ALPHA
+	_sprites.material = premult
+	_sprites.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_sprites.draw.connect(_draw_controls)
+	_top = _layer_control()
+	_top.draw.connect(_draw_top)
+	_cv = _top
 
 	get_viewport().size_changed.connect(_layout)
 	SettingsManager.touch_layout_changed.connect(_on_settings_changed)
 	visibility_changed.connect(func(): if not visible: _release_all())
 	_layout()
+
+func _layer_control() -> Control:
+	var c := Control.new()
+	c.set_anchors_preset(Control.PRESET_FULL_RECT)
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_overlay.add_child(c)
+	return c
+
+func _redraw() -> void:
+	if not is_instance_valid(_overlay) or _top == null:
+		return
+	_overlay.queue_redraw()
+	_sprites.queue_redraw()
+	_top.queue_redraw()
 
 ## Tamaño, opacidad o visibilidad cambiados desde el menú de ajustes.
 func _on_settings_changed() -> void:
@@ -150,7 +188,7 @@ func _refresh_ammo_weapon() -> void:
 	var has := inv != null and inv.has_ammo_weapon()
 	if has != _has_ammo_weapon:
 		_has_ammo_weapon = has
-		_overlay.queue_redraw()
+		_redraw()
 
 func _exit_tree() -> void:
 	if _editing:
@@ -230,7 +268,8 @@ func _layout() -> void:
 		# Que ningún botón se salga de la pantalla
 		_btn_center[i].x = clampf(_btn_center[i].x, _btn_radius[i] + 4.0, vp.x - _btn_radius[i] - 4.0)
 		_btn_center[i].y = clampf(_btn_center[i].y, _btn_radius[i] + 4.0, vp.y - _btn_radius[i] - 4.0)
-	_overlay.queue_redraw()
+	_rebuild_atlas()
+	_redraw()
 
 func _custom(key: String) -> Dictionary:
 	var c: Variant = SettingsManager.touch_custom.get(key)
@@ -258,113 +297,211 @@ func _process(delta: float) -> void:
 	var new_alpha := lerpf(_alpha, target, minf(1.0, delta * 12.0))
 	if absf(new_alpha - _alpha) > 0.003:
 		_alpha = new_alpha
-		_overlay.queue_redraw()
+		_redraw()
 
-func _draw_controls() -> void:
-	var a := _alpha * SettingsManager.touch_opacity
+## Velo oscuro del editor de disposición (por debajo de los controles).
+func _draw_backdrop() -> void:
 	if _editing:
-		a = 1.0
 		_overlay.draw_rect(Rect2(Vector2.ZERO, _overlay.size), Color(0.02, 0.02, 0.06, 0.82))
-	_draw_joystick(a)
 
-	# Botones de acción: huecos de hierro como los del inventario (pozo oscuro, resplandor del color
-	# del botón, anillo de metal con muescas e icono); se aprietan al pulsarlos.
+func _alpha_now() -> float:
+	return 1.0 if _editing else _alpha * SettingsManager.touch_opacity
+
+## ¿El botón FIJAR se está arrastrando? Entonces su icono sigue al dedo y se pinta como vector.
+func _target_dragging(i: int) -> bool:
+	return _btn_id[i] != -1 and BUTTONS[i]["key"] == "target" and _tgt_drag != Vector2.ZERO
+
+## Joystick y botones: recortes del atlas (todos de la misma textura: una sola llamada de dibujo).
+func _draw_controls() -> void:
+	var a := _alpha_now()
+	_blit("joy", _joy_center, a)
+	_blit("knob1" if _joy_id != -1 else "knob0", _joy_center + _joy_offset, a)
 	for i in BUTTONS.size():
 		var hidden := _is_hidden(i)
-		if (hidden and not _editing) or _is_unavailable(i):
+		if (hidden and not _editing) or _is_unavailable(i) or _target_dragging(i):
 			continue
-		var b: Dictionary = BUTTONS[i]
-		var pressed := _btn_id[i] != -1
-		var c: Vector2 = _btn_center[i]
-		var r: float = _btn_radius[i] * (0.93 if pressed else 1.0)
 		var ba := a * (0.35 if hidden else 1.0)   # en el editor, los ocultos salen apagados
-		_draw_socket(c, r, b["color"], ba, pressed, int(b["ring"]) == 0)
-		var icon_col: Color = Color.WHITE if pressed else (b["color"] as Color).lightened(0.55)
-		var ic := c
-		if pressed and b["key"] == "target" and _tgt_drag != Vector2.ZERO:
-			ic += _tgt_drag   # la mira sigue al dedo: guía del cambio de objetivo
-			_overlay.draw_line(c, ic, Color(StoneUI.AMBER, 0.7 * ba), 2.0, true)
-		# icono con contorno de tinta (cómic): el icono en tinta corrido en 8 direcciones y una sombra dura
-		var ink_c := Color(StoneUI.OUTLINE, ba)
-		var ink_r := maxf(2.0, r * 0.06)
-		for k in 8:
-			_draw_icon(String(b["key"]), ic + Vector2.from_angle(k * TAU / 8.0) * ink_r, r * 0.92, ink_c)
-		_draw_icon(String(b["key"]), ic + Vector2(ink_r, ink_r * 1.5), r * 0.92, ink_c)
-		_draw_icon(String(b["key"]), ic, r * 0.92, Color(icon_col, ba))
-		if _editing and b["key"] == _edit_sel:
-			_draw_selection(c, r)
+		_blit("b_%d_%d" % [i, 1 if _btn_id[i] != -1 else 0], _btn_center[i], ba)
+
+func _blit(id: String, center: Vector2, a: float) -> void:
+	var cell: Rect2 = _cells.get(id, Rect2())
+	if cell.size.x <= 0.0:
+		return
+	# Antes cada capa (pozo, resplandor, aro, icono) llevaba la opacidad por separado y al solaparse
+	# tapaban más que una sola capa plana: esta curva deja el mismo aspecto con el recorte ya aplanado.
+	a = 1.0 - pow(1.0 - clampf(a, 0.0, 1.0), 1.6)
+	_sprites.draw_texture_rect_region(_atlas_vp.get_texture(), Rect2(center - cell.size * 0.5, cell.size),
+		Rect2(cell.position * _atlas_scale, cell.size * _atlas_scale), Color(a, a, a, a))
+
+## Por encima de los recortes: FIJAR mientras se arrastra y la selección del editor.
+func _draw_top() -> void:
+	_cv = _top
+	var a := _alpha_now()
+	for i in BUTTONS.size():
+		if _is_unavailable(i):
+			continue
+		if _target_dragging(i) and not _is_hidden(i):
+			_draw_button(i, _btn_center[i], _btn_radius[i] * 0.93, a, true, _tgt_drag)
+		if _editing and BUTTONS[i]["key"] == _edit_sel:
+			_draw_selection(_btn_center[i], _btn_radius[i] * (0.93 if _btn_id[i] != -1 else 1.0))
 	if _editing and _edit_sel == JOY_KEY:
 		_draw_selection(_joy_center, _joy_radius)
 
+## Botón de acción: hueco de hierro como los del inventario (pozo oscuro, resplandor del color del
+## botón, anillo de metal con muescas e icono); se aprieta al pulsarlo. `drag` desplaza el icono.
+func _draw_button(i: int, c: Vector2, r: float, ba: float, pressed: bool, drag: Vector2 = Vector2.ZERO) -> void:
+	var b: Dictionary = BUTTONS[i]
+	_draw_socket(c, r, b["color"], ba, pressed, int(b["ring"]) == 0)
+	var icon_col: Color = Color.WHITE if pressed else (b["color"] as Color).lightened(0.55)
+	var ic := c + drag
+	if drag != Vector2.ZERO:
+		_cv.draw_line(c, ic, Color(StoneUI.AMBER, 0.7 * ba), 2.0, true)   # la mira sigue al dedo: guía del cambio de objetivo
+	# icono con contorno de tinta (cómic): el icono en tinta corrido en 8 direcciones y una sombra dura
+	var ink_c := Color(StoneUI.OUTLINE, ba)
+	var ink_r := maxf(2.0, r * 0.06)
+	for k in 8:
+		_draw_icon(String(b["key"]), ic + Vector2.from_angle(k * TAU / 8.0) * ink_r, r * 0.92, ink_c)
+	_draw_icon(String(b["key"]), ic + Vector2(ink_r, ink_r * 1.5), r * 0.92, ink_c)
+	_draw_icon(String(b["key"]), ic, r * 0.92, Color(icon_col, ba))
+
+# ───────────────────────────── Atlas ─────────────────────────────
+
+func _build_atlas_nodes() -> void:
+	_atlas_vp = SubViewport.new()
+	_atlas_vp.transparent_bg = true
+	_atlas_vp.disable_3d = true
+	_atlas_vp.gui_disable_input = true
+	_atlas_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	add_child(_atlas_vp)
+	_atlas_canvas = Control.new()
+	_atlas_canvas.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED   # textura de piedra del joystick (StoneUI)
+	_atlas_canvas.draw.connect(_draw_atlas)
+	_atlas_vp.add_child(_atlas_canvas)
+
+## Medio lado (unidades de lienzo) de la celda de un botón: radio más sombra y contorno de tinta.
+func _button_half(i: int, pressed: bool) -> float:
+	return ceilf(_btn_radius[i] * (0.93 if pressed else 1.0) * 1.2 + 12.0)
+
+## Reparte las piezas en filas y vuelve a pintar el atlas, solo si cambió algún tamaño o el estirado.
+func _rebuild_atlas() -> void:
+	if _atlas_vp == null:
+		return
+	var s := clampf(get_viewport().get_stretch_transform().get_scale().x, 1.0, 3.0)
+	var knob_half := ceilf(_joy_radius * 0.42 + 8.0)
+	var items: Array = [["joy", ceilf(_joy_radius + 8.0)], ["knob0", knob_half], ["knob1", knob_half]]
+	for i in BUTTONS.size():
+		if _in_mode(String(BUTTONS[i]["key"])):
+			items.append(["b_%d_0" % i, _button_half(i, false)])
+			items.append(["b_%d_1" % i, _button_half(i, true)])
+	var sig := "%s|%.3f|%.2f|%s|%s" % [mode, s, _joy_radius, str(_btn_radius), str(items)]
+	if sig == _atlas_sig:
+		return
+	_atlas_sig = sig
+	_atlas_scale = s
+	_cells.clear()
+	var max_w := floorf(ATLAS_MAX_W / s)
+	var x := ATLAS_PAD
+	var y := ATLAS_PAD
+	var row_h := 0.0
+	var total_w := 0.0
+	for it in items:
+		var side: float = float(it[1]) * 2.0
+		if x + side + ATLAS_PAD > max_w and x > ATLAS_PAD:
+			x = ATLAS_PAD
+			y += row_h + ATLAS_PAD
+			row_h = 0.0
+		_cells[it[0]] = Rect2(x, y, side, side)
+		x += side + ATLAS_PAD
+		row_h = maxf(row_h, side)
+		total_w = maxf(total_w, x)
+	var logical := Vector2(total_w, y + row_h + ATLAS_PAD)
+	_atlas_vp.size = Vector2i(ceili(logical.x * s), ceili(logical.y * s))
+	_atlas_vp.canvas_transform = Transform2D.IDENTITY.scaled(Vector2(s, s))
+	_atlas_canvas.size = logical
+	_atlas_canvas.queue_redraw()
+	_atlas_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+
+func _draw_atlas() -> void:
+	_cv = _atlas_canvas
+	for id in _cells:
+		var c: Vector2 = (_cells[id] as Rect2).get_center()
+		match id:
+			"joy": _draw_joystick_base(c, _joy_radius)
+			"knob0": _draw_knob(c, _joy_radius * 0.42, false)
+			"knob1": _draw_knob(c, _joy_radius * 0.42, true)
+			_:
+				var parts: PackedStringArray = String(id).split("_")
+				var i := int(parts[1])
+				var pressed := parts[2] == "1"
+				_draw_button(i, c, _btn_radius[i] * (0.93 if pressed else 1.0), 1.0, pressed)
+	_cv = _top
+
 ## Joystick: disco de piedra oscura con borde de hierro y ocho muescas; el pulgar es un pomo de hierro.
-func _draw_joystick(a: float) -> void:
-	var c := _joy_center
-	var r := _joy_radius
+func _draw_joystick_base(c: Vector2, r: float) -> void:
 	var band := maxf(6.0, r * 0.14)
 	var st := StoneUI.STONE_DARK
-	StoneUI.draw_stone_disc(_overlay, c, r - band * 0.5, Color(st.r, st.g, st.b, 0.85 * a))
-	_overlay.draw_arc(c, r - band - 4.0, 0.0, TAU, 56, Color(0, 0, 0, 0.35 * a), 6.0, true)   # sombra interior
+	StoneUI.draw_stone_disc(_cv, c, r - band * 0.5, Color(st.r, st.g, st.b, 0.85))
+	_cv.draw_arc(c, r - band - 4.0, 0.0, TAU, 56, Color(0, 0, 0, 0.35), 6.0, true)   # sombra interior
 	# guía de dirección: anillo fino y cuatro marcas ámbar
-	_overlay.draw_arc(c, r * 0.55, 0.0, TAU, 48, Color(StoneUI.OUTLINE, 0.45 * a), 1.5, true)
+	_cv.draw_arc(c, r * 0.55, 0.0, TAU, 48, Color(StoneUI.OUTLINE, 0.45), 1.5, true)
 	for k in 4:
 		var d := Vector2.from_angle(-PI * 0.5 + k * PI * 0.5)
 		var tip := c + d * (r - band - 6.0)
 		var side := Vector2(-d.y, d.x) * r * 0.07
-		_overlay.draw_colored_polygon(PackedVector2Array([tip, tip - d * r * 0.1 + side, tip - d * r * 0.1 - side]),
-			Color(StoneUI.AMBER, 0.55 * a))
-	StoneUI.draw_iron_ring(_overlay, c, r - band, r, a, 8)
-	# pomo de hierro
-	var kp := c + _joy_offset
-	var kr := r * 0.42
-	var active := _joy_id != -1
-	_overlay.draw_circle(kp + Vector2(3.0, 4.0), kr, Color(StoneUI.OUTLINE, 0.7 * a))   # sombra dura de tinta
-	_overlay.draw_circle(kp, kr, Color(StoneUI.IRON_DARK, 0.95 * a))
-	_overlay.draw_circle(kp, kr * 0.8, Color(StoneUI.IRON, 0.95 * a))
-	_overlay.draw_arc(kp, kr * 0.62, PI * 0.95, PI * 1.55, 20, Color(StoneUI.IRON_LIGHT, 0.7 * a), maxf(2.0, kr * 0.12), true)
-	_overlay.draw_arc(kp, kr, 0.0, TAU, 40, Color(StoneUI.OUTLINE, a), 2.8, true)
-	_overlay.draw_circle(kp, kr * 0.22, Color(StoneUI.AMBER if active else StoneUI.IRON_LIGHT, a))
-	_overlay.draw_circle(kp, kr * 0.1, Color(StoneUI.OUTLINE, a))
+		_cv.draw_colored_polygon(PackedVector2Array([tip, tip - d * r * 0.1 + side, tip - d * r * 0.1 - side]),
+			Color(StoneUI.AMBER, 0.55))
+	StoneUI.draw_iron_ring(_cv, c, r - band, r, 1.0, 8)
+	# Borde de cómic: contorno de tinta por fuera del aro
+	_cv.draw_arc(c, r + 1.5, 0.0, TAU, 64, StoneUI.OUTLINE, INK_W, true)
+
+## Pomo de hierro del joystick (`active` = con el dedo puesto: centro y aro ámbar).
+func _draw_knob(kp: Vector2, kr: float, active: bool) -> void:
+	_cv.draw_circle(kp + Vector2(3.0, 4.0), kr, Color(StoneUI.OUTLINE, 0.7))   # sombra dura de tinta
+	_cv.draw_circle(kp, kr, Color(StoneUI.IRON_DARK, 0.95))
+	_cv.draw_circle(kp, kr * 0.8, Color(StoneUI.IRON, 0.95))
+	_cv.draw_arc(kp, kr * 0.62, PI * 0.95, PI * 1.55, 20, Color(StoneUI.IRON_LIGHT, 0.7), maxf(2.0, kr * 0.12), true)
+	_cv.draw_arc(kp, kr, 0.0, TAU, 40, StoneUI.OUTLINE, 2.8, true)
+	_cv.draw_circle(kp, kr * 0.22, StoneUI.AMBER if active else StoneUI.IRON_LIGHT)
+	_cv.draw_circle(kp, kr * 0.1, StoneUI.OUTLINE)
 	if active:
-		_overlay.draw_arc(kp, kr + 2.0, 0.0, TAU, 40, Color(StoneUI.AMBER, 0.8 * a), 2.0, true)
-	# Bordes de cómic del joystick: contorno de tinta por fuera del aro y del pomo
-	_overlay.draw_arc(c, r + 1.5, 0.0, TAU, 64, Color(StoneUI.OUTLINE, a), INK_W, true)
-	_overlay.draw_arc(kp, kr + 1.0, 0.0, TAU, 40, Color(StoneUI.OUTLINE, a), INK_W * 0.8, true)
+		_cv.draw_arc(kp, kr + 2.0, 0.0, TAU, 40, Color(StoneUI.AMBER, 0.8), 2.0, true)
+	_cv.draw_arc(kp, kr + 1.0, 0.0, TAU, 40, StoneUI.OUTLINE, INK_W * 0.8, true)
 
 ## Hueco redondo del estilo del inventario. `big` = botón de ataque (anillo doble con remaches).
 func _draw_socket(c: Vector2, r: float, col: Color, a: float, pressed: bool, big: bool) -> void:
 	var band := maxf(5.0, r * (0.17 if big else 0.2))
 	var inner := r - band
-	_overlay.draw_circle(c + Vector2(3.0, 4.0), r + 1.0, Color(StoneUI.OUTLINE, 0.7 * a))   # sombra dura de tinta
-	_overlay.draw_circle(c, inner, Color(0.025, 0.04, 0.04, 0.82 * a))
+	_cv.draw_circle(c + Vector2(3.0, 4.0), r + 1.0, Color(StoneUI.OUTLINE, 0.7 * a))   # sombra dura de tinta
+	_cv.draw_circle(c, inner, Color(0.025, 0.04, 0.04, 0.82 * a))
 	var glow := 0.75 if pressed else 0.5
 	for i in 5:
-		_overlay.draw_arc(c, inner - 1.5 - i * (inner * 0.07), 0.0, TAU, 48,
+		_cv.draw_arc(c, inner - 1.5 - i * (inner * 0.07), 0.0, TAU, 48,
 			Color(col, (glow - i * 0.1) * a), maxf(2.0, inner * 0.07), true)
 	if pressed:
-		_overlay.draw_circle(c, inner * 0.6, Color(col, 0.18 * a))
-	StoneUI.draw_iron_ring(_overlay, c, inner, r, a, 8 if big else 4)
+		_cv.draw_circle(c, inner * 0.6, Color(col, 0.18 * a))
+	StoneUI.draw_iron_ring(_cv, c, inner, r, a, 8 if big else 4)
 	if big:
 		# segundo aro exterior con remaches, como la placa del HUD de armas
 		var outer := r + band * 0.55
-		_overlay.draw_arc(c, outer, 0.0, TAU, 64, Color(StoneUI.IRON_DARK, a), band * 0.5, true)
-		_overlay.draw_arc(c, outer + band * 0.25, 0.0, TAU, 64, Color(StoneUI.OUTLINE, a), 2.8, true)
+		_cv.draw_arc(c, outer, 0.0, TAU, 64, Color(StoneUI.IRON_DARK, a), band * 0.5, true)
+		_cv.draw_arc(c, outer + band * 0.25, 0.0, TAU, 64, Color(StoneUI.OUTLINE, a), 2.8, true)
 		for k in 8:
 			var p := c + Vector2.from_angle(PI / 8.0 + k * TAU / 8.0) * outer
-			_overlay.draw_circle(p, maxf(1.8, band * 0.16), Color(StoneUI.IRON_LIGHT, a))
-			_overlay.draw_circle(p, maxf(0.9, band * 0.07), Color(StoneUI.OUTLINE, a))
+			_cv.draw_circle(p, maxf(1.8, band * 0.16), Color(StoneUI.IRON_LIGHT, a))
+			_cv.draw_circle(p, maxf(0.9, band * 0.07), Color(StoneUI.OUTLINE, a))
 	if pressed:
-		_overlay.draw_arc(c, inner - 1.0, 0.0, TAU, 48, Color(StoneUI.AMBER, a), 3.0, true)
+		_cv.draw_arc(c, inner - 1.0, 0.0, TAU, 48, Color(StoneUI.AMBER, a), 3.0, true)
 	# Bordes de cómic: contorno grueso de tinta por fuera y aro de tinta en el borde del pozo
 	var rim := (r + band * 0.55 + band * 0.25) if big else r
-	_overlay.draw_arc(c, rim + 1.5, 0.0, TAU, 64, Color(StoneUI.OUTLINE, a), INK_W, true)
-	_overlay.draw_arc(c, inner, 0.0, TAU, 56, Color(StoneUI.OUTLINE, a), INK_W * 0.6, true)
+	_cv.draw_arc(c, rim + 1.5, 0.0, TAU, 64, Color(StoneUI.OUTLINE, a), INK_W, true)
+	_cv.draw_arc(c, inner, 0.0, TAU, 56, Color(StoneUI.OUTLINE, a), INK_W * 0.6, true)
 
 func _draw_selection(c: Vector2, r: float) -> void:
 	var amber := Color(StoneUI.AMBER, 0.95)
-	_overlay.draw_arc(c, r + 10.0, 0.0, TAU, 64, amber, 3.0, true)
+	_cv.draw_arc(c, r + 10.0, 0.0, TAU, 64, amber, 3.0, true)
 	for k in 4:
 		var dir := Vector2.from_angle(PI * 0.25 + k * PI * 0.5)
-		StoneUI.draw_diamond(_overlay, c + dir * (r + 10.0), 5.0)
+		StoneUI.draw_diamond(_cv, c + dir * (r + 10.0), 5.0)
 
 # ───────────────────────────── Iconos ─────────────────────────────
 
@@ -372,7 +509,7 @@ func _draw_selection(c: Vector2, r: float) -> void:
 func _draw_icon(key: String, c: Vector2, r: float, col: Color) -> void:
 	var u := r * 0.5
 	var w := maxf(2.5, r * 0.1)
-	var o := _overlay
+	var o := _cv
 	match key:
 		"attack":   # espada en diagonal con guarda
 			o.draw_line(c + Vector2(-0.75, 0.75) * u, c + Vector2(0.8, -0.8) * u, col, w * 1.6, true)
@@ -442,8 +579,8 @@ func _draw_icon(key: String, c: Vector2, r: float, col: Color) -> void:
 func _draw_arrow(from: Vector2, to: Vector2, head: float, w: float, col: Color) -> void:
 	var dir := (to - from).normalized()
 	var side := Vector2(-dir.y, dir.x)
-	_overlay.draw_line(from, to, col, w, true)
-	_overlay.draw_polyline(PackedVector2Array([to - dir * head + side * head, to, to - dir * head - side * head]), col, w, true)
+	_cv.draw_line(from, to, col, w, true)
+	_cv.draw_polyline(PackedVector2Array([to - dir * head + side * head, to, to - dir * head - side * head]), col, w, true)
 
 # ───────────────────────────── Entrada ─────────────────────────────
 
@@ -491,7 +628,7 @@ func _on_press(idx: int, pos: Vector2, pressed: bool) -> void:
 				_tgt_switched = false
 				_tgt_was_locked = VirtualInput.target_locked
 			_set_button(bi, true)
-			_overlay.queue_redraw()
+			_redraw()
 		elif _joy_id == -1 and _in_joystick_zone(pos):
 			_joy_id = idx
 			_joy_center = _clamp_to_screen(pos)
@@ -503,13 +640,13 @@ func _on_press(idx: int, pos: Vector2, pressed: bool) -> void:
 		if bi != -1:
 			_btn_id[bi] = -1
 			_set_button(bi, false)
-			_overlay.queue_redraw()
+			_redraw()
 		elif idx == _joy_id:
 			_joy_id = -1
 			_joy_center = _joy_rest
 			_joy_offset = Vector2.ZERO
 			VirtualInput.movement_vector = Vector2.ZERO
-			_overlay.queue_redraw()
+			_redraw()
 		elif idx == _look_id:
 			_look_id = -1
 
@@ -562,7 +699,7 @@ func _drag_target(pos: Vector2) -> void:
 		_tgt_origin = pos
 		d = Vector2.ZERO
 	_tgt_drag = d.limit_length(r * 0.6)
-	_overlay.queue_redraw()
+	_redraw()
 
 ## Dedo que mantiene pulsado el botón `key` (-1 si ninguno).
 func _button_id(key: String) -> int:
@@ -593,7 +730,7 @@ func _update_joystick(pos: Vector2) -> void:
 	else:
 		# Zona muerta reescalada para que el movimiento arranque suave desde 0
 		VirtualInput.movement_vector = n.normalized() * ((mag - DEAD_ZONE) / (1.0 - DEAD_ZONE))
-	_overlay.queue_redraw()
+	_redraw()
 
 func _release_all() -> void:
 	_joy_id = -1
@@ -611,8 +748,7 @@ func _release_all() -> void:
 	VirtualInput.is_running = false
 	VirtualInput.is_attacking = false
 	VirtualInput.is_alt_attack = false
-	if is_instance_valid(_overlay):
-		_overlay.queue_redraw()
+	_redraw()
 
 # ───────────────────────────── Editor de disposición ─────────────────────────────
 ## Se abre desde Ajustes → Controles táctiles. Tocar un botón (o el joystick) lo selecciona; arrastrarlo
@@ -628,7 +764,7 @@ func begin_edit() -> void:
 	layer = 125
 	_build_edit_panel()
 	_refresh_edit_panel()
-	_overlay.queue_redraw()
+	_redraw()
 
 func end_edit() -> void:
 	if not _editing:
@@ -699,7 +835,7 @@ func _edit_press(idx: int, pos: Vector2, pressed: bool) -> bool:
 			_edit_drag_id = idx
 			_edit_grab = _edit_center(_edit_sel) - pos
 		_refresh_edit_panel()
-		_overlay.queue_redraw()
+		_redraw()
 		return true
 	if idx == _edit_drag_id:
 		_edit_drag_id = -1
@@ -849,7 +985,7 @@ func _on_edit_visible(on: bool) -> void:
 	elif not SettingsManager.touch_hidden.has(_edit_sel):
 		SettingsManager.touch_hidden.append(_edit_sel)
 	SettingsManager.save_settings()
-	_overlay.queue_redraw()
+	_redraw()
 
 func _on_edit_reset_one() -> void:
 	if _edit_sel == "":

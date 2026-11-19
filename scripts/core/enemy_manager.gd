@@ -12,6 +12,17 @@ static var tick: int = 0
 var _active: Array = []              # EnemyData vivos
 var _player: Node3D = null
 
+## Simulación completa en C++ (EnemySimNative, native/src/enemy_sim_native.cpp): todo el bucle de abajo
+## (temporizadores, frecuencia de actualización, IA, tokens, separación, movimiento y dibujo impostor) en una
+## sola llamada por tick. Se decide al primer spawn (hace falta el mapa con relieve en C++) y no cambia
+## hasta salir de la escena. RUMBANG_NATIVE_SIM=0 (o RUMBANG_NATIVE=0) vuelve al GDScript.
+static var native_sim_enabled: bool = OS.get_environment("RUMBANG_NATIVE_SIM") != "0"
+static var sim: Object = null
+var _sim_decided: bool = false
+## Enemigos cuyos atributos cambió el juego (vida, velocidad, escala...): el C++ los relee antes del tick.
+var _dirty: Array = []
+const EV_STRIDE := 6
+
 func _ready() -> void:
 	instance = self
 	process_mode = Node.PROCESS_MODE_PAUSABLE
@@ -20,6 +31,8 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	if instance == self:
 		instance = null
+	if sim != null and _sim_decided:
+		sim = null
 	_free.clear()
 	_active.clear()
 	HiveMind.reset()
@@ -30,9 +43,13 @@ func _physics_process(delta: float) -> void:
 	var t0 := PerfProbe.begin()
 	# Mente colmena: datos compartidos de la multitud, calculados una vez antes de actualizar a nadie
 	HiveMind.begin_tick(get_tree(), _active.size())
+	if sim != null:
+		_step_native(delta)
+		PerfProbe.end("enemigos.bucle", t0)
+		return
 	var vis := EnemyVisuals.instance
 	var tick_f := float(tick)
-	var prof := PerfProbe.enabled
+	var prof := PerfProbe.enabled and PerfProbe.detail
 	var i := 0
 	while i < _active.size():
 		var e: EnemyData = _active[i]
@@ -53,6 +70,76 @@ func _physics_process(delta: float) -> void:
 		if i < _active.size() and _active[i] == e:
 			i += 1
 	PerfProbe.end("enemigos.bucle", t0)
+
+## Un tick de la simulación en C++ y después los eventos que necesitan el juego (disparos, golpes).
+func _step_native(delta: float) -> void:
+	for e in _dirty:
+		e._sim_dirty = false
+		if e.active_idx >= 0:
+			sim.load_stats(e.active_idx)
+	_dirty.clear()
+	var pl := HiveMind.local_player
+	if pl == null or not is_instance_valid(pl):
+		return
+	var pv = pl.get("velocity")
+	var pvel: Vector3 = pv if pv is Vector3 else Vector3.ZERO
+	var gs := GameState.get_instance()
+	var elapsed: float = gs.elapsed_time if gs != null else 0.0
+	var ev: PackedFloat32Array = sim.step(EnemyMotion.native_motion(), delta, tick, HiveMind.local_player_pos, pvel,
+			HiveMind.crowd_scale, elapsed, Time.get_ticks_msec(), Engine.get_physics_frames(),
+			HiveMind.use_tokens, HiveMind.use_density)
+	HiveMind.tokens_used = sim.get_tokens_used()
+	if not ev.is_empty():
+		_run_events(ev)
+
+## Ejecuta los eventos del C++. Primero se resuelven todos los enemigos (un golpe puede matar a alguno y
+## mover los índices de _active), luego se ejecutan.
+func _run_events(ev: PackedFloat32Array) -> void:
+	var n := ev.size() / EV_STRIDE
+	var who: Array = []
+	for k in range(n):
+		var idx := int(ev[k * EV_STRIDE + 1])
+		who.append(_active[idx] if idx >= 0 and idx < _active.size() else null)
+	for k in range(n):
+		var e: EnemyData = who[k]
+		if e == null or e.recycled:
+			continue
+		var b := k * EV_STRIDE
+		var a := Vector3(ev[b + 2], ev[b + 3], ev[b + 4])
+		match int(ev[b]):
+			1:
+				EnemyBehavior.fire_ranged(e, a, ev[b + 5])
+			2:
+				EnemyBehavior.fire_ranged(e, a, ev[b + 5])
+			3:
+				EnemyBehavior.fire_mortar(e)
+			4:
+				EnemyBehavior.hit_player(e, ev[b + 2])
+			5:
+				EnemyBehavior.fire_slam(e)
+
+## El juego cambió atributos de `e` (vida, velocidad, escala, alerta, posición): el C++ los relee.
+static func mark_dirty(e: EnemyData) -> void:
+	if sim == null or e._sim_dirty or instance == null:
+		return
+	e._sim_dirty = true
+	instance._dirty.append(e)
+
+static func _decide_sim() -> void:
+	instance._sim_decided = true
+	sim = null
+	if not native_sim_enabled or not EnemyMotion.native_enabled or not ClassDB.class_exists(&"EnemySimNative"):
+		return
+	if EnemyMotion.native_motion() == null:
+		return
+	sim = ClassDB.instantiate(&"EnemySimNative")
+	sim.vis_setup(EnemyVisuals.KEYS.size(), EnemyVisuals.CAPACITY, EnemyVisuals.STRIDE)
+	# Modo malla (sin impostores): EnemyVisuals lee del objeto tick_age, vat_walking, vat_flash... cada frame
+	sim.set_full_writeback(EnemyVisuals.instance == null)
+
+## true si los enemigos van por la simulación en C++ (pruebas / banco).
+static func using_native_sim() -> bool:
+	return sim != null
 
 # ───────────────────────────── Acceso estático ─────────────────────────────
 
@@ -78,6 +165,8 @@ static func floor_y(x: float, z: float) -> float:
 static func spawn(type_val: int, pos: Vector3) -> EnemyData:
 	if instance == null:
 		return null
+	if not instance._sim_decided:
+		_decide_sim()
 	var list: Array = _free.get(type_val, [])
 	var e: EnemyData
 	if list.is_empty():
@@ -88,6 +177,10 @@ static func spawn(type_val: int, pos: Vector3) -> EnemyData:
 	e.player = player_node()
 	e.active_idx = instance._active.size()
 	instance._active.append(e)
+	if sim != null:
+		sim.add(e)
+		e._sim_dirty = false
+		mark_dirty(e)          # quien lo crea suele cambiarle vida/velocidad/escala justo después
 	return e
 
 ## Prellena el pool con enemigos ya construidos (durante la carga): evita crear objetos en plena partida.
@@ -104,7 +197,10 @@ static func prefill(counts: Dictionary) -> void:
 
 ## Lo llama EnemyData.recycle(): vuelve al pool de su tipo.
 static func release(e: EnemyData) -> void:
-	HiveMind.release_token(e)
+	if sim != null and instance != null and e.active_idx >= 0:
+		sim.remove(e.active_idx)        # suelta su token y su casilla de dibujo
+	else:
+		HiveMind.release_token(e)
 	if instance != null and e.active_idx >= 0:
 		# Swap-remove O(1): el último ocupa el hueco (el bucle de física lo procesa al no avanzar el índice)
 		var act: Array = instance._active
@@ -124,6 +220,8 @@ static func recycle_all() -> void:
 	for e in instance._active.duplicate():
 		e.recycle()
 	instance._active.clear()
+	if sim != null:
+		sim.clear()
 
 static func active_count() -> int:
 	return instance._active.size() if instance != null else 0

@@ -541,10 +541,9 @@ func _slide_push(speed: float) -> void:
 		if d > SLIDE_PUSH_RADIUS * (1.0 + (e.scale.x - 1.0) * 0.5) or (d > 0.3 and to_e.dot(dir) < -0.2 * d):
 			continue
 		_slide_pushed[e.get_instance_id()] = true
-		e.knockback_velocity = slide_push_vector(dir, to_e, force) * e.knockback_resistance
-		e.slow_multiplier = minf(e.slow_multiplier, 0.25)
-		e.slow_timer = maxf(e.slow_timer, SLIDE_PUSH_STAGGER)
-		e.is_alerted = true
+		e.set_knockback(slide_push_vector(dir, to_e, force) * e.knockback_resistance)
+		e.apply_slow(SLIDE_PUSH_STAGGER, 0.25)
+		e.alert()
 		AudioManager.play_at("impact_blunt", e.global_position, -12.0, randf_range(0.9, 1.1))
 		HitFeedback.shake(0.05)
 

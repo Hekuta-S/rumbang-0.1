@@ -325,18 +325,16 @@ func update_xp(_level: int, current_xp: float, required_xp: float) -> void:
 
 
 func update_weapons(active_index: int, weapons_list: Array) -> void:
-	print("UPDATE WEAPONS CALLED, active: ", active_index, ", list size: ", weapons_list.size())
 	for i in range(weapon_slots.size()):
 		var slot_icon = weapon_slots[i]
 		if i < weapons_list.size():
 			var w_name = weapons_list[i].get("name", "")
-			print("Slot ", i, " weapon: ", w_name)
 			if weapon_textures.has(w_name):
 				slot_icon.texture = weapon_textures[w_name]
 			else:
 				# Fallback a pistola si no hay imagen
 				slot_icon.texture = preload("res://assets/ui/ingame_hub/armas/pistola.png")
-				print("WARNING: Texture not found for ", w_name, ", using fallback")
+				push_warning("Sin icono para el arma %s: se usa el de la pistola" % w_name)
 			
 			slot_icon.modulate = Color(1, 1, 1, 1.0)
 			slot_icon.pivot_offset = slot_icon.size / 2.0

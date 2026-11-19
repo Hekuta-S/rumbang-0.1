@@ -228,8 +228,6 @@ func generate(p_seed: int = 0) -> void:
 	_build_breakables()
 	_build_extra()
 	generated.emit(used_seed)
-	print("[DungeonMap] semilla=", used_seed, " cavernas=", rooms.size(), " celdas=", _cells.size(),
-		" props=", _count_instances(), " rompibles=", destructibles.size(), " luces=", _lights.size())
 
 func get_height_at(_x: float, _z: float) -> float:
 	return 0.0

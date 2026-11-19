@@ -77,12 +77,12 @@ func _die() -> void:
 	tw.tween_property(_model, "scale", _model.scale * 1.35, delay)
 	tw.tween_callback(_model.hide)
 	var tree := get_tree()
-	var me := self
+	var me_id := get_instance_id()
 	tree.create_timer(delay).timeout.connect(func():
 		AudioManager.play_at("explosion", pos, -2.0, randf_range(0.9, 1.1))
 		_splash(pos, radius)
 		for e in EnemyRegistry.all():
-			if not is_instance_valid(e) or e == me or not e.has_method("is_dead") or e.is_dead():
+			if not is_instance_valid(e) or e.get_instance_id() == me_id or not e.has_method("is_dead") or e.is_dead():
 				continue
 			var off: Vector3 = e.global_position - pos
 			if Vector2(off.x, off.z).length() <= radius + float(e.get("hit_radius") if e.get("hit_radius") != null else 0.5):

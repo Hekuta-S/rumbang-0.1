@@ -11,6 +11,7 @@ extends RefCounted
 
 ## A partir de cuántos enemigos vivos se reparte la IA entre ticks (crowd_scale), y hasta cuánto.
 const CROWD_REF := 120.0
+static var crowd_ref: float = CROWD_REF      ## el banco puede cambiarlo (opción cr=)
 const CROWD_MAX := 5.0
 ## Cada cuántos ticks se vuelve a buscar la lista de jugadores en el árbol (entran/salen poco).
 const PLAYER_REFRESH_TICKS := 30
@@ -33,7 +34,7 @@ static var _players_age: int = PLAYER_REFRESH_TICKS
 ## Llamado por EnemyManager al empezar cada tick de física.
 static func begin_tick(tree: SceneTree, alive_count: int) -> void:
 	alive = alive_count
-	crowd_scale = clampf(float(alive_count) / CROWD_REF, 1.0, CROWD_MAX)
+	crowd_scale = clampf(float(alive_count) / crowd_ref, 1.0, CROWD_MAX)
 	_refresh_players(tree)
 	local_player = EnemyManager.player_node()
 	if local_player != null:

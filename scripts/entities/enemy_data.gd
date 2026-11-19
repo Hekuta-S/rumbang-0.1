@@ -48,6 +48,8 @@ var slow_multiplier: float = 1.0
 var base_color: Color = Color.WHITE
 var recycled: bool = false
 var active_idx: int = -1            ## posición en EnemyManager._active (-1 = no activo)
+## Con la simulación en C++ (EnemyManager.sim): ya está en la lista de enemigos a releer este tick.
+var _sim_dirty: bool = false
 
 ## Frecuencia de actualización según la distancia al jugador: cerca cada tick de física; a media distancia
 ## cada 2 ticks; lejos (o sin alertar) cada 4. EnemyManager acumula el tiempo y llama a update() con el
@@ -184,6 +186,20 @@ func is_inside_tree() -> bool:
 
 func apply_knockback(v: Vector3) -> void:
 	knockback_velocity = (knockback_velocity + v).limit_length(24.0)
+	if EnemyManager.sim != null and active_idx >= 0:
+		EnemyManager.sim.add_knockback(active_idx, v)
+
+## Fija el empujón (sustituye al que tuviera).
+func set_knockback(v: Vector3) -> void:
+	knockback_velocity = v
+	if EnemyManager.sim != null and active_idx >= 0:
+		EnemyManager.sim.set_knockback(active_idx, v)
+
+## Lo pone en alerta (persigue al jugador).
+func alert() -> void:
+	is_alerted = true
+	if EnemyManager.sim != null and active_idx >= 0:
+		EnemyManager.sim.set_alerted(active_idx, true)
 
 func set_enemy_color(col: Color) -> void:
 	base_color = col
@@ -230,8 +246,10 @@ func reactivate(pos: Vector3) -> void:
 	ground_y = EnemyMotion.height_at(pos.x, pos.z) if EnemyMotion.available() else pos.y
 	bridge_i = -1
 	_mode_speed_mult = GameData.SURVIVAL_ENEMY_SPEED_MULT if GameData.game_mode == "survival" else 1.0
+	_sim_dirty = false
 	EnemyRegistry.register(self)
-	if EnemyVisuals.instance != null:
+	# Con la simulación en C++ la casilla de dibujo la reparte EnemySimNative (EnemyManager.spawn)
+	if EnemyVisuals.instance != null and EnemyManager.sim == null:
 		EnemyVisuals.instance.attach(self)
 
 ## En vez de destruirse vuelve al pool de su tipo.
@@ -240,7 +258,7 @@ func recycle() -> void:
 		return
 	recycled = true
 	EnemyRegistry.unregister(self)
-	if EnemyVisuals.instance != null:
+	if EnemyVisuals.instance != null and EnemyManager.sim == null:
 		EnemyVisuals.instance.detach(self)
 	velocity = Vector3.ZERO
 	if is_instance_valid(status_fx):
@@ -304,7 +322,7 @@ func update(delta: float) -> void:
 		# Con mapa procedural la altura la mantiene EnemyMotion (ground_y); floor_y solo se usa como respaldo
 		if not EnemyMotion.available():
 			_cached_ground_y = EnemyManager.floor_y(global_position.x, global_position.z)
-		if PerfProbe.enabled:
+		if PerfProbe.enabled and PerfProbe.detail:
 			var ts := PerfProbe.begin()
 			_compute_separation()
 			PerfProbe.end("enemigos.separacion", ts)
@@ -323,7 +341,7 @@ func update(delta: float) -> void:
 	var effective_speed := speed * slow_multiplier * _mode_speed_mult
 	var next_vel := Vector3.ZERO
 	# El perfilador por secciones solo se consulta una vez: sin RUMBANG_PROFILE no cuesta llamadas por enemigo
-	if PerfProbe.enabled:
+	if PerfProbe.enabled and PerfProbe.detail:
 		var ta := PerfProbe.begin()
 		if behavior:
 			next_vel = behavior.process_ai(delta, to_player, dist, effective_speed)
@@ -367,6 +385,8 @@ func _compute_separation() -> void:
 func apply_slow(duration: float, multiplier: float) -> void:
 	slow_multiplier = minf(slow_multiplier, multiplier)
 	slow_timer = maxf(slow_timer, duration)
+	if EnemyManager.sim != null and active_idx >= 0:
+		EnemyManager.sim.apply_slow(active_idx, duration, multiplier)
 
 ## Aplica veneno/sangrado/quemadura (ver StatusEffects).
 func apply_status(effect_id: String, dps: float, duration: float, source: Node = null,
@@ -400,12 +420,15 @@ func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 		if behavior:
 			push_speed *= behavior.get_knockback_resistance()
 		push_speed *= knockback_resistance
-		knockback_velocity = kb_norm * clampf(push_speed, 1.0, 24.0)
+		set_knockback(kb_norm * clampf(push_speed, 1.0, 24.0))
 
 	if not is_dot or now - _last_flash_t >= DOT_FLASH_INTERVAL:
 		_last_flash_t = now
 		vat_flash = 0.08
-		if EnemyVisuals.instance != null:
+		if EnemyManager.sim != null:
+			if active_idx >= 0:
+				EnemyManager.sim.flash(active_idx, float(EnemyManager.tick))
+		elif EnemyVisuals.instance != null:
 			EnemyVisuals.instance.flash(self)
 
 	# Número flotante: inmediato para golpes normales; agrupado para daño continuo
@@ -432,3 +455,5 @@ func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 	if hp <= 0.0:
 		enemy_died.emit(self, global_position, gold_reward)
 		recycle()
+	else:
+		EnemyManager.mark_dirty(self)      # la vida la lee la IA (alerta, furia del zombi)

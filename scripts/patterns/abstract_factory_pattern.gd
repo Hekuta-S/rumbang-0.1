@@ -46,8 +46,8 @@ class MobilePlatformFactory extends PlatformFactory:
 	func configure_viewport(viewport: Viewport) -> void:
 		# Resolución 3D según la calidad (la gobernadora de rendimiento la ajusta en vivo)
 		viewport.scaling_3d_scale = Quality.scale_3d()
-		viewport.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA   # bordes suaves y barato en móvil
-		viewport.use_debanding = true
+		viewport.screen_space_aa = Quality.mobile_aa()   # FXAA solo en Alta: costaba ~9.5 ms en un Mali-G57
+		viewport.use_debanding = false
 		
 	func configure_light(light: DirectionalLight3D) -> void:
 		light.shadow_enabled = false # Sombras 3D causan picos en móvil

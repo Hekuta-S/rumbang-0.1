@@ -1,0 +1,11 @@
+[configuration]
+
+entry_symbol = "rumbang_native_init"
+compatibility_minimum = "4.7"
+
+[libraries]
+
+windows.debug.x86_64 = "res://bin/librumbang_native.windows.template_debug.x86_64.dll"
+windows.release.x86_64 = "res://bin/librumbang_native.windows.template_release.x86_64.dll"
+android.debug.arm64 = "res://bin/librumbang_native.android.template_debug.arm64.so"
+android.release.arm64 = "res://bin/librumbang_native.android.template_release.arm64.so"

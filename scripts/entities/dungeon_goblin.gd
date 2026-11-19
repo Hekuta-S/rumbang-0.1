@@ -26,6 +26,8 @@ extends CharacterBody3D
 ## segundos y se le puede rematar (PlayerFinisherController → receive_finisher).
 
 signal died(goblin: DungeonGoblin)
+## Ha notado al jugador mientras seguía su rutina (EnemyRoutine): el encuentro avisa al resto del grupo.
+signal alerted(goblin: DungeonGoblin)
 
 ## STUNNED va al final: el número de cada estado viaja en las instantáneas de red (NetWorld)
 enum State { IDLE, APPROACH, WINDUP, ATTACK, RECOVER, HURT, STAGGER, DEAD, STUNNED }
@@ -271,6 +273,7 @@ var state: State = State.IDLE
 var player: CharacterBody3D
 var map: DungeonMap                   ## para navegar (campo de flujo); opcional
 var passive := false                  ## no ataca ni persigue (muñeco de práctica del tutorial)
+var routine: EnemyRoutine             ## lo que hace antes de ver al jugador (null = sin rutina: ataca al verlo)
 var _avoid_side := 1.0
 var _stuck_t := 0.0                   # tiempo seguido avanzando casi nada en APPROACH
 var _unstick_t := 0.0
@@ -900,6 +903,8 @@ func receive_finisher(dir: Vector3) -> void:
 func _set_state(s: State) -> void:
 	if passive and (s == State.APPROACH or s == State.WINDUP):
 		s = State.IDLE
+	if s != State.IDLE and routine != null:
+		routine.finish(self)          # cualquier cosa que lo saque del reposo (un golpe, un empujón) acaba la rutina
 	state = s
 	_state_t = 0.0
 	_nav_at = -1.0
@@ -978,7 +983,9 @@ func _physics_process(delta: float) -> void:
 
 	match state:
 		State.IDLE:
-			if dist <= DETECT_RADIUS and _sees_player():
+			if routine != null:
+				move = routine.tick(self, delta, to_p, dist)
+			elif dist <= DETECT_RADIUS and _sees_player():
 				_set_state(State.APPROACH)
 		State.APPROACH:
 			var sees := _sees_player()
@@ -1248,6 +1255,8 @@ func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 		return
 	if state == State.DEAD:
 		return
+	if routine != null:
+		amount = routine.on_hit(self, amount)     # emboscada: más daño a quien aún no te ha visto
 	# El aturdimiento y el tambaleo se calculan con el golpe entero: escudos y auras quitan vida, no aguante
 	var base := amount
 	var was_stunned := state == State.STUNNED

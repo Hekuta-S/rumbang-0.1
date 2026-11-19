@@ -34,6 +34,14 @@ const ROW_DEPTH := 2.4                ## separación entre filas (m)
 const MAX_GROUP := 10                 ## tope de enemigos por caverna (sin contar al jefe)
 const EARLY_LEVELS := 2               ## niveles con grupos reducidos al empezar
 const MAX_SWARM := 14                ## tope tras multiplicar los enjambres del mundo (WorldDefs "swarm")
+## Rutinas (EnemyRoutine): la caverna se puebla cuando el jugador se acerca por el túnel, aún tras la niebla, y
+## el grupo hace su vida hasta que alguien nota al jugador o este llega al fondo de la sala.
+const STAGE_MARGIN := 16.0            ## m más allá del radio de la caverna a los que se puebla
+const DEEP_FRACTION := 0.4            ## a esta fracción del radio el encuentro empieza aunque nadie le haya visto
+const ALERT_SPREAD := 0.05            ## s de retardo por metro al correr la voz por el grupo
+const ALERT_MAX_DELAY := 0.9          ## s: el más lejano tampoco tarda más que esto
+const NOISE_REACH := 11.0             ## m a los que un ruido pone en guardia a un grupo que aún no ha visto al jugador
+static var routines_enabled := true   ## false = como antes: aparecen al entrar (pruebas que miden el combate)
 ## Armas que se pueden elegir en el portal (las que tienen animaciones para la mazmorra).
 const PORTAL_WEAPONS := [
 	WeaponData.WeaponType.SPEAR_LANCE, WeaponData.WeaponType.FLAME_THROWER,
@@ -55,6 +63,10 @@ var _doors: Dictionary = {}           ## índice de caverna -> [DungeonDoor]
 var _doors_waiting: Dictionary = {}   ## índice de caverna -> [bocas por cerrar cuando el jugador se aparte]
 var _triggered := false               ## la arena ya se activó (habilita la G)
 var room_recipe: Dictionary = {}      ## índice de caverna -> id de la receta con la que se pobló (WorldDefs "recipes")
+var _staged: Dictionary = {}          ## índice de caverna -> [enemigos ya colocados con su rutina]
+var _staged_kinds: Dictionary = {}    ## índice de caverna -> tipos del grupo (para el registro de la partida)
+var _alerted_rooms: Dictionary = {}   ## cavernas donde alguien ha notado al jugador (el encuentro empieza ya)
+var _close_on_entry: Dictionary = {}  ## cavernas alertadas con el jugador aún fuera: las barreras esperan a que entre
 var _used_recipes: Array = []         ## recetas ya usadas en este nivel (no se repiten mientras queden)
 
 ## Comienzo suave: en el nivel 1, las primeras STARTER_ROOMS cavernas normales (además de la arena) solo traen
@@ -108,6 +120,10 @@ func _plan_rooms() -> void:
 	_alive.clear()
 	_boss_pending.clear()
 	room_recipe.clear()
+	_staged.clear()
+	_staged_kinds.clear()
+	_alerted_rooms.clear()
+	_close_on_entry.clear()
 	_used_recipes.clear()
 	_starter_rooms.clear()
 	_starter_left = STARTER_ROOMS if level == 1 and map.world().has("starter_kind") else 0
@@ -132,21 +148,45 @@ func _process(_delta: float) -> void:
 	# En red solo el anfitrión dispara los encuentros (con cualquier jugador vivo); los clientes los reciben.
 	for i in ([] if Net.is_client() else _pending.keys()):
 		var c := map.room_center(i)
+		var reach := map.room_reach(i)
+		var staging := routines_enabled and not _boss_only(i)
 		var trigger: Node3D = null
+		var nearest: Node3D = null
+		var nearest_d := INF
 		for p in NetPlayers.alive():
 			var d := Vector2(p.global_position.x - c.x, p.global_position.z - c.z).length()
-			if d <= map.room_reach(i) * TRIGGER_FRACTION:
-				trigger = p
-				break
+			if d < nearest_d:
+				nearest_d = d
+				nearest = p
+		if nearest == null:
+			continue
+		if staging:
+			if not _staged.has(i) and nearest_d <= reach + STAGE_MARGIN:
+				_stage_group(i, _pending[i], nearest)
+			if _staged.has(i) and (_alerted_rooms.has(i) or nearest_d <= reach * DEEP_FRACTION):
+				trigger = nearest
+		elif nearest_d <= reach * TRIGGER_FRACTION:
+			trigger = nearest
 		if trigger != null:
 			var n: int = _pending[i]
 			_pending.erase(i)
-			_spawn_group(i, n, trigger)
-			_close_room(i)
+			if _staged.has(i):
+				_wake_group(i, trigger)
+			else:
+				_spawn_group(i, n, trigger)
+			# Alertados con el jugador todavía en el túnel: las barreras se cierran cuando entre (no se queda fuera)
+			if _any_player_in_room(i):
+				_close_room(i)
+			else:
+				_close_on_entry[i] = true
 			if _challenge_rooms.has(i):
 				_start_challenge(i)
 			_net_call("room_started", [i])
 			encounter_started.emit()
+	for room in _close_on_entry.keys():
+		if _any_player_in_room(room):
+			_close_on_entry.erase(room)
+			_close_room(room)
 	_check_treasure()
 	_update_challenge()
 	_update_curse_hud()
@@ -162,6 +202,72 @@ func _process(_delta: float) -> void:
 			_doors_waiting.erase(room)
 		else:
 			_doors_waiting[room] = left
+
+# ───────────────────────────── Rutinas ─────────────────────────────
+
+## La caverna final de un nivel de jefe con escolta 0 no se puebla antes (el jefe entra con su presentación).
+func _boss_only(room: int) -> bool:
+	return _boss_pending.has(room) and int(_pending.get(room, 0)) <= 0
+
+func _any_player_in_room(room: int) -> bool:
+	for p in NetPlayers.alive():
+		if map.is_in_room(p.global_position, room):
+			return true
+	return false
+
+## Puebla la caverna antes de que el jugador la vea: cada enemigo en su sitio y con su rutina (EnemyRoutine.plan).
+func _stage_group(room: int, count: int, _near: Node3D) -> void:
+	if room == map.arena_index:
+		_triggered = true
+	var kinds := _kinds_for(room, count)
+	var spots := EnemyRoutine.plan(map, room, kinds)
+	var spawned: Array = []
+	var group: Array = []
+	for k in kinds.size():
+		var g := _spawn_at(room, spots[k]["pos"], kinds[k], false)
+		var r: EnemyRoutine = spots[k]["routine"]
+		g.routine = r
+		r.begin(g)
+		g.alerted.connect(func(who): _alerted_rooms[room] = who.global_position if is_instance_valid(who) else Vector3.INF)
+		spawned.append([g, kinds[k]])
+		group.append(g)
+		if room == map.arena_index:
+			goblin = g
+	_apply_elites(room, spawned)
+	_staged[room] = group
+	_staged_kinds[room] = kinds
+
+## Empieza el encuentro de una caverna ya poblada: corre la voz, cada uno reacciona según lo lejos que esté.
+func _wake_group(room: int, trigger: Node3D) -> void:
+	RunLog.room_started(room, String(room_recipe.get(room, "")), _staged_kinds.get(room, []))
+	# La voz corre desde quien dio la alarma (o desde el jugador, si nadie le vio y llegó al fondo de la sala)
+	var from: Vector3 = _alerted_rooms.get(room, Vector3.INF)
+	if from == Vector3.INF:
+		from = trigger.global_position
+	for g in _staged.get(room, []):
+		if is_instance_valid(g) and g.routine != null:
+			(g.routine as EnemyRoutine).notice(g, minf(g.global_position.distance_to(from) * ALERT_SPREAD, ALERT_MAX_DELAY))
+	_staged.erase(room)
+	_staged_kinds.erase(room)
+
+## Un ruido en `at` (golpe, esquiva, fauna espantada): los grupos que aún no han visto al jugador y lo tienen
+## cerca se ponen en guardia. Lo llaman MapReactions y AmbientCritters.
+func noise_at(at: Vector3, radius: float = NOISE_REACH) -> int:
+	var heard := 0
+	for room in _staged:
+		for g in _staged[room]:
+			if is_instance_valid(g) and g.routine != null and g.global_position.distance_to(at) <= radius:
+				(g.routine as EnemyRoutine).suspect(g, at)
+				heard += 1
+	return heard
+
+## Enemigos de la caverna que siguen en su rutina sin haber visto al jugador.
+func unaware_count(room: int) -> int:
+	var n := 0
+	for g in _staged.get(room, []):
+		if is_instance_valid(g) and g.routine != null and (g.routine as EnemyRoutine).is_unaware():
+			n += 1
+	return n
 
 # ───────────────────────────── Goblins ─────────────────────────────
 
@@ -307,7 +413,7 @@ func elite_count(room: int) -> int:
 		n = maxi(n, 1)
 	return n
 
-func _spawn_at(room: int, pos: Vector3, kind: String = "goblin") -> DungeonGoblin:
+func _spawn_at(room: int, pos: Vector3, kind: String = "goblin", dissolve: bool = true) -> DungeonGoblin:
 	# Si el punto cae en roca o en un prop, se acerca al centro hasta encontrar suelo libre
 	var c := map.room_center(room)
 	for t in 6:
@@ -326,7 +432,8 @@ func _spawn_at(room: int, pos: Vector3, kind: String = "goblin") -> DungeonGobli
 	if structure_enabled():
 		DungeonRun.apply_heat(g)
 	_track(room, g)
-	SpawnDissolve.play(g.get_model(), g, 0.9, Color(1.0, 0.25, 0.1), 1.4)
+	if dissolve:                          # los que ya estaban en la sala (rutinas) no "aparecen"
+		SpawnDissolve.play(g.get_model(), g, 0.9, Color(1.0, 0.25, 0.1), 1.4)
 	return g
 
 ## Cuenta un enemigo vivo de la caverna; los que nacen de él (DungeonSlug al dividirse) también.
@@ -410,6 +517,7 @@ func _room_cleared(room: int) -> void:
 			scroll_room = -1
 		spawn_scroll(_free_spot(map.room_center(room), 6.5 if is_end else 1.5, randf() * 360.0))
 	_doors_waiting.erase(room)
+	_close_on_entry.erase(room)
 	for d in _doors.get(room, []):
 		if is_instance_valid(d):
 			d.open()
@@ -663,6 +771,7 @@ func net_room_started(room: int) -> void:
 ## Cliente: caverna despejada (se abren las barreras).
 func net_room_cleared(room: int) -> void:
 	_doors_waiting.erase(room)
+	_close_on_entry.erase(room)
 	for d in _doors.get(room, []):
 		if is_instance_valid(d):
 			d.open()

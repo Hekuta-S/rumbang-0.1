@@ -62,6 +62,39 @@ static func try_global_shot() -> bool:
 	_last_shot_ms = now
 	return true
 
+# ─── Acciones con efecto en el juego: las usan los comportamientos de abajo y los eventos de la simulación
+#     en C++ (EnemyManager._run_events), así el disparo o el golpe es el mismo en los dos caminos. ───
+
+const MAGO_SHOT_VFX := preload("res://assets/vfx/distancia/magoblin_ataque_normal.tscn")
+
+## Bala de mago (normal o francotirador) hacia `dir`.
+static func fire_ranged(e: EnemyData, dir: Vector3, bullet_speed: float) -> void:
+	var bullet = PoolManager.get_bullet()
+	bullet.global_position = e.global_position + Vector3(0, 1.0, 0)
+	bullet.setup(dir, e.damage, bullet_speed, true, Color(0.46, 0.51, 1.0), e.get_rid(), MAGO_SHOT_VFX)
+
+## Proyectil en parábola del mago de artillería hacia donde está el jugador ahora.
+static func fire_mortar(e: EnemyData) -> void:
+	var root = EnemyManager.scene_root()
+	if root != null and e.player != null and is_instance_valid(e.player):
+		var target: Vector3 = e.player.global_position
+		target.y = EnemyManager.floor_y(target.x, target.z)
+		var from: Vector3 = e.global_position + Vector3(0, 1.6, 0)
+		MortarShell.launch(root, from, target, e.damage)
+
+## Golpe al suelo del bruto: círculo donde está el jugador.
+static func fire_slam(e: EnemyData) -> void:
+	var root = EnemyManager.scene_root()
+	if root != null and e.player != null and is_instance_valid(e.player):
+		var target: Vector3 = e.player.global_position
+		target.y = EnemyManager.floor_y(target.x, target.z)
+		GroundBlast.spawn(root, target, SLAM_RADIUS, SLAM_DELAY, e.damage * SLAM_DAMAGE_MULT, Color(1.0, 0.45, 0.2))
+
+## Golpe cuerpo a cuerpo (o embestida, con `mult`) al jugador.
+static func hit_player(e: EnemyData, mult: float = 1.0) -> void:
+	if e.player != null and is_instance_valid(e.player) and e.player.has_method("take_damage"):
+		e.player.take_damage(e.damage * mult)
+
 
 class RangedGoblinBehavior extends EnemyBehavior:
 	func get_knockback_resistance() -> float:
@@ -104,10 +137,7 @@ class RangedGoblinBehavior extends EnemyBehavior:
 			else:
 				enemy.attack_cooldown = RANGED_COOLDOWN
 			enemy.orbit_sign = -enemy.orbit_sign
-			var bullet = PoolManager.get_bullet()
-			bullet.global_position = enemy.global_position + Vector3(0, 1.0, 0)
-			var vfx_scene = preload("res://assets/vfx/distancia/magoblin_ataque_normal.tscn")
-			bullet.setup(to_player, enemy.damage, 16.0, true, Color(0.46, 0.51, 1.0), enemy.get_rid(), vfx_scene)
+			fire_ranged(enemy, to_player, 16.0)
 		return next_vel
 
 
@@ -147,10 +177,7 @@ class SniperGoblinBehavior extends EnemyBehavior:
 
 		if dist <= enemy.attack_range and enemy.attack_cooldown <= 0 and try_global_shot():
 			enemy.attack_cooldown = SNIPER_COOLDOWN
-			var bullet = PoolManager.get_bullet()
-			bullet.global_position = enemy.global_position + Vector3(0, 1.0, 0)
-			var vfx_scene = preload("res://assets/vfx/distancia/magoblin_ataque_normal.tscn")
-			bullet.setup(lead_aim(to_player, dist, 34.0), enemy.damage, 34.0, true, Color(0.46, 0.51, 1.0), enemy.get_rid(), vfx_scene)
+			fire_ranged(enemy, lead_aim(to_player, dist, 34.0), 34.0)
 		return next_vel
 
 
@@ -181,12 +208,7 @@ class MortarGoblinBehavior extends EnemyBehavior:
 
 		if dist <= enemy.attack_range and dist >= 10.0 and enemy.attack_cooldown <= 0 and try_global_shot():
 			enemy.attack_cooldown = MORTAR_COOLDOWN
-			var root = EnemyManager.scene_root()
-			if root != null and enemy.player != null:
-				var target: Vector3 = enemy.player.global_position
-				target.y = EnemyManager.floor_y(target.x, target.z)
-				var from: Vector3 = enemy.global_position + Vector3(0, 1.6, 0)
-				MortarShell.launch(root, from, target, enemy.damage)
+			fire_mortar(enemy)
 		return next_vel
 
 
@@ -216,8 +238,7 @@ class MeleeGoblinBehavior extends EnemyBehavior:
 				if enemy.attack_windup >= 0.4:
 					enemy.attack_cooldown = 2.0
 					enemy.attack_windup = 0.0
-					if enemy.player.has_method("take_damage"):
-						enemy.player.take_damage(enemy.damage)
+					hit_player(enemy)
 					# Turno cumplido: el token pasa a otro de la horda
 					HiveMind.release_token(enemy, HiveMind.TOKEN_RETRY)
 		else:
@@ -259,7 +280,7 @@ class NormalGoblinBehavior extends MeleeGoblinBehavior:
 			enemy.special_t -= delta
 			if not enemy.special_hit and dist <= enemy.attack_range + 0.4 and enemy.player.has_method("take_damage"):
 				enemy.special_hit = true
-				enemy.player.take_damage(enemy.damage * LUNGE_DAMAGE_MULT)
+				hit_player(enemy, LUNGE_DAMAGE_MULT)
 			if enemy.special_t <= 0.0 or enemy.special_hit:
 				enemy.special_state = 0
 				enemy.special_cd = randf_range(LUNGE_COOLDOWN.x, LUNGE_COOLDOWN.y)
@@ -289,11 +310,7 @@ class HeavyBruteBehavior extends MeleeGoblinBehavior:
 		if enemy.special_cd <= 0.0 and dist >= SLAM_RANGE.x and dist <= SLAM_RANGE.y and elapsed() >= SLAM_FROM \
 				and enemy.player != null:
 			enemy.special_cd = SLAM_COOLDOWN
-			var root = EnemyManager.scene_root()
-			if root != null:
-				var target: Vector3 = enemy.player.global_position
-				target.y = EnemyManager.floor_y(target.x, target.z)
-				GroundBlast.spawn(root, target, SLAM_RADIUS, SLAM_DELAY, enemy.damage * SLAM_DAMAGE_MULT, Color(1.0, 0.45, 0.2))
+			fire_slam(enemy)
 		return super.process_ai(delta, to_player, dist, effective_speed)
 
 	func get_model_paths() -> Dictionary:

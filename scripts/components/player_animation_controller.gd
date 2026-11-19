@@ -906,10 +906,12 @@ func _schedule_dash(anim_name: String) -> void:
 	if not ATTACK_DASH.has(anim_name) or mc == null or not mc.has_method("add_dash"):
 		return
 	var d: Array = ATTACK_DASH[anim_name]
+	var mc_ref: WeakRef = weakref(mc)
 	get_tree().create_timer(d[0]).timeout.connect(func():
-		if is_instance_valid(player) and is_instance_valid(mc):
+		var mc2 = mc_ref.get_ref()
+		if is_instance_valid(player) and mc2 != null:
 			var fwd: Vector3 = -player.mesh.global_transform.basis.z
-			mc.add_dash(fwd.normalized() * float(d[1])))
+			mc2.add_dash(fwd.normalized() * float(d[1])))
 
 ## Vuelve a poner las ventanas de golpe de `anim_name` en su clip (tras cambiarlas con el editor o recargar el JSON).
 func refresh_hit_windows(anim_name: String) -> void:

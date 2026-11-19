@@ -76,6 +76,18 @@ func _setup_map_life() -> void:
 		reactions.name = "MapReactions"
 		_scene_root.add_child(reactions)
 	reactions.setup(map, _player)
+	var critters := _scene_root.get_node_or_null("AmbientCritters") as AmbientCritters
+	if critters == null:
+		critters = AmbientCritters.new()
+		critters.name = "AmbientCritters"
+		_scene_root.add_child(critters)
+		# Fauna espantada = ruido: los enemigos que aún no han visto al jugador se ponen en guardia
+		critters.scared.connect(func(at: Vector3, _kind: String):
+			var enc := _scene_root.get_node_or_null("DungeonEncounter") as DungeonEncounter
+			if enc:
+				enc.noise_at(at))
+	critters.setup(map, _player)
+	reactions.critters = critters
 
 ## Supervivencia: empieza de día y se oscurece hasta la noche del jefe (DayNightCycle).
 ## Se crea una vez por escena; la fase sale del tiempo de partida, así que al reiniciar vuelve a ser de día.

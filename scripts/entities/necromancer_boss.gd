@@ -17,6 +17,7 @@ enum BossState { MOVING, IDLE_LIFESTEAL, SUMMONING, ERUPTING, VULNERABLE, PHASE_
 var state: BossState = BossState.MOVING
 
 ## Fases según la vida: 0 = 100-66 %, 1 = 66-33 %, 2 = <33 % (enfurecido).
+const ERUPTION_SCENE: PackedScene = preload("res://scenes/objects/eruption.tscn")
 const PHASE_HP_THRESHOLDS: Array[float] = [0.66, 0.33]
 const PHASE_SPEED_MULT: Array[float] = [1.0, 1.35, 1.7]
 const PHASE_COOLDOWN_MULT: Array[float] = [1.0, 0.75, 0.5]
@@ -64,7 +65,7 @@ func _ready() -> void:
 	player = get_tree().get_first_node_in_group("player")
 	
 	if not eruption_scene:
-		eruption_scene = load("res://scenes/objects/eruption.tscn")
+		eruption_scene = ERUPTION_SCENE
 		
 	_setup_model()
 	_setup_vfx()

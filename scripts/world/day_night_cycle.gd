@@ -47,6 +47,10 @@ var _every := UPDATE_EVERY
 var _last_t := -1.0
 var _fog_density := 0.006          ## densidad de niebla de la escena (la de la noche)
 var phase := 0.0                      ## 0 = mediodía, 1 = noche (lo leen tests/otros sistemas)
+## Móvil: sin cielo procedural. El fondo es el color del horizonte y la luz ambiente un color sacado del
+## cielo, así no se dibuja el cielo ni se recalcula su mapa de radiancia en cada cambio. Medido en un
+## Mali-G57 (2026-11-16): el cielo costaba ~3 ms por frame a escala 1.0.
+var _flat_sky := false
 
 func setup(we: WorldEnvironment, sun: DirectionalLight3D, map: Node = null) -> void:
 	_sun = sun
@@ -60,6 +64,11 @@ func setup(we: WorldEnvironment, sun: DirectionalLight3D, map: Node = null) -> v
 		if _env.sky:
 			_env.sky.process_mode = Sky.PROCESS_MODE_INCREMENTAL
 			_sky_mat = _env.sky.sky_material as ProceduralSkyMaterial
+		if Quality.is_mobile() and _sky_mat:
+			_flat_sky = true
+			_env.background_mode = Environment.BG_COLOR
+			_env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+			_env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
 	_keys = KEYS.duplicate(true)
 	_keys.append(_night_key())
 	_last_t = -1.0
@@ -102,6 +111,10 @@ func _process(delta: float) -> void:
 	if absf(t - _last_t) >= MIN_STEP or (t >= 1.0 and _last_t < 1.0):
 		apply(t)
 
+## Pura: luz ambiente equivalente al cielo procedural (la mayoría de superficies miran arriba o al horizonte).
+static func flat_ambient(top: Color, hor: Color, ghor: Color) -> Color:
+	return top * 0.4 + hor * 0.4 + ghor * 0.2
+
 ## Aplica el estado del cielo para la fase t (0 = día, 1 = noche).
 func apply(t: float) -> void:
 	_last_t = t
@@ -124,6 +137,9 @@ func apply(t: float) -> void:
 		_sky_mat.sky_horizon_color = (a["hor"] as Color).lerp(b["hor"], f)
 		_sky_mat.ground_horizon_color = (a["ghor"] as Color).lerp(b["ghor"], f)
 		_sky_mat.ground_bottom_color = (a["gbot"] as Color).lerp(b["gbot"], f)
+		if _flat_sky and _env:
+			_env.background_color = _sky_mat.sky_horizon_color
+			_env.ambient_light_color = flat_ambient(_sky_mat.sky_top_color, _sky_mat.sky_horizon_color, _sky_mat.ground_horizon_color)
 	if _env:
 		_env.ambient_light_energy = lerpf(a["amb"], b["amb"], f)
 		_env.fog_light_color = (a["fog"] as Color).lerp(b["fog"], f)
