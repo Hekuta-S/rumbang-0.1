@@ -1,5 +1,6 @@
 class_name WeaponStrategy
 extends RefCounted
+const _BULLET_SCRIPT := preload("res://scripts/objects/bullet.gd")   # antes load() en cada golpe
 
 const ZOMBIE_ARM_SCENE: PackedScene = preload("res://scripts/objects/zombie_arm_projectile.tscn")
 const SLASH_VFX = preload("res://scripts/objects/slash_vfx.gd")
@@ -390,7 +391,7 @@ class RailgunStrategy extends WeaponStrategy:
 		c.player.create_muzzle_flash(railgun_color, 1.8)
 
 	func spawn_railgun_hit_sparks(pos: Vector3, normal: Vector3) -> void:
-		var BulletScript = load("res://scripts/objects/bullet.gd")
+		var BulletScript: GDScript = _BULLET_SCRIPT   # tipado como recurso: has_method() igual que con load()
 		if BulletScript and BulletScript.has_method("spawn_impact_sparks"):
 			BulletScript.spawn_impact_sparks(c.player.get_parent(), pos, normal, Color(0.95, 0.2, 1.0))
 
@@ -1703,6 +1704,101 @@ class ZombieArmStrategy extends WeaponStrategy:
 		AudioManager.play("ataque-espalanza", -12.0, 0.8)
 		
 		c.player.apply_camera_recoil(0.015, randf_range(-0.005, 0.005), 0.05)
+
+
+## ── Maza Gigante (supervivencia) ──
+## Una maza dibujada (GiantMaceSlam) aparece y pega en el suelo donde apuntas (como mucho a weapon_range m,
+## y pegada al enemigo más cercano a ese punto). "Lluvia de mazas" añade mazas que caen un poco después sobre
+## otros enemigos cercanos. Tamaño = escala de la maza y del área.
+class GiantMaceStrategy extends WeaponStrategy:
+	const W := WeaponData.WeaponType.GIANT_MACE
+	const MAX_MACES := 4
+	const BASE_RADIUS := 3.0
+	const KNOCKBACK := 9.0
+	const EXTRA_DELAY := 0.16             ## s entre mazas del mismo ataque
+	const SNAP := 3.0                     ## m: se pega al enemigo más cercano al punto apuntado
+
+	static func mace_count(mods: Dictionary) -> int:
+		return clampi(1 + int(mods.get("quantity_bonus", 0)), 1, MAX_MACES)
+
+	func attack(cd_mult: float) -> void:
+		var data = c.player.get_weapon_data(W)
+		c.attack_cooldown = data.base_cooldown * cd_mult
+		var aim_point: Vector3 = c.player.get_camera_aim_point()
+		c.player.orient_player_to_aim(aim_point)
+		var mods: Dictionary = c.player.get_weapon_modifiers(W)
+		var size: float = float(mods.get("size", 1.0)) * _ranged_size()
+		var dmg: float = c.player._weapon_damage(W)
+		var origin: Vector3 = c.player.global_position
+		var reach: float = data.weapon_range
+		var first := _clamp_reach(origin, aim_point, reach)
+		var targets: Array[Vector3] = [_snap(first, SNAP)]
+		var count := mace_count(mods)
+		# Las demás mazas, sobre los enemigos más cercanos al jugador que no estén ya bajo una maza
+		if count > 1:
+			var cands: Array = []
+			for e in EnemyRegistry.all():
+				if is_instance_valid(e) and e.has_method("take_damage"):
+					var d: float = (e.global_position - origin).length()
+					if d <= reach * 1.2:
+						cands.append([d, e])
+			cands.sort_custom(func(a, b): return a[0] < b[0])
+			for pair in cands:
+				if targets.size() >= count:
+					break
+				var p: Vector3 = (pair[1] as Node3D).global_position
+				var free := true
+				for t in targets:
+					if Vector2(t.x - p.x, t.z - p.z).length() < BASE_RADIUS * size * 0.9:
+						free = false
+						break
+				if free:
+					targets.append(_ground(p))
+			# sin enemigos de sobra: alrededor del primer golpe
+			while targets.size() < count:
+				var ang := randf() * TAU
+				targets.append(_ground(targets[0] + Vector3(cos(ang), 0.0, sin(ang)) * BASE_RADIUS * size * 1.6))
+		var parent: Node = c.player.get_parent()
+		for i in targets.size():
+			var at: Vector3 = targets[i]
+			if i == 0:
+				GiantMaceSlam.spawn(parent, at, dmg, BASE_RADIUS * size, size, c.player)
+			else:
+				c.player.get_tree().create_timer(EXTRA_DELAY * i).timeout.connect(func():
+					if is_instance_valid(parent) and parent.is_inside_tree():
+						GiantMaceSlam.spawn(parent, at, dmg, BASE_RADIUS * size, size, c.player))
+		c.player.apply_camera_recoil(0.02, 0.0, 0.08)
+
+	func _clamp_reach(origin: Vector3, p: Vector3, reach: float) -> Vector3:
+		var off := Vector3(p.x - origin.x, 0.0, p.z - origin.z)
+		if off.length() > reach:
+			off = off.normalized() * reach
+		if off.length_squared() < 1.0:
+			var fwd: Vector3 = c.player.get_attack_forward_dir()
+			off = Vector3(fwd.x, 0.0, fwd.z).normalized() * 3.0
+		return _ground(origin + off)
+
+	## Pega el punto al enemigo más cercano dentro de `max_d`.
+	func _snap(p: Vector3, max_d: float) -> Vector3:
+		var best = null
+		var best_d := max_d
+		for e in EnemyRegistry.all():
+			if not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			var d := Vector2(e.global_position.x - p.x, e.global_position.z - p.z).length()
+			if d < best_d:
+				best_d = d
+				best = e
+		return _ground((best as Node3D).global_position) if best != null else p
+
+	## Altura del suelo en (x, z): la escena (Main.get_floor_y) o la del jugador.
+	func _ground(p: Vector3) -> Vector3:
+		var main := c.player.get_tree().current_scene
+		if main != null and main.has_method("get_floor_y"):
+			var y: float = main.get_floor_y(p.x, p.z)
+			if not is_nan(y):
+				return Vector3(p.x, y, p.z)
+		return Vector3(p.x, c.player.global_position.y, p.z)
 
 
 ## ── Armas cuerpo a cuerpo con combo animado (mazmorra): Dagas Gemelas y Maza Rúnica ──

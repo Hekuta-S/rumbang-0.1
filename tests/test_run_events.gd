@@ -81,6 +81,7 @@ func _ready() -> void:
 	print("CHECK 4 PASSED: cofre maldito")
 
 	# 5. Santuario: quedarse dentro lo activa (cura y objeto) y luego reaparece otro
+	var kind0: String = ev._shrines[0]["kind"]
 	var shrine: Node3D = ev._shrines[0]["node"]
 	p.global_position = shrine.global_position + Vector3(0, 0.3, 0)
 	p.health_comp.hp = 50000.0
@@ -90,7 +91,8 @@ func _ready() -> void:
 		p.global_position = shrine.global_position + Vector3(0, 0.3, 0)
 		await get_tree().physics_frame
 	assert(RunStats.shrines == shrines + 1, "Se activa el santuario")
-	assert(p.health_comp.hp > 50000.0, "El santuario cura")
+	assert(kind0 != "heal" or p.health_comp.hp > 50000.0, "El santuario de vida cura")
+	assert(kind0 != "fury" or FateDice.stat_total("damage") > 0.0, "El santuario de furia da daño")
 	assert(ev._shrine_respawn.size() == 1, "Se programa otro santuario")
 	get_tree().paused = false        # la elección de objeto del santuario pausa
 	print("CHECK 5 PASSED: santuario activado")
@@ -110,6 +112,24 @@ func _ready() -> void:
 	assert(lines.size() >= 4 and lines[0].begins_with("ENEMIGOS"), "Resumen: %s" % [lines])
 	assert(lines.any(func(l): return l.begins_with("MODO INFINITO")), "El resumen cuenta el modo infinito")
 	print("CHECK 7 PASSED: resumen\n  " + "\n  ".join(lines))
+
+	# 8. Torres de saltos y cofres normales: el cofre de altura no se abre desde el suelo, sí desde arriba
+	assert(ev._towers.size() == RunEvents.TOWERS and ev._chests.size() == RunEvents.GROUND_CHESTS, "Hay torres y cofres al empezar")
+	var tower: JumpTower = ev._towers[0]
+	var tchest: TreasureChest = tower.chest
+	p.global_position = tower.global_position + Vector3(0, 0.1, 0)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	assert(not tchest.is_open, "El cofre de altura no se abre desde el suelo")
+	var gold_before := GameState.get_instance().gold
+	p.global_position = tower.global_position + Vector3(0, tower.top_y + 0.1, 0)
+	var t1 := Time.get_ticks_msec()
+	while not tchest.is_open and Time.get_ticks_msec() - t1 < 3000:
+		await get_tree().process_frame
+	assert(tchest.is_open, "El cofre de altura se abre desde la plataforma")
+	await get_tree().create_timer(3.0, true, false, true).timeout
+	assert(GameState.get_instance().gold > gold_before and not ev._towers.has(tower) and not ev._loot_respawn.is_empty(), "Da oro y programa otra torre")
+	print("CHECK 8 PASSED: torre de saltos")
 
 	print("ALL RUN EVENT CHECKS PASSED")
 	get_tree().quit(0)

@@ -118,12 +118,21 @@ func _on_perk_triggered(item: Dictionary, perk: Dictionary) -> void:
 	tw.tween_property(l, "offset_top", rest, 0.9)
 	tw.tween_property(l, "modulate:a", 0.0, 0.9).set_delay(0.3)
 	tw.chain().tween_callback(l.queue_free)
+	_buff_t = 0.0      # el buff nuevo sale al momento
 	set_process(true)
 
 ## Bonus temporales vivos con su tiempo restante ("Pies de Niebla 2.1s").
-func _process(_delta: float) -> void:
+## El texto de los buffs (décimas de segundo) se reescribe a 10 Hz: cada cambio de texto rehace la etiqueta.
+const BUFF_TEXT_INTERVAL := 0.1
+var _buff_t := 0.0
+
+func _process(delta: float) -> void:
 	if equipment == null or not is_instance_valid(equipment):
 		return
+	_buff_t -= delta
+	if _buff_t > 0.0:
+		return
+	_buff_t = BUFF_TEXT_INTERVAL
 	var lines: Array[String] = []
 	for b in equipment.active_buffs():
 		lines.append("%s %.1fs" % [b["name"], b["left"]])

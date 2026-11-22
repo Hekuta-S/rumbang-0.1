@@ -75,16 +75,21 @@ func _build_visual() -> void:
 	if toon:
 		ToonFX.vary(_smoke)
 	_smoke.material_override = smoke_mat
-	var ramp := Gradient.new()
-	ramp.set_color(0, Color(0.9, 0.5, 0.2, 0.0))
-	ramp.add_point(0.15, Color(0.95, 0.62, 0.36, 0.8) if toon else Color(0.75, 0.45, 0.25, 0.4))
-	ramp.add_point(0.5, Color(0.6, 0.56, 0.54, 0.65) if toon else Color(0.35, 0.3, 0.28, 0.32))
-	ramp.set_color(ramp.get_point_count() - 1, Color(0.2, 0.2, 0.2, 0.0))
-	_smoke.color_ramp = ramp
-	var grow := Curve.new()
-	grow.add_point(Vector2(0.0, 0.5))
-	grow.add_point(Vector2(1.0, 1.3))
-	_smoke.scale_amount_curve = grow
+	if toon:
+		# Dibujadas: opacas, de naranja a gris, y desaparecen encogiéndose (no se difuminan)
+		_smoke.color_ramp = ToonFX.pop_ramp([Color(0.98, 0.66, 0.38), Color(0.8, 0.62, 0.52), Color(0.62, 0.6, 0.6)])
+		_smoke.scale_amount_curve = ToonFX.pop_curve(0.5, 1.25, 0.45)
+	else:
+		var ramp := Gradient.new()
+		ramp.set_color(0, Color(0.9, 0.5, 0.2, 0.0))
+		ramp.add_point(0.15, Color(0.75, 0.45, 0.25, 0.4))
+		ramp.add_point(0.5, Color(0.35, 0.3, 0.28, 0.32))
+		ramp.set_color(ramp.get_point_count() - 1, Color(0.2, 0.2, 0.2, 0.0))
+		_smoke.color_ramp = ramp
+		var grow := Curve.new()
+		grow.add_point(Vector2(0.0, 0.5))
+		grow.add_point(Vector2(1.0, 1.3))
+		_smoke.scale_amount_curve = grow
 	add_child(_smoke)
 	_smoke.emitting = true
 

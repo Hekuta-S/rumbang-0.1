@@ -135,7 +135,7 @@ func _physics_process(delta: float) -> void:
 			_update_shoulder(delta)
 		var mc = player.movement_controller
 		var rolling: bool = mc != null and mc.is_dodging()
-		var sprinting: bool = mc != null and mc.has_method("gs_running") and mc.gs_running()
+		var sprinting: bool = mc != null and mc.has_method("is_sprinting") and (mc.is_sprinting() or mc.gs_running())
 		var fov_target := FOV_DODGE if rolling else (FOV_BASE + FOV_SPRINT_ADD if sprinting else FOV_BASE)
 		camera.fov = lerpf(camera.fov, fov_target, 1.0 - exp(-FOV_SPEED * delta))
 		_sprint_k = lerpf(_sprint_k, 1.0 if sprinting else 0.0, 1.0 - exp(-4.0 * delta))

@@ -40,7 +40,7 @@ func _ready() -> void:
 	assert(not ac._moving_forward(Vector3(0, 0, 5)), "Hacia atrás no se corre")
 	var mc = player.movement_controller
 	assert(mc.SIDE_SPEED_DUNGEON < 0.6 and mc.BACK_SPEED_DUNGEON < 0.6, "En mazmorra de lado/atrás se va a paso de andar")
-	mc.gs_calm = 5.0
+	mc.force_sprint = true
 	mc._gs_mult = 1.1
 	mc._update_gs_gait(0.016, true, false)
 	assert(not mc.gs_running(), "De lado la espada/espadón deja de correr")

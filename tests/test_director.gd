@@ -34,7 +34,8 @@ func _ready() -> void:
 	# 1. Director: línea temporal e intensidad creciente; pulso con calma
 	var d0 := WaveManager.director_params(0.0, cfg)
 	var d430 := WaveManager.director_params(430.0, cfg)
-	_check(is_equal_approx(d0["interval"], 2.4) and is_equal_approx(d430["interval"], 0.25), "extremos de la línea temporal")
+	_check(is_equal_approx(d0["interval"], 2.8) and is_equal_approx(d430["interval"], 0.6), "extremos de la línea temporal")
+	_check(WaveManager.xp_rush_mult(300.0, cfg) == 1.0 and WaveManager.xp_rush_mult(340.0, cfg) > 1.0 and WaveManager.xp_rush_mult(WaveManager.BOSS_TIME_S, cfg) == 1.0, "frenesí de XP solo en el tramo final antes del jefe")
 	_check(is_equal_approx(d430["cap"], 1.0) and is_equal_approx(d0["cap"], 0.0), "tope de vivos 0 -> 1")
 	var phases := {}
 	for t in range(60, 400):

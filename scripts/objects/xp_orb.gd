@@ -56,11 +56,63 @@ static func _tier_material(t: int) -> StandardMaterial3D:
 func _ready() -> void:
 	add_to_group("xp_orbs")
 	body_entered.connect(_on_body_entered)
+	_base_speed = speed
 	_setup_particles()
-	# Sale con un saltito y rebota antes de quedarse quieta
+	_start_pop()
+
+## Sale con un saltito y rebota antes de quedarse quieta
+func _start_pop() -> void:
 	_rest_y = global_position.y
 	_pop_vel = RewardJuice.pop_velocity(3.0, 4.2, 1.4)
 	_pop_t = POP_TIME
+
+# ── Reciclaje (LootManager): una gema recogida se esconde y vuelve a salir en la siguiente muerte ──
+## Antes cada muerte instanciaba la escena (~0,1 ms en PC) y cada recogida la liberaba.
+var pool_owner: Node = null          ## LootManager que la recicla (null = se libera como antes)
+var _active := true
+var _base_speed := 10.0
+
+func is_active() -> bool:
+	return _active
+
+## Recogida: vuelve al pool del LootManager o, sin él (pruebas, prewarm), se libera.
+func _release() -> void:
+	if not _active:
+		return
+	if is_instance_valid(pool_owner) and pool_owner.has_method("recycle_xp_orb"):
+		pool_owner.recycle_xp_orb(self)
+	else:
+		queue_free()
+
+func deactivate() -> void:
+	_active = false
+	visible = false
+	target = null
+	set_physics_process(false)
+	set_deferred("monitoring", false)      # se puede llamar desde body_entered (consulta de física en curso)
+	remove_from_group("xp_orbs")           # el imán del mapa (map_pickup.gd) no debe verla
+	if _particles:
+		_particles.emitting = false
+
+func reactivate(pos: Vector3, xp: float) -> void:
+	global_position = pos
+	xp_amount = xp
+	speed = _base_speed
+	target = null
+	_magnetized = false
+	_magnet_t = 0.0
+	_check_timer = randf() * 0.1
+	_tier = -1
+	_apply_tier()
+	_start_pop()
+	_active = true
+	visible = true
+	set_deferred("monitoring", true)
+	set_physics_process(true)
+	add_to_group("xp_orbs")
+	if _particles:
+		_particles.restart()               # sin estela desde donde se recogió la anterior
+		_particles.emitting = true
 
 ## Recursos compartidos por todos los orbes (antes cada orbe creaba su malla, material y gradiente).
 static var _shared_mesh: SphereMesh = null
@@ -90,9 +142,9 @@ static func _ensure_shared() -> void:
 
 ## Gráficos bajos: sprite billboard 2D ligero (sin malla CSG ni partículas 3D).
 func _setup_sprite_2d() -> void:
-	var csg := get_node_or_null("CSGSphere3D")
-	if csg:
-		csg.queue_free()
+	var body := get_node_or_null("Body")
+	if body:
+		body.queue_free()
 	if _shared_tex == null:
 		var g := Gradient.new()
 		g.set_color(0, Color(0.85, 1.0, 1.0, 1.0))
@@ -175,13 +227,15 @@ func _physics_process(delta: float) -> void:
 			_on_body_entered(target)
 
 func _on_body_entered(body: Node3D) -> void:
+	if not _active:
+		return
 	if body.is_in_group("player"):
 		# Get stats component to add XP
 		var exp_comp = body.get_node_or_null("ExperienceComponent")
 		if exp_comp and exp_comp.has_method("gain_experience"):
 			exp_comp.gain_experience(xp_amount)
 			_collect_fx()
-			queue_free()
+			_release()
 		else:
 			var stats = body.get_node_or_null("StatsComponent")
 			if not stats:
@@ -189,7 +243,7 @@ func _on_body_entered(body: Node3D) -> void:
 			if stats and stats.has_method("gain_experience"):
 				stats.gain_experience(xp_amount)
 				_collect_fx()
-				queue_free()
+				_release()
 
 ## Tintineo con escalera de tono (las gemas grandes suenan más graves) y chispa del color del tier.
 func _collect_fx() -> void:

@@ -22,6 +22,7 @@ const DESCRIPTIONS := {
 	WeaponData.WeaponType.SPORE_BAZOOKA: "Proyectil de esporas que estalla en una nube corrosiva. Click derecho: perdigonazo.",
 	WeaponData.WeaponType.TRI_SHOTGUN: "Escopetazo en cono a corta distancia. Click derecho: ráfaga de cuatro disparos.",
 	WeaponData.WeaponType.DUSTS: "Polvos alquímicos que estallan donde caen. Click derecho: polvo a la cara (velocidad y vida).",
+	WeaponData.WeaponType.GIANT_MACE: "Una maza gigante dibujada aparece donde apuntas y pega en el suelo: daño en área y empuje.",
 	WeaponData.WeaponType.SERPENTS: "Invoca al Komodo, un espíritu que azota con la cola. Ataques variados y con sangrado.",
 }
 const ICONS := {
@@ -35,6 +36,16 @@ const ICONS := {
 	WeaponData.WeaponType.GREATSWORD: "res://assets/ui/ingame_hub/armas/espadon.png",
 	WeaponData.WeaponType.SWORD: "res://assets/ui/ingame_hub/armas/espada.png",
 	WeaponData.WeaponType.BOW: "res://assets/ui/ingame_hub/armas/arco.png",
+	WeaponData.WeaponType.ELEMENTS_CYCLE: "res://assets/ui/ingame_hub/armas/magia-saimon.png",
+	# Dibujadas con tools/make_ui_icons.py (2026-11-19)
+	WeaponData.WeaponType.ENERGY_SWORD: "res://assets/ui/ingame_hub/armas/espada_energia.png",
+	WeaponData.WeaponType.KATANA: "res://assets/ui/ingame_hub/armas/katana.png",
+	WeaponData.WeaponType.RAILGUN: "res://assets/ui/ingame_hub/armas/railgun.png",
+	WeaponData.WeaponType.SERPENTS: "res://assets/ui/ingame_hub/armas/serpientes.png",
+	WeaponData.WeaponType.SPINNING_AXE: "res://assets/ui/ingame_hub/armas/hacha_giratoria.png",
+	WeaponData.WeaponType.ZOMBIE_ARM: "res://assets/ui/ingame_hub/armas/brazo_zombi.png",
+	WeaponData.WeaponType.FISTS: "res://assets/ui/ingame_hub/armas/punos.png",
+	WeaponData.WeaponType.GIANT_MACE: "res://assets/ui/ingame_hub/armas/maza_gigante.png",
 }
 
 var _options: Array = []

@@ -53,7 +53,7 @@ func _ready() -> void:
 			var owner := String(EquipmentDB.LEGENDARIES[d["legendary"]].get("boss", ""))
 			assert(owner == "necro" or owner == "", "Legendaria de otro jefe (%s)" % owner)
 			necro_ids += 1 if owner == "necro" else 0
-	assert(necro_ids > 40 and necro_ids < 130, "~40% legendarias del jefe (%d/200)" % necro_ids)
+	assert(necro_ids > 40 and necro_ids < 130, "~40%% legendarias del jefe (%d/200)" % necro_ids)
 	var s := EquipmentDB.sanitize({"slot": "arma", "weapon": 18, "rarity": 2, "cond": "verdugo", "maker": "arriero"})
 	assert(s.get("cond") == "verdugo" and s.get("maker") == "arriero", "sanitize conserva rasgo y fabricante")
 	var bad := EquipmentDB.sanitize({"slot": "casco", "rarity": 2, "cond": "verdugo", "maker": "arriero"})

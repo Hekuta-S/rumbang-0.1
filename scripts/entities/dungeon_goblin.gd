@@ -1293,6 +1293,10 @@ func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 	if killed:
 		_die()
 		return
+	# Un golpe de lejos (flecha, hechizo) lo despierta aunque la armadura aguante: antes los de armadura
+	# enorme (necromante) se quedaban en reposo recibiendo daño sin reaccionar
+	if state == State.IDLE:
+		_set_state(State.APPROACH)
 	var now := Time.get_ticks_msec()
 	if now - _last_hurt_sfx > 120:
 		_last_hurt_sfx = now

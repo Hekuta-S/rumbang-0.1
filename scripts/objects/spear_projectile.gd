@@ -1,4 +1,5 @@
 extends Area3D
+const _BULLET_SCRIPT := preload("res://scripts/objects/bullet.gd")   # antes load() en cada golpe
 
 ## Thrown Espalanza (spear-lance) projectile.
 ## Flies straight, damages the first enemy / wall it hits, then returns to the player's hand.
@@ -176,7 +177,7 @@ func _on_body_entered(body: Node) -> void:
 		_apply_impact(body, result.position, result.normal)
 
 func _apply_impact(body, hit_pos: Vector3, hit_normal: Vector3) -> void:
-	var BulletScript = load("res://scripts/objects/bullet.gd")
+	var BulletScript: GDScript = _BULLET_SCRIPT   # tipado como recurso: has_method() igual que con load()
 	var is_enemy: bool = body.is_in_group("enemies")
 	if is_enemy and body.has_method("take_damage"):
 		HitFeedback.weapon_tag = WeaponData.WeaponType.SPEAR_LANCE

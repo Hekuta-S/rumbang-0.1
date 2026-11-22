@@ -145,7 +145,7 @@ func _ready() -> void:
 
 	# 4. Ataque corriendo
 	var g: Dictionary = PlayerMovementController.GAITS[W]
-	mc.gs_calm = 5.0
+	mc.force_sprint = true
 	mc._gs_mult = float(g["run"])
 	ac._combo_timer = 0.0
 	var d2 := _dummy(2.6)
@@ -154,6 +154,7 @@ func _ready() -> void:
 	res.energy = PlayerResources.ENERGY_MAX
 	_player.attack()
 	assert(ac._current_action_name == "kt_run", "Corriendo el clic lanza kt_run (%s)" % ac._current_action_name)
+	mc.force_sprint = false
 	await _wait(1.4)
 	assert(d2.hp < 5000.0, "El ataque corriendo golpea (hp %.1f)" % d2.hp)
 	print("CHECK 4 PASSED: ataque corriendo")

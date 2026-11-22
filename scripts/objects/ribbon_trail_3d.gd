@@ -17,10 +17,14 @@ func add_trail_point(new_pos: Vector3, up_vector: Vector3 = Vector3.UP) -> void:
 	points.insert(0, new_pos)
 	ages.insert(0, 0.0)
 
+var _drawn := false
+
 func update_trail(delta: float, camera_pos: Vector3) -> void:
 	var count = points.size()
 	if count < 2:
-		clear_surfaces()
+		if _drawn:                                   # sin cinta: no tocar la malla cada frame
+			clear_surfaces()
+			_drawn = false
 		return
 
 	# Envejecer y podar puntos que excedan el lifetime
@@ -35,14 +39,19 @@ func update_trail(delta: float, camera_pos: Vector3) -> void:
 	if valid_count < 2:
 		points.clear()
 		ages.clear()
-		clear_surfaces()
+		if _drawn:
+			clear_surfaces()
+			_drawn = false
 		return
 
-	points = points.slice(0, valid_count)
-	ages = ages.slice(0, valid_count)
-	count = points.size()
+	# Recortar en el sitio (slice() creaba dos arrays nuevos cada frame); también respeta max_points
+	valid_count = mini(valid_count, max_points)
+	points.resize(valid_count)
+	ages.resize(valid_count)
+	count = valid_count
 
 	clear_surfaces()
+	_drawn = true
 	surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
 
 	for i in range(count):

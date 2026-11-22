@@ -1,4 +1,5 @@
 extends Area3D
+const _BULLET_SCRIPT := preload("res://scripts/objects/bullet.gd")   # antes load() en cada golpe
 
 ## SerpentProjectile.gd
 ## Joel el druida canaliza serpientes de esmeralda que vuelan rectas (en cono:
@@ -79,7 +80,7 @@ func _on_body_entered(body: Node3D) -> void:
 func _on_impact(body, hit_pos: Vector3, hit_normal: Vector3) -> void:
 	if is_hit or not is_inside_tree(): return
 
-	var BulletScript = load("res://scripts/objects/bullet.gd")
+	var BulletScript: GDScript = _BULLET_SCRIPT   # tipado como recurso: has_method() igual que con load()
 	if body.is_in_group("enemies") and body.has_method("take_damage"):
 		is_hit = true
 		HitFeedback.weapon_tag = WeaponData.WeaponType.SERPENTS

@@ -30,12 +30,32 @@ func joy_just_pressed(btn: int) -> bool:
 func _ready() -> void:
 	set_process_unhandled_input(true)
 
+## Mazmorra: mantener esquivar más de esto (s) es correr; soltarlo antes, rodar.
+const SPRINT_HOLD := 0.25
+## ¿Se mantiene esquivar lo bastante para correr? Lo lee PlayerMovementController.
+var sprint_held := false
+var _dodge_held := false
+var _dodge_hold_t := 0.0
+
+## Botón de esquivar en la mazmorra: rueda al soltar un toque, corre mientras se mantiene.
+func _update_dodge_hold(delta: float, down: bool) -> void:
+	if down:
+		if not _dodge_held:
+			_dodge_hold_t = 0.0
+		_dodge_hold_t += delta
+		sprint_held = _dodge_hold_t >= SPRINT_HOLD
+	elif _dodge_held:
+		if _dodge_hold_t < SPRINT_HOLD:
+			emit_signal("dodge_pressed")
+		sprint_held = false
+	_dodge_held = down
+
 ## Clic izquierdo real. Con la interfaz táctil, los toques (joystick, cámara) emulan clic izquierdo:
 ## ahí solo cuenta el botón de ataque.
 func _mouse_attack() -> bool:
 	return Input.is_action_pressed("attack") and not VirtualInput.touch_ui_active
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	if Input.is_action_just_pressed("switch_weapon") or joy_just_pressed(JOY_BUTTON_Y) or VirtualInput.just_pressed_cycle_next:
 		emit_signal("weapon_cycle", 1)
 		
@@ -50,8 +70,18 @@ func _physics_process(_delta: float) -> void:
 	var was_shift = _last_joy_buttons.get("SHIFT", false)
 	_last_joy_buttons["SHIFT"] = shift_pressed
 	var dodge_action = (InputMap.has_action("dodge") and Input.is_action_just_pressed("dodge")) or (InputMap.has_action("dodge_roll") and Input.is_action_just_pressed("dodge_roll"))
-	if dodge_action or (shift_pressed and not was_shift) or joy_just_pressed(JOY_BUTTON_B) or VirtualInput.just_pressed_dodge:
-		emit_signal("dodge_pressed")
+	if GameData.game_mode == "dungeon":
+		# Como Dark Souls: el botón de esquivar (Shift, B del mando, botón táctil) rueda al SOLTARLO si fue un
+		# toque; mantenido más de SPRINT_HOLD s es correr, y al soltarlo no rueda. Espacio (dodge_roll) sigue
+		# rodando al pulsar.
+		_update_dodge_hold(delta, shift_pressed or Input.is_joy_button_pressed(0, JOY_BUTTON_B) or VirtualInput.is_dodge_held)
+		if dodge_action:
+			emit_signal("dodge_pressed")
+	else:
+		_dodge_held = false
+		sprint_held = false
+		if dodge_action or (shift_pressed and not was_shift) or VirtualInput.just_pressed_dodge:
+			emit_signal("dodge_pressed")
 
 	# Parry: F o clic del stick izquierdo
 	var f_pressed = Input.is_physical_key_pressed(KEY_F)
@@ -122,7 +152,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			emit_signal("reload_pressed")
 			get_viewport().set_input_as_handled()
 
-	if event.is_action_pressed("ui_cancel") or joy_just_pressed(JOY_BUTTON_START):
+	if (event.is_action_pressed("ui_cancel") and not event is InputEventJoypadButton) or joy_just_pressed(JOY_BUTTON_START):   # B = esquivar
 		emit_signal("toggle_mouse_capture")
 		get_viewport().set_input_as_handled()
 

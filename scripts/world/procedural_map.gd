@@ -135,6 +135,8 @@ const BRIDGE_CLEARANCE := 2.5          ## m libres bajo la tabla
 var _bridges: Array = []
 ## Barriles explosivos: [Vector3] donde se colocan (ExplosiveBarrel los hace rodar y estallar).
 var _barrels: Array = []
+var _mushroom_spots: Array = []       ## [[base Vector3, escala]] de los hongos (rebotan al jugador en supervivencia)
+var _bouncer: MushroomBouncer
 
 var _mesh_cache: Dictionary = {}                    # kind -> Mesh
 var _mesh_xf: Dictionary = {}                       # kind -> Transform3D
@@ -186,6 +188,11 @@ func generate(p_seed: int = 0) -> void:
 	_build_chutes()
 	_build_bridges()
 	_build_barrels()
+	if GameData.game_mode != "dungeon" and not _mushroom_spots.is_empty():
+		_bouncer = MushroomBouncer.new()
+		_bouncer.name = "MushroomBouncer"
+		_bouncer.spots = _mushroom_spots
+		add_child(_bouncer)
 	generated.emit(used_seed)
 
 ## Altura del suelo (interpolación bilinear de la malla real).
@@ -306,6 +313,8 @@ func _clear() -> void:
 	_jump_pads.clear()
 	_bridges.clear()
 	_barrels.clear()
+	_mushroom_spots.clear()
+	_bouncer = null
 	_bridge_supports.clear()
 	_hash.clear()
 	_lights.clear()
@@ -616,22 +625,44 @@ func _build_terrain_arrays(arrays: Array) -> void:
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
 	arrays[Mesh.ARRAY_INDEX] = indices
 
-func _finish_terrain(arrays: Array) -> void:
-	var mesh := ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+## Suelo dibujado POR TROZOS (GROUND_CHUNK_CELLS celdas de lado), no como una malla de todo el mapa:
+##  - cada trozo tiene su caja: la cámara descarta los que no ve (con luz por vértice en móvil, antes se
+##    iluminaban los ~24k vértices del mapa cada frame);
+##  - el renderer Mobile aplica como mucho 8 omnis por malla, elegidas por caja: con una sola malla las 8
+##    (de hasta 16 encendidas) valían para todo el suelo y cada píxel las recorría aunque estuvieran lejos, y
+##    las demás antorchas no iluminaban el suelo. Por trozo solo cuentan las cercanas.
+## Los trozos comparten vértices de borde con las mismas normales (calculadas sobre la rejilla entera): sin
+## costuras. La colisión sigue siendo una sola forma.
+const GROUND_CHUNK_CELLS := 20
+static var _chunk_index_cache: Dictionary = {}     ## Vector2i(ancho, alto) en vértices -> PackedInt32Array
 
+func _finish_terrain(arrays: Array) -> void:
 	var mat := ShaderMaterial.new()
-	mat.shader = GROUND_SHADER_MOBILE if Quality.is_mobile() else GROUND_SHADER
+	mat.shader = _ground_shader()
 	for key in GROUND_TEX:
 		mat.set_shader_parameter(key, load(GROUND_TEX[key]))
-	mesh.surface_set_material(0, mat)
 
-	var mi := MeshInstance3D.new()
-	mi.name = "Ground"
-	mi.mesh = mesh
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	mi.layers = 1 | GROUND_VISUAL_LAYER     # capa extra: los decals de suelo (auras) solo se proyectan aquí
-	add_child(mi)
+	var ground := Node3D.new()
+	ground.name = "Ground"
+	add_child(ground)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+	var colors: PackedColorArray = arrays[Mesh.ARRAY_COLOR]
+	var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
+	var cells := _side - 1
+	var j0 := 0
+	while j0 < cells:
+		var j1 := mini(j0 + GROUND_CHUNK_CELLS, cells)
+		var i0 := 0
+		while i0 < cells:
+			var i1 := mini(i0 + GROUND_CHUNK_CELLS, cells)
+			ground.add_child(_ground_chunk(verts, normals, colors, uvs, i0, i1, j0, j1, mat))
+			i0 = i1
+		j0 = j1
+
+	# Colisión: una forma con la malla entera (no se dibuja)
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 
 	var body := StaticBody3D.new()
 	body.name = "GroundBody"
@@ -641,6 +672,63 @@ func _finish_terrain(arrays: Array) -> void:
 	cs.shape = mesh.create_trimesh_shape()
 	body.add_child(cs)
 	add_child(body)
+
+## Shader del suelo: la variante móvil (luz por vértice, sin anisotrópico) en móvil y también en PC con
+## calidad Baja; la completa en PC con calidad Media/Alta.
+func _ground_shader() -> Shader:
+	return GROUND_SHADER_MOBILE if Quality.is_mobile() or Quality.level() == Quality.Level.LOW else GROUND_SHADER
+
+## Un trozo del suelo: celdas [i0, i1) × [j0, j1) de la rejilla, copiadas por filas (slice nativo, sin bucle
+## por vértice). Los índices solo dependen del tamaño del trozo y se reutilizan entre trozos y mapas.
+func _ground_chunk(verts: PackedVector3Array, normals: PackedVector3Array, colors: PackedColorArray,
+		uvs: PackedVector2Array, i0: int, i1: int, j0: int, j1: int, mat: Material) -> MeshInstance3D:
+	var w := i1 - i0 + 1
+	var cv := PackedVector3Array()
+	var cn := PackedVector3Array()
+	var cc := PackedColorArray()
+	var cu := PackedVector2Array()
+	for j in range(j0, j1 + 1):
+		var a := j * _side + i0
+		cv.append_array(verts.slice(a, a + w))
+		cn.append_array(normals.slice(a, a + w))
+		cc.append_array(colors.slice(a, a + w))
+		cu.append_array(uvs.slice(a, a + w))
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = cv
+	arrays[Mesh.ARRAY_NORMAL] = cn
+	arrays[Mesh.ARRAY_COLOR] = cc
+	arrays[Mesh.ARRAY_TEX_UV] = cu
+	arrays[Mesh.ARRAY_INDEX] = _chunk_indices(w, j1 - j0 + 1)
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	mesh.surface_set_material(0, mat)
+	var mi := MeshInstance3D.new()
+	mi.name = "Chunk_%d_%d" % [i0 / GROUND_CHUNK_CELLS, j0 / GROUND_CHUNK_CELLS]
+	mi.mesh = mesh
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.layers = 1 | GROUND_VISUAL_LAYER     # capa extra: los decals de suelo (auras) solo se proyectan aquí
+	return mi
+
+## Índices de una rejilla de w × h vértices, mismo orden de triángulos que la malla entera.
+static func _chunk_indices(w: int, h: int) -> PackedInt32Array:
+	var key := Vector2i(w, h)
+	if _chunk_index_cache.has(key):
+		return _chunk_index_cache[key]
+	var idx := PackedInt32Array()
+	idx.resize((w - 1) * (h - 1) * 6)
+	var k := 0
+	for j in range(h - 1):
+		for i in range(w - 1):
+			var a := j * w + i
+			var b := a + 1
+			var c := a + w
+			var d := c + 1
+			idx[k] = a; idx[k + 1] = b; idx[k + 2] = c
+			idx[k + 3] = b; idx[k + 4] = d; idx[k + 5] = c
+			k += 6
+	_chunk_index_cache[key] = idx
+	return idx
 
 # ───────────────────────────── Colocación de props ─────────────────────────────
 
@@ -730,6 +818,8 @@ func _add(kind: String, pos: Vector2, yaw: float = -1.0, s: float = -1.0, y_offs
 	var euler := Vector3(_rng.randf_range(-tilt, tilt), yaw_v, _rng.randf_range(-tilt, tilt))
 	var basis := Basis.from_euler(euler).scaled(Vector3.ONE * scale_v)
 	var t := Transform3D(basis, Vector3(pos.x, get_height_at(pos.x, pos.y) + y_offset, pos.y))
+	if kind == "mushroom":
+		_mushroom_spots.append([t.origin, scale_v])
 	if not _instances.has(kind):
 		_instances[kind] = []
 	(_instances[kind] as Array).append(t)

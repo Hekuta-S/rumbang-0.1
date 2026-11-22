@@ -20,16 +20,16 @@ var _flight: float = 1.5
 var _arc: float = 5.0
 var _t: float = 0.0
 var _marker: MeshInstance3D
-var _mesh_node: MeshInstance3D
+var _sprite: Sprite3D
 
 ## Proyectiles libres: se reutilizan en vez de instanciar y liberar uno por disparo.
 static var _pool: Array = []
-const Bullet = preload("res://scripts/objects/bullet.gd")
 
-static var _shell_mesh: SphereMesh
-static var _shell_mat: StandardMaterial3D
-static var _ring_mesh: TorusMesh
+## Marca del suelo: anillo entintado (ring.png) del radio de la explosión; el proyectil es una bola mágica
+## dibujada (magia.png, fila arcana) que "hierve" alternando fotogramas. Todo 2D horneado.
+static var _ring_mesh: PlaneMesh
 static var _ring_mat: StandardMaterial3D
+var _frame_t := 0.0
 
 ## Lanza un proyectil desde `from` hacia `target` (posición fija en el momento del disparo).
 static func launch(parent: Node, from: Vector3, target: Vector3, dmg: float) -> void:
@@ -44,28 +44,16 @@ static func launch(parent: Node, from: Vector3, target: Vector3, dmg: float) -> 
 	s._setup(from, target, dmg)
 
 static func _ensure_resources() -> void:
-	if _shell_mesh != null:
+	if _ring_mesh != null:
 		return
-	_shell_mesh = SphereMesh.new()
-	_shell_mesh.radius = 0.32
-	_shell_mesh.height = 0.64
-	_shell_mesh.radial_segments = 10
-	_shell_mesh.rings = 5
-	_shell_mat = StandardMaterial3D.new()
-	_shell_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_shell_mat.albedo_color = COLOR
-	_shell_mat.emission_enabled = true
-	_shell_mat.emission = COLOR
-	_shell_mat.emission_energy_multiplier = 2.5
-	_ring_mesh = TorusMesh.new()
-	_ring_mesh.inner_radius = BLAST_RADIUS - 0.08
-	_ring_mesh.outer_radius = BLAST_RADIUS
-	_ring_mesh.rings = 20
-	_ring_mesh.ring_segments = 3
-	_ring_mat = StandardMaterial3D.new()
-	_ring_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_ring_mat.albedo_color = Color(COLOR.r, COLOR.g, COLOR.b, 0.35)
+	_ring_mesh = PlaneMesh.new()
+	_ring_mesh.size = Vector2(BLAST_RADIUS * 2.0, BLAST_RADIUS * 2.0)
+	_ring_mat = ToonFX.ring_material()
+	if _ring_mat == null:
+		_ring_mat = StandardMaterial3D.new()
+		_ring_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_ring_mat.albedo_color = Color(COLOR.r, COLOR.g, COLOR.b, 0.75)
 
 func _setup(from: Vector3, target: Vector3, dmg: float) -> void:
 	_ensure_resources()
@@ -81,25 +69,27 @@ func _setup(from: Vector3, target: Vector3, dmg: float) -> void:
 	visible = true
 	set_process(true)
 
-	if _mesh_node == null:
-		_mesh_node = MeshInstance3D.new()
-		_mesh_node.mesh = _shell_mesh
-		_mesh_node.material_override = _shell_mat
-		_mesh_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(_mesh_node)
+	if _sprite == null:
+		_sprite = ToonFX.magic_sprite(ToonFX.MAGIC_ARCANE, 0.9)
+		add_child(_sprite)
 
-		# Marca tenue en el suelo del punto de impacto, para poder esquivarlo
+		# Marca en el suelo del punto de impacto, para poder esquivarlo
 		_marker = MeshInstance3D.new()
 		_marker.mesh = _ring_mesh
 		_marker.material_override = _ring_mat
 		_marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		_marker.scale = Vector3(1.0, 0.05, 1.0)
 		add_child(_marker)
 	_marker.global_position = Vector3(_end.x, _end.y + 0.08, _end.z)
 
 func _process(delta: float) -> void:
 	_t += delta
+	_frame_t += delta
+	if _frame_t >= 0.12:
+		_frame_t = 0.0
+		_sprite.frame = ToonFX.MAGIC_ARCANE * 2 + (_sprite.frame + 1) % 2
 	var u := clampf(_t / _flight, 0.0, 1.0)
+	# la marca late y se cierra al acercarse la caída
+	_marker.scale = Vector3.ONE * lerpf(1.15, 1.0, u) * (1.0 + 0.04 * sin(_t * 18.0))
 	var pos := _start.lerp(_end, u)
 	pos.y += 4.0 * _arc * u * (1.0 - u)
 	global_position = pos
@@ -116,6 +106,8 @@ func _explode() -> void:
 			player.take_damage(damage)
 	var parent := get_parent()
 	if parent != null:
-		Bullet.spawn_impact_sparks(parent, _end + Vector3(0, 0.3, 0), Vector3.UP, COLOR)
+		ToonFX.ring_burst(parent, _end, BLAST_RADIUS, COLOR, 0.32)
+		ToonFX.impact_pop(parent, _end + Vector3(0, 0.6, 0), COLOR, 1.6)
+		ToonFX.puff_burst(parent, _end + Vector3(0, 0.3, 0), COLOR, 8, 4.0, 0.6)
 	visible = false
 	_pool.append(self)

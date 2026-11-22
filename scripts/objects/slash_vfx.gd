@@ -17,9 +17,12 @@ static func _acquire(parent: Node, size: float, shader: Shader) -> MeshInstance3
 	_pools[shader] = pool
 	var inst: MeshInstance3D = null
 	while not pool.is_empty():
-		var cand: MeshInstance3D = pool.pop_back()
-		if is_instance_valid(cand) and cand.is_inside_tree():
-			inst = cand
+		# Sin tipo: el pool es estático y sobrevive al cambio de escena; si el
+		# padre se liberó, la instancia está liberada y asignarla a una variable
+		# tipada da "Trying to assign invalid previously freed instance".
+		var cand: Variant = pool.pop_back()
+		if is_instance_valid(cand) and (cand as MeshInstance3D).is_inside_tree():
+			inst = cand as MeshInstance3D
 			break
 	if inst == null:
 		inst = MeshInstance3D.new()

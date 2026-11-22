@@ -41,7 +41,8 @@ func _ready() -> void:
 	var e0 := res.energy
 	_player.combat_controller.attack_cooldown = 0.0
 	_player.combat_controller.attack()
-	assert(is_equal_approx(res.energy, e0 - res.cost_of(WeaponData.WeaponType.SPEAR_LANCE)), "El golpe cuesta su energía")
+	assert(is_equal_approx(res.energy, e0 - res.cost_of(WeaponData.WeaponType.SPEAR_LANCE) * PlayerResources.ENERGY_COST_SCALE), "El golpe cuesta su energía")
+	res.energy = res.energy_max() * 0.4      # con medio coste un golpe deja la barra casi llena: se vacía para ver la recarga
 	var e1 := res.energy
 	await _wait(PlayerResources.ENERGY_DELAY + 1.0)
 	assert(res.energy > e1 + 10.0, "La energía se regenera tras la pausa (%.1f → %.1f)" % [e1, res.energy])
@@ -53,7 +54,7 @@ func _ready() -> void:
 	res.energy = PlayerResources.ENERGY_MAX
 	mc.perform_dodge()
 	assert(mc.is_dodging(), "Rueda con energía")
-	assert(is_equal_approx(res.energy, PlayerResources.ENERGY_MAX - PlayerResources.DODGE_COST), "Rodar cuesta energía")
+	assert(is_equal_approx(res.energy, PlayerResources.ENERGY_MAX - PlayerResources.DODGE_COST * PlayerResources.ENERGY_COST_SCALE), "Rodar cuesta energía")
 	await _wait(0.8)
 	mc._dodge_cooldown_timer = 0.0
 	res.energy = 1.0

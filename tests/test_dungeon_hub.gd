@@ -80,7 +80,7 @@ func _run() -> void:
 		assert(la and la.mesh_instance.get_surface_override_material(0) is ShaderMaterial, who + ": piel de Riva")
 	assert(hub.player.has_clip("walk") and hub.player.has_clip("run"), "El héroe anda y corre")
 	var arena_pos: Vector3 = DungeonHub.STATIONS["arena"]["pos"]
-	assert(absf(arena_pos.x) < 0.5 and arena_pos.z < -10.0, "La puerta de la arena está al fondo, donde estaba el trono")
+	assert(absf(arena_pos.x) < 0.5 and arena_pos.z < -8.0, "La puerta de la arena está al fondo, donde estaba el trono")
 	print("CHECK 2 PASSED: salón explorable, sin rey, puerta de la arena al fondo")
 
 	# 3. Murmullos

@@ -35,6 +35,7 @@ const TAGS := {
 	W.SPINNING_AXE: ["filo"],
 	W.ELEMENTS_CYCLE: ["arcano", "fuego"],
 	W.ZOMBIE_ARM: ["filo", "naturaleza"],
+	W.GIANT_MACE: ["explosivo"],
 	W.DAGGERS: ["filo"],
 	W.MACE: ["arcano"],
 	W.GREATSWORD: ["filo"],
@@ -71,6 +72,8 @@ const EVOLUTIONS := {
 		"desc": "+2 hachas, +60% tiempo girando, +25% tamaño", "mods": {"quantity_bonus": 2, "duration": 0.6, "size": 0.25}},
 	W.TRI_SHOTGUN: {"tome": "multiplicidad", "name": "Trueno de Humo",
 		"desc": "+4 perdigones, +30% daño, mucho más retroceso", "mods": {"quantity_bonus": 4, "damage": 0.3, "knockback": 1.0}},
+	W.GIANT_MACE: {"tome": "area", "name": "Martillo del Titán",
+		"desc": "+2 mazas, +40% daño, +30% área", "mods": {"quantity_bonus": 2, "damage": 0.4, "size": 0.3}},
 	W.ZOMBIE_ARM: {"tome": "vitalidad", "name": "Mano de la Llorona",
 		"desc": "+2 brazos, +50% daño, +6% robo de vida", "mods": {"quantity_bonus": 2, "damage": 0.5, "lifesteal": 0.06}},
 	W.ELEMENTS_CYCLE: {"tome": "avaricia", "name": "Tormenta Elemental",
@@ -84,6 +87,12 @@ const EVOLUTIONS := {
 	W.RAILGUN: {"tome": "suerte", "name": "Cañón Celestial",
 		"desc": "+60% daño, +2 perforaciones", "mods": {"damage": 0.6, "pierce_bonus": 2}},
 }
+
+## Icono dibujado de una etiqueta (tools/make_ui_icons.py): cada una con forma propia, no solo color.
+const TAG_ICON_DIR := "res://assets/ui/icons/tags/"
+
+static func tag_icon_path(tag: String) -> String:
+	return TAG_ICON_DIR + tag + ".png"
 
 static func tags_of(weapon: int) -> Array:
 	return TAGS.get(weapon, [])
@@ -132,6 +141,44 @@ static func preview_new_weapon(slots: Array, weapon: int) -> Array:
 		if tier(n) > tier(n - 1):
 			out.append("%s %s ×%d: %s" % [TAG_INFO[t]["icon"], TAG_INFO[t]["name"], n, SYNERGY_DESC[t][tier(n) - 1]])
 	return out
+
+## Qué de tu equipo potencia una carta (fila "Potencia a" de UpgradeChoiceUI, design/ux/level-up-cards.md).
+## Devuelve hasta 2 enlaces {weapons: [arma], tomes: [id], tags: [etiqueta], text}, del más importante al
+## menos: evolución, sinergia que sube, catalizador, mejora del arma. [] si la carta no toca nada tuyo.
+## slots: armas equipadas · levels: {arma: nivel} · tomes: tomos que tienes · evolved: armas ya evolucionadas.
+static func card_links(choice: Dictionary, slots: Array, levels: Dictionary, tomes: Array, evolved: Array) -> Array:
+	var out: Array = []
+	var w: int = int(choice.get("weapon", -1))
+	match String(choice.get("type", "")):
+		"evolution":
+			var e: Dictionary = EVOLUTIONS[w]
+			out.append({"weapons": [w], "tomes": [e["tome"]], "tags": [], "text": "= " + String(e["name"])})
+		"new_weapon":
+			var counts := tag_counts(slots)
+			for t in tags_of(w):
+				var n := int(counts.get(t, 0)) + 1
+				if tier(n) > tier(n - 1):
+					out.append({"weapons": slots.filter(func(s): return tags_of(s).has(t)), "tomes": [], "tags": [t],
+						"text": "%s %d→%d: %s" % [TAG_INFO[t]["name"], n - 1, n, SYNERGY_DESC[t][tier(n) - 1]]})
+			if EVOLUTIONS.has(w) and tomes.has(EVOLUTIONS[w]["tome"]):
+				out.append({"weapons": [], "tomes": [EVOLUTIONS[w]["tome"]], "tags": [],
+					"text": "tu tomo la evoluciona (nivel %d)" % EVOLVE_LEVEL})
+		"tome":
+			var id := String(choice.get("upgrade_id", ""))
+			for s in slots:
+				if EVOLUTIONS.has(s) and EVOLUTIONS[s]["tome"] == id and not evolved.has(s):
+					out.append({"weapons": [s], "tomes": [], "tags": [],
+						"text": "catalizador · nivel %d/%d" % [mini(int(levels.get(s, 1)), EVOLVE_LEVEL), EVOLVE_LEVEL]})
+		"weapon_stat", "upgrade":
+			if slots.has(w):
+				var lvl := int(levels.get(w, 1))
+				out.append({"weapons": [w], "tomes": [], "tags": [], "text": "tu arma · nivel %d→%d" % [lvl, lvl + 1]})
+				if EVOLUTIONS.has(w) and not evolved.has(w):
+					var tome: String = EVOLUTIONS[w]["tome"]
+					var have := tomes.has(tome)
+					out.append({"weapons": [], "tomes": [tome], "tags": [],
+						"text": "evoluciona a nivel %d%s" % [EVOLVE_LEVEL, "" if have else " con este tomo"]})
+	return out.slice(0, 2)
 
 static func is_evolved(winv, weapon: int) -> bool:
 	return winv != null and winv.get_upgrade_level(weapon, EVOLVED_KEY) > 0

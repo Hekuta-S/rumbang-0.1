@@ -25,10 +25,10 @@ func _ready() -> void:
 	if waves:
 		waves.set_process(false)
 	if old:
-		var ground := main.get_node("ProceduralMap/Ground") as MeshInstance3D
 		var mat := ShaderMaterial.new()
 		mat.shader = load("res://assets/shaders/dark_ground.gdshader")
-		ground.mesh.surface_set_material(0, mat)
+		for chunk in main.get_node("ProceduralMap/Ground").get_children():    # el suelo va por trozos
+			(chunk as MeshInstance3D).mesh.surface_set_material(0, mat)
 	await get_tree().create_timer(3.0).timeout
 	var secs := float(OS.get_environment("BENCH_SECONDS")) if OS.get_environment("BENCH_SECONDS") != "" else 8.0
 	var t0 := Time.get_ticks_usec()

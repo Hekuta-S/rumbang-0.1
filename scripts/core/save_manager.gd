@@ -48,6 +48,7 @@ func load_save() -> void:
 			meta["evolutions"] = (meta.get("evolutions", []) as Array).map(func(w): return int(w))
 
 func save() -> void:
+	_gold_dirty = false
 	var file := FileAccess.open(save_path, FileAccess.WRITE)
 	if file == null:
 		return
@@ -84,11 +85,32 @@ func buy_upgrade(weapon_id: String, cost: int) -> bool:
 		return true
 	return false
 
+## Cada baja suma oro: escribir el archivo en cada una (decenas por frame en una oleada) daba tirones,
+## sobre todo en el móvil. El oro se guarda agrupado, como mucho cada GOLD_SAVE_DELAY s, y siempre
+## al salir o al pasar la app a segundo plano (ver _notification).
+const GOLD_SAVE_DELAY := 3.0
+var _gold_dirty := false
+
 func add_gold(amount: int) -> void:
 	if amount <= 0:
 		return
 	total_gold += amount
-	save()
+	if _gold_dirty:
+		return
+	_gold_dirty = true
+	if is_inside_tree():
+		get_tree().create_timer(GOLD_SAVE_DELAY, true, false, true).timeout.connect(_flush_gold)
+	else:
+		save()
+
+func _flush_gold() -> void:
+	if _gold_dirty:
+		save()
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED \
+			or what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_PREDELETE:
+		_flush_gold()
 
 func get_total_gold() -> int:
 	return total_gold

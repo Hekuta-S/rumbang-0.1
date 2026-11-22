@@ -119,16 +119,16 @@ func _ready() -> void:
 	vis.set_sword_skin(0)
 	print("CHECK 2 PASSED: %d modelos de espada" % SwordModels.count())
 
-	# 3. Andar -> correr: antes que el espadón (GAITS "delay" s sin combate)
-	var sw_delay := float(PlayerMovementController.GAITS[WeaponData.WeaponType.SWORD]["delay"])
-	assert(sw_delay < PlayerMovementController.GS_RUN_DELAY, "La espada arranca a correr antes que el espadón")
+	# 3. Andar -> correr manteniendo esquivar (force_sprint)
 	mc.note_combat()
 	assert(not mc.gs_running(), "Recién hecho un golpe: anda")
-	for i in int(sw_delay * 10.0) + 3:
+	mc.force_sprint = true
+	for i in 10:
 		mc._update_gs_gait(0.1, true)
-	assert(mc.gs_running(), "Tras %.1f s sin combate corre" % sw_delay)
+	assert(mc.gs_running(), "Manteniendo esquivar corre")
 	_player.take_damage(1.0)
 	assert(not mc.gs_running(), "Recibir daño lo devuelve a andar")
+	mc.force_sprint = false
 	print("CHECK 3 PASSED: andar/correr según el combate")
 	await _wait(0.8)
 
@@ -158,7 +158,7 @@ func _ready() -> void:
 
 	# 5. Ataque corriendo y continuación con sw2
 	var g: Dictionary = PlayerMovementController.GAITS[W]
-	mc.gs_calm = 5.0
+	mc.force_sprint = true
 	mc._gs_mult = float(g["run"])
 	assert(mc.gs_running(), "Preparado para correr")
 	ac._combo_timer = 0.0
@@ -169,6 +169,7 @@ func _ready() -> void:
 	start = _player.global_position
 	_player.attack()
 	assert(ac._current_action_name == "sw_run", "Corriendo el clic lanza sw_run (%s)" % ac._current_action_name)
+	mc.force_sprint = false
 	await _wait(1.0)
 	assert(d2.hp < 5000.0, "La embestida golpea (hp %.1f)" % d2.hp)
 	moved = _player.global_position - start

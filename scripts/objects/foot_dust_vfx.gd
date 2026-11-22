@@ -35,7 +35,9 @@ static func _ensure() -> void:
 	_cloud_mat = _mat(_soft_tex, true)
 	_toon_cloud = ToonFX.puff_material(_cloud_mat)      # nubes dibujadas (cómic) en vez de la mancha suave
 	_grit_mat = _mat(_soft_tex, true)
-	_ring_mat = _mat(_ring_tex, false)
+	_ring_mat = ToonFX.ring_material()                 # anillo entintado (cómic) si está la textura
+	if _ring_mat == null:
+		_ring_mat = _mat(_ring_tex, false)
 	_ring_mat.albedo_color = Color(1, 1, 1, 1)
 
 static func _radial(colors: Array, offsets: Array) -> GradientTexture2D:
@@ -66,10 +68,42 @@ static func _mat(tex: Texture2D, billboard: bool) -> StandardMaterial3D:
 
 ## Rampa de color: aparece rápido, se mantiene y se desvanece.
 ## Rampa de las nubes: las dibujadas van más opacas y más claras (si no, el contorno de tinta no se lee).
+## Las dibujadas son opacas (un dibujo no se difumina) y desaparecen encogiéndose (ver _cloud_curve).
+## Rampas y curvas cacheadas: antes cada pisada creaba un Gradient y una Curve nuevos. Nadie las modifica
+## después de asignarlas, así que se comparten. Tope por si llegaran colores muy variados.
+static var _ramp_cache: Dictionary = {}
+static var _curve_cache: Dictionary = {}
+const CACHE_MAX := 32
+
 static func _cloud_ramp(c: Color, alpha: float) -> Gradient:
+	var key := "%s|%.2f|%s" % [c.to_html(), alpha, _toon_cloud]
+	var g: Gradient = _ramp_cache.get(key)
+	if g == null:
+		g = _make_cloud_ramp(c, alpha)
+		if _ramp_cache.size() < CACHE_MAX:
+			_ramp_cache[key] = g
+	return g
+
+static func _make_cloud_ramp(c: Color, alpha: float) -> Gradient:
 	if not _toon_cloud:
 		return _ramp(c, alpha)
-	return _ramp(c.lerp(Color.WHITE, 0.35), minf(alpha * 1.8, 0.92))
+	var light := c.lerp(Color.WHITE, 0.35)
+	return ToonFX.pop_ramp([light, light.lerp(c, 0.6)], clampf(alpha * 2.4, 0.85, 1.0))
+
+## Escala de las nubes: las dibujadas salen de golpe, crecen y se encogen hasta desaparecer.
+static func _cloud_curve(start: float, end: float) -> Curve:
+	var key := "%.2f|%.2f|%s" % [start, end, _toon_cloud]
+	var cv: Curve = _curve_cache.get(key)
+	if cv == null:
+		cv = _make_cloud_curve(start, end)
+		if _curve_cache.size() < CACHE_MAX:
+			_curve_cache[key] = cv
+	return cv
+
+static func _make_cloud_curve(start: float, end: float) -> Curve:
+	if _toon_cloud:
+		return ToonFX.pop_curve(start, end * 0.8)
+	return _grow_curve(start, end)
 
 static func _ramp(c: Color, alpha: float) -> Gradient:
 	var g := Gradient.new()
@@ -118,7 +152,7 @@ static func _ground_cloud(amount: int, lifetime: float, radius: float, speed: fl
 	p.gravity = Vector3(0, 0.35, 0)
 	p.scale_amount_min = size.x
 	p.scale_amount_max = size.y
-	p.scale_amount_curve = _grow_curve(0.5, 1.6)
+	p.scale_amount_curve = _cloud_curve(0.5, 1.6)
 	p.color_ramp = _cloud_ramp(c, alpha)
 	p.material_override = _cloud_mat
 	ToonFX.vary(p)
@@ -140,7 +174,7 @@ static func _jet(amount: int, lifetime: float, dir: Vector3, spread: float, spee
 	p.gravity = Vector3(0, -0.6, 0)
 	p.scale_amount_min = size.x
 	p.scale_amount_max = size.y
-	p.scale_amount_curve = _grow_curve(0.4, 1.5)
+	p.scale_amount_curve = _cloud_curve(0.4, 1.5)
 	p.color_ramp = _cloud_ramp(c, alpha)
 	p.material_override = _cloud_mat
 	ToonFX.vary(p)

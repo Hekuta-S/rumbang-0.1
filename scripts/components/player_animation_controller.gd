@@ -66,8 +66,7 @@ const COMBOS := {
 ## continúan el combo desde el segundo.
 const RUN_ATTACKS := {WeaponData.WeaponType.GREATSWORD: "gs_run", WeaponData.WeaponType.SWORD: "sw_run",
 	WeaponData.WeaponType.KATANA: "kt_run", WeaponData.WeaponType.FISTS: "fs_run"}
-## Espadón. Con él se anda despacio y se pasa a correr tras GS_RUN_DELAY s sin atacar, recibir daño ni rodar
-## (PlayerMovementController); el clic mientras se corre lanza GS_RUN_ATTACK (ataque_si_va_corriendo) y los
+## Espadón. Con él se anda despacio y se corre manteniendo esquivar (PlayerMovementController.sprinting); el clic mientras se corre lanza GS_RUN_ATTACK (ataque_si_va_corriendo) y los
 ## golpes siguientes continúan el combo desde el segundo.
 const GS_RUN_ATTACK := "gs_run"
 ## Velocidad (m/s) a partir de la que se anima la carrera del espadón (andando va a ~2 m/s, corriendo a ~5,5).
@@ -1258,8 +1257,8 @@ func _gs_is_running() -> bool:
 		return mc.gs_running()
 	return player != null and Vector2(player.velocity.x, player.velocity.z).length() > GS_WALK_TO_RUN
 
-## ¿Lanza el ataque con carrerilla? Las armas con paso propio (PlayerMovementController.GAITS) corren tras un rato sin
-## combatir; las demás (puños) usan la carrera normal del personaje.
+## ¿Lanza el ataque con carrerilla? Las armas con paso propio (PlayerMovementController.GAITS) corren manteniendo
+## esquivar; las demás (puños) usan la carrera normal del personaje.
 func _running_for_attack() -> bool:
 	var w: int = player.current_weapon() if player and player.has_method("current_weapon") else -1
 	if PlayerMovementController.GAITS.has(w):

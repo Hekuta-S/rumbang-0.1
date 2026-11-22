@@ -115,7 +115,8 @@ func _on_quality_changed(idx: int) -> void:
 		if we and we.environment and not Quality.is_mobile():
 			we.environment.glow_enabled = Quality.glow_enabled()
 
-## Resolución: nativa o reducida (todo a 720p y escalado: más FPS, texto algo más suave). Se aplica al momento.
+## Resolución: nativa, reducida (todo a 720p y escalado: más FPS, texto algo más suave) o una altura 3D fija
+## (1080p/900p/720p/540p, solo las que caben en la pantalla). Se aplica al momento.
 func _add_resolution_selector(parent: Control) -> void:
 	var hbox = HBoxContainer.new()
 	parent.add_child(hbox)
@@ -125,13 +126,15 @@ func _add_resolution_selector(parent: Control) -> void:
 	hbox.add_child(lbl)
 	var opt = OptionButton.new()
 	opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	for n in ["Nativa", "Reducida (más FPS)"]:
-		opt.add_item(n)
-	opt.selected = SettingsManager.resolution
+	for m in Quality.resolution_modes_available():
+		opt.add_item(Quality.resolution_label(m), m)   # id = modo (Quality.RES_*)
+	var cur: int = opt.get_item_index(Quality.resolution_mode())   # la aplicada (si es automática, la que eligió Quality)
+	opt.selected = cur if cur >= 0 else 0
 	opt.item_selected.connect(func(idx: int):
-		SettingsManager.resolution = idx
+		var mode: int = opt.get_item_id(idx)
+		SettingsManager.resolution = mode
 		SettingsManager.save_settings()
-		Quality.apply_resolution(idx))
+		Quality.apply_resolution(mode))
 	hbox.add_child(opt)
 
 ## V-Sync: apagado da más FPS (el frame no espera al refresco). Si el dispositivo no deja apagarlo, se avisa.

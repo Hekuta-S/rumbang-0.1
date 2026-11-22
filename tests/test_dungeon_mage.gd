@@ -29,7 +29,7 @@ func _ready() -> void:
 	await get_tree().physics_frame
 	assert(m is DungeonMage, "spawn_mage debe crear un DungeonMage")
 	assert(EnemyRegistry.all().has(m), "El mago debe estar en EnemyRegistry")
-	assert(is_equal_approx(m.max_hp, 60.0), "Vida del mago 60 (es %s)" % m.max_hp)
+	assert(is_equal_approx(m.max_hp, 60.0 * DungeonGoblin.TOUGHNESS_HP), "Vida del mago 60 × dureza (es %s)" % m.max_hp)
 	assert(absf(m.speed - 3.4) < 0.01, "Velocidad del mago 3,4 (es %s)" % m.speed)
 	for clip in DungeonMage.MAGE_CLIPS:
 		assert(ResourceLoader.exists(DungeonMage.MAGE_CLIPS[clip]), "Falta el clip %s" % clip)
@@ -148,7 +148,7 @@ func _ready() -> void:
 	var b := enc.spawn_brute()
 	await get_tree().physics_frame
 	assert(g.attacks.has("swipe") and not g.attacks.has("bolt"), "El goblin normal mantiene sus ataques")
-	assert(b.attacks.has("smash") and is_equal_approx(b.max_hp, 135.0), "El bruto se mantiene")
+	assert(b.attacks.has("smash") and is_equal_approx(b.max_hp, 135.0 * DungeonGoblin.TOUGHNESS_HP), "El bruto se mantiene")
 	print("CHECK 7 PASSED: goblin y bruto sin cambios")
 
 	print("ALL MAGE CHECKS PASSED")

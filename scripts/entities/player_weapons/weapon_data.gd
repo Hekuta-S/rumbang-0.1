@@ -65,6 +65,7 @@ enum WeaponType {
 	BOW = 19,
 	KATANA = 20,   ## arma mítica: Katana de Sangre (solo como legendaria de rareza Mítica)
 	FISTS = 21,    ## puños: combo de seis golpes; tras golpear pasa a la guardia de pelea
+	GIANT_MACE = 22,   ## supervivencia: una maza gigante dibujada aparece y pega en el suelo (GiantMaceSlam)
 }
 
 ## ---------------------------------------------------------------------------
@@ -145,6 +146,11 @@ static func _build_weapon_table() -> Dictionary:
 		# Puños: golpes flojos y rápidos (combo de seis); el último, el remate, pega más.
 		WeaponType.FISTS: WeaponDirector.construct_melee(
 				WeaponBuilder.new(21, "Puños", "👊", "melee"), 9.0, 0.35, 2.0, 75.0),
+
+		# Maza Gigante: aparece en el aire y pega en el suelo donde apuntas (área). Lenta y muy fuerte.
+		# alcance = distancia máxima a la que cae la maza
+		WeaponType.GIANT_MACE: WeaponDirector.construct_ranged(
+				WeaponBuilder.new(22, "Maza Gigante", "🔨", "ranged"), 34.0, 1.6, 10.0, 11.0),
 	}
 	return table
 ## ---------------------------------------------
@@ -211,6 +217,7 @@ static var weapon_names: Dictionary = {
 	WeaponType.BOW: "Arco",
 	WeaponType.KATANA: "Katana de Sangre",
 	WeaponType.FISTS: "Puños",
+	WeaponType.GIANT_MACE: "Maza Gigante",
 }
 
 ## Icono por arma (HUD / señales).
@@ -233,6 +240,7 @@ static var weapon_icons: Dictionary = {
 	WeaponType.BOW: "🏹",
 	WeaponType.KATANA: "🗡️",
 	WeaponType.FISTS: "👊",
+	WeaponType.GIANT_MACE: "🔨",
 }
 
 ## Daño con Berserk aplicado según la ficha (mismos valores que los literales).

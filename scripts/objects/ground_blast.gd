@@ -48,19 +48,10 @@ func _ready() -> void:
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.visible = SettingsManager.show_attack_marks
 	add_child(mi)
-	# Burbujeo (siempre): vapores que suben por toda la zona y chispas
-	var vapor := DustVFX.haze(22, 0.9, radius * 0.8, 0.5, 1.1, color, 0.32)
-	vapor.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE_SURFACE
-	vapor.emission_sphere_radius = radius * 0.75
-	vapor.initial_velocity_min = 0.6
-	vapor.initial_velocity_max = 1.4
-	vapor.gravity = Vector3(0, 1.2, 0)
+	# Burbujeo (siempre): nubecitas dibujadas que suben por toda la zona (2D horneado, puff.png)
+	var vapor := ToonFX.puff_rise(radius, color)
 	add_child(vapor)
 	vapor.emitting = true
-	var sparks := DustVFX.sparkles(16, 0.6, radius * 0.6, 0.08, 0.18, color)
-	sparks.gravity = Vector3(0, 2.0, 0)
-	add_child(sparks)
-	sparks.emitting = true
 	_light = Quality.new_light()
 	_light.light_color = color
 	_light.light_energy = 0.2
@@ -94,8 +85,10 @@ func _explode() -> void:
 	AudioManager.play_at("impact_magic", global_position, -1.0, 0.55)
 	var root := get_tree().current_scene
 	if root:
-		_pillar(root)
-		NecroVFX.shockwave(root, global_position, radius * 1.6, color)
+		# Columna de llamas, onda y estrella de impacto dibujadas (cómic)
+		ToonFX.flame_column(root, global_position, radius, color)
+		ToonFX.ring_burst(root, global_position, radius * 1.6, color, 0.4)
+		ToonFX.impact_pop(root, global_position + Vector3(0, 0.8, 0), color, 1.8)
 		var flash := Quality.new_light()
 		flash.light_color = color
 		flash.light_energy = 6.0
@@ -106,64 +99,3 @@ func _explode() -> void:
 		tw.tween_property(flash, "light_energy", 0.0, 0.45)
 		tw.tween_callback(flash.queue_free)
 	queue_free()
-
-static var _dot: GradientTexture2D
-
-## Punto redondo y difuminado para las llamas (sin textura, las partículas son cuadrados).
-static func _soft_dot() -> GradientTexture2D:
-	if _dot == null:
-		var g := Gradient.new()
-		g.colors = PackedColorArray([Color(1, 1, 1, 1), Color(1, 1, 1, 0.55), Color(1, 1, 1, 0)])
-		g.offsets = PackedFloat32Array([0.0, 0.4, 1.0])
-		_dot = GradientTexture2D.new()
-		_dot.gradient = g
-		_dot.fill = GradientTexture2D.FILL_RADIAL
-		_dot.fill_from = Vector2(0.5, 0.5)
-		_dot.fill_to = Vector2(0.5, 0.0)
-		_dot.width = 64
-		_dot.height = 64
-	return _dot
-
-## Columna de llamas que sube del suelo (partículas aditivas, como la erupción de supervivencia).
-func _pillar(root: Node) -> void:
-	var p := CPUParticles3D.new()
-	p.one_shot = true
-	p.explosiveness = 0.85
-	p.amount = maxi(12, int(round(50.0 * Quality.particle_factor())))
-	p.lifetime = 0.8
-	p.local_coords = false
-	var quad := QuadMesh.new()
-	quad.size = Vector2(0.6, 0.6)
-	p.mesh = quad
-	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
-	p.emission_sphere_radius = radius * 0.55
-	p.direction = Vector3.UP
-	p.spread = 14.0
-	p.gravity = Vector3(0, 2.0, 0)
-	p.initial_velocity_min = 5.0
-	p.initial_velocity_max = 9.0
-	p.scale_amount_min = 1.0
-	p.scale_amount_max = 2.6
-	var curve := Curve.new()
-	curve.add_point(Vector2(0.0, 0.2))
-	curve.add_point(Vector2(0.2, 1.0))
-	curve.add_point(Vector2(1.0, 0.0))
-	p.scale_amount_curve = curve
-	var m := StandardMaterial3D.new()
-	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.albedo_color = Color(color.r, color.g, color.b, 0.85)
-	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	m.vertex_color_use_as_albedo = true
-	m.albedo_texture = _soft_dot()
-	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA   # sin esto, el aditivo ignora el alfa del punto
-	p.material_override = m
-	var ramp := Gradient.new()
-	ramp.colors = PackedColorArray([Color(1, 1, 1, 1), Color(color.r, color.g, color.b, 0.9), Color(color.r * 0.3, color.g * 0.3, color.b * 0.3, 0.0)])
-	ramp.offsets = PackedFloat32Array([0.0, 0.35, 1.0])
-	p.color_ramp = ramp
-	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	root.add_child(p)
-	p.global_position = global_position
-	p.emitting = true
-	get_tree().create_timer(1.4).timeout.connect(p.queue_free)

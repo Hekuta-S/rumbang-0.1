@@ -32,6 +32,7 @@ SceneLoader="*res://scripts/core/scene_loader.gd"
 Net="*res://scripts/net/net_manager.gd"
 SettingsManager="*res://scripts/core/settings_manager.gd"
 VirtualInput="*res://scripts/core/virtual_input.gd"
+GamepadUI="*res://scripts/core/gamepad_ui.gd"
 PoolManager="*res://scripts/core/pool_manager.gd"
 MCPRuntimeServer="*res://addons/godot_mcp_toolkit/runtime/mcp_runtime_server.gd"
 
@@ -108,7 +109,6 @@ common/physics_interpolation=true
 
 textures/canvas_textures/default_texture_filter=0
 renderer/rendering_method="mobile"
-shading/overrides/force_lambert_over_burley.mobile=true
 textures/vram_compression/import_etc2_astc=true
 environment/defaults/default_clear_color=Color(0.054902, 0.0705882, 0.109804, 1)
 

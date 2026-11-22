@@ -1,8 +1,8 @@
 class_name Quality
 extends RefCounted
 
-## Nivel de calidad gráfica (Bajo / Medio / Alto). Android arranca en Medio y PC en Alto; el valor
-## guardado por el jugador (SettingsManager.quality_level) tiene prioridad. Todo lo que cuesta
+## Nivel de calidad gráfica (Bajo / Medio / Alto). Android arranca en Medio (en Bajo si es de gama baja,
+## ver is_low_end) y PC en Alto; el valor guardado por el jugador (SettingsManager.quality_level) tiene prioridad. Todo lo que cuesta
 ## rendimiento (partículas, luces dinámicas, sombras, resolución 3D, tope de enemigos) consulta aquí.
 
 enum Level { LOW, MEDIUM, HIGH }
@@ -28,10 +28,56 @@ static func level() -> int:
 		var saved: int = int(st.get("quality_level")) if st else -1
 		if saved >= 0 and saved <= Level.HIGH:
 			_level = saved
+		elif is_mobile():
+			_level = Level.LOW if is_low_end() else Level.MEDIUM
 		else:
-			_level = Level.MEDIUM if is_mobile() else Level.HIGH
+			_level = Level.HIGH
 		_apply_vfx()
 	return _level
+
+# ── Gama del dispositivo ───────────────────────────────────────────────
+## GPUs de gama baja-media de móvil (subcadenas del nombre que da el driver, en minúsculas). Con ellas el
+## juego arranca en calidad Baja y resolución reducida si el jugador no eligió otra cosa. Medido en un
+## Mali-G57 MC2 (Helio G99, 2026-11-17): en Media va a ~26 FPS a escala 1.0 y en Baja llega a 30 estables.
+const LOW_END_GPUS := [
+	"mali-4", "mali-t", "mali-g31", "mali-g51", "mali-g52", "mali-g57",
+	"adreno (tm) 3", "adreno (tm) 4", "adreno (tm) 5", "adreno (tm) 60", "adreno (tm) 610",
+	"adreno (tm) 612", "adreno (tm) 613",
+	"powervr", "img bxm", "img bxe",
+]
+## Con esta RAM o menos el móvil es de gama baja aunque la GPU no esté en la lista.
+const LOW_END_RAM_GB := 4.5
+
+static var _low_end: int = -1
+
+## ¿Móvil de gama baja-media? Por nombre de GPU o poca RAM. Solo baja valores por defecto: nunca sube la
+## calidad y lo que el jugador elige en Ajustes manda. RUMBANG_LOW_END=1/0 lo fuerza (pruebas en PC).
+static func is_low_end() -> bool:
+	if _low_end < 0:
+		var env := OS.get_environment("RUMBANG_LOW_END")
+		if env == "1" or env == "0":
+			_low_end = int(env)
+		elif not is_mobile():
+			_low_end = 0
+		else:
+			_low_end = 1 if low_end_for(RenderingServer.get_video_adapter_name(), _ram_gb()) else 0
+	return _low_end == 1
+
+## Regla de gama baja, separada para probarla sin un móvil.
+static func low_end_for(gpu_name: String, ram_gb: float) -> bool:
+	var g := gpu_name.to_lower()
+	for k in LOW_END_GPUS:
+		if g.contains(k):
+			return true
+	return ram_gb > 0.0 and ram_gb <= LOW_END_RAM_GB
+
+static func _ram_gb() -> float:
+	var info := OS.get_memory_info()
+	return float(info.get("physical", -1)) / 1073741824.0 if int(info.get("physical", -1)) > 0 else -1.0
+
+## Resolución cuando el jugador no eligió (SettingsManager.resolution == -1): reducida en gama baja.
+static func auto_resolution() -> int:
+	return RES_REDUCED if is_mobile() and is_low_end() else RES_NATIVE
 
 static func set_level(l: int) -> void:
 	_level = clampi(l, Level.LOW, Level.HIGH)
@@ -72,9 +118,10 @@ static func particle_factor() -> float:
 ## 28-30 (en calidad Baja). Todas las calidades llegan a 420; el gobernador quita enemigos si
 ## un móvil más lento no da abasto (Quality.crowd_factor).
 static func alive_cap_end() -> int:
+	# Ritmo más pausado (menos enemigos por segundo): antes 420 / 500
 	if is_mobile():
-		return [420, 420, 420][level()]
-	return [420, 420, 500][level()]
+		return [220, 220, 220][level()]
+	return [220, 220, 260][level()]
 
 ## Números de daño flotantes a la vez (PoolManager).
 static func floating_numbers_max() -> int:
@@ -85,12 +132,19 @@ static func xp_orbs_max() -> int:
 	return 50 if is_mobile() else 90
 
 ## Resolución 3D base (la gobernadora de rendimiento puede bajarla temporalmente).
+## Con una resolución fija (1080p, 900p, 720p, 540p) manda esa altura y no la calidad.
 static func scale_3d() -> float:
+	var h := fixed_height()
+	if h > 0:
+		return _fixed_scale(h)
 	var s: float = [0.5, 0.65, 0.85][level()] if is_mobile() else [0.7, 0.85, 1.0][level()]
 	return minf(1.0, s * _res_boost())
 
 ## Resolución mínima que la gobernadora puede aplicar.
 static func scale_3d_floor() -> float:
+	var h := fixed_height()
+	if h > 0:
+		return _fixed_scale(h) * 0.7      # con resolución fija la gobernadora solo puede bajar un 30 %
 	return minf(1.0, (0.5 if is_mobile() else 0.7) * _res_boost())
 
 # ── Resolución de pantalla ─────────────────────────────────────────────
@@ -99,25 +153,71 @@ static func scale_3d_floor() -> float:
 ## formato de la pantalla) y se escala al mostrarlo. En un móvil de 2460×1080 son ~2.2 veces menos píxeles
 ## para la interfaz y la copia final; el texto se ve algo más suave.
 ## La escala 3D se compensa (_res_boost) para que el 3D no pierda más detalle que en nativa.
+## 2-5 = resolución fija: interfaz como en "reducida" (base 720p) y el 3D a esa altura exacta de píxeles
+## (1080/900/720/540 filas), sin importar la calidad. Nunca por encima de la pantalla (sin supermuestreo).
 const RES_NATIVE := 0
 const RES_REDUCED := 1
+const RES_1080 := 2
+const RES_900 := 3
+const RES_720 := 4
+const RES_540 := 5
+const RES_HEIGHTS := {RES_1080: 1080, RES_900: 900, RES_720: 720, RES_540: 540}
+const RES_COUNT := 6
 static var _res_mode := RES_NATIVE
 
 static func resolution_mode() -> int:
 	return _res_mode
 
+## Altura 3D fija del modo actual (0 = la decide la calidad).
+static func fixed_height() -> int:
+	return int(RES_HEIGHTS.get(_res_mode, 0))
+
+## Modos que tienen sentido en esta pantalla: se omiten las alturas fijas que no caben (en un móvil de
+## 1080 filas, 1080p sería igual que la pantalla y sí se ofrece; 1440p no existe).
+static func resolution_modes_available() -> Array[int]:
+	var out: Array[int] = [RES_NATIVE, RES_REDUCED]
+	var screen_h := _screen_height()
+	for m in [RES_1080, RES_900, RES_720, RES_540]:
+		if screen_h <= 0 or int(RES_HEIGHTS[m]) <= screen_h:
+			out.append(m)
+	return out
+
+static func resolution_label(mode: int) -> String:
+	match mode:
+		RES_NATIVE: return "Nativa"
+		RES_REDUCED: return "Reducida (más FPS)"
+	return "%dp" % int(RES_HEIGHTS.get(mode, 720))
+
 static func apply_resolution(mode: int) -> void:
-	_res_mode = RES_REDUCED if mode == RES_REDUCED else RES_NATIVE
+	_res_mode = mode if mode >= 0 and mode < RES_COUNT else RES_NATIVE
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree == null:
 		return
 	var win := tree.root
-	win.content_scale_mode = Window.CONTENT_SCALE_MODE_VIEWPORT if _res_mode == RES_REDUCED else Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	win.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS if _res_mode == RES_NATIVE else Window.CONTENT_SCALE_MODE_VIEWPORT
 	win.scaling_3d_scale = scale_3d()
+
+## Escala 3D para dibujar `h` filas: relativa al viewport (720 filas en modo viewport), sin pasar de la
+## pantalla. Godot admite hasta 2.0 (por encima de 1.0 el 3D tiene más píxeles que la interfaz).
+static func _fixed_scale(h: int) -> float:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return 1.0
+	var vis_h := maxf(tree.root.get_visible_rect().size.y, 1.0)
+	var screen_h := _screen_height()
+	var rows := float(h) if screen_h <= 0 else minf(float(h), float(screen_h))
+	return clampf(rows / vis_h, 0.25, 2.0)
+
+## Filas reales de la ventana (lado corto en apaisado).
+static func _screen_height() -> int:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return 0
+	return tree.root.size.y
 
 ## Cuánto más pequeño es el viewport que la ventana (1 en nativa): la escala 3D se multiplica por esto.
 static func _res_boost() -> float:
-	if _res_mode != RES_REDUCED:
+	if _res_mode == RES_NATIVE:
 		return 1.0
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree == null:

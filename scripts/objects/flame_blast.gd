@@ -7,26 +7,35 @@ extends Node3D
 
 const LIFE := 1.6
 
+## Bola de fuego en estilo cómic: tres tonos planos (núcleo amarillo, naranja, borde rojo) con contorno de
+## tinta. `fade` no la transparenta: la "come" desde el borde, como una explosión dibujada.
 const FIREBALL_SHADER := """
 shader_type spatial;
-render_mode unshaded, blend_add, depth_draw_never, shadows_disabled, cull_back;
+render_mode unshaded, blend_mix, depth_draw_never, shadows_disabled, cull_back;
 uniform float fade = 1.0;
 void fragment() {
-	float f = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 1.4);
-	vec3 hot = mix(vec3(1.0, 0.62, 0.18), vec3(0.9, 0.16, 0.01), f);
-	ALBEDO = hot * 1.5;
-	ALPHA = (0.15 + 0.45 * (1.0 - f)) * fade;
+	float f = 1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0);   // 0 centro .. 1 silueta
+	float n = sin(UV.x * 37.7 + UV.y * 9.0) * 0.05;        // borde algo irregular, sin ruido
+	float edge = mix(0.15, 1.0, fade) + n;                  // se encoge al apagarse
+	vec3 col = mix(vec3(1.0, 0.92, 0.45), vec3(1.0, 0.55, 0.12), step(0.42 * edge, f));
+	col = mix(col, vec3(0.88, 0.2, 0.05), step(0.72 * edge, f));
+	col = mix(col, vec3(0.03, 0.022, 0.05), step(0.9 * edge, f));
+	ALBEDO = col;
+	ALPHA = step(f, edge);
 }
 """
+## Onda de fuego en el suelo: anillo naranja con tinta a los lados; se adelgaza al apagarse.
 const RING_SHADER := """
 shader_type spatial;
-render_mode unshaded, blend_add, depth_draw_never, shadows_disabled, cull_disabled;
+render_mode unshaded, blend_mix, depth_draw_never, shadows_disabled, cull_disabled;
 uniform float fade = 1.0;
 void fragment() {
-	float d = length(UV * 2.0 - 1.0);
-	float ring = smoothstep(0.12, 0.0, abs(d - 0.88)) + smoothstep(0.9, 0.0, d) * 0.25;
-	ALBEDO = vec3(1.0, 0.42, 0.06) * 3.0;
-	ALPHA = clamp(ring, 0.0, 1.0) * fade;
+	float d = abs(length(UV * 2.0 - 1.0) - 0.86);
+	float w = 0.1 * fade;
+	float ring = 1.0 - smoothstep(w - 0.01, w + 0.01, d);
+	float inner = 1.0 - smoothstep(w * 0.55 - 0.01, w * 0.55 + 0.01, d);
+	ALBEDO = mix(vec3(0.03, 0.022, 0.05), vec3(1.0, 0.55, 0.12), inner);
+	ALPHA = ring * step(0.02, fade);
 }
 """
 
@@ -163,9 +172,21 @@ func _add_smoke(radius: float) -> void:
 	tex.gradient = tg
 	mat.albedo_texture = tex
 	p.material_override = mat
+	if ToonFX.puff_material(mat):
+		# Humo dibujado (cómic): nubes grises opacas que desaparecen encogiéndose
+		ToonFX.vary(p)
+		p.angle_max = 360.0
+		p.color_ramp = ToonFX.pop_ramp([Color(0.55, 0.5, 0.48), Color(0.36, 0.34, 0.34)])
+		p.scale_amount_curve = ToonFX.pop_curve(0.4, 1.0, 0.4)
+		p.amount = Quality.count(9)
+		_start(p)
+		return
 	var g := Gradient.new()
 	g.set_color(0, Color(0.25, 0.2, 0.18, 0.7))
 	g.set_color(1, Color(0.1, 0.1, 0.1, 0.0))
 	p.color_ramp = g
+	_start(p)
+
+func _start(p: CPUParticles3D) -> void:
 	add_child(p)
 	p.emitting = true

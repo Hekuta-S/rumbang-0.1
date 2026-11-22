@@ -14,6 +14,12 @@ const DAMAGE_TICK_RATE = 0.2
 
 @onready var visual = $Visual
 
+## Guitarra-hacha dibujada (tools/make_weapon_sprites.py -> guitarra.png, celda de 192 px): billboard que
+## gira cambiando de fotograma (8 ángulos). ~1,8 m de largo, como el modelo 3D de antes.
+const SPRITE_PIXEL := 0.011
+var _sprite: Sprite3D
+var _spin_angle := 0.0
+
 # Dinamismo de lanzamiento
 var spin_axis: Vector3 = Vector3.UP
 var spin_speed: float = 24.0
@@ -61,6 +67,11 @@ func _ready():
 	collision_mask = 4 # enemies
 	body_entered.connect(_on_body_entered)
 	
+	_sprite = ToonFX.sheet_sprite("guitarra.png", ToonFX.SPIN_FRAMES, 1, SPRITE_PIXEL)
+	_sprite.frame = randi() % ToonFX.SPIN_FRAMES
+	_spin_angle = float(_sprite.frame) / ToonFX.SPIN_FRAMES * TAU
+	add_child(_sprite)
+
 	spin_sfx = AudioStreamPlayer3D.new()
 	var stream = AudioManager.get_stream("ataque-espalanza")
 	spin_sfx.stream = stream
@@ -121,7 +132,11 @@ func _setup_trails() -> void:
 func _physics_process(delta: float):
 	flight_elapsed += delta
 
-	# Giro dinámico en su eje variable
+	# Giro del dibujo: avanza la rueda de fotogramas
+	if _sprite:
+		_spin_angle += spin_speed * delta
+		_sprite.frame = ToonFX.spin_frame(_spin_angle)
+	# El nodo Visual (invisible) sigue girando en 3D: lleva la punta de la estela giratoria
 	if visual:
 		visual.rotate_object_local(spin_axis, spin_speed * delta)
 		# Leve balanceo orgánico durante el vuelo

@@ -14,8 +14,12 @@ var mobile_fps: int = 0
 ## V-Sync. Apagado, el juego no espera al refresco de la pantalla (más FPS, posible "tearing"). Algunos móviles
 ## no dejan apagarlo: ver Quality.apply_vsync().
 var vsync: bool = true
-## Resolución: 0 nativa, 1 reducida (Quality.apply_resolution).
-var resolution: int = 0
+## Resolución: -1 automática (reducida en móviles de gama baja, Quality.auto_resolution), 0 nativa, 1 reducida,
+## 2-5 fija a 1080p/900p/720p/540p (Quality.RES_*).
+var resolution: int = -1
+## Versión del campo "resolution" en settings.json (ver apply_data: migración del 0 viejo).
+const RES_SAVE_VERSION := 2
+const RES_NATIVE_LEGACY := 0
 
 ## Sensibilidad de la cámara (multiplicador de la base): ratón/mando y arrastre táctil por separado.
 const SENS_MIN := 0.25
@@ -49,29 +53,40 @@ func load_settings() -> void:
 		return
 	var parsed: Variant = JSON.parse_string(file.get_as_text())
 	if parsed is Dictionary:
-		var data: Dictionary = parsed
-		master_vol = data.get("master", 0.5)
-		sfx_vol = data.get("sfx", 0.5)
-		music_vol = data.get("music", 0.5)
-		quality_level = int(data.get("quality", -1))
-		show_attack_marks = bool(data.get("attack_marks", true))
-		vsync = bool(data.get("vsync", true))
-		resolution = 1 if int(data.get("resolution", 0)) == 1 else 0
-		mobile_fps = int(data.get("fps_cap", 0)) if int(data.get("fps_cap", 0)) in [30, 60] else 0
-		look_sensitivity = clampf(float(data.get("look_sens", 1.0)), SENS_MIN, SENS_MAX)
-		touch_look_sensitivity = clampf(float(data.get("touch_look_sens", 1.0)), SENS_MIN, SENS_MAX)
-		touch_scale = clampf(float(data.get("touch_scale", 1.0)), TOUCH_SCALE_MIN, TOUCH_SCALE_MAX)
-		touch_opacity = clampf(float(data.get("touch_opacity", 1.0)), 0.2, 1.0)
-		var hidden: Variant = data.get("touch_hidden", [])
-		touch_hidden = hidden if hidden is Array else []
-		var custom: Variant = data.get("touch_custom", {})
-		touch_custom = custom if custom is Dictionary else {}
+		apply_data(parsed)
+
+## Carga los valores de un settings.json ya leído (separado para probarlo sin tocar el disco).
+func apply_data(data: Dictionary) -> void:
+	master_vol = data.get("master", 0.5)
+	sfx_vol = data.get("sfx", 0.5)
+	music_vol = data.get("music", 0.5)
+	quality_level = int(data.get("quality", -1))
+	show_attack_marks = bool(data.get("attack_marks", true))
+	vsync = bool(data.get("vsync", true))
+	var res := int(data.get("resolution", -1))
+	# Antes del 2026-11-19 se guardaba siempre 0 (nativa) aunque nadie la eligiera: sin la marca res_v ese 0
+	# se lee como automático, para que un móvil de gama baja reciba la resolución reducida.
+	if res == RES_NATIVE_LEGACY and int(data.get("res_v", 0)) < RES_SAVE_VERSION:
+		res = -1
+	resolution = res if res >= 0 and res < Quality.RES_COUNT else -1
+	mobile_fps = int(data.get("fps_cap", 0)) if int(data.get("fps_cap", 0)) in [30, 60] else 0
+	look_sensitivity = clampf(float(data.get("look_sens", 1.0)), SENS_MIN, SENS_MAX)
+	touch_look_sensitivity = clampf(float(data.get("touch_look_sens", 1.0)), SENS_MIN, SENS_MAX)
+	touch_scale = clampf(float(data.get("touch_scale", 1.0)), TOUCH_SCALE_MIN, TOUCH_SCALE_MAX)
+	touch_opacity = clampf(float(data.get("touch_opacity", 1.0)), 0.2, 1.0)
+	var hidden: Variant = data.get("touch_hidden", [])
+	touch_hidden = hidden if hidden is Array else []
+	var custom: Variant = data.get("touch_custom", {})
+	touch_custom = custom if custom is Dictionary else {}
 
 func save_settings() -> void:
 	var file := FileAccess.open(SETTINGS_PATH, FileAccess.WRITE)
 	if file == null:
 		return
-	var payload := {
+	file.store_string(JSON.stringify(to_payload()))
+
+func to_payload() -> Dictionary:
+	return {
 		"master": master_vol,
 		"sfx": sfx_vol,
 		"music": music_vol,
@@ -80,6 +95,7 @@ func save_settings() -> void:
 		"fps_cap": mobile_fps,
 		"vsync": vsync,
 		"resolution": resolution,
+		"res_v": RES_SAVE_VERSION,
 		"look_sens": look_sensitivity,
 		"touch_look_sens": touch_look_sensitivity,
 		"touch_scale": touch_scale,
@@ -87,7 +103,6 @@ func save_settings() -> void:
 		"touch_hidden": touch_hidden,
 		"touch_custom": touch_custom
 	}
-	file.store_string(JSON.stringify(payload))
 
 func set_bus_volume(bus_name: String, vol_linear: float) -> void:
 	# Convert 0.0-1.0 linear volume to Decibels (-80 to 0)
@@ -103,7 +118,7 @@ func _apply_all() -> void:
 	_ensure_bus("Music")
 	
 	Quality.apply_vsync(vsync)
-	Quality.apply_resolution(resolution)
+	Quality.apply_resolution(resolution if resolution >= 0 else Quality.auto_resolution())
 	set_bus_volume("Master", master_vol)
 	set_bus_volume("SFX", sfx_vol)
 	set_bus_volume("Music", music_vol)

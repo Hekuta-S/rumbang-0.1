@@ -234,7 +234,7 @@ func _collect_nodes() -> void:
 		skip.append(n)
 	for node in map.find_children("*", "GeometryInstance3D", true, false):
 		var g := node as GeometryInstance3D
-		if g.name == "Floor" or g.has_meta("fog_gate") or _is_under_breakables(g):
+		if String(g.name).begins_with("Floor_") or g.has_meta("fog_gate") or _is_under_breakables(g):
 			continue
 		var box := g.global_transform * g.get_aabb()
 		if box.size.length() < 0.001:

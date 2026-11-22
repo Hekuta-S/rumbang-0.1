@@ -143,8 +143,17 @@ func _process(delta: float) -> void:
 	if _reveal_t <= 0.0:
 		_reveal_t = 0.12
 		_reveal()
+	# Móvil: la vista se redibuja a 20 Hz (arcos, flecha y texto son un dibujo cada uno); PC cada frame.
+	# Al ampliarse o encogerse se redibuja siempre, para que la animación vaya fluida.
+	_redraw_t -= delta
+	if _redraw_t > 0.0 and is_equal_approx(_t, target):
+		return
+	_redraw_t = REDRAW_MOBILE if Quality.is_mobile() else 0.0
 	_map_layer.queue_redraw()
 	_view.queue_redraw()
+
+const REDRAW_MOBILE := 0.05
+var _redraw_t := 0.0
 
 func _rebuild() -> void:
 	var lo := Vector2i(1 << 30, 1 << 30)

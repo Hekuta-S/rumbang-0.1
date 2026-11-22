@@ -57,8 +57,9 @@ static func from_env() -> EnemyBenchmark:
 				EnemyManager.native_sim_enabled = false   # solo el movimiento en C++, el bucle en GDScript
 			elif parts[i] == "u":
 				uncapped = true
-			elif parts[i] == "r1":
-				Quality.apply_resolution(Quality.RES_REDUCED)   # resolución reducida (comparar)
+			elif parts[i] in ["r1", "r2", "r3", "r4", "r5"]:
+				# r1 reducida; r2-r5 fija a 1080p/900p/720p/540p (Quality.RES_*), para comparar
+				Quality.apply_resolution(int(parts[i].substr(1)))
 			elif parts[i] == "mb":
 				uncapped = true
 				mailbox = true

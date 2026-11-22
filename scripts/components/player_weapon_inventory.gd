@@ -4,7 +4,7 @@ class_name PlayerWeaponInventory
 signal weapon_changed(weapon_index, weapon_name)
 signal reload_state_changed(weapon_type, ammo, max_ammo, is_reloading, progress)
 
-const MAX_WEAPON_SLOTS: int = 4
+const MAX_WEAPON_SLOTS: int = 5     ## 5 huecos (la barra de armas del HUD tiene 5)
 
 var weapon_slots: Array = []
 var current_slot: int = 0
@@ -216,6 +216,7 @@ func get_weapons_list() -> Array:
 		var info: Dictionary = {
 			"icon": WeaponData.weapon_icons.get(wt, "⚔️"),
 			"name": WeaponData.weapon_names.get(wt, "Arma"),
+			"type": wt,       # el HUD busca su imagen en WeaponChoiceUI.ICONS
 		}
 		var mag: int = weapon_mag_size.get(wt, 0)
 		if mag > 0:

@@ -93,7 +93,14 @@ static func fire_slam(e: EnemyData) -> void:
 ## Golpe cuerpo a cuerpo (o embestida, con `mult`) al jugador.
 static func hit_player(e: EnemyData, mult: float = 1.0) -> void:
 	if e.player != null and is_instance_valid(e.player) and e.player.has_method("take_damage"):
+		if not can_reach_vertically(e.global_position.y, (e.player as Node3D).global_position.y):
+			return                       # el jugador está muy arriba (meseta, plataforma, rebote): el golpe no llega
 		e.player.take_damage(e.damage * mult)
+
+## El cuerpo a cuerpo mide la distancia en horizontal; esto añade el alcance vertical. Pura.
+const MELEE_REACH_Y := 1.8
+static func can_reach_vertically(enemy_y: float, player_y: float) -> bool:
+	return player_y - enemy_y <= MELEE_REACH_Y
 
 
 class RangedGoblinBehavior extends EnemyBehavior:

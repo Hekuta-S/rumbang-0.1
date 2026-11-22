@@ -11,7 +11,8 @@ signal picked_up
 
 enum Phase { FLYING, SPINNING, RESTING }
 
-const MODEL := "res://assets/models/weapons/axe_guitar.glb"
+## Guitarra-hacha dibujada (guitarra.png, 8 fotogramas de giro); m por píxel: ~1,7 m de largo.
+const SPRITE_PIXEL := 0.0102
 const HEIGHT := 1.0                   ## altura de vuelo sobre el suelo
 const PICKUP_RADIUS := 1.6
 const SPIN_TIME := 2.0                ## giro con daño en área
@@ -34,6 +35,8 @@ var _visual: Node3D
 var _light: OmniLight3D
 var _player: Node3D
 var _spin_sfx: AudioStreamPlayer3D
+var _sprite: Sprite3D
+var _spin_angle := 0.0
 
 static func throw(parent: Node, from: Vector3, p_dir: Vector3, p_speed: float, p_range: float, p_damage: float) -> DungeonAxe:
 	var a := DungeonAxe.new()
@@ -49,14 +52,10 @@ func _ready() -> void:
 	_player = get_tree().get_first_node_in_group("player") as Node3D
 	_visual = Node3D.new()
 	add_child(_visual)
-	var scene := load(MODEL) as PackedScene
-	if scene:
-		# En el glb el hacha ya está tumbada a lo largo de −Z (de la hoja en z ≈ +10 a la punta del
-		# mástil en −31,9): se centra para que gire sobre su mitad, como un disco
-		var m := scene.instantiate() as Node3D
-		m.scale = Vector3.ONE * VISUAL_SCALE
-		m.position = Vector3(0.0, 0.0, 11.0 * VISUAL_SCALE)
-		_visual.add_child(m)
+	# Dibujo 2D horneado: billboard que gira cambiando de fotograma. _visual (sin dibujo) sigue girando en 3D
+	# porque lleva la punta de la estela de la hoja.
+	_sprite = ToonFX.sheet_sprite("guitarra.png", ToonFX.SPIN_FRAMES, 1, SPRITE_PIXEL)
+	add_child(_sprite)
 	# Estelas de supervivencia: trayectoria (centro) y punta de la hoja girando
 	var tip := Marker3D.new()
 	tip.position = Vector3(0.0, 0.0, (11.0 + 8.0) * VISUAL_SCALE)
@@ -91,6 +90,7 @@ func _physics_process(delta: float) -> void:
 	match phase:
 		Phase.FLYING:
 			_visual.rotate_y(28.0 * delta)
+			_spin(28.0 * delta)
 			var step := dir * speed * delta
 			var hit := EnemyQuery.segment_hit(global_position, global_position + step, 0.35)
 			if not hit.is_empty():
@@ -112,6 +112,7 @@ func _physics_process(delta: float) -> void:
 				_start_spin()
 		Phase.SPINNING:
 			_visual.rotate_y(34.0 * delta)
+			_spin(34.0 * delta)
 			_tick += delta
 			if _tick >= TICK:
 				_tick = 0.0
@@ -122,9 +123,15 @@ func _physics_process(delta: float) -> void:
 		Phase.RESTING:
 			# Gira despacio y flota, con una luz que late: "¡ven a por mí!"
 			_visual.rotate_y(5.0 * delta)
+			_spin(5.0 * delta)
 			_visual.position.y = sin(_t * 3.0) * 0.08
+			_sprite.position.y = _visual.position.y
 			_light.light_energy = 0.8 + 0.6 * (0.5 + 0.5 * sin(_t * 5.0))
 	_check_pickup()
+
+func _spin(step: float) -> void:
+	_spin_angle += step
+	_sprite.frame = ToonFX.spin_frame(_spin_angle)
 
 func _start_spin() -> void:
 	phase = Phase.SPINNING

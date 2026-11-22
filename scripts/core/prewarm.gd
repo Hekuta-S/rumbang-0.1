@@ -2,11 +2,10 @@ class_name Prewarm
 extends RefCounted
 
 ## Precalienta lo que más tirones da al aparecer por primera vez: compilación de shaders
-## (orbes elementales, haz del jefe, estelas) y carga de modelos/animaciones de enemigos.
+## (haz del jefe, estelas) y carga de modelos/animaciones de enemigos.
 ## Se ejecuta durante la pantalla de carga.
 
 const SHADERS: Array[String] = [
-	"res://assets/shaders/orbe_elemental.gdshader",
 	"res://assets/shaders/necro_beam.gdshader",
 	"res://assets/shaders/ribbon_mesh.gdshader",
 	"res://assets/shaders/spear_slash.gdshader",
@@ -36,6 +35,10 @@ static func run(parent: Node3D) -> void:
 		return
 	_done = true
 	_shaders(parent)
+	# Modelos cartoon de los objetos del mapa: su primera carga (glb + fusión de malla) daba un tirón
+	# de 8-57 ms en la baja que soltaba el primer objeto
+	for f in MapPickup.MODELS.values():
+		MapPickup.toon_mesh(String(f))
 	# (los enemigos son datos: no hay nada que instanciar)
 
 ## Una malla diminuta por shader (y por elemento en los orbes) delante de la cámara durante medio segundo.
@@ -49,7 +52,7 @@ static func _shaders(parent: Node3D) -> void:
 		var shader := load(path) as Shader
 		if shader == null:
 			continue
-		var variants := 6 if path.ends_with("orbe_elemental.gdshader") else 1
+		var variants := 1
 		for v in range(variants):
 			var mi := MeshInstance3D.new()
 			mi.mesh = SphereMesh.new()
@@ -59,4 +62,13 @@ static func _shaders(parent: Node3D) -> void:
 				sm.set_shader_parameter("element", v)
 			mi.material_override = sm
 			holder.add_child(mi)
+	# Juice de los golpes (destello, chispas por tipo, palabras de cómic): se creaba en el primer golpe
+	HitFeedback.prewarm(parent, holder.global_position)
+	# Primera gema de XP (malla, material y partículas compartidas): ~18 ms en la primera baja. Esta no se
+	# recoge: sin proceso, sin colisión y fuera del grupo; se va con el holder.
+	var orb: Node = load("res://scenes/objects/xp_orb.tscn").instantiate()
+	orb.process_mode = Node.PROCESS_MODE_DISABLED
+	orb.set("monitoring", false)
+	holder.add_child(orb)
+	orb.remove_from_group("xp_orbs")
 	parent.get_tree().create_timer(0.6).timeout.connect(holder.queue_free)

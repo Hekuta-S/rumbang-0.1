@@ -20,6 +20,9 @@ const W := WeaponData.WeaponType
 const ENERGY_MAX := 75.0
 ## Antes (24/s tras 0,65 s) la barra se llenaba entera entre dos combos y nunca obligaba a decidir: ahora una
 ## ráfaga larga o dos esquivas seguidas se notan y hay que respirar entre peleas.
+## Todo lo que gasta energía (ataques, especiales, rodar, saltar, correr) cuesta este factor de su coste
+## de las tablas. Los recursos solo están activos en la mazmorra, así que solo afecta allí.
+const ENERGY_COST_SCALE := 0.5
 const ENERGY_REGEN := 15.0           ## por segundo
 const ENERGY_DELAY := 1.0            ## pausa tras gastar antes de empezar a recuperar (s)
 ## Agotado: si un gasto deja la energía por debajo de EXHAUST_BELOW, la pausa es más larga (castiga vaciarla).
@@ -40,6 +43,7 @@ const TABLE := {
 	W.ENERGY_SWORD: {"kind": Kind.ENERGY, "cost": 12.0, "alt": 20.0},
 	W.SPINNING_AXE: {"kind": Kind.ENERGY, "cost": 18.0, "alt": 30.0},
 	W.ZOMBIE_ARM: {"kind": Kind.ENERGY, "cost": 16.0, "alt": 0.0},
+	W.GIANT_MACE: {"kind": Kind.ENERGY, "cost": 22.0, "alt": 0.0},       ## mazazo caro; sin especial
 	W.DAGGERS: {"kind": Kind.ENERGY, "cost": 8.0, "alt": 24.0},           ## golpes baratos; la embestida
 	W.MACE: {"kind": Kind.ENERGY, "cost": 24.0, "alt": 40.0},             ## golpes caros; el mazazo al suelo
 	W.GREATSWORD: {"kind": Kind.ENERGY, "cost": 19.0, "alt": 0.0},      ## tres tajos pesados; sin especial
@@ -140,7 +144,7 @@ func can_spend(weapon: int, alt: bool = false) -> bool:
 	match kind_of(weapon):
 		Kind.ENERGY:
 			var sb := _stats()
-			return energy >= cost * (sb.energy_cost_mult() if sb else 1.0)
+			return energy >= cost * ENERGY_COST_SCALE * (sb.energy_cost_mult() if sb else 1.0)
 		Kind.MANA: return mana >= cost
 		Kind.AMMO: return float(ammo.get(weapon, 0)) >= cost
 	return true
@@ -169,6 +173,7 @@ func spend(weapon: int, alt: bool = false) -> bool:
 func spend_energy(cost: float) -> bool:
 	if not active or cost <= 0.0:
 		return true
+	cost *= ENERGY_COST_SCALE
 	var sb := _stats()
 	if sb:
 		cost *= sb.energy_cost_mult()
@@ -176,6 +181,18 @@ func spend_energy(cost: float) -> bool:
 		denied.emit(Kind.ENERGY)
 		return false
 	energy -= cost
+	_energy_wait = EXHAUST_DELAY if energy < EXHAUST_BELOW else ENERGY_DELAY
+	changed.emit()
+	return true
+
+## Gasto continuo (correr): quita `amount` sin avisar de falta (sin "denied") y frena la recarga como un gasto.
+## Devuelve false si ya no queda energía.
+func drain_energy(amount: float) -> bool:
+	if not active or amount <= 0.0:
+		return true
+	if energy <= 0.0:
+		return false
+	energy = maxf(energy - amount * ENERGY_COST_SCALE, 0.0)
 	_energy_wait = EXHAUST_DELAY if energy < EXHAUST_BELOW else ENERGY_DELAY
 	changed.emit()
 	return true

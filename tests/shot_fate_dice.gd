@@ -3,7 +3,8 @@ extends Node
 ## Capturas del dado del destino y de los recogibles cartoon (necesita ventana):
 ##   res://tests/shot_fate_dice.tscn -- <prefijo>
 ## Supervivencia: dado y los cuatro recogibles delante de la cámara (<prefijo>_objetos.png), la pregunta
-## (<prefijo>_pregunta.png), el dado en el aire (<prefijo>_tirada.png) y el resultado (<prefijo>_resultado.png).
+## (<prefijo>_pregunta.png), el dado en el aire (<prefijo>_tirada.png), el resultado (<prefijo>_resultado.png) y
+## un primer plano del dado caído (<prefijo>_cerca.png).
 
 var _prefix := "user://dado"
 var _main: Node
@@ -69,6 +70,10 @@ func _run() -> void:
 	await _save("_tirada")
 	await get_tree().create_timer(1.3).timeout
 	await _save("_resultado")
+	# primer plano del dado ya caído (números y bisel), desde donde miraría el jugador
+	var dp: Vector3 = dice._holder.global_position
+	cam.look_at_from_position(dp + Vector3(0, 1.3, 1.6), dp)
+	await _save("_cerca")
 	get_tree().quit(0)
 
 func _save(suffix: String) -> void:

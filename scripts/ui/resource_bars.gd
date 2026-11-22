@@ -106,11 +106,31 @@ func _process(delta: float) -> void:
 		_show_mana = show_mana
 		_show_ammo = show_ammo
 		_layout()
+	var flashing := not _denied.is_empty()
 	for k in _denied.keys():
 		_denied[k] -= delta
 		if _denied[k] <= 0.0:
 			_denied.erase(k)
-	queue_redraw()
+	# Solo móvil dibuja aquí (en escritorio pinta FloatingVitals); y solo si cambia lo que se ve
+	if not _mobile:
+		return
+	var sig := _draw_signature()
+	if flashing or sig != _last_sig:
+		_last_sig = sig
+		queue_redraw()
+
+var _last_sig: Array = []
+
+## Lo que se dibuja, redondeado a lo que se nota (cuarto de punto): sin cambios, no se vuelve a dibujar.
+func _draw_signature() -> Array:
+	if _res == null or not _res.active:
+		return [false]
+	var sig := [true, _show_mana, _show_ammo, _res.is_exhausted(), int(_res.energy * 4.0), int(_res.energy_max())]
+	if _show_mana:
+		sig.append_array([int(_res.mana * 4.0), int(_res.mana_max())])
+	if _show_ammo:
+		sig.append(_ammo_values())
+	return sig
 
 func _on_denied(kind: int) -> void:
 	_denied[kind] = 0.35

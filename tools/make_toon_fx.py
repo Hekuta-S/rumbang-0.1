@@ -2,7 +2,8 @@
 
     python tools/make_toon_fx.py
 
-Sale assets/textures/toon/fx/impact.png (4 estrellas de impacto entintadas, para HitFeedback._flash) y
+Sale assets/textures/toon/fx/flame.png (4 lenguas de fuego entintadas, para fuego en partículas),
+ring.png (anillo de onda entintado), impact.png (4 estrellas de impacto entintadas, para HitFeedback._flash) y
 assets/textures/toon/fx/puff.png: 256×256 RGBA con 4 nubes distintas (rejilla 2×2). Cada una es un
 racimo de bolas en blanco con una banda de sombra abajo, contorno de tinta y un par de trazos interiores.
 Va en blanco para que cada efecto la tiña con su color (el contorno sale como ese color en oscuro).
@@ -89,8 +90,79 @@ def impact_star(seed):
     return img.resize((CELL, CELL), Image.LANCZOS)
 
 
+def flame(seed):
+    """Lengua de fuego de cómic: lágrima con el borde ondulado y una o dos puntas laterales, cuerpo en gris
+    claro, núcleo blanco (otra lágrima más pequeña y baja) y contorno de tinta. En blanco/gris para que la
+    partícula la tiña (amarillo -> naranja -> rojo a lo largo de su vida)."""
+    rnd = random.Random(seed)
+    n = CELL * SS
+    cx = n / 2
+
+    def tongue(base_y, height, half_w, waves, lean, side_tips):
+        pts_l, pts_r = [], []
+        steps = 48
+        for i in range(steps + 1):
+            t = i / steps                                   # 0 = base, 1 = punta
+            w = half_w * math.sin(math.pi * min(1.0, 0.15 + t * 0.95)) ** 0.8 * (1.0 - t) ** 0.6
+            wob = math.sin(t * math.pi * waves + seed) * half_w * 0.12 * t
+            x0 = cx + lean * t * t * half_w + wob
+            y = base_y - t * height
+            pts_l.append((x0 - w, y))
+            pts_r.append((x0 + w, y))
+        for side, at, size in side_tips:
+            k = int(at * steps)
+            pts = pts_l if side < 0 else pts_r
+            x, y = pts[k]
+            pts.insert(k + 1, (x + side * half_w * size * 0.6, y - height * size * 0.55))
+        return pts_l + pts_r[::-1]
+
+    half_w = n * rnd.uniform(0.25, 0.3)
+    lean = rnd.uniform(-0.5, 0.5)
+    tips = [(rnd.choice((-1, 1)), rnd.uniform(0.35, 0.55), rnd.uniform(0.35, 0.5))]
+    if rnd.random() < 0.6:
+        tips.append((-tips[0][0], rnd.uniform(0.25, 0.45), rnd.uniform(0.25, 0.4)))
+    body = tongue(n * 0.9, n * rnd.uniform(0.72, 0.8), half_w, rnd.uniform(2.5, 4.0), lean, tips)
+    core = tongue(n * 0.86, n * rnd.uniform(0.4, 0.48), half_w * 0.5, 2.0, lean * 0.6, [])
+    def bulb(draw, base_y, r, fill):                         # base redonda de la lágrima
+        draw.ellipse([cx - r, base_y - 2 * r, cx + r, base_y], fill=fill)
+
+    mask = Image.new("L", (n, n), 0)
+    md = ImageDraw.Draw(mask)
+    md.polygon(body, fill=255)
+    bulb(md, n * 0.93, half_w * 0.86, 255)
+    width = int(n * 0.03)
+    img = Image.new("RGBA", (n, n), INK + (0,))
+    img.paste(Image.new("RGBA", (n, n), INK + (255,)), (0, 0), mask.filter(ImageFilter.MaxFilter(width * 2 + 1)))
+    img.paste(Image.new("RGBA", (n, n), (190, 190, 200, 255)), (0, 0), mask)
+    d = ImageDraw.Draw(img)
+    d.polygon(core, fill=(255, 255, 255, 255))
+    bulb(d, n * 0.88, half_w * 0.44, (255, 255, 255, 255))
+    return img.resize((CELL, CELL), Image.LANCZOS)
+
+
+def ring():
+    """Anillo de onda entintado (polvo al aterrizar, onda de fuego): banda blanca con tinta a ambos lados.
+    Sale a 512 px (no 128): se estira a varios metros en el suelo y la tinta fina se emborronaba."""
+    size = 512
+    n = size * SS
+    img = Image.new("RGBA", (n, n), INK + (0,))
+    d = ImageDraw.Draw(img)
+    c = n / 2
+    for r, col in ((0.47, INK + (255,)), (0.455, (255, 255, 255, 255)), (0.415, INK + (255,)), (0.4, INK + (0,))):
+        rr = n * r
+        d.ellipse([c - rr, c - rr, c + rr, c + rr], fill=col)
+    return img.resize((size, size), Image.LANCZOS)
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
+    flames = Image.new("RGBA", (CELL * 2, CELL * 2), INK + (0,))
+    for i in range(4):
+        flames.paste(flame(7 + i * 11), ((i % 2) * CELL, (i // 2) * CELL))
+    flames.save(os.path.join(OUT, "flame.png"))
+    print("guardado", os.path.relpath(os.path.join(OUT, "flame.png"), ROOT))
+    ring().save(os.path.join(OUT, "ring.png"))
+    print("guardado", os.path.relpath(os.path.join(OUT, "ring.png"), ROOT))
     stars = Image.new("RGBA", (CELL * 2, CELL * 2), INK + (0,))
     for i in range(4):
         stars.paste(impact_star(90 + i * 7), ((i % 2) * CELL, (i // 2) * CELL))

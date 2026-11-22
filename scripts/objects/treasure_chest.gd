@@ -9,6 +9,8 @@ signal opened(chest: TreasureChest)
 signal approached(chest: TreasureChest)
 var auto_open := true
 var _near := false
+## Diferencia de altura máxima con el jugador para abrirse (cofres en plataformas: no se abren desde el suelo).
+var max_dy := 1000.0
 
 const OPEN_RADIUS := 2.4
 const WOOD := Color(0.36, 0.22, 0.11)
@@ -113,6 +115,9 @@ func _process(delta: float) -> void:
 		return
 	_light.light_energy = 1.4 + 0.4 * sin(_t * 3.0)
 	if not is_instance_valid(player):
+		return
+	if absf(player.global_position.y - global_position.y) > max_dy:
+		_near = false
 		return
 	var d := Vector2(player.global_position.x - global_position.x, player.global_position.z - global_position.z)
 	if not auto_open:

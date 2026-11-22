@@ -127,8 +127,8 @@ func _on_player_leveled_up(new_level) -> void:
 		add_child(ui)
 		ui.choice_made.connect(_on_upgrade_choice_made)
 	$UpgradeChoiceUI.present_choices(player)
-	if hud and hud.has_method("play_level_up_confetti"):
-		hud.play_level_up_confetti()
+	if hud and hud.has_method("play_level_up_edges"):
+		hud.play_level_up_edges()
 
 func _on_upgrade_choice_made(choice_type: String, choice_id: String) -> void:
 	if bg_music and _pending_level_ups == 0:
@@ -153,8 +153,10 @@ func _on_upgrade_choice_made(choice_type: String, choice_id: String) -> void:
 		MetaProgress.discover_evolution(w_id)
 		_screen_flash(Color(1.0, 0.85, 0.3, 0.6))
 		AudioManager.play("kill_burst", -2.0, 0.7)
-		if hud and hud.has_method("play_level_up_confetti"):
-			hud.play_level_up_confetti()
+	# Cartel tras elegir la mejora (con las cartas ya cerradas)
+	if hud and hud.has_method("play_level_up_confetti"):
+		hud.play_level_up_confetti("¡EVOLUCIÓN!" if choice_type == "evolution" else "¡NIVEL!")
+	refresh_weapon_ui()       # barra de armas e insignias de sinergia al día
 	# Nivel(es) acumulado(s) mientras elegías: siguiente mano
 	if _pending_level_ups > 0:
 		_pending_level_ups -= 1

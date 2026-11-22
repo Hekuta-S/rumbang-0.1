@@ -143,16 +143,36 @@ func _start_endless() -> void:
 	waves.events.announce("MODO INFINITO", RumbangStyle.NEON_CYAN, "¿Cuánto aguantas?")
 
 ## Aplica el multiplicador de oro ("Duende") del jugador.
+## gold_mult() suma rasgos, equipo, tomos, tienda y dado (~25 µs): en una matanza se pedía una vez por baja.
+## Solo cambia al cambiar las stats, así que basta con calcularlo una vez por frame.
+var _gold_mult_frame := -1
+var _gold_mult := 1.0
+
 func _gold_with_bonus(base: int) -> int:
-	var sb = player.get("stat_block") if is_instance_valid(player) else null
-	if sb == null:
-		return base
-	return maxi(base, int(round(float(base) * sb.gold_mult())))
+	var frame := Engine.get_process_frames()
+	if frame != _gold_mult_frame:
+		_gold_mult_frame = frame
+		var sb = player.get("stat_block") if is_instance_valid(player) else null
+		_gold_mult = sb.gold_mult() if sb != null else 1.0
+	return maxi(base, int(round(float(base) * _gold_mult)))
+
+## El contador de oro del HUD (texto + tween de salto) se refresca una vez por frame, no por baja.
+var _gold_ui_queued := false
+
+func _queue_gold_ui() -> void:
+	if _gold_ui_queued:
+		return
+	_gold_ui_queued = true
+	_flush_gold_ui.call_deferred()
+
+func _flush_gold_ui() -> void:
+	_gold_ui_queued = false
+	facade.update_gold(GameState.get_instance().gold)
 
 func _on_enemy_died(pos: Vector3, gold_val: int, xp: float = 1.0) -> void:
 	gold_val = _gold_with_bonus(gold_val)
 	GameState.get_instance().add_gold(gold_val)
-	facade.update_gold(GameState.get_instance().gold)
+	_queue_gold_ui()
 	SaveManager.add_gold(gold_val)
 	facade.spawn_xp_orb(pos, xp)
 	MapPickup.roll_kill_drop(self, pos)
