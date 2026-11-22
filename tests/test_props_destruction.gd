@@ -48,7 +48,9 @@ func _ready() -> void:
 	for st in stalactites:
 		assert((st as Node3D).position.y - 2.6 * (st as Node3D).transform.basis.get_scale().y >= DungeonMap.STALACTITE_CLEAR - 1.0, "Las estalactitas no bajan a la altura del jugador")
 	assert(map.get_node_or_null("RockArt") != null, "Nodo de pinturas rupestres")
-	var floor_mm := map.get_node("Floor") as MultiMeshInstance3D
+	var floor_node := map.get_node("Floor")
+	assert(floor_node.get_child_count() > 1, "El suelo va en trozos (%d)" % floor_node.get_child_count())
+	var floor_mm := floor_node.get_child(0) as MultiMeshInstance3D
 	assert((floor_mm.multimesh.mesh.surface_get_material(0) as ShaderMaterial).shader == DungeonMap.FLOOR_SHADER, "El suelo usa cave_floor")
 	print("CHECK 1 PASSED: carcasa %s y suelo texturizado" % str(parts))
 

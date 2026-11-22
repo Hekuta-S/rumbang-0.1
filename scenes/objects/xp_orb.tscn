@@ -1,4 +1,4 @@
-[gd_scene load_steps=5 format=3 uid="uid://cxporbxporb"]
+[gd_scene load_steps=6 format=3 uid="uid://cxporbxporb"]
 
 [ext_resource type="Script" path="res://scripts/objects/xp_orb.gd" id="1_xporb"]
 
@@ -11,6 +11,12 @@ emission_enabled = true
 emission = Color(0, 0.8, 1, 1)
 emission_energy_multiplier = 2.0
 
+[sub_resource type="SphereMesh" id="SphereMesh_xporb"]
+radius = 0.2
+height = 0.4
+radial_segments = 12
+rings = 6
+
 [node name="XPOrb" type="Area3D"]
 collision_layer = 0
 collision_mask = 2
@@ -19,6 +25,7 @@ script = ExtResource("1_xporb")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 shape = SubResource("SphereShape3D_xporb")
 
-[node name="CSGSphere3D" type="CSGSphere3D" parent="."]
-radius = 0.2
-material = SubResource("StandardMaterial3D_xporb")
+[node name="Body" type="MeshInstance3D" parent="."]
+cast_shadow = 0
+mesh = SubResource("SphereMesh_xporb")
+surface_material_override/0 = SubResource("StandardMaterial3D_xporb")

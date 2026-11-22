@@ -3,17 +3,15 @@ extends RefCounted
 
 ## Curva de experiencia del modo supervivencia (compartida por ExperienceComponent y StatsComponent)
 ## y valor/aspecto de las gemas de XP.
-##  - XP para pasar del nivel L al L+1: lineal por tramos (pendiente creciente), no x1.5 por nivel:
-##    así el nivel 30+ es alcanzable en una partida de 7 minutos y se ven varias evoluciones.
+##  - XP para pasar del nivel L al L+1: BASE + LINEAR·n + QUAD·n² (n = L-1). La parte cuadrática compensa
+##    que cada vez salgan más enemigos: se sube de nivel a un ritmo estable (~18-25 s) durante casi toda la
+##    partida, y el tramo final (wave_config "xp_rush") acelera las subidas antes del jefe.
 ##  - Gemas por tipo de enemigo (xp_for_type): relleno 1 · bruto/francotirador/mortero 5 ·
 ##    élite x25 · minijefe x100. El tier (gem_tier) fija color y tamaño de la gema.
 
 const BASE := 5.0
-const SLOPE_1 := 8.0     ## niveles 1..TIER_2_LEVEL-1
-const SLOPE_2 := 10.0    ## niveles TIER_2_LEVEL..TIER_3_LEVEL-1
-const SLOPE_3 := 13.0    ## niveles TIER_3_LEVEL+
-const TIER_2_LEVEL := 20
-const TIER_3_LEVEL := 40
+const LINEAR := 4.0
+const QUAD := 0.25
 
 const XP_FILLER := 1.0
 const XP_HEAVY := 5.0
@@ -26,16 +24,8 @@ const TIER_SCALES := [1.0, 1.3, 1.7, 2.3]
 
 ## XP necesaria para subir del nivel `level` al siguiente.
 static func required(level: int) -> float:
-	var l := maxi(level, 1)
-	var total := BASE
-	for n in range(1, l):                 # incrementos acumulados hasta `level`
-		if n < TIER_2_LEVEL:
-			total += SLOPE_1
-		elif n < TIER_3_LEVEL:
-			total += SLOPE_2
-		else:
-			total += SLOPE_3
-	return total
+	var n := float(maxi(level, 1) - 1)
+	return BASE + LINEAR * n + QUAD * n * n
 
 ## XP que suelta un enemigo normal según su tipo (EnemyData.EnemyType).
 static func xp_for_type(type_val: int) -> float:

@@ -34,6 +34,7 @@ const PROFILES := {
 	W.SERPENTS:       {"color": Color(0.75, 0.35, 1.0), "kind": "orb",   "count": 10, "speed": 4.0,  "kb": 0.8, "shake": 0.12, "stop": 0.02, "sfx": "impact_magic"},
 	W.SPINNING_AXE:   {"color": Color(1.0, 0.75, 0.3),  "kind": "shard", "count": 12, "speed": 8.0,  "kb": 1.5, "shake": 0.3,  "stop": 0.05, "sfx": "impact_slash"},
 	W.ELEMENTS_CYCLE: {"color": Color(0.8, 0.95, 1.0),  "kind": "orb",   "count": 8,  "speed": 4.0,  "kb": 0.8, "shake": 0.1,  "stop": 0.02, "sfx": "impact_magic"},
+	W.GIANT_MACE:     {"color": Color(1.0, 0.8, 0.32),  "kind": "shard", "count": 14, "speed": 8.0,  "kb": 2.0, "shake": 0.2,  "stop": 0.03, "sfx": "impact_mace"},
 	W.ZOMBIE_ARM:     {"color": Color(0.8, 0.12, 0.15), "kind": "shard", "count": 12, "speed": 7.0,  "kb": 1.4, "shake": 0.3,  "stop": 0.05, "sfx": "impact_blunt"},
 	W.DAGGERS:        {"color": Color(0.95, 0.2, 0.25), "kind": "spark", "count": 8,  "speed": 11.0, "kb": 0.5, "shake": 0.12, "stop": 0.02, "sfx": "impact_dagger"},
 	W.MACE:           {"color": Color(0.3, 1.0, 0.55),  "kind": "shard", "count": 18, "speed": 7.0,  "kb": 1.8, "shake": 0.45, "stop": 0.07, "sfx": "impact_mace"},
@@ -141,6 +142,26 @@ static func on_player_hit(player: Node3D, amount: float, from_dir: Vector3) -> v
 	var inst := _instance()
 	if inst:
 		inst._player_hit(player, amount, from_dir)
+
+## Pantalla de carga (Prewarm): crea el nodo, las palabras de cómic, el destello y los emisores de cada
+## tipo de partícula. Sin esto el primer golpe de la partida costaba ~130 ms (todo se creaba entonces).
+static func prewarm(parent: Node, at: Vector3) -> void:
+	if not enabled():
+		return
+	var inst := _instance()
+	if inst == null and parent != null and parent.is_inside_tree():
+		_inst = HitFeedback.new()
+		_inst.name = "HitFeedback"
+		parent.add_child(_inst)
+		inst = _inst
+	if inst == null:
+		return
+	var kinds := {String(DEFAULT["kind"]): DEFAULT}
+	for p in PROFILES.values():
+		kinds[String(p["kind"])] = p
+	for k in kinds:
+		inst._burst(kinds[k], at, Vector3.UP, 1)
+	inst._flash(at, Color.WHITE, 0.01)
 
 static func _instance() -> HitFeedback:
 	if is_instance_valid(_inst) and _inst.is_inside_tree():

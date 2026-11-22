@@ -103,6 +103,7 @@ func start_run(p_player: Node3D) -> void:
 	_boss_spawned = false
 	_near_pending = 0
 	endless = false
+	_rush_announced = false
 	_curse_until = 0.0
 	_running = true
 	_pending_spawns = 2
@@ -235,6 +236,7 @@ func _on_spawn_tick() -> void:
 		return
 	if not _boss_spawned and _elapsed() >= BOSS_TIME_S:
 		_spawn_boss()
+	_check_xp_rush()
 
 	var alive := EnemyRegistry.count() + _pending_spawns
 	var cap := _alive_cap() + (RunEvents.CURSE_CAP_BONUS if is_cursed() else 0)
@@ -366,7 +368,26 @@ func _on_enemy_died_internal(enemy_ref, pos: Vector3, gold_val: int) -> void:
 	RunStats.kills += 1
 	if enemy_ref != null and enemy_ref.trait_id == "splitter":
 		_split.call_deferred(pos)
-	enemy_died.emit(pos, gold_val, float(enemy_ref.xp_reward) if enemy_ref != null else 1.0)
+	var xp := float(enemy_ref.xp_reward) if enemy_ref != null else 1.0
+	enemy_died.emit(pos, gold_val, xp * xp_rush_mult(_elapsed(), wave_config))
+
+## Frenesí final (wave_config director.xp_rush): desde `from` s hasta el jefe las gemas valen `mult` veces
+## más, para que antes del jefe se note una racha de subidas de nivel. Pura, para las pruebas.
+static func xp_rush_mult(t: float, cfg: Dictionary) -> float:
+	var r: Dictionary = cfg.get("director", {}).get("xp_rush", {})
+	if r.is_empty() or t < float(r.get("from", 1e9)) or t >= BOSS_TIME_S:
+		return 1.0
+	return float(r.get("mult", 1.0))
+
+var _rush_announced := false
+
+func _check_xp_rush() -> void:
+	if _rush_announced or endless:
+		return
+	if xp_rush_mult(_elapsed(), wave_config) > 1.0:
+		_rush_announced = true
+		if events != null:
+			events.announce("¡FRENESÍ!", Color(0.35, 1.0, 0.45), "Las gemas valen más hasta que llegue el jefe")
 
 ## El hinchado suelta dos crías (si hay sitio bajo el tope de vivos).
 func _split(pos: Vector3) -> void:

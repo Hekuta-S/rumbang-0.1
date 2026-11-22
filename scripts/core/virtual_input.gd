@@ -23,6 +23,8 @@ var just_pressed_reload: bool = false
 var just_pressed_cycle_next: bool = false
 var just_pressed_cycle_prev: bool = false
 var just_pressed_dodge: bool = false
+## Botón táctil de rodar mantenido (mazmorra: mantenerlo es correr, ver PlayerInputController).
+var is_dodge_held: bool = false
 var just_pressed_parry: bool = false
 var just_pressed_target: bool = false
 ## Arrastre del botón táctil de fijar: dirección en pantalla hacia la que cambiar de objetivo (ZERO = nada).

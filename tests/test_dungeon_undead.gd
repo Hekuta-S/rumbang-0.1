@@ -30,7 +30,7 @@ func _ready() -> void:
 	var z := enc.spawn_zombie()
 	await get_tree().physics_frame
 	assert(z is DungeonZombie and EnemyRegistry.all().has(z), "spawn_zombie crea un DungeonZombie registrado")
-	assert(is_equal_approx(z.max_hp, 50.0), "Vida del zombi 50 (es %s)" % z.max_hp)
+	assert(is_equal_approx(z.max_hp, 50.0 * DungeonGoblin.TOUGHNESS_HP), "Vida del zombi 50 × dureza (es %s)" % z.max_hp)
 	for clip in DungeonZombie.ZOMBIE_CLIPS:
 		assert(z._anim.has_animation(clip), "El zombi no cargó el clip %s" % clip)
 	print("CHECK 1 PASSED: zombi, 50 de vida, 9 clips")
@@ -60,7 +60,7 @@ func _ready() -> void:
 	var n := enc.spawn_necromancer()
 	await get_tree().physics_frame
 	assert(n is DungeonNecromancer and n.is_in_group("boss"), "spawn_necromancer crea al jefe")
-	assert(is_equal_approx(n.max_hp, 600.0), "Vida del jefe 600 (es %s)" % n.max_hp)
+	assert(is_equal_approx(n.max_hp, 600.0 * DungeonGoblin.TOUGHNESS_HP), "Vida del jefe 600 × dureza (es %s)" % n.max_hp)
 	for clip in DungeonNecromancer.NECRO_CLIPS:
 		assert(n._anim.has_animation(clip), "El jefe no cargó el clip %s" % clip)
 	assert(n._bar != null and n._bar.is_inside_tree(), "El jefe tiene barra de vida")

@@ -54,6 +54,22 @@ const ZOMBIE_ARM_UPGRADES := [
 		"effect": {"key": "lifesteal", "per_level": 0.02, "kind": "add"}},
 ]
 
+## Mejoras de la Maza Gigante: daño, área (tamaño de la maza y del golpe), mazas por ataque y enfriamiento.
+const GIANT_MACE_UPGRADES := [
+	{"id": "damage", "name": "Peso muerto", "max_level": 5,
+		"desc": "+15% daño del mazazo",
+		"effect": {"key": "damage", "per_level": 0.15, "kind": "add"}},
+	{"id": "size", "name": "Maza titánica", "max_level": 5,
+		"desc": "+15% tamaño de la maza y del área del golpe",
+		"effect": {"key": "size", "per_level": 0.15, "kind": "add"}},
+	{"id": "mace_count", "name": "Lluvia de mazas", "max_level": 3,
+		"desc": "+1 maza por ataque, sobre otro enemigo (máx. 4)",
+		"effect": {"key": "quantity_bonus", "per_level": 1.0, "kind": "add"}},
+	{"id": "attack_speed", "name": "Mano pesada", "max_level": 5,
+		"desc": "-10% enfriamiento del mazazo",
+		"effect": {"key": "cooldown", "per_level": 0.9, "kind": "mul"}},
+]
+
 ## Mejoras del Hacha Giratoria (Riva): daño, tiempo girando en el sitio, tamaño y cantidad de hachas.
 const SPINNING_AXE_UPGRADES := [
 	{"id": "damage", "name": "Filo giratorio", "max_level": 5,
@@ -70,9 +86,9 @@ const SPINNING_AXE_UPGRADES := [
 		"effect": {"key": "quantity_bonus", "per_level": 1.0, "kind": "add"}},
 ]
 
-## Mejoras del Ciclo Elemental (Saimon). Empieza con 4 orbes (fuego, agua, planta y tierra).
-## "Nuevo elemento" desbloquea hielo y luego viento (con su orbe); "Nuevo orbe" es ilimitado y
-## añade un orbe de un elemento desbloqueado al azar. ElementalOrbs sincroniza los orbes con estos niveles.
+## Mejoras del Ciclo Elemental (Saimon). Empieza con 4 orbes de elementos al azar entre los cinco
+## (aire, fuego, agua, tierra y naturaleza; pueden repetirse). "Nuevo orbe" es ilimitado y añade
+## otro orbe de elemento al azar. ElementalOrbs sincroniza los orbes con estos niveles.
 const UNLIMITED := 9999
 const ELEMENTS_CYCLE_UPGRADES := [
 	{"id": "damage", "name": "Poder elemental", "max_level": 5,
@@ -81,11 +97,8 @@ const ELEMENTS_CYCLE_UPGRADES := [
 	{"id": "orb_speed", "name": "Órbita veloz", "max_level": 5,
 		"desc": "+15% velocidad de giro de los orbes",
 		"effect": {"key": "orbit_speed", "per_level": 0.15, "kind": "add"}},
-	{"id": "new_element", "name": "Nuevo elemento", "max_level": 2,
-		"desc": "Desbloquea un elemento (hielo, luego viento) y su orbe",
-		"effect": {"key": "element_unlock", "per_level": 1.0, "kind": "add"}},
 	{"id": "new_orb", "name": "Nuevo orbe", "max_level": UNLIMITED,
-		"desc": "+1 orbe de un elemento desbloqueado al azar",
+		"desc": "+1 orbe de un elemento al azar (aire, fuego, agua, tierra o naturaleza)",
 		"effect": {"key": "orb_extra", "per_level": 1.0, "kind": "add"}},
 ]
 
@@ -178,7 +191,7 @@ static func has_specific(weapon_type: int) -> bool:
 		WeaponData.WeaponType.ZOMBIE_ARM, WeaponData.WeaponType.FLAME_THROWER,
 		WeaponData.WeaponType.SPORE_BAZOOKA, WeaponData.WeaponType.DUSTS, WeaponData.WeaponType.SERPENTS,
 		WeaponData.WeaponType.TRI_SHOTGUN, WeaponData.WeaponType.SPINNING_AXE,
-		WeaponData.WeaponType.ELEMENTS_CYCLE]
+		WeaponData.WeaponType.ELEMENTS_CYCLE, WeaponData.WeaponType.GIANT_MACE]
 
 static func for_weapon(weapon_type: int) -> Array:
 	match weapon_type:
@@ -198,6 +211,8 @@ static func for_weapon(weapon_type: int) -> Array:
 			return SPINNING_AXE_UPGRADES
 		WeaponData.WeaponType.ELEMENTS_CYCLE:
 			return ELEMENTS_CYCLE_UPGRADES
+		WeaponData.WeaponType.GIANT_MACE:
+			return GIANT_MACE_UPGRADES
 	return TABLE.get(weapon_type, [])
 
 static func get_def(weapon_type: int, upgrade_id: String) -> Dictionary:

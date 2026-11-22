@@ -9,48 +9,31 @@ var active: bool = false
 var has_damaged: bool = false
 
 @onready var visual: MeshInstance3D = $MeshInstance3D
-var particles: CPUParticles3D
+var _bubbles: CPUParticles3D
+const ERUPTION_COLOR := Color(0.7, 0.3, 1.0)
 
 func _ready():
 	if visual:
-		visual.scale = Vector3(2.0, 0.1, 2.0)
-		if visual.material_override:
-			var mat = visual.material_override.duplicate()
-			mat.albedo_color = Color(0.6, 0.1, 0.9, 0.5)
-			visual.material_override = mat
+		# Aviso en el suelo: anillo entintado (ring.png) del radio del estallido, en vez del disco translúcido
+		var ring := ToonFX.ring_material()
+		if ring:
+			var plane := PlaneMesh.new()
+			plane.size = Vector2(2.0, 2.0)
+			visual.mesh = plane
+			ring.albedo_color = Color(ERUPTION_COLOR.r, ERUPTION_COLOR.g, ERUPTION_COLOR.b, 0.5)
+			visual.material_override = ring
+			visual.scale = Vector3(2.0, 1.0, 2.0)
+		else:
+			visual.scale = Vector3(2.0, 0.1, 2.0)
+			if visual.material_override:
+				var mat = visual.material_override.duplicate()
+				mat.albedo_color = Color(0.6, 0.1, 0.9, 0.5)
+				visual.material_override = mat
 
-	particles = CPUParticles3D.new()
-	particles.emitting = false
-	particles.one_shot = true
-	particles.explosiveness = 0.85
-	particles.amount = maxi(10, int(round(45.0 * Quality.particle_factor())))
-	particles.lifetime = 0.8
-	particles.mesh = QuadMesh.new()
-	particles.mesh.size = Vector2(0.6, 0.6)
-	particles.direction = Vector3(0, 1, 0)
-	particles.spread = 20.0
-	particles.gravity = Vector3(0, 2.0, 0)
-	particles.initial_velocity_min = 4.0
-	particles.initial_velocity_max = 7.0
-	particles.scale_amount_min = 1.0
-	particles.scale_amount_max = 2.5
-	
-	var p_mat = StandardMaterial3D.new()
-	p_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	p_mat.albedo_color = Color(0.7, 0.1, 1.0, 0.8)
-	p_mat.emission_enabled = true
-	p_mat.emission = Color(0.6, 0.1, 0.9)
-	p_mat.emission_energy_multiplier = 3.0
-	p_mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	particles.material_override = p_mat
-	
-	var p_curve = Curve.new()
-	p_curve.add_point(Vector2(0, 0.2))
-	p_curve.add_point(Vector2(0.2, 1.0))
-	p_curve.add_point(Vector2(1, 0.0))
-	particles.scale_amount_curve = p_curve
-	
-	add_child(particles)
+	# Burbujeo dibujado mientras avisa (puff.png); el estallido es una columna de llamas dibujadas
+	_bubbles = ToonFX.puff_rise(2.0, ERUPTION_COLOR)
+	add_child(_bubbles)
+	_bubbles.emitting = true
 
 ## Sacudida breve de cámara si el jugador está cerca del estallido.
 func _shake_camera() -> void:
@@ -72,11 +55,11 @@ func _physics_process(delta):
 			timer = 0.0
 			if visual:
 				visual.visible = false
-			NecroVFX.shockwave(get_parent(), global_position, 4.5, Color(0.75, 0.25, 1.0))
+			_bubbles.emitting = false
+			ToonFX.flame_column(get_parent(), global_position, 2.0, ERUPTION_COLOR)
+			ToonFX.ring_burst(get_parent(), global_position, 4.5, ERUPTION_COLOR, 0.4)
+			ToonFX.impact_pop(get_parent(), global_position + Vector3(0, 1.0, 0), ERUPTION_COLOR, 2.0)
 			_shake_camera()
-			
-			if particles:
-				particles.emitting = true
 	else:
 		if not has_damaged:
 			for body in get_overlapping_bodies():
@@ -85,5 +68,4 @@ func _physics_process(delta):
 			has_damaged = true
 			
 		if timer >= duration:
-			if not particles.emitting:
-				queue_free()
+			queue_free()

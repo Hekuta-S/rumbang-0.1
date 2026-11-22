@@ -666,34 +666,48 @@ func _cell_pos(c: Vector2i) -> Vector3:
 
 # ───────────────────────────── Geometría ─────────────────────────────
 
+## Suelo: una losa por celda en MultiMesh, repartidas en trozos del mismo lado que las paredes (WALL_CHUNK en móvil,
+## LIT_CHUNK en escritorio) para que la cámara descarte los que no ve y cada trozo reciba sus propias luces.
+## Los trozos cuelgan del nodo "Floor" (DungeonFog los reconoce por el nombre "Floor_*").
 func _build_floor() -> void:
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(CELL, CELL)
 	plane.material = _floor_material()
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.use_colors = true
-	mm.mesh = plane
 	# También bajo el primer anillo de roca: el relieve de la pared puede retirarse hacia ella y no debe
 	# verse el vacío al pie
 	var under: Array = _walls.keys() if _floor_under_walls() else []
-	mm.instance_count = _cells.size() + under.size()
-	var i := 0
+	var size := WALL_CHUNK if _mobile else LIT_CHUNK
+	var groups := {}
 	var lo := Vector2(INF, INF)
 	var hi := Vector2(-INF, -INF)
 	for c in _cells.keys() + under:
 		var p := _cell_pos(c)
-		mm.set_instance_transform(i, Transform3D(Basis(), p))
-		mm.set_instance_color(i, _floor_color(c) if _cells.has(c) else (palette()["dirt"] as Color) * 0.6)
+		var key := Vector2i(floori(p.x / size), floori(p.z / size))
+		if not groups.has(key):
+			groups[key] = []
+		groups[key].append(c)
 		lo = Vector2(minf(lo.x, p.x), minf(lo.y, p.z))
 		hi = Vector2(maxf(hi.x, p.x), maxf(hi.y, p.z))
-		i += 1
-	var mmi := MultiMeshInstance3D.new()
-	mmi.name = "Floor"
-	mmi.multimesh = mm
-	mmi.layers = GROUND_VISUAL_LAYER
-	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mmi)
+	var holder := Node3D.new()
+	holder.name = "Floor"
+	add_child(holder)
+	for key in groups:
+		var cells: Array = groups[key]
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_colors = true
+		mm.mesh = plane
+		mm.instance_count = cells.size()
+		for i in cells.size():
+			var c: Vector2i = cells[i]
+			mm.set_instance_transform(i, Transform3D(Basis(), _cell_pos(c)))
+			mm.set_instance_color(i, _floor_color(c) if _cells.has(c) else (palette()["dirt"] as Color) * 0.6)
+		var mmi := MultiMeshInstance3D.new()
+		mmi.name = "Floor_%d_%d" % [key.x, key.y]
+		mmi.multimesh = mm
+		mmi.layers = GROUND_VISUAL_LAYER
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		holder.add_child(mmi)
 
 	var body := StaticBody3D.new()
 	body.name = "FloorBody"

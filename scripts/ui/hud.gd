@@ -19,6 +19,7 @@ signal restart_pressed
 @onready var xp_bar: ProgressBar = $Control/HubImage/XPBar
 
 var fps_label: Label
+var _fps_shown := -1
 
 @onready var weapon_slots: Array = [
 	$Control/HubImage/WeaponSlot1/Icon,
@@ -48,11 +49,21 @@ var resource_bars: ResourceBars
 ## Escritorio: vida y recursos en vertical, flotando junto al personaje
 var floating_vitals: FloatingVitals
 var minimap: Minimap
+## Supervivencia: bolsa de cuero a la derecha con tomos y objetos (BagPanel)
+var bag: BagPanel
 var pause_button: Button
 var _mobile := false
 
 ## Contorno de tinta (cómic) de la tira de armas y de sus iconos (scripts/ui/ink_outline.gdshader).
 const INK_OUTLINE := preload("res://scripts/ui/ink_outline.gdshader")
+
+const STRIP_INK := {"ink_px": 6.0, "shadow_px": Vector2(7.0, 9.0)}     # la imagen es grande (2172 px): 6 px de textura ≈ 2 en pantalla
+const ICON_INK := {"ink_px": 14.0, "shadow_px": Vector2(10.0, 14.0)}   # iconos de 648 px dibujados a ~45: hace falta más grosor
+const ICON_SCALE_ACTIVE := 1.15
+const ICON_SCALE_IDLE := 0.85
+## Tinta horneada (InkBake) en vez del shader por frame; false sin render (headless): queda el shader.
+var _ink_baked := false
+var _icon_mat: ShaderMaterial
 
 func _ink_strip() -> void:
 	var hub := get_node_or_null("Control/HubImage") as TextureRect
@@ -60,16 +71,67 @@ func _ink_strip() -> void:
 		return
 	var m := ShaderMaterial.new()
 	m.shader = INK_OUTLINE
-	m.set_shader_parameter("ink_px", 6.0)          # la imagen es grande (2172 px): 6 px de textura ≈ 2 en pantalla
-	m.set_shader_parameter("shadow_px", Vector2(7.0, 9.0))
+	m.set_shader_parameter("ink_px", STRIP_INK["ink_px"])
+	m.set_shader_parameter("shadow_px", STRIP_INK["shadow_px"])
 	hub.material = m
-	var icon_mat := ShaderMaterial.new()
-	icon_mat.shader = INK_OUTLINE
-	icon_mat.set_shader_parameter("ink_px", 14.0)  # iconos de 648 px dibujados a ~45: hace falta más grosor
-	icon_mat.set_shader_parameter("shadow_px", Vector2(10.0, 14.0))
+	_icon_mat = ShaderMaterial.new()
+	_icon_mat.shader = INK_OUTLINE
+	_icon_mat.set_shader_parameter("ink_px", ICON_INK["ink_px"])
+	_icon_mat.set_shader_parameter("shadow_px", ICON_INK["shadow_px"])
 	for icon in weapon_slots:
 		if icon is CanvasItem:
-			(icon as CanvasItem).material = icon_mat
+			(icon as CanvasItem).material = _icon_mat
+	_ink_baked = DisplayServer.get_name() != "headless"
+	if not _ink_baked:
+		return
+	# Tinta horneada: la tira y cada icono se dibujan como texturas normales. Los huecos dejan de recortar con
+	# clip_children (un pase de render aparte por hueco): el círculo va horneado en el icono activo.
+	for icon in weapon_slots:
+		var slot := (icon as Control).get_parent() as Panel
+		if slot:
+			slot.clip_children = CanvasItem.CLIP_CHILDREN_DISABLED
+			slot.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	var src := hub.texture
+	hub.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	InkBake.request(src, _screen_px(hub, hub.size), STRIP_INK, func(t: Texture2D) -> void:
+		if t and is_instance_valid(hub) and hub.texture == src:
+			hub.texture = t
+			hub.material = InkBake.material())
+
+## Píxeles reales de pantalla que ocupa `size` de `ci` (escala del lienzo y de la ventana), redondeado a 16.
+func _screen_px(ci: CanvasItem, size: Vector2) -> Vector2i:
+	var s := ci.get_global_transform_with_canvas().get_scale().abs() * size
+	var root := get_tree().root
+	var vis := root.get_visible_rect().size
+	var ratio := maxf(1.0, float(root.size.y) / maxf(vis.y, 1.0))
+	s *= ratio
+	return Vector2i(ceili(s.x / 16.0) * 16, ceili(s.y / 16.0) * 16)
+
+## Icono de arma con tinta horneada; el activo, recortado al círculo del hueco (radio 0.5 / su escala).
+func _bake_icon(icon: TextureRect, src: Texture2D, active: bool) -> void:
+	icon.set_meta("ink_src", src)
+	var cached_tex := _icon_baked_tex(icon, src, active, true)
+	if cached_tex:
+		icon.texture = cached_tex
+		icon.material = InkBake.material()
+		return
+	icon.texture = src
+	icon.material = _icon_mat
+	_icon_baked_tex(icon, src, active, false)
+
+func _icon_baked_tex(icon: TextureRect, src: Texture2D, active: bool, only_cached: bool) -> Texture2D:
+	var slot := icon.get_parent() as Control
+	var px := _screen_px(slot, icon.size * ICON_SCALE_ACTIVE)
+	var params := ICON_INK.duplicate()
+	if active:
+		params["clip_radius"] = 0.5 / ICON_SCALE_ACTIVE
+	if only_cached:
+		return InkBake.cached(src, px, params)
+	InkBake.request(src, px, params, func(t: Texture2D) -> void:
+		if t and is_instance_valid(icon) and icon.get_meta("ink_src", null) == src and (icon.scale.x > 1.0) == active:
+			icon.texture = t
+			icon.material = InkBake.material())
+	return null
 
 func _ready() -> void:
 	_ink_strip()
@@ -101,6 +163,10 @@ func _ready() -> void:
 	minimap = Minimap.new()
 	minimap.name = "Minimap"
 	$Control.add_child(minimap)
+	if GameData.game_mode != "dungeon":
+		bag = BagPanel.new()
+		$Control.add_child(bag)
+		bag.place_right()
 	_mobile = Quality.is_mobile()
 	_layout_row()
 	_layout_fps()
@@ -154,7 +220,11 @@ func _update_combat_label(delta: float) -> void:
 func _process(delta: float) -> void:
 	_update_combat_label(delta)
 	if is_instance_valid(fps_label):
-		fps_label.text = "FPS: %d" % Engine.get_frames_per_second()
+		# Solo cuando cambia: evita formatear un String nuevo en cada frame
+		var fps := int(Engine.get_frames_per_second())
+		if fps != _fps_shown:
+			_fps_shown = fps
+			fps_label.text = "FPS: %d" % fps
 	if GameData.game_mode == "dungeon" and stats_panel and stats_panel.visible:
 		_follow_player_with_stats(delta)
 	if GameData.game_mode == "dungeon" and crosshair:
@@ -282,6 +352,17 @@ func _connect_to_player() -> void:
 	if player and player.has_signal("weapon_attacked"):
 		if not player.weapon_attacked.is_connected(_on_player_weapon_attacked):
 			player.weapon_attacked.connect(_on_player_weapon_attacked)
+	# La bolsa se rehace cuando cambian tomos u objetos (los dos recalculan las estadísticas)
+	var sb = player.get("stat_block") if player else null
+	if bag and sb and sb.has_signal("stats_recalculated") and not sb.stats_recalculated.is_connected(refresh_bag):
+		sb.stats_recalculated.connect(refresh_bag)
+	refresh_bag()
+
+func refresh_bag() -> void:
+	if bag == null:
+		return
+	var player = get_tree().get_first_node_in_group("player")
+	bag.refresh(player.get("inventory") if player else null)
 
 func _on_player_weapon_attacked(weapon_type: int) -> void:
 	trigger_crosshair_kickback(weapon_type)
@@ -329,22 +410,108 @@ func update_weapons(active_index: int, weapons_list: Array) -> void:
 		var slot_icon = weapon_slots[i]
 		if i < weapons_list.size():
 			var w_name = weapons_list[i].get("name", "")
-			if weapon_textures.has(w_name):
-				slot_icon.texture = weapon_textures[w_name]
+			# Primero la imagen del arma por tipo (la misma de las cartas y la elección de arma)
+			var icon_path := String(WeaponChoiceUI.ICONS.get(int(weapons_list[i].get("type", -1)), ""))
+			var src: Texture2D
+			if icon_path != "" and ResourceLoader.exists(icon_path):
+				src = load(icon_path)
+			elif weapon_textures.has(w_name):
+				src = weapon_textures[w_name]
 			else:
 				# Fallback a pistola si no hay imagen
-				slot_icon.texture = preload("res://assets/ui/ingame_hub/armas/pistola.png")
+				src = preload("res://assets/ui/ingame_hub/armas/pistola.png")
 				push_warning("Sin icono para el arma %s: se usa el de la pistola" % w_name)
-			
+
 			slot_icon.modulate = Color(1, 1, 1, 1.0)
 			slot_icon.pivot_offset = slot_icon.size / 2.0
-			
-			if i == active_index:
-				slot_icon.scale = Vector2(1.15, 1.15)
+
+			var active: bool = i == active_index
+			var sc := ICON_SCALE_ACTIVE if active else ICON_SCALE_IDLE
+			slot_icon.scale = Vector2(sc, sc)
+			if _ink_baked:
+				_bake_icon(slot_icon, src, active)
 			else:
-				slot_icon.scale = Vector2(0.85, 0.85)
+				slot_icon.texture = src
 		else:
 			slot_icon.texture = null
+			slot_icon.remove_meta("ink_src")
+	_update_synergy_badges(weapons_list)
+	refresh_bag()          # por si el jugador aún no existía al conectar la señal
+
+# ── Sinergias activas (supervivencia) ──────────────────────────────────────
+## Encima de la barra de armas, una insignia por sinergia activa (icono de la etiqueta + 2 o 3), con el mismo
+## icono que las cartas de subida de nivel (design/ux/level-up-cards.md). Sin texto: el detalle está en las
+## cartas. Una sinergia nueva o que sube de nivel "salta" con un destello.
+const SYNERGY_BADGE_PX := 30
+const SYNERGY_ROW_ABOVE_BAR := 128.0     ## px desde abajo: justo encima de la tira de armas (1280×720)
+var _synergy_row: HBoxContainer
+var _synergy_tiers: Dictionary = {}      ## etiqueta -> nivel mostrado (para saber qué es nuevo)
+
+func _update_synergy_badges(weapons_list: Array) -> void:
+	if GameData.game_mode == "dungeon":
+		return
+	if _synergy_row == null:
+		# En $Control y no dentro de HubImage: la tira de armas está girada 180° y escalada a 0.4
+		_synergy_row = HBoxContainer.new()
+		_synergy_row.name = "SynergyBadges"
+		_synergy_row.alignment = BoxContainer.ALIGNMENT_CENTER
+		_synergy_row.add_theme_constant_override("separation", 10)
+		_synergy_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_synergy_row.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+		_synergy_row.offset_left = -220.0
+		_synergy_row.offset_right = 220.0
+		_synergy_row.offset_bottom = -SYNERGY_ROW_ABOVE_BAR
+		_synergy_row.offset_top = -SYNERGY_ROW_ABOVE_BAR - SYNERGY_BADGE_PX
+		$Control.add_child(_synergy_row)
+	var slots: Array = []
+	for info in weapons_list:
+		if info.has("type"):
+			slots.append(int(info["type"]))
+	var active := WeaponSynergies.active(slots)
+	var now := {}
+	for s in active:
+		now[s["tag"]] = int(s["tier"])
+	if now == _synergy_tiers and _synergy_row.get_child_count() == now.size():
+		return
+	for c in _synergy_row.get_children():
+		c.queue_free()
+	for s in active:
+		var tag: String = s["tag"]
+		var info: Dictionary = WeaponSynergies.TAG_INFO[tag]
+		var badge := HBoxContainer.new()
+		badge.add_theme_constant_override("separation", 2)
+		badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var icon := TextureRect.new()
+		var path := WeaponSynergies.tag_icon_path(tag)
+		icon.texture = load(path) if ResourceLoader.exists(path) else null
+		icon.custom_minimum_size = Vector2(SYNERGY_BADGE_PX, SYNERGY_BADGE_PX)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		badge.add_child(icon)
+		var lbl := Label.new()
+		lbl.text = str(mini(int(s["count"]), 3))
+		lbl.add_theme_font_size_override("font_size", 14)
+		lbl.add_theme_color_override("font_color", info["color"])
+		lbl.add_theme_color_override("font_outline_color", Color(0.03, 0.022, 0.05))
+		lbl.add_theme_constant_override("outline_size", 5)
+		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		badge.add_child(lbl)
+		_synergy_row.add_child(badge)
+		if int(s["tier"]) > int(_synergy_tiers.get(tag, 0)):
+			_pop_badge.call_deferred(badge)
+	_synergy_tiers = now
+
+## Una sinergia nueva salta y destella (también con el juego en pausa: se elige en la pantalla de cartas).
+func _pop_badge(badge: Control) -> void:
+	if not is_instance_valid(badge):
+		return
+	badge.pivot_offset = badge.size / 2.0
+	badge.scale = Vector2(1.6, 1.6)
+	badge.modulate = Color(2.0, 2.0, 1.6)
+	var tw := badge.create_tween().set_parallel(true).set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	tw.tween_property(badge, "scale", Vector2.ONE, 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(badge, "modulate", Color.WHITE, 0.4)
 
 func update_reload(_weapon_type: int, _ammo: int, _max_ammo: int, is_reloading: bool, progress: float) -> void:
 	pass
@@ -357,50 +524,17 @@ func update_elapsed_time(elapsed_seconds: float) -> void:
 	var seconds := total_seconds % 60
 	time_label.text = "%02d:%02d" % [minutes, seconds]
 
-func play_level_up_confetti() -> void:
-	var overlay := Control.new()
-	overlay.name = "LevelUpConfetti"
-	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	$Control.add_child(overlay)
+## Triángulos dorados desde los bordes mientras se eligen las cartas (LevelUpEdges).
+func play_level_up_edges() -> void:
+	for old in get_tree().root.find_children("LevelUpEdges", "ColorRect", true, false):
+		old.get_parent().queue_free()
+	LevelUpEdges.play(self)
 
-	var flash := ColorRect.new()
-	flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	flash.color = Color(1.0, 0.9, 0.45, 0.16)
-	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	overlay.add_child(flash)
-	var flash_tween := overlay.create_tween()
-	flash_tween.tween_property(flash, "modulate:a", 0.0, 0.35)
-
-	var viewport_size := get_viewport().get_visible_rect().size
-	var colors := [
-		Color(1.0, 0.25, 0.35),
-		Color(1.0, 0.8, 0.2),
-		Color(0.25, 0.85, 1.0),
-		Color(0.35, 1.0, 0.55),
-		Color(0.8, 0.4, 1.0)
-	]
-
-	for i in range(120):
-		var piece := ColorRect.new()
-		piece.color = colors[i % colors.size()]
-		piece.size = Vector2(randf_range(4.0, 9.0), randf_range(8.0, 16.0))
-		piece.position = Vector2(randf_range(0.0, viewport_size.x), viewport_size.y + randf_range(0.0, 80.0))
-		piece.rotation = randf_range(-0.8, 0.8)
-		piece.pivot_offset = piece.size * 0.5
-		piece.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		overlay.add_child(piece)
-
-		var rise_time := randf_range(1.4, 2.5)
-		var rise_tween := overlay.create_tween().set_parallel(true)
-		rise_tween.tween_property(piece, "position:y", -40.0, rise_time).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		rise_tween.tween_property(piece, "position:x", piece.position.x + randf_range(-160.0, 160.0), rise_time)
-		rise_tween.tween_property(piece, "rotation", piece.rotation + randf_range(-5.0, 5.0), rise_time)
-		rise_tween.tween_property(piece, "modulate:a", 0.0, rise_time * 0.35).set_delay(rise_time * 0.65)
-
-	var cleanup := overlay.create_tween()
-	cleanup.tween_interval(2.7)
-	cleanup.tween_callback(overlay.queue_free)
+## Cartel de subida de nivel / evolución (LevelUpBurst), tras elegir la mejora. Conserva el nombre antiguo.
+func play_level_up_confetti(text: String = "¡NIVEL!") -> void:
+	for old in get_tree().root.find_children("LevelUpBurst", "Control", true, false):
+		old.get_parent().queue_free()
+	LevelUpBurst.play($Control, text)
 
 var _shown_gold := -1
 var _souls_label: Label

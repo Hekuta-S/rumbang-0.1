@@ -29,7 +29,10 @@ static var ribbon_shader: Shader = preload("res://assets/shaders/ribbon_mesh.gds
 ## Capa física de los enemigos (enemy.tscn: collision_layer = 4). La máscara anterior (3)
 ## solo veía las capas 1-2, así que el brazo nunca detectaba enemigos.
 const ENEMY_MASK := 4
-const ARM_SCENE: PackedScene = preload("res://assets/models/weapons/human_arm_bones.glb")
+## m por píxel de brazo.png (celda de 160 px): el brazo dibujado mide ~1,4 m, como el modelo de antes.
+const SPRITE_PIXEL := 0.011
+var _sprite: Sprite3D
+var _spin_angle := 0.0
 
 ## Enemigos ya golpeados en la pasada actual (ida o regreso). Los brazos de un mismo
 ## lanzamiento comparten estas listas (un enemigo recibe un golpe por pasada aunque lo
@@ -67,30 +70,13 @@ func setup(dir: Vector3, dmg: float, p: Node3D):
 	if curve_lateral_dir.length_squared() < 0.01:
 		curve_lateral_dir = Vector3.RIGHT
 
-	# Contenedor visual que rota horizontalmente como un disco / bumerán plano
+	# Dibujo 2D horneado (tools/make_weapon_sprites.py -> brazo.png): billboard que gira cambiando de
+	# fotograma (8 ángulos), como una animación dibujada.
 	visual = Node3D.new()
-	var arm_scene = ARM_SCENE
-	if arm_scene:
-		# Nodo pivote para acostar el brazo plano horizontalmente (plano XZ)
-		var arm_pivot = Node3D.new()
-		var arm_model = arm_scene.instantiate()
-		arm_model.scale = Vector3(0.12, 0.12, 0.12)
-		# Centrar el eje Z (largo del brazo que va de -9.5 a +2.4, centro aprox -3.55 -> * 0.12 = -0.42)
-		arm_model.position = Vector3(0.0, 0.0, 0.42)
-		# Acostar el brazo en horizontal plano
-		arm_model.rotation.x = deg_to_rad(90.0)
-		arm_pivot.add_child(arm_model)
-		visual.add_child(arm_pivot)
-	else:
-		var b_mesh = BoxMesh.new()
-		b_mesh.size = Vector3(1.2, 0.08, 0.25)
-		var m_inst = MeshInstance3D.new()
-		m_inst.mesh = b_mesh
-		var mat = StandardMaterial3D.new()
-		mat.albedo_color = Color(0.4, 0.7, 0.3)
-		m_inst.material_override = mat
-		visual.add_child(m_inst)
-
+	_sprite = ToonFX.sheet_sprite("brazo.png", ToonFX.SPIN_FRAMES, 1, SPRITE_PIXEL)
+	_sprite.frame = randi() % ToonFX.SPIN_FRAMES
+	_spin_angle = float(_sprite.frame) / ToonFX.SPIN_FRAMES * TAU
+	visual.add_child(_sprite)
 	add_child(visual)
 
 	_setup_ribbon_trail()
@@ -153,9 +139,10 @@ func _physics_process(delta: float):
 	flight_time += delta
 	_poll_overlaps()
 
-	# Giro completamente horizontal (plano al suelo) alrededor del eje Y del mundo
-	if visual:
-		visual.rotate_y(spin_speed * delta)
+	# Giro: avanza la rueda de fotogramas (sentido según el banqueo del lanzamiento)
+	if _sprite:
+		_spin_angle += spin_speed * delta * (1.0 if roll_tilt >= 0.0 else -1.0)
+		_sprite.frame = ToonFX.spin_frame(_spin_angle)
 
 	# Actualizar la estela Ribbon en espacio global
 	if ribbon_mesh and is_instance_valid(ribbon_mesh_instance):

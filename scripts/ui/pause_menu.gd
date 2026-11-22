@@ -23,7 +23,7 @@ func _ready():
 	quit_btn.pressed.connect(_on_quit_pressed)
 
 func _input(event):
-	if event.is_action_pressed("ui_cancel"):
+	if event.is_action_pressed("ui_cancel") and (visible or not event is InputEventJoypadButton):   # B solo cierra; abre Start
 		if is_instance_valid(_equip_panel):
 			return   # el panel de equipo se cierra solo con su propio Esc
 		toggle()

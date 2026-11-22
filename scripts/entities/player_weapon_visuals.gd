@@ -32,19 +32,12 @@ func setup_weapon_models(mount: Node3D) -> void:
 		return
 	# ─── HELPER: create a StandardMaterial3D quickly ───────────────────────────
 	# (inline closures aren't a GDScript thing, so we use local vars instead)
+	# Brazo bumerán dibujado (2D horneado, tools/make_weapon_sprites.py -> brazo.png): recortes cruzados a lo
+	# largo de Z (la mano hacia delante), donde iba el modelo 3D de antes (~1,4 m).
 	var arm_node := Node3D.new()
-	var arm_scene = load("res://assets/models/weapons/human_arm_bones.glb")
-	if arm_scene:
-		var arm_inst = arm_scene.instantiate()
-		arm_inst.scale = Vector3(0.12, 0.12, 0.12)
-		arm_inst.position = Vector3(0.0, 0.0, 0.42)
-		arm_node.add_child(arm_inst)
-	else:
-		var arm_mesh := MeshInstance3D.new()
-		var b_mesh := BoxMesh.new()
-		b_mesh.size = Vector3(0.1, 0.1, 0.5)
-		arm_mesh.mesh = b_mesh
-		arm_node.add_child(arm_mesh)
+	var arm_cut := ToonFX.cutout_cross("brazo.png", ToonFX.SPIN_FRAMES, 1, 0.011)
+	arm_cut.rotation.x = -PI * 0.5
+	arm_node.add_child(arm_cut)
 	arm_node.visible = false
 	mount.add_child(arm_node)
 	arm_node.visible = false
@@ -262,6 +255,8 @@ func setup_weapon_models(mount: Node3D) -> void:
 	mat_sg_dist.set_shader_parameter("distortion_strength", 0.15)
 	mat_sg_dist.set_shader_parameter("progress", 0.0) # Animar en disparo
 	sg_distortion.material_override = mat_sg_dist
+	# Nadie anima su `progress`: oculto (con la escopeta en mano forzaba una copia de pantalla cada frame)
+	sg_distortion.visible = false
 	shotgun_node.add_child(sg_distortion)
 
 	shotgun_node.transform = Transform3D(Basis(), Vector3(0.38, 0.92, -0.36))
@@ -534,6 +529,8 @@ func setup_weapon_models(mount: Node3D) -> void:
 	mat_sp_slash.set_shader_parameter("rune_speed", 8.0)
 	mat_sp_slash.set_shader_parameter("rune_intensity", 0.35)
 	sp_slash.material_override = mat_sp_slash
+	# Nadie anima su `progress`: oculto para no pagar cada frame un quad transparente de 3×1.8 m
+	sp_slash.visible = false
 	spear_node.add_child(sp_slash)
 
 	spear_node.transform = Transform3D(
@@ -887,13 +884,13 @@ func setup_weapon_models(mount: Node3D) -> void:
 	# ══════════════════════════════════════════════════════════════════════════
 	# 13. SPINNING AXE (Guitarra de Garri) — Axe Guitar
 	# ══════════════════════════════════════════════════════════════════════════
+	# Guitarra-hacha dibujada (2D horneado, guitarra.png): recortes cruzados donde iba el modelo 3D
+	# (a lo largo de −Z con el mástil hacia delante, ~1,8 m).
 	var guitar_node := Node3D.new()
-	var guitar_scene = load("res://assets/models/weapons/axe_guitar.glb")
-	if guitar_scene:
-		var guitar_inst = guitar_scene.instantiate()
-		guitar_inst.scale = Vector3(0.045, 0.045, 0.045)
-		guitar_inst.position = Vector3(0.0, -0.45, 0.0)
-		guitar_node.add_child(guitar_inst)
+	var guitar_cut := ToonFX.cutout_cross("guitarra.png", ToonFX.SPIN_FRAMES, 1, 0.011)
+	guitar_cut.rotation.x = -PI * 0.5
+	guitar_cut.position = Vector3(0.0, -0.45, -0.49)
+	guitar_node.add_child(guitar_cut)
 	guitar_node.visible = false
 	guitar_node.transform = Transform3D(
 		Basis().rotated(Vector3.RIGHT, deg_to_rad(-20)),
@@ -901,6 +898,12 @@ func setup_weapon_models(mount: Node3D) -> void:
 	mount.add_child(guitar_node)
 	guitar_node.visible = false
 	weapon_models[WeaponData.WeaponType.SPINNING_AXE] = guitar_node
+
+	# Maza Gigante: no se lleva en la mano (aparece en el aire al atacar, GiantMaceSlam): nodo vacío.
+	var giant_mace_node := Node3D.new()
+	giant_mace_node.visible = false
+	mount.add_child(giant_mace_node)
+	weapon_models[WeaponData.WeaponType.GIANT_MACE] = giant_mace_node
 
 
 ## Cuelga la espalanza del hueso de la mano derecha del modelo animado.
@@ -966,15 +969,12 @@ func attach_axe_to_hand(model: Node3D) -> bool:
 	attach.bone_name = HAND_BONE
 	skel.add_child(attach)
 	var axe := Node3D.new()
-	var scene := load("res://assets/models/weapons/axe_guitar.glb") as PackedScene
-	if scene:
-		var inst := scene.instantiate() as Node3D
-		# En el espacio del glb el mástil va de z = −8 (junto a la hoja) a z = −31,9 (punta) y la hoja
-		# está en z ≈ +2. Se gira para que el mástil apunte a +Y (como el asta de la espalanza: la
-		# hoja hacia fuera) y se coloca la punta del mástil 20 cm por detrás del puño.
-		inst.transform = Transform3D(Basis(Vector3.RIGHT, -PI * 0.5).scaled(Vector3.ONE * AXE_SCALE),
-			Vector3(-0.5 * AXE_SCALE, 31.9 * AXE_SCALE - AXE_GRIP_FROM_END, 0.0))
-		axe.add_child(inst)
+	# Guitarra-hacha dibujada (2D horneado, guitarra.png): recortes cruzados con el mástil hacia +Y y la
+	# hoja hacia fuera, la punta del mástil 20 cm por detrás del puño (como el modelo 3D de antes, ~1,34 m).
+	var cut := ToonFX.cutout_cross("guitarra.png", ToonFX.SPIN_FRAMES, 1, 0.0081)
+	cut.rotation.z = PI                     # el dibujo lleva el mástil arriba: se da la vuelta
+	cut.position = Vector3(0.0, 0.47, 0.0)
+	axe.add_child(cut)
 	# Punta de la hoja (para la estela de los giros)
 	axe_blade_tip = Marker3D.new()
 	axe_blade_tip.position = Vector3(0.0, (31.9 + 6.0) * AXE_SCALE - AXE_GRIP_FROM_END, 0.0)

@@ -160,7 +160,7 @@ func _ready() -> void:
 	rsc.energy = rsc.energy_max()
 	var before_e := rsc.energy
 	rsc.spend_energy(20.0)
-	_check(is_equal_approx(before_e - rsc.energy, 20.0 * sb.energy_cost_mult()), "Cada gasto cuesta menos energía")
+	_check(is_equal_approx(before_e - rsc.energy, 20.0 * PlayerResources.ENERGY_COST_SCALE * sb.energy_cost_mult()), "Cada gasto cuesta menos energía")
 	rsc.energy = 5.0
 	var t0 := rsc.energy
 	rsc._energy_wait = 0.0
@@ -187,20 +187,24 @@ func _ready() -> void:
 	if not _done(6, "armas en el equipo"): return
 
 	# 7. Guardado: solo lo equipado (y el arma de la mano, que pasa a ser la inicial); la mochila se pierde
-	var bag_uid: String = eq.bag[0]["uid"]
-	SaveManager.load_save()
-	var saved: Dictionary = SaveManager.meta.get("equipment", {})
-	_check(saved.has("casco") and saved.has("talisman_1") and saved.has("arma"), "Se guarda lo equipado")
-	_check(not JSON.stringify(saved).contains(bag_uid), "La mochila no se guarda")
-	_check(int(saved["arma"]["weapon"]) == WeaponData.WeaponType.DAGGERS, "El arma de la mano se guarda")
-	_check(GameData.dungeon_weapon == WeaponData.WeaponType.DAGGERS, "Y es el arma inicial de la próxima")
-	var hp_eq: float = p.max_hp
-	var casco_uid: String = eq.equipped["casco"]["uid"]
-	scene.facade._apply_character_data()
-	_check(eq.bag.is_empty(), "Partida nueva: mochila vacía")
-	_check(eq.equipped["casco"]["uid"] == casco_uid, "Partida nueva: vuelve lo equipado")
-	_check(is_equal_approx(p.max_hp, hp_eq), "La vida del equipo se vuelve a sumar a la base")
-	_check(PlayerEquipment.saved_loadout().size() == saved.size(), "El Salón lee el equipo guardado")
+	# PlayerEquipment.PERSIST_LOADOUT = false: ahora cada partida empieza sin equipo y no se guarda nada
+	if not PlayerEquipment.PERSIST_LOADOUT:
+		_check(PlayerEquipment.saved_loadout().is_empty(), "Sin equipo persistente: no se guarda nada")
+	else:
+		var bag_uid: String = eq.bag[0]["uid"]
+		SaveManager.load_save()
+		var saved: Dictionary = SaveManager.meta.get("equipment", {})
+		_check(saved.has("casco") and saved.has("talisman_1") and saved.has("arma"), "Se guarda lo equipado")
+		_check(not JSON.stringify(saved).contains(bag_uid), "La mochila no se guarda")
+		_check(int(saved["arma"]["weapon"]) == WeaponData.WeaponType.DAGGERS, "El arma de la mano se guarda")
+		_check(GameData.dungeon_weapon == WeaponData.WeaponType.DAGGERS, "Y es el arma inicial de la próxima")
+		var hp_eq: float = p.max_hp
+		var casco_uid: String = eq.equipped["casco"]["uid"]
+		scene.facade._apply_character_data()
+		_check(eq.bag.is_empty(), "Partida nueva: mochila vacía")
+		_check(eq.equipped["casco"]["uid"] == casco_uid, "Partida nueva: vuelve lo equipado")
+		_check(is_equal_approx(p.max_hp, hp_eq), "La vida del equipo se vuelve a sumar a la base")
+		_check(PlayerEquipment.saved_loadout().size() == saved.size(), "El Salón lee el equipo guardado")
 	if not _done(7, "solo se conserva lo equipado"): return
 
 	# 8. Botín: cajas/enemigos (dado), jefes (siempre, rara+) y recoger del suelo

@@ -10,6 +10,7 @@ static var kills: int = 0
 static var elites: int = 0
 static var events: int = 0
 static var shrines: int = 0
+static var souls: int = 0                      ## almas ganadas con élites (ya ingresadas en SoulStats)
 static var boss_killed := false
 static var run_recorded := false              ## MetaProgress.record_survival_run ya contó esta partida
 static var endless_from: float = -1.0          ## segundo en que empezó el modo infinito (-1: no)
@@ -20,6 +21,7 @@ static func reset() -> void:
 	elites = 0
 	events = 0
 	shrines = 0
+	souls = 0
 	boss_killed = false
 	run_recorded = false
 	endless_from = -1.0
@@ -42,6 +44,8 @@ static func summary_lines(winv) -> Array:
 	if endless_from >= 0.0:
 		var t := int(GameState.get_instance().elapsed_time - endless_from)
 		lines.append("MODO INFINITO %d:%02d" % [t / 60, t % 60])
+	if souls > 0:
+		lines.append("ALMAS %d  (sube de nivel en el yunque del Salón · tienes %d)" % [souls, SoulStats.souls()])
 	var total := 0.0
 	for w in damage_by_weapon:
 		total += float(damage_by_weapon[w])

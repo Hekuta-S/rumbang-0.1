@@ -33,7 +33,7 @@ var _charge_full_played := false
 const CHARGE_SHAKE_MIN := 0.006
 const CHARGE_SHAKE_MAX := 0.035
 var _shake_base := Vector3.INF
-const MAX_WEAPON_SLOTS: int = 4
+const MAX_WEAPON_SLOTS: int = 5     ## 5 huecos (la barra de armas del HUD tiene 5)
 
 var weapon_ammo: Dictionary = {}
 var reloading_weapon: int = -1
@@ -79,6 +79,7 @@ func _ready() -> void:
 	_strategies[WeaponData.WeaponType.KATANA] = WeaponStrategy.KatanaStrategy.new(self)
 	_strategies[WeaponData.WeaponType.FISTS] = WeaponStrategy.FistsStrategy.new(self)
 	_strategies[WeaponData.WeaponType.BOW] = WeaponStrategy.BowStrategy.new(self)
+	_strategies[WeaponData.WeaponType.GIANT_MACE] = WeaponStrategy.GiantMaceStrategy.new(self)
 
 
 const INPUT_BUFFER_TIME: float = 0.28

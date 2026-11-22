@@ -1,4 +1,5 @@
 extends CharacterBody3D
+const _FLOATING_DAMAGE := preload("res://scripts/objects/floating_damage.gd")   # antes load() en cada golpe
 
 signal boss_died(position, gold_val)
 signal boss_hit
@@ -519,7 +520,7 @@ func take_damage(amount: float, _knockback_dir: Vector3 = Vector3.ZERO) -> void:
 	
 	_flash_hit()
 
-	var FloatingDamage = load("res://scripts/objects/floating_damage.gd")
+	var FloatingDamage = _FLOATING_DAMAGE
 	if FloatingDamage:
 		var is_crit = amount >= 24.0 or randf() < 0.2
 		var col = Color(1.0, 0.25, 0.1) if is_crit else Color(1.0, 0.85, 0.2)

@@ -17,7 +17,7 @@ const GROUPS := {
 }
 const WEAPON_GROUP := {
 	W.SWORD: "sword", W.GREATSWORD: "sword", W.KATANA: "sword", W.ENERGY_SWORD: "sword",
-	W.MACE: "mace",
+	W.MACE: "mace", W.GIANT_MACE: "mace",
 	W.FISTS: "fist",
 }
 const POOL := 5

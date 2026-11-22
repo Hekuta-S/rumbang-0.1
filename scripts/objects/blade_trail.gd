@@ -12,8 +12,13 @@ extends MeshInstance3D
 ## (aguja fina de las dagas, arco limpio con hilos de la espada, barrido ancho que acaba en brasa del espadón,
 ## soplo romo con líneas de velocidad de la maza...).
 ##
-## Rendimiento: las muestras van en arrays empaquetados que se reutilizan (ninguna asignación por frame), la
-## cinta se escribe directamente en la malla y el nodo deja de procesarse cuando no queda nada que dibujar.
+## Rendimiento (es el efecto que más se ve en mazmorras: cada golpe de cada arma cuerpo a cuerpo):
+##  - Las muestras van en arrays empaquetados que se reutilizan. La malla es un ImmediateMesh, que reutiliza
+##    su buffer de GPU (probado: subir un ArrayMesh nuevo cada frame costaba ~4 veces más de GPU).
+##  - No se genera geometría donde el shader no pinta nada: la franja del lado del asta que `band_from`
+##    deja vacía y la cola que ya se "comió" el umbral de edad (ver _visible()). Menos vértices y, sobre
+##    todo, menos píxeles transparentes que rellenar.
+##  - El nodo deja de procesarse cuando no queda nada que dibujar.
 
 const SHADER: Shader = preload("res://assets/shaders/blade_trail.gdshader")
 const MAX_POINTS := 40
@@ -54,17 +59,23 @@ var _relax_passes := 2                 ## pasadas de suavizado de esquinas
 var _pb := PackedVector3Array()
 var _pt := PackedVector3Array()
 var _ptime := PackedFloat32Array()
-# Copias de trabajo del suavizado (se reutilizan)
+# Las mismas muestras suavizadas (ver _relax), alineadas con las de arriba
 var _sb := PackedVector3Array()
 var _st := PackedVector3Array()
-var _sb2 := PackedVector3Array()
-var _st2 := PackedVector3Array()
+var _relax_all := true                 ## recalcular todo el suavizado en el próximo frame
+const SUBDIV_STEP := 0.1               ## m de recorrido de la punta por cada tramo interpolado
 var _emit_left: float = 0.0
 var _time: float = 0.0
 var _power := 1.0                      ## fuerza del golpe en curso (más brillo y algo más de cola)
 var _drawn := false
-var _imesh := ImmediateMesh.new()
+var _imesh := ImmediateMesh.new()       ## reutiliza su buffer (un ArrayMesh nuevo cada frame salía más caro en GPU)
 var _mat: ShaderMaterial
+# Copia en CPU de lo que el shader usa para decidir qué es visible (ver blade_trail.gdshader)
+var _band_from := 0.0
+var _tail_pow := 1.3
+const CUT_MIN := 0.12              ## = CUT_MIN del shader
+const CUT_AGE := 0.7               ## = CUT_AGE del shader
+const HEAD_RAMP := 0.1             ## = ancho de la entrada de la cabeza en el shader
 
 func setup(p_base: Node3D, p_tip: Node3D, color: Color = Color(0.2, 1.0, 0.45), p_style: String = "") -> void:
 	base = p_base
@@ -80,6 +91,8 @@ func setup(p_base: Node3D, p_tip: Node3D, color: Color = Color(0.2, 1.0, 0.45), 
 	_life = float(st["life"])
 	_tail = float(st["tail"])
 	_taper = float(st["taper"])
+	_band_from = float(st.get("band_from", 0.0))
+	_tail_pow = float(st.get("tail_pow", 1.3))
 	for key in SHADER_KEYS:
 		if st.has(key):
 			_mat.set_shader_parameter(key, st[key])
@@ -96,6 +109,7 @@ func emit(duration: float, power: float = 1.0) -> void:
 		var low := Quality.level() == Quality.Level.LOW
 		_subdiv = 2 if low else 4
 		_relax_passes = 1 if low else 2
+		_relax_all = true
 		_power = 1.0
 	_emit_left = maxf(_emit_left, duration)
 	_power = clampf(maxf(_power, power), 0.5, 2.0)
@@ -117,6 +131,8 @@ func _process(delta: float) -> void:
 			_pb.append(base.global_position)
 			_pt.append(tip.global_position)
 			_ptime.append(_time)
+			_sb.append(base.global_position)    # su versión suavizada se calcula en _relax()
+			_st.append(tip.global_position)
 			if _ptime.size() > MAX_POINTS:
 				_drop_oldest()
 	while not _ptime.is_empty() and _time - _ptime[0] > life_now:
@@ -139,67 +155,109 @@ func _drop_oldest() -> void:
 	_pb.remove_at(0)
 	_pt.remove_at(0)
 	_ptime.remove_at(0)
+	_sb.remove_at(0)
+	_st.remove_at(0)
 
-## Suavizado laplaciano en las copias de trabajo: quita los picos de un giro brusco de la hoja entre dos
-## muestras (cada una se acerca a la media de sus vecinas; los extremos no se mueven).
+## Suavizado laplaciano: quita los picos de un giro brusco de la hoja entre dos muestras (cada una se acerca
+## a la media de sus vecinas; los extremos no se mueven). Equivale a `_relax_passes` pasadas del filtro
+## [¼ ½ ¼], pero INCREMENTAL: las muestras no se mueven una vez tomadas, así que al añadir una por la cabeza
+## o quitar otra por la cola solo cambian las 3 de cada extremo. Se recalcula todo solo tras un emit()
+## (puede cambiar la calidad) o con pocas muestras.
 func _relax(m: int) -> void:
-	_sb.resize(m)
-	_st.resize(m)
-	for i in m:
+	if _relax_all or m < 7:
+		_relax_all = m < 7
+		for i in m:
+			_smooth_at(i, m)
+		return
+	for i in 3:
+		_smooth_at(i, m)
+		_smooth_at(m - 1 - i, m)
+
+## Muestra `i` suavizada en _sb/_st a partir de las crudas _pb/_pt. Dos pasadas de [¼ ½ ¼] con extremos
+## fijos dan el filtro [1 4 6 4 1]/16 en el interior y estos pesos junto a los extremos.
+func _smooth_at(i: int, m: int) -> void:
+	if i == 0 or i == m - 1 or m < 3:
 		_sb[i] = _pb[i]
 		_st[i] = _pt[i]
-	if m < 3:
-		return
-	_sb2.resize(m)
-	_st2.resize(m)
-	for _p in _relax_passes:
-		_sb2[0] = _sb[0]
-		_st2[0] = _st[0]
-		_sb2[m - 1] = _sb[m - 1]
-		_st2[m - 1] = _st[m - 1]
-		for i in range(1, m - 1):
-			_sb2[i] = _sb[i - 1] * 0.25 + _sb[i] * 0.5 + _sb[i + 1] * 0.25
-			_st2[i] = _st[i - 1] * 0.25 + _st[i] * 0.5 + _st[i + 1] * 0.25
-		var swap_b := _sb
-		_sb = _sb2
-		_sb2 = swap_b
-		var swap_t := _st
-		_st = _st2
-		_st2 = swap_t
+	elif _relax_passes < 2 or m < 5:
+		_sb[i] = _pb[i - 1] * 0.25 + _pb[i] * 0.5 + _pb[i + 1] * 0.25
+		_st[i] = _pt[i - 1] * 0.25 + _pt[i] * 0.5 + _pt[i + 1] * 0.25
+	elif i == 1:
+		_sb[i] = _pb[0] * 0.375 + _pb[1] * 0.3125 + _pb[2] * 0.25 + _pb[3] * 0.0625
+		_st[i] = _pt[0] * 0.375 + _pt[1] * 0.3125 + _pt[2] * 0.25 + _pt[3] * 0.0625
+	elif i == m - 2:
+		_sb[i] = _pb[m - 1] * 0.375 + _pb[m - 2] * 0.3125 + _pb[m - 3] * 0.25 + _pb[m - 4] * 0.0625
+		_st[i] = _pt[m - 1] * 0.375 + _pt[m - 2] * 0.3125 + _pt[m - 3] * 0.25 + _pt[m - 4] * 0.0625
+	else:
+		_sb[i] = (_pb[i - 2] + _pb[i + 2] + (_pb[i - 1] + _pb[i + 1]) * 4.0 + _pb[i] * 6.0) * 0.0625
+		_st[i] = (_pt[i - 2] + _pt[i + 2] + (_pt[i - 1] + _pt[i + 1]) * 4.0 + _pt[i] * 6.0) * 0.0625
+
+## ¿Pinta algo el shader en esta fila de la cinta? Mismo umbral que blade_trail.gdshader: la forma solo
+## existe donde el campo (como mucho `ends`, el perfil a lo largo) supera el corte que sube con la edad.
+func _visible(along: float, life: float) -> bool:
+	var ends := minf(along / HEAD_RAMP, 1.0) * pow(1.0 - along, _tail_pow)
+	return ends > CUT_MIN + (1.0 - life) * CUT_AGE
 
 ## Escribe la cinta en la malla, de la cabeza (muestra más nueva) a la cola, interpolando con Catmull-Rom.
+## La cola invisible no se genera: a lo largo de la cinta el perfil baja y la edad sube, así que en cuanto
+## una fila (pasada la cabeza) queda invisible, todas las siguientes también.
+##
+## Cada tramo entre dos muestras se subdivide según lo que recorrió la punta (SUBDIV_STEP, hasta _subdiv):
+## un giro rápido sale curvo y la parte lenta no paga vértices de más. La curva de Catmull-Rom se pasa a
+## polinomio una vez por tramo y se evalúa con Horner (3 multiplicaciones por punto).
 func _build(m: int, life_now: float) -> void:
-	var total := (m - 1) * _subdiv + 1
-	var inv_total := 1.0 / float(total - 1)
-	var inv_sub := 1.0 / float(_subdiv)
+	var inv_len := 1.0 / float(m - 1)
+	var band := _band_from
 	var col := Color(1, 1, 1, 1)
 	var uv := Vector2.ZERO
-	var idx := 0
+	var done := false
 	_imesh.clear_surfaces()
 	_imesh.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
 	for i in range(m - 1, 0, -1):
+		if done:
+			break
 		var i0 := mini(i + 1, m - 1)
 		var i3 := maxi(i - 2, 0)
-		var steps := _subdiv + (1 if i == 1 else 0)     # el último tramo incluye la muestra más vieja
+		# Polinomio del tramo i -> i-1: p(k) = ((c3·k + c2)·k + c1)·k + c0
+		var b0 := _sb[i0]; var b1 := _sb[i]; var b2 := _sb[i - 1]; var b3 := _sb[i3]
+		var bc1 := (b2 - b0) * 0.5
+		var bc2 := b0 - b1 * 2.5 + b2 * 2.0 - b3 * 0.5
+		var bc3 := (b1 - b2) * 1.5 + (b3 - b0) * 0.5
+		var t0 := _st[i0]; var t1 := _st[i]; var t2 := _st[i - 1]; var t3 := _st[i3]
+		var tc1 := (t2 - t0) * 0.5
+		var tc2 := t0 - t1 * 2.5 + t2 * 2.0 - t3 * 0.5
+		var tc3 := (t1 - t2) * 1.5 + (t3 - t0) * 0.5
+		var sub := clampi(ceili(t1.distance_to(t2) / SUBDIV_STEP), 1, _subdiv)
+		var inv_sub := 1.0 / float(sub)
+		var steps := sub + (1 if i == 1 else 0)         # el último tramo incluye la muestra más vieja
+		var time_new := _ptime[i]
+		var time_old := _ptime[i - 1]
 		for s in steps:
 			var k := float(s) * inv_sub
-			var b := _catmull(_sb[i0], _sb[i], _sb[i - 1], _sb[i3], k)
-			var t := _catmull(_st[i0], _st[i], _st[i - 1], _st[i3], k)
-			var along := float(idx) * inv_total          # 0 = cabeza (junto a la hoja) .. 1 = cola
-			idx += 1
-			col.a = clampf(1.0 - (_time - lerpf(_ptime[i], _ptime[i - 1], k)) / life_now, 0.0, 1.0)
+			var along := (float(m - 1 - i) + k) * inv_len  # 0 = cabeza (junto a la hoja) .. 1 = cola
+			var a := clampf(1.0 - (_time - lerpf(time_new, time_old, k)) / life_now, 0.0, 1.0)
+			if along > HEAD_RAMP and not _visible(along, a):
+				# Una fila más (ya invisible) para cerrar la cola en el borde exacto, y fuera
+				done = true
+			var b := ((bc3 * k + bc2) * k + bc1) * k + b1
+			var t := ((tc3 * k + tc2) * k + tc1) * k + t1
 			# Se estrecha hacia la cola con una curva suave (la cola se cierra redondeada, sin pico)
 			var w := lerpf(1.0, _tail, pow(along, _taper))
 			var mid := (b + t) * 0.5
+			var pt := mid + (t - mid) * w
+			col.a = a
 			uv.x = along
-			uv.y = 0.0
+			# El lado del asta empieza donde el shader empieza a pintar (band_from), no en el asta
+			uv.y = band
 			_imesh.surface_set_color(col)
 			_imesh.surface_set_uv(uv)
-			_imesh.surface_add_vertex(mid + (b - mid) * w)
+			_imesh.surface_add_vertex((mid + (b - mid) * w).lerp(pt, band))
 			uv.y = 1.0
 			_imesh.surface_set_color(col)
 			_imesh.surface_set_uv(uv)
-			_imesh.surface_add_vertex(mid + (t - mid) * w)
+			_imesh.surface_add_vertex(pt)
+			if done:
+				break
 	_imesh.surface_end()
 	_drawn = true
 

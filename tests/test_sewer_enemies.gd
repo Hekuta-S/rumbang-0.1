@@ -36,7 +36,7 @@ func _ready() -> void:
 		e.position = c + Vector3(6, 0.1, 6)
 		scene.add_child(e)
 		await get_tree().physics_frame
-		assert(is_equal_approx(e.max_hp, expect[kind][0]), "Vida de %s: %s (es %s)" % [kind, expect[kind][0], e.max_hp])
+		assert(is_equal_approx(e.max_hp, expect[kind][0] * DungeonGoblin.TOUGHNESS_HP), "Vida de %s: %s (es %s)" % [kind, expect[kind][0], e.max_hp])
 		assert(absf(e.speed - float(expect[kind][1])) < 0.01, "Velocidad de %s: %s (es %s)" % [kind, expect[kind][1], e.speed])
 		for n in e.attacks:
 			var a: Dictionary = e.attacks[n]

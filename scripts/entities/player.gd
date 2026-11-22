@@ -436,7 +436,7 @@ func _input(event) -> void:
 
 
 	# ── Cursor release / recapture ─────────────────────────────────────────
-	if event.is_action_pressed("ui_cancel"):
+	if event.is_action_pressed("ui_cancel") and not event is InputEventJoypadButton:   # B del mando = esquivar
 		if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		else:

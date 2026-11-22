@@ -398,6 +398,31 @@ func apply_status(effect_id: String, dps: float, duration: float, source: Node =
 const HIGH_GROUND_DIFF := 2.5
 const HIGH_GROUND_MULT := 1.2
 
+## Cupo por frame de sonidos de golpe y números flotantes. Con decenas de golpes en el mismo frame,
+## los 16 reproductores 3D se pisaban (solo se oían los últimos) y los números tapaban la pantalla;
+## ambos costaban ~1-3 ms por cada 60 golpes.
+const HIT_SFX_PER_FRAME := 3
+const HIT_NUMBERS_PER_FRAME := 12
+static var _budget_frame := -1
+static var _budget_sfx := 0
+static var _budget_numbers := 0
+
+static func _take_hit_budget(sfx: bool) -> bool:
+	var frame := Engine.get_process_frames()
+	if frame != _budget_frame:
+		_budget_frame = frame
+		_budget_sfx = 0
+		_budget_numbers = 0
+	if sfx:
+		if _budget_sfx >= HIT_SFX_PER_FRAME:
+			return false
+		_budget_sfx += 1
+		return true
+	if _budget_numbers >= HIT_NUMBERS_PER_FRAME:
+		return false
+	_budget_numbers += 1
+	return true
+
 func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 	if recycled:
 		return
@@ -409,7 +434,7 @@ func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 	var now := Time.get_ticks_msec() / 1000.0
 	var is_dot := amount < DOT_THRESHOLD or _force_dot
 
-	if not is_dot or now - _last_sfx_t >= DOT_SFX_INTERVAL:
+	if (not is_dot or now - _last_sfx_t >= DOT_SFX_INTERVAL) and _take_hit_budget(true):
 		_last_sfx_t = now
 		AudioManager.play_at("hit", global_position, -10.0, randf_range(0.9, 1.1))
 
@@ -441,6 +466,10 @@ func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 			_dot_pending = 0.0
 		else:
 			show_number = false
+	if show_number and not _take_hit_budget(false):
+		show_number = false      # matanza: pasado el cupo del frame no salen más números
+		if is_dot:
+			_dot_pending += shown   # el daño continuo no se pierde: sale en el siguiente número
 	if show_number:
 		_last_number_t = now
 		var root := EnemyManager.scene_root()

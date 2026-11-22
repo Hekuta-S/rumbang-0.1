@@ -29,7 +29,7 @@ func _ready() -> void:
 	await get_tree().physics_frame
 	assert(b is DungeonBrute, "spawn_brute debe crear un DungeonBrute")
 	assert(EnemyRegistry.all().has(b), "El bruto debe estar en EnemyRegistry")
-	assert(is_equal_approx(b.max_hp, 135.0), "Vida del bruto: 90 × 1,5 = 135 (es %s)" % b.max_hp)
+	assert(is_equal_approx(b.max_hp, 135.0 * DungeonGoblin.TOUGHNESS_HP), "Vida del bruto: 90 × 1,5 × dureza (es %s)" % b.max_hp)
 	assert(b.scale.is_equal_approx(Vector3.ONE), "El cuerpo del bruto no debe ir escalado")
 	assert(absf(b.speed - 3.2) < 0.01, "Velocidad del bruto 3,2 m/s (es %s)" % b.speed)
 	for n in ["sweep", "smash", "stomp", "charge"]:
@@ -132,7 +132,7 @@ func _ready() -> void:
 	await get_tree().physics_frame
 	assert(not (g is DungeonBrute), "spawn_goblin debe crear un goblin normal")
 	assert(g.attacks.has("swipe") and g.attacks.has("leap") and not g.attacks.has("smash"), "El goblin normal mantiene sus ataques")
-	assert(is_equal_approx(g.max_hp, 80.0), "Vida del goblin normal 80 (es %s)" % g.max_hp)
+	assert(is_equal_approx(g.max_hp, 80.0 * DungeonGoblin.TOUGHNESS_HP), "Vida del goblin normal 80 × dureza (es %s)" % g.max_hp)
 	print("CHECK 5 PASSED: goblin normal sin cambios")
 
 	print("ALL BRUTE CHECKS PASSED")

@@ -661,7 +661,9 @@ func _set_button(bi: int, down: bool) -> void:
 		"alt": VirtualInput.is_alt_attack = down
 		"skill": VirtualInput.just_pressed_skill = down or VirtualInput.just_pressed_skill
 		"reload": VirtualInput.just_pressed_reload = down or VirtualInput.just_pressed_reload
-		"dodge": VirtualInput.just_pressed_dodge = down or VirtualInput.just_pressed_dodge
+		"dodge":
+			VirtualInput.just_pressed_dodge = down or VirtualInput.just_pressed_dodge
+			VirtualInput.is_dodge_held = down
 		"parry": VirtualInput.just_pressed_parry = down or VirtualInput.just_pressed_parry
 		"weapon": VirtualInput.just_pressed_cycle_next = down or VirtualInput.just_pressed_cycle_next
 		"target":
@@ -683,6 +685,9 @@ func _on_drag(idx: int, pos: Vector2, relative: Vector2) -> void:
 		_drag_target(pos)
 	elif VirtualInput.attack_aims and _button_id("attack") == idx:
 		# Apuntando con el botón de disparo: el mismo dedo mueve la mira
+		VirtualInput.look_vector += relative
+	elif idx != -1 and _button_id("run") == idx:
+		# Corriendo: el dedo del botón Correr también mueve la cámara (no hace falta soltarlo)
 		VirtualInput.look_vector += relative
 	elif VirtualInput.alt_aims and _button_id("alt") == idx:
 		# Cargando el especial (lanzamiento de la espalanza): el dedo del botón apunta
@@ -745,6 +750,7 @@ func _release_all() -> void:
 	VirtualInput.movement_vector = Vector2.ZERO
 	VirtualInput.is_jumping = false
 	VirtualInput.is_sliding = false
+	VirtualInput.is_dodge_held = false
 	VirtualInput.is_running = false
 	VirtualInput.is_attacking = false
 	VirtualInput.is_alt_attack = false

@@ -297,7 +297,7 @@ def wall_panel(b, axis, fixed, a0, a1, z0, z1, m, step=0.5, inward=1.0):
 
 HALL_X = 8.0          ## media anchura
 HALL_Y0 = -8.0        ## muro de entrada
-HALL_Y1 = 14.0        ## muro del trono
+HALL_Y1 = 10.5        ## muro del fondo (puerta de la arena); antes 14.0, se acercó para que la puerta se lea como destino
 HALL_H = 9.0
 CIRCLE = (0.0, 1.5)   ## centro del círculo de invocación (y en Blender)
 CIRCLE_R = 2.7
@@ -487,14 +487,20 @@ def build_walls(b, b_glass, b_flames, rnd):
             L = min(rnd.uniform(0.9, 1.5), HALL_Y1 - y)
             box(b, (sx * (HALL_X - 0.12), y + L / 2, 0.4), (0.26, L - 0.02, 0.8), "salon_stone", bevel=0.025)
             y += L
-    for yy, sgn in ((HALL_Y1, -1), (HALL_Y0, 1)):
+    # sin zócalo en el hueco de las puertas (antes tapaba la base de la puerta de la arena y parecía pared)
+    for yy, sgn, gap in ((HALL_Y1, -1, 1.75), (HALL_Y0, 1, 2.05)):
         x = -HALL_X
         while x < HALL_X - 0.01:
             L = min(rnd.uniform(0.9, 1.5), HALL_X - x)
+            if x < -gap < x + L:
+                L = -gap - x          # el bloque acaba justo en el marco
+            elif -gap <= x < gap:
+                x = gap               # salta el hueco
+                continue
             box(b, (x + L / 2, yy + sgn * 0.12, 0.4), (L - 0.02, 0.26, 0.8), "salon_stone", bevel=0.025)
             x += L
     # columnas a los lados, con antorchas mirando al centro
-    for y in (-5.0, -1.0, 3.0, 7.0, 11.0):
+    for y in (-5.0, -1.0, 3.0, 7.0):
         for sx in (-1, 1):
             x = sx * 6.2
             build_pillar(b, x, y, rnd)
@@ -597,7 +603,7 @@ def build_props(b, b_flames, b_gems, rnd):
         box(b, (lx + sx * 0.13 * math.cos(0.4), ly + sx * 0.13 * math.sin(0.4), FLOOR_Z + 1.16), (0.26, 0.36, 0.025),
             "salon_paper", bevel=0.004, rot=(0.45, sx * -0.06, 0.4))
     # tinajas
-    for (x, y, r) in ((-5.4, -6.9, 0.32), (-5.0, -7.3, 0.25), (5.0, 9.2, 0.3)):
+    for (x, y, r) in ((-5.4, -6.9, 0.32), (-5.0, -7.3, 0.25), (5.0, 9.0, 0.3)):
         cyl(b, (x, y, FLOOR_Z), r, r * 2.2, "salon_stone_dark", segs=10, r_top=r * 0.55)
     # braseros a ambos lados de la puerta de la arena
     for sx in (-1, 1):

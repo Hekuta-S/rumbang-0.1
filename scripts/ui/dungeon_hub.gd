@@ -11,7 +11,7 @@ extends Node3D
 ##   bola de cristal-> multijugador LAN      portón -> salir del juego
 ## Modelos: tools/blender_salon_invocacion.py (assets/models/salon/salon_trono.glb, rey.glb, mago.glb).
 ## Coordenadas: el salón de Blender pasa a Godot como (x, z, -y): el círculo está en (0, 0, -1.5), el
-## trono al fondo (z = -11) y el portón de entrada en z = +8.
+## puerta de la arena al fondo (muro en z = -10.5) y el portón de entrada en z = +8.
 
 const Style := preload("res://scripts/ui/rumbang_style.gd")
 const HubPanelsScript := preload("res://scripts/ui/hub_panels.gd")
@@ -45,7 +45,7 @@ const STATIONS := {
 		"cam": null},
 	"yunque": {"pos": Vector3(4.5, FLOOR_Y, -1.0), "r": 1.5, "label": "YUNQUE", "h": 1.5, "prompt": "Yunque: armas y subir de nivel",
 		"cam": [Vector3(-2.3, 1.5, 0.6), Vector3(0.4, 0.9, -0.9)]},
-	"arena": {"pos": Vector3(0.0, FLOOR_Y, -12.6), "r": 2.0, "label": "ARENA", "h": 5.6, "prompt": "Arena de supervivencia",
+	"arena": {"pos": Vector3(0.0, FLOOR_Y, -9.1), "r": 2.0, "label": "ARENA", "h": 5.6, "prompt": "Arena de supervivencia",
 		"cam": [Vector3(-2.4, 1.7, 3.0), Vector3(0.0, 1.7, -1.4)]},
 	"cofre": {"pos": Vector3(5.0, FLOOR_Y, 4.4), "r": 1.5, "label": "COFRE", "h": 1.3, "prompt": "Cofre: mejoras de armas",
 		"cam": [Vector3(-2.0, 1.4, 1.2), Vector3(0.0, 0.4, 0.0)]},
@@ -64,7 +64,7 @@ const STATIONS := {
 ## [posición relativa al héroe, punto mirado (absoluto)].
 const NEAR_CAMS := {
 	"salir": [Vector3(1.8, 2.0, -3.6), Vector3(0.0, 2.3, 7.9)],
-	"arena": [Vector3(2.4, 2.2, 3.4), Vector3(0.0, 2.0, -13.9)],
+	"arena": [Vector3(2.4, 2.2, 3.4), Vector3(0.0, 2.0, -10.4)],
 }
 ## Portales del mago (uno por mundo, en las marcas de runas de la izquierda) y su color
 const PORTAL_SPOTS := [Vector3(-4.7, FLOOR_Y, -4.4), Vector3(-4.7, FLOOR_Y, 2.6)]
@@ -254,7 +254,7 @@ func _build_world() -> void:
 
 	# Luces omni (el renderizador móvil admite 8 por malla y el salón es una sola): antorchas, braseros,
 	# círculo y fragua. Lo demás (relleno, portales, bola, arena) son focos, que tienen su propio cupo.
-	for p in [Vector3(-5.6, 3.2, 1.0), Vector3(5.6, 3.2, 1.0), Vector3(-3.2, 1.9, -11.4), Vector3(3.2, 1.9, -11.4)]:
+	for p in [Vector3(-5.6, 3.2, 1.0), Vector3(5.6, 3.2, 1.0), Vector3(-3.2, 1.9, -7.9), Vector3(3.2, 1.9, -7.9)]:
 		if Quality.is_mobile() and p.y < 2.5:
 			continue   # móvil: menos luces omni (cada una se recalcula por píxel); el foco de la arena cubre el fondo
 		_torch(p, Color(1.0, 0.58, 0.26), 2.2 if p.y > 2.5 else 1.8, 9.0, p.y < 2.5)
@@ -268,7 +268,7 @@ func _build_world() -> void:
 	Quality.tune_light(_circle_light)
 	add_child(_circle_light)
 	_spot(Vector3(-4.4, 2.6, -6.6), Vector3(-4.4, FLOOR_Y, -6.6), Color(0.75, 0.4, 1.0), 2.5, 35.0)   # bola
-	_spot(Vector3(0.0, 3.4, -10.6), Vector3(0.0, 1.6, -13.9), Color(1.0, 0.3, 0.1), 2.6, 50.0)        # arena
+	_spot(Vector3(0.0, 3.4, -7.1), Vector3(0.0, 1.6, -10.4), Color(1.0, 0.3, 0.1), 2.6, 50.0)        # arena
 	_spot(Vector3(4.6, 3.0, -1.4), Vector3(4.8, 0.8, -2.55), Color(1.0, 0.8, 0.6), 1.6, 40.0)        # armero
 
 	_build_beam()
@@ -349,8 +349,8 @@ func _build_collision() -> void:
 	body.name = "Colisiones"
 	add_child(body)
 	var boxes := [   # [centro (x, z), tamaño (x, z)]
-		[Vector2(8.3, -3.0), Vector2(0.6, 23.0)], [Vector2(-8.3, -3.0), Vector2(0.6, 23.0)],
-		[Vector2(0.0, 8.0), Vector2(17.0, 1.2)], [Vector2(0.0, -14.3), Vector2(17.0, 0.6)],
+		[Vector2(8.3, -1.25), Vector2(0.6, 19.5)], [Vector2(-8.3, -1.25), Vector2(0.6, 19.5)],
+		[Vector2(0.0, 8.0), Vector2(17.0, 1.2)], [Vector2(0.0, -10.8), Vector2(17.0, 0.6)],
 		[Vector2(6.0, -1.0), Vector2(1.4, 1.7)], [Vector2(4.9, -2.55), Vector2(0.25, 1.7)],   # fragua, armero
 		[Vector2(5.0, 4.4), Vector2(0.75, 1.2)], [Vector2(4.4, -6.4), Vector2(1.0, 1.6)],     # cofre, mesa
 	]
@@ -362,12 +362,12 @@ func _build_collision() -> void:
 		cs.position = Vector3(b[0].x, 1.5, b[0].y)
 		body.add_child(cs)
 	var cyls := [   # [centro (x, z), radio]
-		[Vector2(-3.2, -11.4), 0.4], [Vector2(3.2, -11.4), 0.4], [Vector2(-3.6, -0.6), 0.32],
+		[Vector2(-3.2, -7.9), 0.4], [Vector2(3.2, -7.9), 0.4], [Vector2(-3.6, -0.6), 0.32],
 		[Vector2(4.5, -1.0), 0.38], [Vector2(5.8, -2.15), 0.3], [Vector2(4.7, 5.25), 0.28],
 		[Vector2(-4.8, 5.2), 0.42], [Vector2(-4.4, -6.6), 0.42], [Vector2(5.0, -6.4), 0.25],
 		[Vector2(-5.4, 6.9), 0.34], [Vector2(-5.0, 7.3), 0.28], [Vector2(MAGE_POS.x, MAGE_POS.z), 0.42],
 	]
-	for z in [5.0, 1.0, -3.0, -7.0, -11.0]:
+	for z in [5.0, 1.0, -3.0, -7.0]:
 		for sx in [-1.0, 1.0]:
 			cyls.append([Vector2(sx * 6.2, z), 0.6])
 	for i in 8:   # candelabros alrededor del círculo
@@ -1196,7 +1196,7 @@ func _update_explore() -> void:
 		near_station = here
 		_prompt.visible = here != ""
 		if here != "":
-			_prompt.text = "  E   %s  " % String(STATIONS[here]["prompt"])
+			_prompt.text = "  %s   %s  " % ["A" if Input.get_connected_joypads().size() > 0 else "E", String(STATIONS[here]["prompt"])]
 	for id in _station_labels:
 		var l: Label3D = _station_labels[id]
 		l.modulate.a = lerpf(l.modulate.a, 1.0 if id == near_station else 0.45, 0.15)
@@ -1260,6 +1260,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			use_station(near_station)
 			get_viewport().set_input_as_handled()
 			return
+		if event.is_action_pressed("ui_cancel"):
+			get_viewport().set_input_as_handled()
+			back_to_title()
+			return
 		# clic / toque en el suelo: ir andando allí (y usar la estación si se tocó una)
 		var click_pos := Vector2(-1, -1)
 		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
@@ -1279,9 +1283,6 @@ func _unhandled_input(event: InputEvent) -> void:
 				else:
 					player.move_to(target)
 			get_viewport().set_input_as_handled()
-	elif state == "explore" and event.is_action_pressed("ui_cancel"):
-		get_viewport().set_input_as_handled()
-		back_to_title()
 	elif state == "panel" and event.is_action_pressed("ui_cancel"):
 		panels.close()
 		get_viewport().set_input_as_handled()

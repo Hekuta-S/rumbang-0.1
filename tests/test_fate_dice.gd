@@ -52,8 +52,9 @@ func _survival() -> void:
 	await _frames(2)
 	_check(dice._die.mesh != null and dice._die.mesh is ArrayMesh, "el dado sale con su modelo cartoon")
 	_check(MapPickup.toon_mesh("pickup_bomb") != null and MapPickup.toon_mesh("pickup_magnet") != null, "bomba e imán con su modelo cartoon")
+	_check(dice.faces == 12, "en supervivencia el dado tiene 12 caras")
 	# La tirada deja arriba la cara del valor
-	for v in [1, 4, 6]:
+	for v in [1, 4, 7, 12]:
 		var d := FateDice.spawn(main, p.global_position + Vector3(30, 0, 0))
 		await _frames(1)
 		d.roll(v)
@@ -62,43 +63,85 @@ func _survival() -> void:
 			await get_tree().process_frame
 			if d._done:
 				break
-		var up: Vector3 = d._holder.global_transform.basis.orthonormalized() * FateDice.FACE_UP[v]
+		var up: Vector3 = d._holder.global_transform.basis.orthonormalized() * FateDice.face_up(12, v)
 		_check(up.dot(Vector3.UP) > 0.95, "la cara %d queda arriba (%.2f)" % [v, up.dot(Vector3.UP)])
 	await _frames(5)
+	# Geometría del dodecaedro: 12 caras distintas, cada una con 5 esquinas
+	var ns := FateDice.d12_normals()
+	_check(ns.size() == 12 and FateDice.d12_face_corners(ns[3]).size() == 5, "dodecaedro: 12 caras de 5 esquinas")
+	var ok_pairs := true
+	for i in 12:
+		for j in range(i + 1, 12):
+			if (ns[i] as Vector3).dot(ns[j]) > 0.999:
+				ok_pairs = false
+	_check(ok_pairs, "las 12 caras apuntan a direcciones distintas")
+	# Cada cara es un pentágono plano perpendicular a su normal: sus 5 esquinas a la misma altura sobre ella
+	# (con las normales del dodecaedro girado las esquinas salían a 0,98/0,80/0,61: dado deforme y con agujeros)
+	var flat := true
+	for n: Vector3 in ns:
+		for c: Vector3 in FateDice.d12_face_corners(n):
+			if absf(c.dot(n) - 0.795) > 0.01:
+				flat = false
+	_check(flat, "las caras del dodecaedro son pentágonos planos")
+	await get_tree().create_timer(3.0).timeout   # botín escalonado de las tiradas de arriba
+	FateDice.clear_mods()                   # y sus efectos
 	var sb: PlayerStatBlock = p.stat_block
-	# 4 FURIA
-	FateDice.clear_mods()
 	var dmg0 := sb.damage_mult()
 	var spd0 := sb.move_mult()
-	FateDice.apply(4, p, main, p.global_position)
+	var gold0 := GameState.get_instance().gold
+	# 7 FURIA
+	FateDice.clear_mods()
+	FateDice.apply12(7, p, main, p.global_position)
 	await _frames(2)
-	_check(is_equal_approx(sb.damage_mult(), dmg0 + 0.5) and sb.move_mult() > spd0, "4 FURIA: +50 %% daño (%.2f -> %.2f)" % [dmg0, sb.damage_mult()])
+	_check(is_equal_approx(sb.damage_mult(), dmg0 + 0.5) and sb.move_mult() > spd0, "7 FURIA: +50 %% daño (%.2f -> %.2f)" % [dmg0, sb.damage_mult()])
 	FateDice._clock += FateDice.FURY_TIME + 1.0
 	_check(is_equal_approx(sb.damage_mult(), dmg0), "la furia se acaba sola")
-	# 2 MALDICIÓN
+	# 3 MALDICIÓN
 	FateDice.clear_mods()
-	FateDice.apply(2, p, main, p.global_position)
+	FateDice.apply12(3, p, main, p.global_position)
 	await _frames(2)
-	_check(sb.damage_mult() < dmg0 and sb.move_mult() < spd0, "2 MALDICIÓN: menos daño y velocidad")
+	_check(sb.damage_mult() < dmg0 and sb.move_mult() < spd0, "3 MALDICIÓN: menos daño y velocidad")
+	# 11 BENDICIÓN: más que la furia
 	FateDice.clear_mods()
-	# 3 BOLSA
-	var gold0 := GameState.get_instance().gold
-	FateDice.apply(3, p, main, p.global_position)
-	_check(GameState.get_instance().gold == gold0 + FateDice.GOLD_SURVIVAL, "3 BOLSA: +%d oro" % FateDice.GOLD_SURVIVAL)
-	# 5 REGALO
+	FateDice.apply12(11, p, main, p.global_position)
+	await _frames(2)
+	_check(is_equal_approx(sb.damage_mult(), dmg0 + 1.0), "11 BENDICIÓN: +100 %% daño (%.2f)" % sb.damage_mult())
+	FateDice.clear_mods()
+	# 5 BOLSA
+	FateDice.apply12(5, p, main, p.global_position)
+	_check(GameState.get_instance().gold == gold0 + FateDice.GOLD_SURVIVAL, "5 BOLSA: +%d oro" % FateDice.GOLD_SURVIVAL)
+	# 6 REGALO
 	var pk0 := get_tree().get_nodes_in_group("map_pickups").size()
-	FateDice.apply(5, p, main, p.global_position + Vector3(5, 0, 0))
+	FateDice.apply12(6, p, main, p.global_position + Vector3(5, 0, 0))
 	await _frames(2)
-	_check(get_tree().get_nodes_in_group("map_pickups").size() == pk0 + 2, "5 REGALO: dos objetos del mapa")
-	# 1 EMBOSCADA
+	_check(get_tree().get_nodes_in_group("map_pickups").size() == pk0 + 2, "6 REGALO: dos objetos del mapa")
+	# 2 EMBOSCADA
 	var e0 := EnemyRegistry.all().size()
-	FateDice.apply(1, p, main, p.global_position)
+	FateDice.apply12(2, p, main, p.global_position)
 	await _frames(3)
-	_check(EnemyRegistry.all().size() >= e0 + FateDice.AMBUSH_SURVIVAL, "1 EMBOSCADA: %d enemigos más" % (EnemyRegistry.all().size() - e0))
-	# 6 FORTUNA
+	_check(EnemyRegistry.all().size() >= e0 + FateDice.AMBUSH_SURVIVAL, "2 EMBOSCADA: %d enemigos más" % (EnemyRegistry.all().size() - e0))
+	# 1 CATÁSTROFE: encola un élite y maldice
+	FateDice.clear_mods()
+	var q0 := events._queue.size()
+	FateDice.apply12(1, p, main, p.global_position)
+	_check(events._queue.size() > q0 and sb.damage_mult() < dmg0, "1 CATÁSTROFE: élite en cola y maldición")
+	FateDice.clear_mods()
+	# 4 HERIDA: pierde vida pero nunca muere por ella
+	p.health_comp.hp = 5000.0
+	FateDice.apply12(4, p, main, p.global_position)
+	_check(is_equal_approx(p.health_comp.hp, 3000.0), "4 HERIDA: -40 %% de la vida actual (%.0f)" % p.health_comp.hp)
+	p.health_comp.hp = 5.0
+	FateDice.apply12(4, p, main, p.global_position)
+	_check(p.health_comp.hp >= p.health_comp.max_hp * FateDice.WOUND_MIN_HP_FRACTION - 0.5, "4 HERIDA: deja un mínimo de vida")
+	# 8 CURA / 12 JACKPOT
 	p.health_comp.hp = 100.0
-	FateDice.apply(6, p, main, p.global_position)
-	_check(p.health_comp.hp >= p.health_comp.max_hp - 0.5, "6 FORTUNA: vida completa")
+	FateDice.apply12(8, p, main, p.global_position)
+	_check(p.health_comp.hp >= p.health_comp.max_hp - 0.5, "8 CURA: vida completa")
+	p.health_comp.hp = 100.0
+	var g1 := GameState.get_instance().gold
+	FateDice.apply12(12, p, main, p.global_position)
+	_check(p.health_comp.hp >= p.health_comp.max_hp - 0.5 and GameState.get_instance().gold == g1 + FateDice.GOLD_JACKPOT and sb.damage_mult() > dmg0, "12 JACKPOT: vida, oro y furia")
+	FateDice.clear_mods()
 	main.queue_free()
 	await _frames(5)
 

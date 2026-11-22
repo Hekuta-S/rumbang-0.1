@@ -151,3 +151,79 @@ scripts de `_process` y el resto: render, motor, espera del vsync). `tools/bench
 - Hilo de render separado (`thread_model=2`): no lo admite Android en Godot 4.7 ("Rendering thread not
   supported by this display server") y fue peor. Descartado.
 - `force_lambert_over_burley.mobile=true` activado (difuso más barato, sin diferencia visible).
+
+## Suelo de supervivencia por trozos (2026-11-19)
+
+El suelo era una sola malla de todo el mapa (154×154 vértices): sin descarte por cámara y con el límite de
+8 omnis por malla del renderer Mobile aplicado a todo el suelo. Ahora son 64 trozos de 30×30 m
+(`ProceduralMap.GROUND_CHUNK_CELLS`), el shader de PC lee roca y piedra solo donde hacen falta y PC en Baja
+usa `toon_ground_mobile`. En PC el suelo pasó de ~1-2.5 ms a ≈0.5 ms o menos. **Falta medirlo en el móvil.**
+`tests/test_ground_chunks.tscn` comprueba cobertura y costuras.
+
+## Plan: bajar el coste fijo del motor en gama baja-media (brief, 2026-11-19)
+
+**Origen:** "cómo optimizar aún más la versión de android, gama baja-media" → dirección elegida: atacar el
+coste fijo (otras direcciones, para después: HUD, perfil "Ligero" automático, calor y batería).
+
+**Objetivo:** que un móvil de gama baja-media llegue a 30 FPS estables con la horda completa recortando lo que
+el motor gasta aunque la escena esté vacía (~12 ms de ~18.7 ms en Baja, ver arriba).
+
+**Pregunta a responder:** ¿de qué están hechos esos ~12 ms y cuánto se puede quitar sin tocar el contenido?
+
+**Ciclo:** cambiar una cosa → medir en el teléfono con `bench.txt` (misma escena y enemigos) → comparar
+`[FRAME]` → quedarse con el cambio o revertirlo.
+
+**Meta** *(provisional)*: en Baja, 30 FPS sin caídas con 420 enemigos y frame sin tope < ~14 ms; en Media,
+ganar ≥ 4 ms. **Fallo:** un cambio que no baje ≥ 2 ms o rompa el estilo cómic se revierte.
+
+**Trabajo** (orden = riesgo primero):
+- [ ] Desglosar el coste fijo: escena vacía en el teléfono con perfilador de GPU (Android GPU Inspector o Arm
+  Performance Studio): copia final, vsync o paso de render.
+- [ ] Renderer Compatibility (GLES3) solo en móvil: `rendering/renderer/rendering_method.mobile="gl_compatibility"`
+  en una exportación de prueba; revisar qué falla (decals de auras, niebla, `fwidth`, `hint_screen_texture`).
+- [x] Resolución reducida por defecto en gama baja (2026-11-19, sin medir en el móvil): `SettingsManager.resolution`
+  vale -1 (automática) si el jugador no eligió, y `Quality.auto_resolution()` da `RES_REDUCED` en gama baja.
+  Ojo: las instalaciones viejas guardaron `"resolution": 0` siempre, así que siguen en nativa hasta que se
+  cambie en Ajustes. Falta medir si recorta la copia final a 2460×1080 (`r1` en `bench.txt`).
+- [x] Más resoluciones (2026-11-21, sin medir en el móvil): `Quality.RES_1080/900/720/540` (modos 2-5) además de
+  nativa (0) y reducida (1). La interfaz queda como en reducida (base 720p) y el 3D se dibuja a esa altura exacta,
+  sin importar la calidad y sin pasar de la pantalla; la gobernadora solo puede bajarla un 30 %. Ajustes solo
+  ofrece las que caben. En `bench.txt`: `r2`-`r5`. `tests/test_resolution_modes.tscn` (las filas solo se miden con
+  ventana: `--resolution 1600x900`, en headless la ventana es de 64×64).
+- [x] Migración de la resolución guardada (2026-11-21, sin medir en el móvil): un `settings.json` sin la marca
+  `res_v` con `"resolution": 0` se lee como automática (-1), así los móviles de gama baja con instalaciones
+  viejas (el Mali-G57 de pruebas incluido) pasan a reducida. Elegir "Nativa" en Ajustes la guarda con `res_v = 2`
+  y se respeta. `tests/test_settings_resolution_migration.tscn`.
+- [ ] Base aún menor en gama baja *(guessed)*: 960×540 en vez de 1280×720, escalada a pantalla.
+- [x] Ritmo estable a 30: Android Frame Pacing (Swappy) ya viene activado en Godot 4.7
+  (`display/window/frame_pacing/android/enable_frame_pacing = true`, `swappy_mode = 2`). Sin cambios; probar
+  `swappy_mode` con pipeline solo con el teléfono (más latencia).
+- [x] Detección de gama (2026-11-19): `Quality.is_low_end()` por nombre de GPU (`LOW_END_GPUS`: Mali-4xx/T/G31/G51/
+  G52/G57, Adreno 3xx-5xx/60x/610/612/613, PowerVR/IMG BX) o RAM ≤ 4.5 GB. Sin calidad guardada, un móvil de
+  gama baja arranca en Baja (antes: Media) y con resolución reducida. Solo baja valores por defecto; lo elegido
+  en Ajustes manda. `RUMBANG_LOW_END=1/0` lo fuerza en PC. `tests/test_low_end_defaults.tscn`. Falta: elegir
+  renderer según la gama (depende de la prueba de Compatibility).
+
+**Fuera de alcance:** HUD, perfil "Ligero" (cielo, tonemap, sol), calor y batería.
+**Evitar** *(guessed)*: perder el estilo cómic (tinta, colores planos); cambios medidos solo en PC.
+**Abandonar si:** el desglose muestra que los ~12 ms son vsync o composición del sistema, inalcanzables desde
+Godot → pasar al HUD.
+**Para quién:** móviles de ~150-250 USD (Helio G85/G99, Mali-G52/G57, Adreno 610).
+
+## HUD: tinta horneada en la tira de armas (2026-11-21, sin medir en el móvil)
+
+El ~3 ms del HUD medido en el Mali-G57 no venía de las llamadas de dibujo (25 de ~90 en supervivencia) sino de
+la tira de armas: `ink_outline.gdshader` lee la textura 14 veces por píxel sobre la imagen de 2172 px y sobre 5
+iconos de 648 px (sin mipmaps, muy reducidos), en cada frame. Además cada hueco recortaba su icono con
+`clip_children`, que en Godot dibuja el hueco en un búfer aparte (un pase de render más por hueco, caro en GPUs
+por mosaicos como Mali).
+
+- `InkBake` (`scripts/ui/ink_bake.gd`) hornea la tinta una vez en un SubViewport, al tamaño real en pantalla
+  (reducción Lanczos en CPU antes), y la guarda en caché. Se dibuja con alfa premultiplicado (`InkBake.material()`).
+- El icono activo (escala 1.15) lleva el círculo del hueco horneado (`clip_radius` en el shader); los huecos ya
+  no usan `clip_children` y su fondo blanco se quita (`StyleBoxEmpty`).
+- Sin render (headless) sigue el camino del shader.
+- En PC: mismo aspecto (el icono reducido sale más limpio, antes tenía dientes), 25 → 24 llamadas. La GPU de PC
+  es demasiado rápida para ver la diferencia: **falta medir en el móvil** (`h=` en `bench.txt`).
+- Sonda: `tests/probe_hud_draws.tscn` (con ventana) da llamadas por nodo del HUD y tiempo de GPU con y sin HUD.
+

@@ -131,6 +131,8 @@ func _physics_process(delta: float) -> void:
 		var v := Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
 		if VirtualInput.movement_vector.length() > 0.1:
 			v = VirtualInput.movement_vector
+		elif v.length() < 0.1:
+			v = GamepadUI.stick_vector()
 		if v.length() > 0.1:
 			move_target = null
 			arrived_cb = Callable()

@@ -65,23 +65,31 @@ func _spawn_jump_burst(pos: Vector3, airborne: bool = false) -> void:
 		FootDustVFX.takeoff(player.get_parent(), pos)
 
 ## ── Espadón: andar y correr ──
-## Con el espadón se anda despacio. Tras GS_RUN_DELAY s moviéndose sin atacar, recibir daño ni rodar (note_combat
-## reinicia la cuenta) se pasa a correr, más rápido que cualquier otra arma; el cambio de velocidad es progresivo.
+## Con el espadón se anda despacio. Manteniendo esquivar (ver sprinting) se pasa a correr, más rápido que cualquier
+## otra arma; el cambio de velocidad es progresivo. Atacar, recibir daño o rodar (note_combat) lo devuelve a andar.
 const GS_WALK_MULT := 0.42           ## × velocidad base (4,8 m/s -> ~2 m/s)
 const GS_RUN_MULT := 1.15            ## (-> ~5,5 m/s)
-const GS_RUN_DELAY := 2.8            ## s moviéndose sin combate para empezar a correr
 const GS_BLEND_RATE := 3.5           ## lo rápido que sube hacia la carrera (1/s); al bajar es inmediato
-## La espada de una mano sigue la misma lógica, más ligera: anda algo más deprisa y arranca a correr antes.
-## Por arma: walk/run = × velocidad base, delay = s sin combate para correr.
+## La espada de una mano sigue la misma lógica, más ligera: anda algo más deprisa.
+## Por arma: walk/run = × velocidad base. Corren solo manteniendo esquivar (ver sprinting).
 const GAITS := {
-	WeaponData.WeaponType.GREATSWORD: {"walk": GS_WALK_MULT, "run": GS_RUN_MULT, "delay": GS_RUN_DELAY},
-	WeaponData.WeaponType.SWORD: {"walk": 0.45, "run": 1.1, "delay": 2.2},
-	WeaponData.WeaponType.KATANA: {"walk": 0.5, "run": 1.15, "delay": 1.8},
-	# Arco: anda apuntando (clips del arco) y, tras un rato sin disparar, corre con la carrera del personaje
-	WeaponData.WeaponType.BOW: {"walk": 0.4, "run": 1.0, "delay": 2.0},
+	WeaponData.WeaponType.GREATSWORD: {"walk": GS_WALK_MULT, "run": GS_RUN_MULT},
+	WeaponData.WeaponType.SWORD: {"walk": 0.45, "run": 1.1},
+	WeaponData.WeaponType.KATANA: {"walk": 0.5, "run": 1.15},
+	# Arco: anda apuntando (clips del arco) y corre con la carrera del personaje
+	WeaponData.WeaponType.BOW: {"walk": 0.4, "run": 1.0},
 }
-var gs_calm := 0.0                   ## s moviéndose sin combate
 var _gs_mult := GS_WALK_MULT
+## ── Correr en la mazmorra (como Dark Souls) ──
+## Mantener esquivar (PlayerInputController.sprint_held) corre hacia delante gastando energía; un toque rueda.
+## Las armas con paso propio (GAITS) pasan de andar a su carrera; las demás van SPRINT_MULT más deprisa.
+## Sin energía deja de correr hasta soltar el botón.
+const SPRINT_MULT := 1.3
+const SPRINT_DRAIN := 10.0           ## energía por segundo
+var sprinting := false
+## Para pruebas: corre como si se mantuviera el botón.
+var force_sprint := false
+var _sprint_spent := false
 ## Avance del clip de ataque en curso (root motion, lo pone PlayerAnimationController): se suma a la velocidad.
 var root_motion_velocity := Vector3.ZERO
 
@@ -94,28 +102,28 @@ func _gait() -> Dictionary:
 
 ## Un golpe, un daño recibido, una parada o una rodada: el espadón (o la espada) vuelve a andar.
 func note_combat() -> void:
-	gs_calm = 0.0
 	_gs_mult = float(_gait()["walk"])
 
-## ¿Va corriendo con el espadón o la espada? (ha pasado el tiempo sin combate y ya va deprisa)
+## ¿Va corriendo con el espadón o la espada? (mantiene esquivar y ya va deprisa)
 func gs_running() -> bool:
-	if not _gs_active():
+	if not _gs_active() or not (sprinting or force_sprint):
 		return false
 	var g := _gait()
-	return gs_calm >= float(g["delay"]) and _gs_mult > (float(g["walk"]) + float(g["run"])) * 0.5
+	return _gs_mult > (float(g["walk"]) + float(g["run"])) * 0.5
 
-## `forward`: va hacia delante respecto a la mira; de lado o atrás vuelve a andar (la cuenta de calma se conserva).
+## ¿Corre ahora manteniendo esquivar? (cámara: FOV y líneas de velocidad)
+func is_sprinting() -> bool:
+	return sprinting
+
+## `forward`: va hacia delante respecto a la mira; de lado o atrás vuelve a andar.
 func _update_gs_gait(delta: float, moving: bool, forward: bool = true) -> void:
 	if not _gs_active():
-		gs_calm = 0.0
 		_gs_mult = GS_WALK_MULT
 		return
 	var g := _gait()
 	var walk := float(g["walk"])
 	var run := float(g["run"])
-	if moving and player.is_on_floor():
-		gs_calm += delta
-	var target := run if (gs_calm >= float(g["delay"]) and moving and forward) else walk
+	var target := run if ((sprinting or force_sprint) and moving and forward) else walk
 	if target < _gs_mult:
 		_gs_mult = target
 	else:
@@ -351,7 +359,7 @@ func is_sliding() -> bool:
 
 func _slide_pressed() -> bool:
 	return slide_input_override or VirtualInput.is_sliding or Input.is_physical_key_pressed(SLIDE_KEY) \
-		or Input.is_joy_button_pressed(0, SLIDE_JOY)
+		or Input.is_joy_button_pressed(0, SLIDE_JOY) or (GameData.game_mode == "survival" and Input.is_joy_button_pressed(0, JOY_BUTTON_B))   # B: en supervivencia no esquiva, desliza
 
 ## Pendiente del suelo bajo `pos` (m de subida por m, en x y z); cero sin mapa con relieve.
 static func ground_gradient(pos: Vector3) -> Vector2:
@@ -552,6 +560,21 @@ func _can_pay_jump() -> bool:
 	var res = player.get("resources")
 	return res == null or res.spend_energy(PlayerResources.JUMP_COST)
 
+## Mazmorra: ¿corre este paso? Mantener esquivar, hacia delante, en el suelo, sin atacar/rodar/parar ni
+## deslizarse, y pagando SPRINT_DRAIN/s de energía (al agotarla no vuelve a correr hasta soltar el botón).
+func _update_sprint(delta: float, moving: bool, forward: bool, attacking: bool, guarding: bool) -> void:
+	var want: bool = GameData.game_mode == "dungeon" and (force_sprint or (player.input_controller != null and player.input_controller.get("sprint_held") == true))
+	if not want:
+		_sprint_spent = false
+		sprinting = false
+		return
+	sprinting = not _sprint_spent and moving and forward and player.is_on_floor() and not attacking 		and not guarding and not is_dodging() and not _sliding
+	if sprinting:
+		var res = player.get("resources")
+		if res and not res.drain_energy(SPRINT_DRAIN * delta):
+			_sprint_spent = true
+			sprinting = false
+
 func handle_movement(delta: float) -> void:
 	if not player: return
 	_dodge_timer = maxf(_dodge_timer - delta, 0.0)
@@ -587,9 +610,13 @@ func handle_movement(delta: float) -> void:
 	var moving = wish.length_squared() > 0.0001
 	var aim_fwd := Vector3(fwd.x, 0.0, fwd.z).normalized()
 	var forward: bool = moving and wish.normalized().dot(aim_fwd) > RUN_FORWARD_DOT
+	_update_sprint(delta, moving, forward, attacking, parry != null and parry.is_active())
 	_update_gs_gait(delta, moving, forward)
 	if _gs_active():
 		current_speed *= _gs_mult
+	elif sprinting:
+		current_speed *= SPRINT_MULT
+	is_running = is_running or sprinting
 	if moving and player.is_on_floor() and not _sliding:
 		var dist_step = current_speed * delta
 		_step_distance_accum += dist_step

@@ -83,22 +83,28 @@ func _exit_tree() -> void:
 
 ## Tatan, el tendero, de pie a la derecha del yunque y mirando hacia delante, en bucle de idle.
 func _spawn_tatan() -> void:
+	tatan = make_tatan(self, TATAN_OFFSET, TATAN_HEIGHT)
+	if tatan:
+		tatan.rotation.y = -0.5
+
+## Modelo de Tatan (idle en bucle, textura, escalado por huesos) hijo de `parent` en `offset`.
+## También lo usa el mercader de supervivencia (SurvivalMerchant). null si falta el modelo.
+static func make_tatan(parent: Node3D, offset: Vector3, height: float) -> Node3D:
 	var path := GameData.get_idle_model_path("tatan")
 	if path == "" or not ResourceLoader.exists(path):
-		return
+		return null
 	var scene := load(path) as PackedScene
 	if scene == null:
-		return
-	tatan = scene.instantiate() as Node3D
-	tatan.name = "Tatan"
-	add_child(tatan)
-	tatan.position = TATAN_OFFSET
-	tatan.rotation.y = -0.5
+		return null
+	var model := scene.instantiate() as Node3D
+	model.name = "Tatan"
+	parent.add_child(model)
+	model.position = offset
 	# Mixamo: la malla va en cm bajo un esqueleto escalado, así que la altura se mide por los huesos
-	var skels := tatan.find_children("*", "Skeleton3D", true, false)
+	var skels := model.find_children("*", "Skeleton3D", true, false)
 	if not skels.is_empty():
 		var sk := skels[0] as Skeleton3D
-		var to_local := tatan.global_transform.affine_inverse() * sk.global_transform
+		var to_local := model.global_transform.affine_inverse() * sk.global_transform
 		var lo := INF
 		var hi := -INF
 		for b in sk.get_bone_count():
@@ -107,23 +113,24 @@ func _spawn_tatan() -> void:
 			hi = maxf(hi, y)
 		var h := (hi - lo) * 1.08          # la cabeza sobresale un poco del último hueso
 		if h > 0.01:
-			var k := TATAN_HEIGHT / h
-			tatan.scale = Vector3(k, k, k)
-			tatan.position.y = -lo * k
+			var k := height / h
+			model.scale = Vector3(k, k, k)
+			model.position.y = offset.y - lo * k
 	var tex_path := GameData.get_texture_path("tatan")
 	if tex_path != "" and ResourceLoader.exists(tex_path):
 		var mat := StandardMaterial3D.new()
 		mat.albedo_texture = load(tex_path)
 		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		for m in tatan.find_children("*", "MeshInstance3D", true, false):
+		for m in model.find_children("*", "MeshInstance3D", true, false):
 			(m as MeshInstance3D).material_override = mat
-	var aps := tatan.find_children("*", "AnimationPlayer", true, false)
+	var aps := model.find_children("*", "AnimationPlayer", true, false)
 	if not aps.is_empty():
 		var ap := aps[0] as AnimationPlayer
 		var names := ap.get_animation_list()
 		if not names.is_empty():
 			ap.get_animation(names[0]).loop_mode = Animation.LOOP_LINEAR
 			ap.play(names[0])
+	return model
 
 func prices() -> Dictionary:
 	return {"potion": 25 + 5 * level, "refill": 15 + 3 * level, "rune": 50 + 15 * level}

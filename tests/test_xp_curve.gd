@@ -15,8 +15,9 @@ func _check(ok: bool, msg: String) -> void:
 func _ready() -> void:
 	_check(is_equal_approx(XpCurve.required(1), 5.0), "nivel 1 -> 2 cuesta 5")
 	_check(XpCurve.required(2) > XpCurve.required(1), "la curva crece")
-	_check(is_equal_approx(XpCurve.required(21) - XpCurve.required(20), XpCurve.SLOPE_2), "pendiente tramo 2")
-	_check(is_equal_approx(XpCurve.required(41) - XpCurve.required(40), XpCurve.SLOPE_3), "pendiente tramo 3")
+	# cuadratica: cada nivel cuesta un poco mas que el anterior, y el incremento tambien crece
+	_check(XpCurve.required(21) - XpCurve.required(20) > XpCurve.required(11) - XpCurve.required(10), "el incremento crece")
+	_check(is_equal_approx(XpCurve.required(11), XpCurve.BASE + 10.0 * XpCurve.LINEAR + 100.0 * XpCurve.QUAD), "formula BASE + LINEAR n + QUAD n^2")
 	var total := 0.0
 	for l in range(1, 30):
 		total += XpCurve.required(l)

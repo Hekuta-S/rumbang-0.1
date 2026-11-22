@@ -36,13 +36,27 @@ const MINIBOSS_MOD := {"label": "MINIJEFE · CACIQUE GOBLIN", "hp": 45.0, "speed
 const MINIBOSS_TIME := 180.0
 const ELITE_COLOR := Color(1.0, 0.3, 0.2)
 const MINIBOSS_COLOR := Color(1.0, 0.75, 0.2)
+const SOULS_COLOR := Color(0.75, 0.85, 1.0)
 
 const CURSE_TIME := 45.0
 const CURSE_CAP_BONUS := 30          ## enemigos vivos de más mientras dura la maldición
 const CURSE_COLOR := Color(0.75, 0.3, 1.0)
 const CHEST_LIFETIME := 40.0
 
-const SHRINES := 2
+const SHRINES := 4
+## Tipos de santuario (se reparten sin repetir mientras se pueda): heal = original; fury y fortune, nuevos.
+const SHRINE_KINDS := {
+	"heal": {"title": "SANTUARIO", "color": Color(0.3, 0.95, 1.0), "sub": "Vida recuperada y un objeto"},
+	"fury": {"title": "SANTUARIO DE FURIA", "color": Color(1.0, 0.35, 0.2), "sub": "Un objeto y FURIA: más daño y velocidad"},
+	"fortune": {"title": "SANTUARIO DE FORTUNA", "color": Color(1.0, 0.82, 0.25), "sub": "Una lluvia de botín del cofre"},
+}
+const SHRINE_FURY_TIME := 30.0
+## Torres de saltos (JumpTower) y cofres normales repartidos por el mapa
+const TOWERS := 2
+const TOWER_RESPAWN := 80.0
+const TOWER_MIN_DIST := 18.0
+const GROUND_CHESTS := 3
+const GROUND_CHEST_RESPAWN := 60.0
 const SHRINE_RADIUS := 3.5
 const SHRINE_CHARGE := 6.0
 const SHRINE_RESPAWN := 45.0
@@ -59,6 +73,10 @@ const ItemPickupScene := preload("res://scenes/objects/item_pickup.tscn")
 const DICE_FIRST := 45.0
 const DICE_EVERY := Vector2(60.0, 100.0)
 const DICE_DIST := Vector2(9.0, 15.0)
+## Tatan, mercader de paso (SurvivalMerchant): el primero a los MERCHANT_FIRST s y luego cada MERCHANT_EVERY
+const MERCHANT_FIRST := 100.0
+const MERCHANT_EVERY := Vector2(110.0, 170.0)
+const MERCHANT_DIST := Vector2(8.0, 12.0)
 
 var waves: WaveManager
 var player: Node3D
@@ -70,10 +88,14 @@ var _queue: Array = []               ## [pos, tipo, modificador élite ("" = nor
 var _elites: Array = []              ## [{enemy, max_hp, marker}]
 var _shrines: Array = []             ## [{node, ring_mat, label, progress, ambushed}]
 var _shrine_respawn: Array = []      ## instantes (s de partida) en que reaparecen
+var _towers: Array = []              ## JumpTower vivas
+var _chests: Array = []              ## TreasureChest normales vivos
+var _loot_respawn: Array = []        ## [instante, "tower" | "chest"]
 var _banner: Label
 var _high_ground_told := false
 var _mesa_check_t := 0.0
 var _next_dice_t := DICE_FIRST
+var _next_merchant_t := MERCHANT_FIRST
 
 func start(p_player: Node3D) -> void:
 	player = p_player
@@ -92,9 +114,22 @@ func start(p_player: Node3D) -> void:
 	_shrine_respawn.clear()
 	_high_ground_told = false
 	_next_dice_t = DICE_FIRST
+	_next_merchant_t = MERCHANT_FIRST
+	for m in get_tree().get_nodes_in_group("survival_merchants"):
+		m.queue_free()
 	FateDice.clear_mods()
 	for i in SHRINES:
 		_spawn_shrine()
+	for n in _towers + _chests:
+		if is_instance_valid(n):
+			n.queue_free()
+	_towers.clear()
+	_chests.clear()
+	_loot_respawn.clear()
+	for i in TOWERS:
+		_spawn_tower()
+	for i in GROUND_CHESTS:
+		_spawn_ground_chest()
 
 func _elapsed() -> float:
 	return GameState.get_instance().elapsed_time
@@ -119,10 +154,22 @@ func _process(delta: float) -> void:
 		_next_dice_t = t + randf_range(DICE_EVERY.x, DICE_EVERY.y)
 		if get_tree().get_nodes_in_group("fate_dice").is_empty():
 			spawn_dice()
+	if t >= _next_merchant_t:
+		_next_merchant_t = t + randf_range(MERCHANT_EVERY.x, MERCHANT_EVERY.y)
+		if get_tree().get_nodes_in_group("survival_merchants").is_empty():
+			spawn_merchant()
 	for i in range(_shrine_respawn.size() - 1, -1, -1):
 		if t >= float(_shrine_respawn[i]):
 			_shrine_respawn.remove_at(i)
 			_spawn_shrine()
+	for i in range(_loot_respawn.size() - 1, -1, -1):
+		if t >= float(_loot_respawn[i][0]):
+			var what: String = _loot_respawn[i][1]
+			_loot_respawn.remove_at(i)
+			if what == "tower":
+				_spawn_tower()
+			else:
+				_spawn_ground_chest()
 
 # ───────────────────────────── Eventos ─────────────────────────────
 
@@ -138,7 +185,7 @@ func _start_random_event() -> void:
 			for i in n:
 				_queue_elite(ELITE_MODS.keys()[randi() % ELITE_MODS.size()])
 			# Sin tilde: la fuente pixel no tiene "É" mayúscula
-			announce("¡ELITE!" if n == 1 else "¡ELITES!", ELITE_COLOR, "Derrótalo: suelta un objeto")
+			announce("¡ELITE!" if n == 1 else "¡ELITES!", ELITE_COLOR, "Derrótalo: suelta un objeto y almas")
 		"cursed_chest": _spawn_cursed_chest()
 		"ring": _start_ring()
 
@@ -253,6 +300,7 @@ func _on_elite_died(_ref, pos: Vector3, _gold: int, entry: Dictionary) -> void:
 	RunStats.elites += 1
 	_drop_marker(entry)
 	_elites.erase(entry)
+	_award_souls(pos, bool(entry["miniboss"]))
 	_spawn_item(pos)
 	MapPickup.spawn(get_tree().current_scene, _ground(pos + Vector3(-1.5, 0, 0)), MapPickup.roll_kind())
 	if entry["miniboss"]:
@@ -260,6 +308,22 @@ func _on_elite_died(_ref, pos: Vector3, _gold: int, entry: Dictionary) -> void:
 		MapPickup.spawn(get_tree().current_scene, _ground(pos + Vector3(0, 0, 1.5)), MapPickup.roll_kind())
 		announce("¡MINIJEFE DERROTADO!", MINIBOSS_COLOR, "")
 	HitFeedback.shake(0.3)
+
+## Almas del élite (SoulStats): se ingresan ya, para subir estadísticas en el yunque del Salón (mazmorra).
+func _award_souls(pos: Vector3, miniboss: bool) -> void:
+	var amount := SoulStats.survival_elite_souls(miniboss, _elapsed())
+	SoulStats.add_souls(amount)
+	RunStats.souls += amount
+	var hud := get_tree().get_first_node_in_group("hud")
+	if hud and hud.has_method("update_souls"):
+		hud.update_souls(RunStats.souls)
+	var lbl := _label3d("+%d ALMAS" % amount, SOULS_COLOR, 28)
+	get_tree().current_scene.add_child(lbl)
+	lbl.global_position = pos + Vector3(0, 2.6, 0)
+	var tw := lbl.create_tween()
+	tw.tween_property(lbl, "global_position:y", lbl.global_position.y + 1.6, 1.4)
+	tw.parallel().tween_property(lbl, "modulate:a", 0.0, 1.4).set_delay(0.5)
+	tw.tween_callback(lbl.queue_free)
 
 # ───────────────────────────── Cofre maldito ─────────────────────────────
 
@@ -370,7 +434,16 @@ func _free_vantage_points() -> Array:
 			out.append(v)
 	return out
 
+## Tipo para un santuario nuevo: uno que no esté ya en el mapa si se puede.
+func _pick_shrine_kind() -> String:
+	var present := _shrines.map(func(s): return s.get("kind", "heal"))
+	var free: Array = SHRINE_KINDS.keys().filter(func(k): return not present.has(k))
+	return (free if not free.is_empty() else SHRINE_KINDS.keys()).pick_random()
+
 func _spawn_shrine() -> void:
+	var kind := _pick_shrine_kind()
+	var kcol: Color = SHRINE_KINDS[kind]["color"]
+	var ktitle: String = SHRINE_KINDS[kind]["title"]
 	var pos := Vector3.ZERO
 	var high := false
 	var spots := _free_vantage_points()
@@ -395,7 +468,7 @@ func _spawn_shrine() -> void:
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_color = Color(SHRINE_COLOR, 0.55)
+	mat.albedo_color = Color(kcol, 0.55)
 	ring.material_override = mat
 	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	node.add_child(ring)
@@ -408,17 +481,18 @@ func _spawn_shrine() -> void:
 	var pmat := StandardMaterial3D.new()
 	pmat.albedo_color = Color(0.2, 0.25, 0.3)
 	pmat.emission_enabled = true
-	pmat.emission = SHRINE_COLOR
+	pmat.emission = kcol
 	pmat.emission_energy_multiplier = 0.6
 	pillar.material_override = pmat
 	pillar.position.y = 1.1
 	node.add_child(pillar)
-	var lbl := _label3d("SANTUARIO ALTO" if high else "SANTUARIO", SHRINE_COLOR, 22)
+	var title := ktitle + (" ALTO" if high else "")
+	var lbl := _label3d(title, kcol, 22)
 	lbl.position.y = 3.0
 	node.add_child(lbl)
 	get_tree().current_scene.add_child(node)
 	node.global_position = pos
-	_shrines.append({"node": node, "ring_mat": mat, "label": lbl, "progress": 0.0, "ambushed": false, "high": high})
+	_shrines.append({"node": node, "ring_mat": mat, "label": lbl, "progress": 0.0, "ambushed": false, "high": high, "kind": kind, "title": title, "color": kcol})
 
 func _update_shrines(delta: float) -> void:
 	for i in range(_shrines.size() - 1, -1, -1):
@@ -436,8 +510,8 @@ func _update_shrines(delta: float) -> void:
 				_queue.append([_ground(node.global_position + Vector3(cos(a), 0, sin(a)) * 13.0), EnemyData.EnemyType.NORMAL_GOBLIN, "", ""])
 		s["progress"] = clampf(float(s["progress"]) + (delta if inside else -delta * 0.5) / SHRINE_CHARGE, 0.0, 1.0)
 		var p: float = s["progress"]
-		(s["ring_mat"] as StandardMaterial3D).albedo_color = Color(SHRINE_COLOR.lerp(Color.WHITE, p), 0.55 + 0.45 * p)
-		var title := "SANTUARIO ALTO" if s.get("high", false) else "SANTUARIO"
+		(s["ring_mat"] as StandardMaterial3D).albedo_color = Color((s["color"] as Color).lerp(Color.WHITE, p), 0.55 + 0.45 * p)
+		var title: String = s["title"]
 		(s["label"] as Label3D).text = "%s %d%%" % [title, int(p * 100.0)] if p > 0.0 else title
 		if p >= 1.0:
 			_activate_shrine(s)
@@ -446,18 +520,90 @@ func _update_shrines(delta: float) -> void:
 func _activate_shrine(s: Dictionary) -> void:
 	var node: Node3D = s["node"]
 	RunStats.shrines += 1
-	if player.has_method("heal") and player.get("health_comp"):
+	var kind: String = s.get("kind", "heal")
+	var col: Color = s.get("color", SHRINE_COLOR)
+	var high: bool = s.get("high", false)
+	if kind == "heal" and player.has_method("heal") and player.get("health_comp"):
 		player.heal(player.health_comp.max_hp * SHRINE_HEAL)
-	NecroVFX.shockwave(get_tree().current_scene, node.global_position, SHRINE_RADIUS * 2.0, SHRINE_COLOR)
+	NecroVFX.shockwave(get_tree().current_scene, node.global_position, SHRINE_RADIUS * 2.0, col)
 	AudioManager.play("kill_burst", -4.0, 1.3)
-	if s.get("high", false):
-		announce("SANTUARIO ALTO ACTIVADO", SHRINE_COLOR, "Vida, un objeto, oro y XP")
+	var sub: String = SHRINE_KINDS[kind]["sub"]
+	match kind:
+		"fury":
+			# Strategy: reutiliza la misma furia del dado (antes: copia 4 de 4 del código de FURIA)
+			FateOutcomes.FuryOutcome.stack("FURIA", 0.5, 0.2, SHRINE_FURY_TIME, col)
+		"fortune":
+			var sb = player.get("stat_block")
+			_grant_rewards(node.global_position, ChestRoulette.roll(sb.luck() if sb != null else 0.0))
+	announce("%s ACTIVADO" % s["title"], col, sub + (" · oro y XP" if high else ""))
+	if high:
 		_grant_rewards(node.global_position, SHRINE_HIGH_EXTRA)
-	else:
-		announce("SANTUARIO ACTIVADO", SHRINE_COLOR, "Vida recuperada y un objeto")
 	_spawn_item(player.global_position)
 	node.queue_free()
 	_shrine_respawn.append(_elapsed() + SHRINE_RESPAWN)
+
+# ───────────────────────────── Torres de saltos y cofres ─────────────────────────────
+
+## Punto libre en el mapa: lejos del jugador y de otras torres/cofres/santuarios, sin salirse de la zona jugable.
+func _free_spot(min_player_dist: float) -> Vector3:
+	var taken: Array = []
+	for n in _towers + _chests:
+		if is_instance_valid(n):
+			taken.append((n as Node3D).global_position)
+	for s in _shrines:
+		if is_instance_valid(s["node"]):
+			taken.append((s["node"] as Node3D).global_position)
+	var pos := Vector3.ZERO
+	for attempt in 16:
+		pos = Vector3(randf_range(WaveManager.PLAYABLE_MIN_X + 10.0, WaveManager.PLAYABLE_MAX_X - 10.0), 0,
+			randf_range(WaveManager.PLAYABLE_MIN_Z + 10.0, WaveManager.PLAYABLE_MAX_Z - 10.0))
+		var ok := not is_instance_valid(player) or Vector2(pos.x - player.global_position.x, pos.z - player.global_position.z).length() > min_player_dist
+		for o: Vector3 in taken:
+			if Vector2(pos.x - o.x, pos.z - o.z).length() < 10.0:
+				ok = false
+		if ok:
+			break
+	return _ground(pos)
+
+func _spawn_tower() -> void:
+	if get_tree().current_scene == null:
+		_loot_respawn.append([_elapsed() + 1.0, "tower"])
+		return
+	var tower := JumpTower.spawn(get_tree().current_scene, _free_spot(TOWER_MIN_DIST), player)
+	_towers.append(tower)
+	tower.claimed.connect(_on_tower_claimed)
+
+func _on_tower_claimed(tower: JumpTower) -> void:
+	var at := tower.global_position + Vector3(0, tower.top_y, 0)
+	var sb = player.get("stat_block")
+	var rewards := ChestRoulette.roll((sb.luck() if sb != null else 0.0) + 0.1)
+	rewards.append("gold")
+	announce("¡COFRE DE ALTURA!", HIGH_GROUND_COLOR, ChestRoulette.summary(rewards))
+	NecroVFX.shockwave(get_tree().current_scene, at, 5.0, HIGH_GROUND_COLOR)
+	_grant_rewards(at, rewards)
+	_towers.erase(tower)
+	_loot_respawn.append([_elapsed() + TOWER_RESPAWN, "tower"])
+	# Deja la torre un rato (para bajar) y la quita después
+	get_tree().create_timer(15.0).timeout.connect(func():
+		if is_instance_valid(tower):
+			tower.queue_free())
+
+func _spawn_ground_chest() -> void:
+	if get_tree().current_scene == null:
+		_loot_respawn.append([_elapsed() + 1.0, "chest"])
+		return
+	var chest := TreasureChest.spawn(get_tree().current_scene, _free_spot(12.0), player)
+	_chests.append(chest)
+	chest.opened.connect(func(c: TreasureChest):
+		var sb = player.get("stat_block")
+		var rewards := ChestRoulette.roll(sb.luck() if sb != null else 0.0)
+		announce("¡COFRE!", TreasureChest.GOLD, ChestRoulette.summary(rewards))
+		_grant_rewards(c.global_position, rewards)
+		_chests.erase(c)
+		_loot_respawn.append([_elapsed() + GROUND_CHEST_RESPAWN, "chest"])
+		get_tree().create_timer(2.5).timeout.connect(func():
+			if is_instance_valid(c):
+				c.queue_free()))
 
 # ───────────────────────────── Utilidades ─────────────────────────────
 
@@ -493,6 +639,20 @@ func spawn_dice() -> FateDice:
 	var d := FateDice.spawn(get_tree().current_scene, at, FateDice.LIFETIME_SURVIVAL)
 	announce("DADO DEL DESTINO", FateDice.GOLD_COLOR, "Ha aparecido un dado cerca: ¿te atreves a tirarlo?")
 	return d
+
+## Tatan, mercader de paso, a unos metros del jugador (también lo usan las pruebas).
+func spawn_merchant() -> SurvivalMerchant:
+	var a := randf() * TAU
+	var at := _ground(player.global_position + Vector3(cos(a), 0, sin(a)) * randf_range(MERCHANT_DIST.x, MERCHANT_DIST.y))
+	var m := SurvivalMerchant.spawn(get_tree().current_scene, at, player, _elapsed())
+	if m.offers.is_empty():
+		m.queue_free()
+		return null
+	announce("TATAN, MERCADER DE PASO", SurvivalMerchant.COLOR, "Vende un objeto, un tomo o una mejora · solo una compra")
+	m.left.connect(func(bought: bool):
+		if not bought:
+			announce("TATAN SE HA IDO", SurvivalMerchant.COLOR, ""))
+	return m
 
 ## Cartel grande arriba (también lo usa main.gd para el modo infinito).
 func announce(title: String, col: Color, sub: String) -> void:

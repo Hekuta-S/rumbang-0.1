@@ -106,15 +106,18 @@ func _ready() -> void:
 		assert(vis._gs_holder.get_child_count() >= 4, "Skin %d colgada (modelo + marcas + estela)" % s)
 	print("CHECK 2 PASSED: %d modelos de espadón" % GreatswordModels.count())
 
-	# 3. Andar -> correr: tras GS_RUN_DELAY s moviéndose sin combate; daño, golpe y rodada lo cortan
+	# 3. Andar -> correr: solo manteniendo esquivar (force_sprint); daño, golpe y rodada lo cortan
 	mc.note_combat()
-	assert(not mc.gs_running(), "Recién hecho un golpe: anda")
-	for i in int(PlayerMovementController.GS_RUN_DELAY * 10.0) + 3:
-		mc._update_gs_gait(0.1, true)       # GS_RUN_DELAY + 0,3 s caminando
-	assert(mc.gs_running(), "Tras %.1f s sin combate corre" % PlayerMovementController.GS_RUN_DELAY)
+	for i in 30:
+		mc._update_gs_gait(0.1, true)       # 3 s andando sin mantener esquivar
+	assert(not mc.gs_running(), "Sin mantener esquivar anda (ya no corre solo)")
+	mc.force_sprint = true
+	for i in 10:
+		mc._update_gs_gait(0.1, true)
+	assert(mc.gs_running(), "Manteniendo esquivar corre")
 	_player.take_damage(1.0)
-	assert(not mc.gs_running() and mc.gs_calm == 0.0, "Recibir daño lo devuelve a andar")
-	for i in int(PlayerMovementController.GS_RUN_DELAY * 10.0) + 3:
+	assert(not mc.gs_running(), "Recibir daño lo devuelve a andar")
+	for i in 10:
 		mc._update_gs_gait(0.1, true)
 	assert(mc.gs_running(), "Vuelve a correr")
 	mc._dodge_cooldown_timer = 0.0
@@ -122,9 +125,10 @@ func _ready() -> void:
 	mc.perform_dodge()
 	assert(not mc.gs_running(), "Rodar lo devuelve a andar")
 	for i in 20:
-		mc._update_gs_gait(0.1, false)      # parado no cuenta
-	assert(not mc.gs_running(), "Parado no se acumula tiempo de carrera")
-	print("CHECK 3 PASSED: andar/correr según el combate")
+		mc._update_gs_gait(0.1, false)      # parado no corre
+	assert(not mc.gs_running(), "Parado no corre")
+	mc.force_sprint = false
+	print("CHECK 3 PASSED: andar/correr manteniendo esquivar")
 	await _wait(0.8)
 
 	# 4. Combo de tres golpes distintos encadenados dentro de la ventana de enlace
@@ -167,7 +171,7 @@ func _ready() -> void:
 	await _wait(1.5)
 
 	# 5. Ataque corriendo: embiste (gs_run) y el golpe siguiente continúa con gs2
-	mc.gs_calm = 5.0
+	mc.force_sprint = true
 	mc._gs_mult = PlayerMovementController.GS_RUN_MULT
 	assert(mc.gs_running(), "Preparado para correr")
 	ac._combo_timer = 0.0
@@ -179,6 +183,7 @@ func _ready() -> void:
 	_player.attack()
 	assert(ac._current_action_name == "gs_run", "Corriendo el clic lanza gs_run (%s)" % ac._current_action_name)
 	assert(not mc.gs_running(), "Atacar interrumpe la carrera")
+	mc.force_sprint = false
 	await _wait(1.4)
 	assert(d2.hp < 5000.0, "La estocada con carrerilla golpea (hp %.1f)" % d2.hp)
 	moved = _player.global_position - start

@@ -59,6 +59,7 @@ var portal: DungeonPortal
 var _pending: Dictionary = {}         ## índice de caverna -> nº de goblins aún por aparecer
 var _boss_pending: Dictionary = {}    ## índice de caverna -> el jefe aparece cuando muera su escolta
 var _alive: Dictionary = {}           ## índice de caverna -> goblins vivos
+var _foes: Dictionary = {}            ## índice de caverna -> Array de sus enemigos (para devolver los que queden fuera al cerrar)
 var _doors: Dictionary = {}           ## índice de caverna -> [DungeonDoor]
 var _doors_waiting: Dictionary = {}   ## índice de caverna -> [bocas por cerrar cuando el jugador se aparte]
 var _triggered := false               ## la arena ya se activó (habilita la G)
@@ -118,6 +119,7 @@ func setup(p_map: DungeonMap, p_player: Node3D) -> void:
 func _plan_rooms() -> void:
 	_pending.clear()
 	_alive.clear()
+	_foes.clear()
 	_boss_pending.clear()
 	room_recipe.clear()
 	_staged.clear()
@@ -142,11 +144,19 @@ func _plan_rooms() -> void:
 		else:
 			_pending[i] = mini(randi_range(4, 6) - early + extra * 2, MAX_GROUP)
 
-func _process(_delta: float) -> void:
+## Las salas pendientes se comprueban cada ROOM_CHECK s (antes cada frame: keys() y NetPlayers.alive() por sala).
+const ROOM_CHECK := 0.1
+var _room_check_t := 0.0
+
+func _process(delta: float) -> void:
 	if map == null or not is_instance_valid(player) or _changing_level:
 		return
+	_room_check_t -= delta
+	var check_rooms := _room_check_t <= 0.0
+	if check_rooms:
+		_room_check_t = ROOM_CHECK
 	# En red solo el anfitrión dispara los encuentros (con cualquier jugador vivo); los clientes los reciben.
-	for i in ([] if Net.is_client() else _pending.keys()):
+	for i in ([] if Net.is_client() or not check_rooms else _pending.keys()):
 		var c := map.room_center(i)
 		var reach := map.room_reach(i)
 		var staging := routines_enabled and not _boss_only(i)
@@ -198,6 +208,7 @@ func _process(_delta: float) -> void:
 				left.append(mouth)
 			else:
 				(_doors[room] as Array).append(DungeonDoor.spawn(get_parent(), mouth))
+				_rescue_outsiders(room)
 		if left.is_empty():
 			_doors_waiting.erase(room)
 		else:
@@ -439,6 +450,9 @@ func _spawn_at(room: int, pos: Vector3, kind: String = "goblin", dissolve: bool 
 ## Cuenta un enemigo vivo de la caverna; los que nacen de él (DungeonSlug al dividirse) también.
 func _track(room: int, g: DungeonGoblin) -> void:
 	_alive[room] = _alive.get(room, 0) + 1
+	if not _foes.has(room):
+		_foes[room] = []
+	(_foes[room] as Array).append(g)
 	g.died.connect(func(dead): _on_goblin_died(room, dead); _drop_resources(dead); _award_gold(dead); _award_souls(dead); EquipmentPickup.drop_for_enemy(get_parent(), dead); _notify_kill(); LootHits.on_kill(dead); RunLog.kill())
 	if g.has_signal("spawned"):
 		g.spawned.connect(func(child): _track(room, child))
@@ -503,8 +517,25 @@ func _close_room(room: int) -> void:
 			waiting.append(mouth)
 		else:
 			(_doors[room] as Array).append(DungeonDoor.spawn(get_parent(), mouth))
+			_rescue_outsiders(room)
 	if not waiting.is_empty():
 		_doors_waiting[room] = waiting
+
+## Al cerrar las barreras, los enemigos de la caverna que andaban por el túnel (persiguiendo al jugador, o
+## pillados por la barrera) quedaban del otro lado y la sala no se podía limpiar: vuelven dentro.
+func _rescue_outsiders(room: int) -> void:
+	var list: Array = _foes.get(room, [])
+	var i := 0
+	for g in list.duplicate():
+		if not is_instance_valid(g) or g.is_dead():
+			list.erase(g)
+			continue
+		if map.is_in_room(g.global_position, room):
+			continue
+		var at := _free_spot(map.room_center(room), randf_range(2.0, 5.0), randf() * 360.0 + i * 70.0)
+		g.global_position = Vector3(at.x, g.global_position.y, at.z)
+		g.velocity = Vector3.ZERO
+		i += 1
 
 func _room_cleared(room: int) -> void:
 	if not _challenge.is_empty() and int(_challenge["room"]) == room:

@@ -42,6 +42,12 @@ static func tome_name(id: String) -> String:
 	return String(TOMES.get(id, {}).get("name", "?"))
 
 ## Armas que evolucionan con este tomo (para la pista de la carta).
+## Icono dibujado de un tomo de supervivencia (tools/make_ui_icons.py); "" si no tiene.
+const TOME_ICON_DIR := "res://assets/ui/icons/tomes/"
+
+static func icon_path(id: String) -> String:
+	return TOME_ICON_DIR + id + ".png" if TOMES.has(id) else ""
+
 static func weapons_for(id: String) -> Array:
 	var out: Array = []
 	for w in WeaponSynergies.EVOLUTIONS:

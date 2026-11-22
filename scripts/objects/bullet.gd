@@ -18,6 +18,14 @@ func _ready() -> void:
 
 var custom_vfx_node: Node3D = null
 
+## Balas enemigas: bola mágica DIBUJADA (2D horneada, magia.png) en vez de malla, estela y VFX 3D.
+## La fila sale del color (azul/violeta = arcana de los magos, rojo = jefe, verde = necromante).
+var _magic_sprite: Sprite3D = null
+var _magic_row := 0
+var _frame_t := 0.0
+const MAGIC_SIZE := 0.75
+const MAGIC_FRAME_TIME := 0.1
+
 func setup(dir: Vector3, dmg: float, speed_val: float, enemy_flag: bool = false, col: Color = Color(0.0, 0.85, 1.0), shooter: RID = RID(), vfx_scene: PackedScene = null) -> void:
 	direction = dir.normalized()
 	damage = dmg
@@ -33,6 +41,12 @@ func setup(dir: Vector3, dmg: float, speed_val: float, enemy_flag: bool = false,
 	if custom_vfx_node and is_instance_valid(custom_vfx_node):
 		custom_vfx_node.queue_free()
 		custom_vfx_node = null
+
+	if enemy_flag:
+		_setup_magic(col if vfx_scene != null else Color(1.0, 0.1, 0.3))
+		return
+	if _magic_sprite:
+		_magic_sprite.visible = false
 
 	if vfx_scene != null:
 		# Hide default placeholder mesh and default trail
@@ -56,24 +70,50 @@ func setup(dir: Vector3, dmg: float, speed_val: float, enemy_flag: bool = false,
 	if has_node("OmniLight3D"):
 		$OmniLight3D.visible = Quality.bullet_lights()
 
-	var mat = StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-
 	if is_enemy_bullet:
 		bullet_color = Color(1.0, 0.1, 0.3)
-		mat.albedo_color = bullet_color
-		if has_node("OmniLight3D"):
-			$OmniLight3D.light_color = bullet_color
-	else:
-		mat.albedo_color = bullet_color
-		if has_node("OmniLight3D"):
-			$OmniLight3D.light_color = bullet_color
+	if has_node("OmniLight3D"):
+		$OmniLight3D.light_color = bullet_color
+	# Material compartido por color (antes uno nuevo por disparo: basura y sin agrupar dibujos)
+	var mat := _body_mat(bullet_color)
 
 	if has_node("MeshInstance3D"):
 		$MeshInstance3D.material_override = mat
 
 	# --- Dynamic Bullet Trail ---
 	_setup_trail(mat, bullet_color)
+
+func _setup_magic(col: Color) -> void:
+	bullet_color = col
+	if has_node("MeshInstance3D"):
+		$MeshInstance3D.visible = false
+	if has_node("TrailParticles"):
+		$TrailParticles.emitting = false
+		$TrailParticles.visible = false
+	if has_node("OmniLight3D"):
+		$OmniLight3D.visible = false
+	if _magic_sprite == null:
+		_magic_sprite = ToonFX.magic_sprite(ToonFX.MAGIC_ARCANE, MAGIC_SIZE)
+		add_child(_magic_sprite)
+	_magic_row = ToonFX.magic_row_for(col)
+	_magic_sprite.frame = _magic_row * 2 + randi() % 2
+	_magic_sprite.visible = true
+	_frame_t = 0.0
+
+## Cachés por color (las balas vienen del pool y cambian de color al reutilizarse).
+static var _body_mats: Dictionary = {}
+static var _trail_mats: Dictionary = {}
+static var _trail_ramps: Dictionary = {}
+static var _trail_mesh: SphereMesh
+
+static func _body_mat(col: Color) -> StandardMaterial3D:
+	var key := col.to_html()
+	if not _body_mats.has(key):
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.albedo_color = col
+		_body_mats[key] = m
+	return _body_mats[key]
 
 func _setup_trail(mat: StandardMaterial3D, col: Color) -> void:
 	var trail: CPUParticles3D
@@ -95,28 +135,37 @@ func _setup_trail(mat: StandardMaterial3D, col: Color) -> void:
 	trail.scale_amount_min = 0.3
 	trail.scale_amount_max = 0.8
 	
-	var p_mesh = SphereMesh.new()
-	p_mesh.radius = 0.12
-	p_mesh.height = 0.24
-	trail.mesh = p_mesh
-	
-	var trail_mat = mat.duplicate() as StandardMaterial3D
-	trail_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	trail_mat.albedo_color = Color(col.r, col.g, col.b, 0.4)
-	trail_mat.emission_enabled = true
-	trail_mat.emission = col
-	trail_mat.emission_energy_multiplier = 1.5
-	trail.material_override = trail_mat
-	
-	var color_ramp = Gradient.new()
-	color_ramp.set_color(0, Color(col.r, col.g, col.b, 0.5))
-	color_ramp.add_point(1.0, Color(col.r, col.g, col.b, 0.0))
-	trail.color_ramp = color_ramp
+	if _trail_mesh == null:
+		_trail_mesh = SphereMesh.new()
+		_trail_mesh.radius = 0.12
+		_trail_mesh.height = 0.24
+	trail.mesh = _trail_mesh
+
+	var key := col.to_html()
+	if not _trail_mats.has(key):
+		var trail_mat := mat.duplicate() as StandardMaterial3D
+		trail_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		trail_mat.albedo_color = Color(col.r, col.g, col.b, 0.4)
+		trail_mat.emission_enabled = true
+		trail_mat.emission = col
+		trail_mat.emission_energy_multiplier = 1.5
+		var color_ramp := Gradient.new()
+		color_ramp.set_color(0, Color(col.r, col.g, col.b, 0.5))
+		color_ramp.add_point(1.0, Color(col.r, col.g, col.b, 0.0))
+		_trail_mats[key] = trail_mat
+		_trail_ramps[key] = color_ramp
+	trail.material_override = _trail_mats[key]
+	trail.color_ramp = _trail_ramps[key]
 	
 	trail.emitting = true
 
 func _physics_process(delta: float) -> void:
 	if is_hit: return
+	if is_enemy_bullet and _magic_sprite:
+		_frame_t += delta
+		if _frame_t >= MAGIC_FRAME_TIME:
+			_frame_t = 0.0
+			_magic_sprite.frame = _magic_row * 2 + (_magic_sprite.frame + 1) % 2
 
 	var current_pos = global_position
 	var move_step = direction * speed * delta
@@ -166,11 +215,11 @@ func _on_impact(body, hit_pos: Vector3, hit_normal: Vector3) -> void:
 			is_hit = true
 			body.take_damage(damage)
 			AudioManager.play_at("impact_pierce", hit_pos, -4.0, randf_range(0.95, 1.1))
-			spawn_impact_sparks(get_parent(), hit_pos, hit_normal, bullet_color)
+			_magic_impact(hit_pos)
 			PoolManager.return_bullet(self)
 		elif not body.is_in_group("enemies") and not body.is_in_group("bullets"):
 			is_hit = true
-			spawn_impact_sparks(get_parent(), hit_pos, hit_normal, bullet_color)
+			_magic_impact(hit_pos)
 			PoolManager.return_bullet(self)
 	else:
 		if body.is_in_group("enemies") and body.has_method("take_damage"):
@@ -185,6 +234,12 @@ func _on_impact(body, hit_pos: Vector3, hit_normal: Vector3) -> void:
 				body.take_damage(damage, direction)
 			spawn_impact_sparks(get_parent(), hit_pos, hit_normal, bullet_color)
 			PoolManager.return_bullet(self)
+
+## Impacto de una bala enemiga: estrella y nubecitas dibujadas del color de la magia.
+func _magic_impact(pos: Vector3) -> void:
+	var parent := get_parent()
+	ToonFX.impact_pop(parent, pos, bullet_color, 0.9)
+	ToonFX.puff_burst(parent, pos, bullet_color, 5, 2.5, 0.35)
 
 static var CACHED_RING_MATS: Dictionary = {}
 static var CACHED_SPARK_MATS: Dictionary = {}

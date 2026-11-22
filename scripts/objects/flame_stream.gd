@@ -26,6 +26,8 @@ static var _flame_mesh: QuadMesh = null
 static var _flame_material: StandardMaterial3D = null
 static var _spark_mesh: SphereMesh = null
 static var _spark_material: StandardMaterial3D = null
+static var _toon := false             ## llamas con la textura dibujada (ToonFX)
+const TOON_AMOUNT_K := 0.5            ## las llamas dibujadas son opacas: bastan menos
 
 var _flames: CPUParticles3D
 var _sparks: CPUParticles3D
@@ -140,6 +142,16 @@ func _build() -> void:
 	])
 	ramp.offsets = PackedFloat32Array([0.0, 0.28, 0.65, 1.0])
 	_flames.color_ramp = ramp
+	if _toon:
+		# Lenguas dibujadas (cómic): opacas, casi derechas (la punta hacia arriba), de amarillo a rojo y
+		# desaparecen encogiéndose. Al ser opacas hacen falta menos para llenar el chorro.
+		_flames.amount = Quality.count(int(FLAME_AMOUNT * TOON_AMOUNT_K))
+		_flames.angle_min = -18.0
+		_flames.angle_max = 18.0
+		_flames.color_ramp = ToonFX.pop_ramp([Color(1.0, 0.9, 0.35), Color(1.0, 0.55, 0.12),
+			Color(0.92, 0.25, 0.06), Color(0.55, 0.12, 0.05)])
+		_flames.scale_amount_curve = ToonFX.pop_curve(0.3, 1.1, 0.5)
+		ToonFX.vary(_flames)
 	_flames.mesh = _flame_mesh
 	_flames.material_override = _flame_material
 	_flames.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -204,6 +216,7 @@ static func _ensure_shared() -> void:
 	_flame_material.vertex_color_use_as_albedo = true
 	_flame_material.albedo_texture = _soft_texture
 	_flame_material.disable_receive_shadows = true
+	_toon = ToonFX.flame_material(_flame_material)      # lenguas de fuego dibujadas (cómic)
 
 	_spark_mesh = SphereMesh.new()
 	_spark_mesh.radius = 0.045
