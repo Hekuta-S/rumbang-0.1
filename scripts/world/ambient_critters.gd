@@ -41,6 +41,7 @@ const BUDGET := {
 	"survival": {"crow": [5, 8, 12], "glow": [8, 16, 26]},
 	"caves": {"bat": [5, 9, 14], "glow": [8, 14, 22]},
 	"sewers": {"rat": [4, 7, 10], "fly": [8, 12, 18]},
+	"survival_sewers": {"crow": [3, 5, 8], "rat": [4, 7, 10], "fly": [8, 12, 18]},
 }
 const MOBILE_FACTOR := 0.6
 const NEAR := Vector2(9.0, 30.0)      ## m: franja alrededor del jugador donde se instala la fauna que se muda
@@ -159,6 +160,8 @@ func _collect_spots() -> void:
 					var t := xf as Transform3D
 					perches.append(_map.to_global(t.origin + Vector3(0.0, float(PERCH_HEIGHT[kind]) * t.basis.get_scale().y, 0.0)))
 			_spots["crow"] = perches
+		"survival_sewers":
+			_collect_sewer_city_spots()
 		"caves":
 			var roosts := PackedVector3Array()
 			var dm := _map as DungeonMap
@@ -187,6 +190,44 @@ func _collect_spots() -> void:
 				for c in wet:
 					water.append(dm.to_global(dm._cell_pos(c)) + Vector3(0.0, 0.8, 0.0))
 			_spots["fly"] = water
+
+## Mapa de Cloacas de Supervivencia: cuervos en ruinas y vallas, ratas por las orillas de los canales y junto
+## a la basura, moscas sobre el agua y los vertederos.
+func _collect_sewer_city_spots() -> void:
+	var perches := PackedVector3Array()
+	var inst: Dictionary = _map.get("_instances")
+	for kind in PERCH_HEIGHT:
+		for xf in inst.get(kind, []):
+			var t := xf as Transform3D
+			perches.append(_map.to_global(t.origin + Vector3(0.0, float(PERCH_HEIGHT[kind]) * t.basis.get_scale().y, 0.0)))
+	_spots["crow"] = perches
+	var banks := PackedVector3Array()
+	var water := PackedVector3Array()
+	for d in _map.get("districts"):
+		var sd := d as SewerDistrict
+		for c in sd.canals:
+			var mn: Vector2 = c["min"]
+			var mx: Vector2 = c["max"]
+			var long_x := mx.x - mn.x > mx.y - mn.y
+			var n := int(maxf(mx.x - mn.x, mx.y - mn.y) / 9.0)
+			for k in n:
+				var t := (float(k) + 0.5) / float(n)
+				var f := Vector2(t, 0.5) if long_x else Vector2(0.5, t)
+				var mid := mn + (mx - mn) * f
+				water.append(_map.to_global(Vector3(mid.x, sd.water_y() + 0.8, mid.y)))
+				for side: float in [-1.0, 1.0]:
+					var off := Vector2(0.0, (mx.y - mn.y) * 0.5 + 1.2) if long_x else Vector2((mx.x - mn.x) * 0.5 + 1.2, 0.0)
+					var b := mid + off * side
+					if absf(b.x) < float(_map.get("play_half")) - 3.0 and absf(b.y) < float(_map.get("play_half")) - 3.0:
+						banks.append(_map.to_global(Vector3(b.x, sd.street_y, b.y)))
+	for kind in ["trash_pile", "trash_bag"]:
+		for xf in inst.get(kind, []):
+			var o := (xf as Transform3D).origin
+			banks.append(_map.to_global(o + Vector3(1.2, 0.0, 0.0)))
+			if kind == "trash_pile":
+				water.append(_map.to_global(o + Vector3(0.0, 1.4, 0.0)))
+	_spots["rat"] = banks
+	_spots["fly"] = water
 
 ## Un sitio libre del tipo dado dentro de la franja NEAR del jugador (o Vector3.INF). `avoid` = no más cerca que eso.
 func _spot_near_player(kind: String, avoid: float = NEAR.x) -> Vector3:
@@ -256,7 +297,7 @@ func _push_custom(i: int) -> void:
 ## 0 = día, 1 = noche (sin ciclo: las cuevas cuentan como noche).
 func _night() -> float:
 	var cycle := get_parent().get_node_or_null("DayNightCycle") if get_parent() else null
-	return smoothstep(0.5, 0.85, float(cycle.phase)) if cycle else (0.0 if profile_id == "survival" else 1.0)
+	return smoothstep(0.5, 0.85, float(cycle.phase)) if cycle else (0.0 if profile_id.begins_with("survival") else 1.0)
 
 func _fade(c: Dictionary, to: float, delta: float, rate: float = 3.0) -> void:
 	c["alpha"] = move_toward(float(c["alpha"]), to, rate * delta)

@@ -1,9 +1,10 @@
 class_name DustVFX
 extends RefCounted
 
-## Piezas visuales de los POLVOS MÁGICOS de Tatan: neblina blanca suave, granos finos
-## que titilan y destellos en cruz. Partículas billboard baratas con materiales cacheados.
-## Todo en blanco con un toque del tinte de cada polvo.
+## Piezas visuales de los POLVOS MÁGICOS de Tatan: neblina, granos que titilan y destellos en cruz.
+## Partículas billboard baratas con materiales cacheados, en blanco con un toque del tinte de cada polvo.
+## Estilo cómic (ToonFX): nubes de puff.png y destellos/granos de chispa.png, entintados y opacos, que
+## desaparecen encogiéndose. Si faltan las texturas se queda la versión suave de antes.
 
 static var _soft_tex: GradientTexture2D = null
 static var _star_tex: ImageTexture = null
@@ -11,6 +12,12 @@ static var _quad: QuadMesh = null
 static var _haze_mat: StandardMaterial3D = null
 static var _grain_mat: StandardMaterial3D = null
 static var _star_mat: StandardMaterial3D = null
+static var _toon := false             ## materiales con los dibujos de ToonFX
+## chispa.png = rejilla 2×2: fotogramas 0-2 estrellas, 3 grano. anim_offset elige el fotograma (sin animar).
+const STAR_OFFSET := Vector2(0.0, 0.74)
+const GRAIN_OFFSET := Vector2(0.76, 0.99)
+const TOON_GRAIN_SIZE := 1.6          ## los granos dibujados necesitan algo más de tamaño para leerse
+const TOON_HAZE_AMOUNT := 0.6         ## nubes opacas: bastan menos
 
 static func _ensure() -> void:
 	if _soft_tex != null:
@@ -46,6 +53,10 @@ static func _ensure() -> void:
 	_haze_mat = _billboard_mat(_soft_tex, false)
 	_grain_mat = _billboard_mat(_soft_tex, true)
 	_star_mat = _billboard_mat(_star_tex, true)
+	# Cómic: nubes y destellos dibujados (mezcla normal: la tinta no existe en aditiva)
+	if ToonFX.puff_material(_haze_mat) and ToonFX.spark_material(_grain_mat):
+		_star_mat = _grain_mat
+		_toon = true
 
 static func _billboard_mat(tex: Texture2D, additive: bool) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
@@ -68,7 +79,7 @@ static func whiten(tint: Color, amount: float = 0.75) -> Color:
 static func haze(amount: int, lifetime: float, radius: float, size_min: float, size_max: float, tint: Color, alpha: float = 0.16) -> CPUParticles3D:
 	_ensure()
 	var p := CPUParticles3D.new()
-	p.amount = Quality.count(int(amount))
+	p.amount = Quality.count(int(round(amount * (TOON_HAZE_AMOUNT if _toon else 1.0))))
 	p.lifetime = lifetime
 	p.local_coords = false
 	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
@@ -87,10 +98,17 @@ static func haze(amount: int, lifetime: float, radius: float, size_min: float, s
 	grow.add_point(Vector2(1.0, 1.35))
 	p.scale_amount_curve = grow
 	var c := whiten(tint)
-	var ramp := Gradient.new()
-	ramp.colors = PackedColorArray([Color(c.r, c.g, c.b, 0.0), Color(c.r, c.g, c.b, alpha), Color(c.r, c.g, c.b, 0.0)])
-	ramp.offsets = PackedFloat32Array([0.0, 0.3, 1.0])
-	p.color_ramp = ramp
+	if _toon:
+		# Nubes dibujadas: opacas, del blanco al tinte, y se van encogiendo (no se difuminan)
+		ToonFX.vary(p)
+		p.angle_max = 0.0
+		p.scale_amount_curve = ToonFX.pop_curve(0.5, 1.0, 0.3)
+		p.color_ramp = ToonFX.pop_ramp([Color.WHITE, c, whiten(tint, 0.5)])
+	else:
+		var ramp := Gradient.new()
+		ramp.colors = PackedColorArray([Color(c.r, c.g, c.b, 0.0), Color(c.r, c.g, c.b, alpha), Color(c.r, c.g, c.b, 0.0)])
+		ramp.offsets = PackedFloat32Array([0.0, 0.3, 1.0])
+		p.color_ramp = ramp
 	p.mesh = _quad
 	p.material_override = _haze_mat
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -113,8 +131,9 @@ static func grains(amount: int, lifetime: float, radius: float, size_min: float,
 	p.damping_min = 0.4
 	p.damping_max = 1.2
 	p.randomness = 1.0
-	p.scale_amount_min = size_min
-	p.scale_amount_max = size_max
+	var k := TOON_GRAIN_SIZE if _toon else 1.0
+	p.scale_amount_min = size_min * k
+	p.scale_amount_max = size_max * k
 	var tw := Curve.new()                      # titileo: crece, parpadea y se apaga
 	tw.add_point(Vector2(0.0, 0.0))
 	tw.add_point(Vector2(0.15, 1.0))
@@ -124,10 +143,14 @@ static func grains(amount: int, lifetime: float, radius: float, size_min: float,
 	tw.add_point(Vector2(1.0, 0.0))
 	p.scale_amount_curve = tw
 	var c := whiten(tint, 0.85)
-	var ramp := Gradient.new()
-	ramp.colors = PackedColorArray([Color(1, 1, 1, 1), Color(c.r, c.g, c.b, 0.9), Color(c.r, c.g, c.b, 0.0)])
-	ramp.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
-	p.color_ramp = ramp
+	if _toon:
+		_pick_frames(p, GRAIN_OFFSET)
+		p.color_ramp = ToonFX.pop_ramp([Color.WHITE, whiten(tint, 0.55)])
+	else:
+		var ramp := Gradient.new()
+		ramp.colors = PackedColorArray([Color(1, 1, 1, 1), Color(c.r, c.g, c.b, 0.9), Color(c.r, c.g, c.b, 0.0)])
+		ramp.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
+		p.color_ramp = ramp
 	p.mesh = _quad
 	p.material_override = _grain_mat
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -140,7 +163,25 @@ static func sparkles(amount: int, lifetime: float, radius: float, size_min: floa
 	p.material_override = _star_mat
 	p.angle_min = -20.0
 	p.angle_max = 20.0
+	if _toon:
+		_pick_frames(p, STAR_OFFSET)
+		p.scale_amount_min = size_min * 1.25           # las estrellas no llevan el extra de los granos
+		p.scale_amount_max = size_max * 1.25
 	return p
+
+## Fotogramas de chispa.png que usa el emisor (sin animar): rango de anim_offset.
+static func _pick_frames(p: CPUParticles3D, offs: Vector2) -> void:
+	p.anim_speed_min = 0.0
+	p.anim_speed_max = 0.0
+	p.anim_offset_min = offs.x
+	p.anim_offset_max = offs.y
+
+## Nube dibujada del polvo (Sprite3D) teñida: blanco con el toque del polvo. null sin texturas.
+static func cloud_sprite(tint: Color, size: float) -> Sprite3D:
+	_ensure()
+	if not _toon:
+		return null
+	return ToonFX.puff_sprite(whiten(tint, 0.55), size)
 
 ## Calienta shaders/partículas (evita el tirón de compilación en el primer lanzamiento).
 static var _warmed: bool = false

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1b1a22">
+<title>Rumbang · Pintor de texturas</title>
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js" } }
+</script>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div id="cursor"></div>
+
+<header id="top">
+  <select id="weapon" aria-label="Arma"></select>
+  <button id="save" class="primary" title="Guardar en el proyecto">Guardar</button>
+</header>
+
+<nav id="tools">
+  <button id="mode" class="toggle on" title="Un dedo pinta (dos dedos giran/zoom). Toca para cambiar a Mover">Pintar</button>
+  <button data-tool="brush" class="tool on" title="Pincel">✎</button>
+  <button data-tool="erase" class="tool" title="Borrar lo pintado (la textura base no se toca)">⌫</button>
+  <button data-tool="pick" class="tool" title="Gotero: toca el modelo para tomar su color">◉</button>
+  <button id="undo" title="Deshacer">↶</button>
+  <button id="redo" title="Rehacer">↷</button>
+  <button id="frame" title="Encuadrar el modelo">⤢</button>
+  <button id="more" title="Opciones">⋯</button>
+</nav>
+
+<footer id="panel">
+  <div class="row swatches" id="swatches"></div>
+  <div class="row">
+    <label>Grosor <input type="range" id="size" min="1" max="60" value="6"></label>
+    <span id="sizeVal" class="val">6</span>
+    <span id="sizeDot" class="dot"></span>
+  </div>
+  <div class="row">
+    <label>Opacidad <input type="range" id="opacity" min="5" max="100" value="100"></label>
+    <span id="opacityVal" class="val">100</span>
+  </div>
+  <div class="row extra">
+    <label>Estabilizar <input type="range" id="stab" min="0" max="90" value="40"></label>
+    <span id="stabVal" class="val">40</span>
+  </div>
+  <div class="row extra checks">
+    <label><input type="checkbox" id="light" checked> Luz</label>
+    <label><input type="checkbox" id="pressure" checked> Presión del lápiz</label>
+    <label><input type="checkbox" id="wire"> Ver malla</label>
+    <button id="clearLayer" class="danger">Borrar toda la pintura</button>
+  </div>
+  <div id="info" class="row info"></div>
+</footer>
+
+<div id="toast"></div>
+<div id="loading">Cargando…</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

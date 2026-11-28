@@ -10,7 +10,18 @@ extends RefCounted
 signal enemy_died(enemy_ref, position, gold_val)
 signal enemy_hit
 
-enum EnemyType { GOBLIN_RANGED, NORMAL_GOBLIN, HEAVY_BRUTE, SNIPER_GOBLIN, ZOMBIE_GOBLIN, MORTAR_GOBLIN }
+## RAT..BLOATER son las criaturas de las cloacas (sprites 2D horneados, ver EnemyVisuals.CREATURE_KEYS).
+enum EnemyType { GOBLIN_RANGED, NORMAL_GOBLIN, HEAVY_BRUTE, SNIPER_GOBLIN, ZOMBIE_GOBLIN, MORTAR_GOBLIN, RAT, RAT_BIG, SLUG, BLOATER }
+
+## Tamaño de impacto (radio, alto) a escala 1 por tipo; el resto usa el del goblin. Las criaturas son bajas.
+const HIT_DIMS := {
+	6: Vector2(0.24, 0.55),    # RAT
+	7: Vector2(0.48, 0.95),    # RAT_BIG
+	8: Vector2(0.55, 0.9),     # SLUG
+	9: Vector2(0.5, 0.9),      # BLOATER
+}
+const HIT_DIMS_DEFAULT := Vector2(0.45, 1.6)
+
 
 var type: int = EnemyType.GOBLIN_RANGED
 
@@ -103,11 +114,21 @@ func apply_trait(id: String) -> void:
 		"mini":
 			max_hp *= 0.5
 			scale = Vector3.ONE * 0.7
+		"slug_small":                  # cría de la babosa: la mitad de grande, frágil y más rápida
+			max_hp *= 0.3
+			speed *= 1.35
+			scale = Vector3.ONE * 0.55
+			damage *= 0.6
+			gold_reward = maxi(gold_reward / 3, 1)
 	hp = max_hp
-	hit_radius = 0.45 * scale.x
-	hit_height = 1.6 * scale.y
+	_fit_hit_box()
 
 # --- Dibujo (ver EnemyVisuals) ---
+## Quién dibuja a este enemigo: los goblins, EnemyVisuals.instance (solo en modo impostor); las criaturas de
+## las cloacas, siempre (EnemyVisuals.any): son sprites en todas las plataformas.
+func visuals() -> EnemyVisuals:
+	return EnemyVisuals.any if EnemyVisuals.is_creature_idx(vat_idx) else EnemyVisuals.instance
+
 var vat_key: String = ""
 var vat_idx: int = -1               ## índice del modelo en EnemyVisuals (-1 = ninguno)
 var vis_slot: int = -1              ## casilla fija en el cubo de impostores (-1 = ninguna)
@@ -163,6 +184,14 @@ func _apply_type_config() -> void:
 			behavior = EnemyBehavior.ZombieGoblinBehavior.new(self)
 		EnemyType.MORTAR_GOBLIN:
 			behavior = EnemyBehavior.MortarGoblinBehavior.new(self)
+		EnemyType.RAT:
+			behavior = EnemyBehavior.RatBehavior.new(self)
+		EnemyType.RAT_BIG:
+			behavior = EnemyBehavior.BigRatBehavior.new(self)
+		EnemyType.SLUG:
+			behavior = EnemyBehavior.SlugBehavior.new(self)
+		EnemyType.BLOATER:
+			behavior = EnemyBehavior.BloaterBehavior.new(self)
 	_reset_stats()
 
 ## Fija los atributos del tipo (vida, velocidad...) y el tamaño de impacto según la escala.
@@ -170,8 +199,13 @@ func _reset_stats() -> void:
 	if behavior:
 		behavior.apply_config()
 	hp = max_hp
-	hit_radius = 0.45 * scale.x
-	hit_height = 1.6 * scale.y
+	_fit_hit_box()
+
+## Tamaño de impacto según el tipo y la escala.
+func _fit_hit_box() -> void:
+	var d: Vector2 = HIT_DIMS.get(type, HIT_DIMS_DEFAULT)
+	hit_radius = d.x * scale.x
+	hit_height = d.y * scale.y
 
 # ───────────────────────────── Compatibilidad con la interfaz de nodo ─────────────────────────────
 
@@ -249,8 +283,9 @@ func reactivate(pos: Vector3) -> void:
 	_sim_dirty = false
 	EnemyRegistry.register(self)
 	# Con la simulación en C++ la casilla de dibujo la reparte EnemySimNative (EnemyManager.spawn)
-	if EnemyVisuals.instance != null and EnemyManager.sim == null:
-		EnemyVisuals.instance.attach(self)
+	var vis := visuals()
+	if vis != null and EnemyManager.sim == null:
+		vis.attach(self)
 
 ## En vez de destruirse vuelve al pool de su tipo.
 func recycle() -> void:
@@ -258,8 +293,9 @@ func recycle() -> void:
 		return
 	recycled = true
 	EnemyRegistry.unregister(self)
-	if EnemyVisuals.instance != null and EnemyManager.sim == null:
-		EnemyVisuals.instance.detach(self)
+	var vis := visuals()
+	if vis != null and EnemyManager.sim == null:
+		vis.detach(self)
 	velocity = Vector3.ZERO
 	if is_instance_valid(status_fx):
 		StatusEffects.release_to_pool(status_fx)
@@ -453,8 +489,10 @@ func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 		if EnemyManager.sim != null:
 			if active_idx >= 0:
 				EnemyManager.sim.flash(active_idx, float(EnemyManager.tick))
-		elif EnemyVisuals.instance != null:
-			EnemyVisuals.instance.flash(self)
+		else:
+			var vis := visuals()
+			if vis != null:
+				vis.flash(self)
 
 	# Número flotante: inmediato para golpes normales; agrupado para daño continuo
 	var shown := amount
@@ -480,9 +518,11 @@ func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 
 	if not is_dot:
 		HitFeedback.on_enemy_hit(self, amount, knockback_dir, hp <= 0.0)
+		ItemEffects.on_enemy_hit(self, amount)
 
 	if hp <= 0.0:
 		enemy_died.emit(self, global_position, gold_reward)
+		ItemEffects.on_enemy_killed(self)
 		recycle()
 	else:
 		EnemyManager.mark_dirty(self)      # la vida la lee la IA (alerta, furia del zombi)

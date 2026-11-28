@@ -1,8 +1,7 @@
 class_name Quality
 extends RefCounted
 
-## Nivel de calidad gráfica (Bajo / Medio / Alto). Android arranca en Medio (en Bajo si es de gama baja,
-## ver is_low_end) y PC en Alto; el valor guardado por el jugador (SettingsManager.quality_level) tiene prioridad. Todo lo que cuesta
+## Nivel de calidad gráfica (Bajo / Medio / Alto). Android/móvil arranca en Bajo y PC en Alto; el valor guardado por el jugador (SettingsManager.quality_level) tiene prioridad. Todo lo que cuesta
 ## rendimiento (partículas, luces dinámicas, sombras, resolución 3D, tope de enemigos) consulta aquí.
 
 enum Level { LOW, MEDIUM, HIGH }
@@ -29,7 +28,7 @@ static func level() -> int:
 		if saved >= 0 and saved <= Level.HIGH:
 			_level = saved
 		elif is_mobile():
-			_level = Level.LOW if is_low_end() else Level.MEDIUM
+			_level = Level.LOW
 		else:
 			_level = Level.HIGH
 		_apply_vfx()

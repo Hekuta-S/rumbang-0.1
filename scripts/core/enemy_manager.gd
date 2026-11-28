@@ -59,13 +59,14 @@ func _physics_process(delta: float) -> void:
 			var dt := delta * float(e.tick_age)
 			e.tick_age = 0
 			e.update(dt)
-			if vis != null:
+			var ev: EnemyVisuals = e.visuals()
+			if ev != null:
 				if prof:
 					var tv := PerfProbe.begin()
-					vis.write(e, tick_f)
+					ev.write(e, tick_f)
 					PerfProbe.end("enemigos.dibujo", tv)
 				else:
-					vis.write(e, tick_f)
+					ev.write(e, tick_f)
 		# Si e (u otro anterior) se recicló durante su update, la lista se desplazó: no se avanza
 		if i < _active.size() and _active[i] == e:
 			i += 1
@@ -117,6 +118,8 @@ func _run_events(ev: PackedFloat32Array) -> void:
 				EnemyBehavior.hit_player(e, ev[b + 2])
 			5:
 				EnemyBehavior.fire_slam(e)
+			6:
+				EnemyBehavior.fire_burst(e)
 
 ## El juego cambió atributos de `e` (vida, velocidad, escala, alerta, posición): el C++ los relee.
 static func mark_dirty(e: EnemyData) -> void:
@@ -133,7 +136,10 @@ static func _decide_sim() -> void:
 	if EnemyMotion.native_motion() == null:
 		return
 	sim = ClassDB.instantiate(&"EnemySimNative")
-	sim.vis_setup(EnemyVisuals.KEYS.size(), EnemyVisuals.CAPACITY, EnemyVisuals.STRIDE)
+	if not sim.has_method(&"supports_creatures"):
+		sim = null          # biblioteca nativa antigua (sin ratas ni babosas): vale el GDScript
+		return
+	sim.vis_setup(EnemyVisuals.KEYS.size() + EnemyVisuals.CREATURE_KEYS.size(), EnemyVisuals.CAPACITY, EnemyVisuals.STRIDE)
 	# Modo malla (sin impostores): EnemyVisuals lee del objeto tick_age, vat_walking, vat_flash... cada frame
 	sim.set_full_writeback(EnemyVisuals.instance == null)
 

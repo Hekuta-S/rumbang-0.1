@@ -140,38 +140,27 @@ static func _ensure_shared() -> void:
 	_shared_ramp.add_point(0.6, Color(1, 1, 1, 0.8))
 	_shared_ramp.add_point(1.0, Color(1, 1, 1, 0))
 
-## Gráficos bajos: sprite billboard 2D ligero (sin malla CSG ni partículas 3D).
+## Gema dibujada (ToonFX.gem_texture): sprite billboard 2D en todas las calidades, sin malla ni partículas 3D
+## (antes cada gema llevaba un CPUParticles3D con estela). El color y el tamaño los pone el tier (_apply_tier).
 func _setup_sprite_2d() -> void:
 	var body := get_node_or_null("Body")
 	if body:
 		body.queue_free()
-	if _shared_tex == null:
-		var g := Gradient.new()
-		g.set_color(0, Color(0.85, 1.0, 1.0, 1.0))
-		g.add_point(0.45, Color(0.2, 0.9, 1.0, 0.9))
-		g.set_color(g.get_point_count() - 1, Color(0.1, 0.7, 1.0, 0.0))
-		_shared_tex = GradientTexture2D.new()
-		_shared_tex.gradient = g
-		_shared_tex.fill = GradientTexture2D.FILL_RADIAL
-		_shared_tex.fill_from = Vector2(0.5, 0.5)
-		_shared_tex.fill_to = Vector2(1.0, 0.5)
-		_shared_tex.width = 32
-		_shared_tex.height = 32
 	var sprite := Sprite3D.new()
-	sprite.texture = _shared_tex
+	sprite.texture = ToonFX.gem_texture()
 	sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	sprite.shaded = false
-	sprite.transparent = true
-	sprite.pixel_size = 0.015
+	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	sprite.pixel_size = 0.0075
 	sprite.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(sprite)
 	_sprite = sprite
 
 func _setup_particles() -> void:
-	if Quality.level() == Quality.Level.LOW:
-		_setup_sprite_2d()
-		_apply_tier()
-		return
+	_setup_sprite_2d()
+	_apply_tier()
+	return
 	_ensure_shared()
 	var particles = CPUParticles3D.new()
 	particles.amount = int(maxi(4, round(8.0 * Quality.particle_factor())))
@@ -233,7 +222,7 @@ func _on_body_entered(body: Node3D) -> void:
 		# Get stats component to add XP
 		var exp_comp = body.get_node_or_null("ExperienceComponent")
 		if exp_comp and exp_comp.has_method("gain_experience"):
-			exp_comp.gain_experience(xp_amount)
+			exp_comp.gain_experience(xp_amount * ItemEffects.xp_roll())   # Moneda del Duende
 			_collect_fx()
 			_release()
 		else:

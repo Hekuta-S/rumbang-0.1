@@ -25,6 +25,10 @@ func _ready() -> void:
 	_build_environment()
 	_map = ProceduralMap.new()
 	_map.map_seed = map_seed
+	# El fondo solo enseña la plaza y la cripta: el mapa pequeño de antes, sin el barrio (carga antes)
+	_map.half_size = 115.0
+	_map.play_half = 98.0
+	_map.district_enabled = false
 	add_child(_map)
 
 	_camera = Camera3D.new()

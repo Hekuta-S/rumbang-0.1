@@ -2,5 +2,5 @@
 
 [ext_resource type="Script" path="res://tests/shot_arrow_trail.gd" id="1_test"]
 
-[node name="Test" type="Node"]
+[node name="Shot" type="Node"]
 script = ExtResource("1_test")

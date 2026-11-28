@@ -7,7 +7,7 @@
 > **Estimate**: M
 > **Build step**: core
 > **Manifest Version**: N/A (minimal — no control manifest)
-> **Last Updated**: [set by /dev-story when implementation begins]
+> **Last Updated**: 2026-11-22 (implementada; pendiente playtest)
 
 ## Context
 
@@ -29,14 +29,14 @@
 
 *From `design/game-brief.md` (First minute, Features item 1):*
 
-- [ ] La intro dura unos 24 s o menos y se muestra una sola vez, en el primer arranque.
-- [ ] El rey y el mago invocan al héroe (conserva la secuencia actual de invocación).
-- [ ] El Nigromante irrumpe y se lleva al mago; el rey queda en escena.
-- [ ] Hay subtítulos legibles para cada frase.
-- [ ] El jugador puede saltar la intro con una tecla o toque.
-- [ ] Al terminar o saltarla, pasa al tutorial del patio (Story 004).
-- [ ] El flag de "intro vista" se guarda y la intro no se repite (se puede repetir con `force_intro`).
-- [ ] La intro corre sin errores en móvil y en escritorio.
+- [x] La intro dura unos 24 s o menos y se muestra una sola vez, en el primer arranque.
+- [x] El rey y el mago invocan al héroe (conserva la secuencia actual de invocación).
+- [x] El Nigromante irrumpe y se lleva al mago; el rey queda en escena.
+- [x] Hay subtítulos legibles para cada frase.
+- [x] El jugador puede saltar la intro con una tecla o toque.
+- [x] Al terminar o saltarla, pasa al tutorial del patio (Story 004).
+- [x] El flag de "intro vista" se guarda y la intro no se repite (se puede repetir con `force_intro`).
+- [x] La intro corre sin errores en móvil y en escritorio.
 
 ---
 
@@ -57,10 +57,11 @@
 
 ## Files
 
-- `scripts/world/tutorial_cinematic.gd`
-- `scripts/ui/dungeon_hub.gd`
-- `scripts/ui/title_screen.gd`
-- `tools/blender_salon_invocacion.py` (si hace falta un clip nuevo)
+- `scripts/world/tutorial_cinematic.gd` (guion nuevo, `NECRO_AT`/`GRAB_AT`/`VANISH_AT`, `apply_kidnap_end()`)
+- `scripts/world/tutorial_patio.gd` (orador "necro", OUTRO sin el mago, saltar = mago raptado)
+- `scripts/core/murmur.gd` (voz "necro")
+- `tests/test_tutorial.gd` (CHECK 3a), `tests/shot_patio.gd` (capturas del rapto)
+- Decisión: la intro vive en el patio (TutorialCinematic); la del salón (`force_intro`) queda solo para repetir y no tiene el rapto. Sin clip nuevo: se reutiliza el FBX del Nigromante (idle + invocar).
 
 ---
 

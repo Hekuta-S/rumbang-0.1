@@ -284,6 +284,28 @@ static func player_mesa(player_pos: Vector3) -> int:
 	_update_player_mesa(player_pos)
 	return _player_mesa
 
+## Quita los obstáculos cuyo centro está a menos de `radius` de `center` (un muro o una tubería rotos abren paso).
+## Se marcan lejos y sin alcance en su sitio (la rejilla no se rehace) y se pasan otra vez al C++. Devuelve cuántas
+## copias quitó (un obstáculo grande está copiado en cada celda que toca).
+static func remove_obstacles_near(center: Vector2, radius: float) -> int:
+	if not _built:
+		_build()
+	var n := 0
+	var r2 := radius * radius
+	var i := 0
+	while i < _obs.size():
+		var dx := _obs[i] - center.x
+		var dz := _obs[i + 1] - center.y
+		if dx * dx + dz * dz <= r2 and _obs[i + 2] > 0.0:
+			_obs[i] = 1.0e9
+			_obs[i + 1] = 1.0e9
+			_obs[i + 2] = 0.0
+			n += 1
+		i += OBS_STRIDE
+	if n > 0 and _native != null:
+		_native.set_obstacles(_obs, _ocell_start, _ocell_count, _ox0, _oz0, _ow, _oh)
+	return n
+
 static func _clear_obstacles() -> void:
 	_obs = PackedFloat32Array()
 	_ocell_start = PackedInt32Array()

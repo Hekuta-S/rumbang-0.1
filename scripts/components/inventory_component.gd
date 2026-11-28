@@ -3,6 +3,7 @@ class_name InventoryComponent
 
 signal items_changed
 signal item_added(item_id: String)
+signal active_replaced(old_id: String, new_id: String)
 
 var collected_items: Array = []
 
@@ -11,6 +12,12 @@ func add_item(item_id: String) -> void:
 		return
 	if count_item(item_id) >= ItemDB.get_max_stacks(item_id):
 		return
+	# Hueco único de objeto activo: el nuevo sustituye al que hubiera
+	if ItemDB.is_active(item_id):
+		var old := active_item()
+		if old != "":
+			collected_items.erase(old)
+			active_replaced.emit(old, item_id)
 	collected_items.append(item_id)
 	item_added.emit(item_id)
 	items_changed.emit()
@@ -24,6 +31,13 @@ func remove_item(item_id: String) -> void:
 func clear_items() -> void:
 	collected_items.clear()
 	items_changed.emit()
+
+## Id del objeto activo que llevas ("" si ninguno).
+func active_item() -> String:
+	for id in collected_items:
+		if ItemDB.is_active(id):
+			return id
+	return ""
 
 func has_item(item_id: String) -> bool:
 	return collected_items.has(item_id)

@@ -39,6 +39,9 @@ static var cloud_shader: Shader = preload("res://assets/shaders/alchemical_cloud
 
 var cloud_mesh: MeshInstance3D = null
 var cloud_mat: ShaderMaterial = null
+var cloud_sprite: Sprite3D = null      ## cabeza dibujada (cómic); si existe, sustituye a cloud_mesh
+const HEAD_SIZE := 0.95                ## diámetro de la nube dibujada en vuelo (m)
+const HEAD_BOIL_FPS := 12.0            ## la nube "hierve": cambia de dibujo a pocos fotogramas
 var trail_particles: CPUParticles3D = null
 
 func _ready() -> void:
@@ -84,6 +87,11 @@ func _physics_process(delta: float) -> void:
 	# Apuntar la deformación comprimida a la trayectoria
 	if velocity.length_squared() > 0.05:
 		look_at(global_position + velocity, Vector3.UP)
+	if cloud_sprite:
+		# Dibujo a pocos fotogramas: cambia de nube y late (grande/pequeña) en pasos
+		var step := int(elapsed * HEAD_BOIL_FPS)
+		cloud_sprite.frame = step % 4
+		cloud_sprite.pixel_size = HEAD_SIZE / 128.0 * (1.0 if step % 2 == 0 else 0.88)
 
 	if elapsed >= flight_time or elapsed >= max_lifetime:
 		_burst(global_position)
@@ -129,7 +137,12 @@ func _create_visuals() -> void:
 	var main_color: Color = MODE_COLORS.get(mode, Color(0.86, 0.78, 1.0))
 	var rim_col: Color = MODE_RIMS.get(mode, Color(1.0, 0.97, 1.0))
 
-	# 1. Cabeza: bolsita de polvo (shader de polvo, comprimida en el sentido del vuelo)
+	# 1. Cabeza: nube de polvo dibujada (cómic). Sin texturas, la bolsita con el shader de polvo.
+	cloud_sprite = DUST_VFX.cloud_sprite(main_color, HEAD_SIZE)
+	if cloud_sprite:
+		add_child(cloud_sprite)
+		_add_trail(main_color)
+		return
 	cloud_mat = ShaderMaterial.new()
 	cloud_mat.shader = cloud_shader
 	cloud_mat.set_shader_parameter("clouds_color", Vector3(main_color.r, main_color.g, main_color.b))
@@ -152,8 +165,17 @@ func _create_visuals() -> void:
 	cloud_mesh.material_override = cloud_mat
 	cloud_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(cloud_mesh)
+	_add_trail(main_color)
 
-	# 2. Estela: neblina + granos que quedan flotando + algún destello
+	# 3. Luz suave blanca
+	var light := Quality.new_light()
+	light.light_color = rim_col
+	light.light_energy = 1.4
+	light.omni_range = 2.6
+	add_child(light)
+
+## Estela: neblina + granos que quedan flotando + algún destello
+func _add_trail(main_color: Color) -> void:
 	var haze: CPUParticles3D = DUST_VFX.haze(14, 0.5, 0.15, 0.35, 0.6, main_color, 0.2)
 	add_child(haze)
 	haze.emitting = true
@@ -163,13 +185,6 @@ func _create_visuals() -> void:
 	var stars: CPUParticles3D = DUST_VFX.sparkles(6, 0.5, 0.2, 0.14, 0.24, main_color)
 	add_child(stars)
 	stars.emitting = true
-
-	# 3. Luz suave blanca
-	var light := Quality.new_light()
-	light.light_color = rim_col
-	light.light_energy = 1.4
-	light.omni_range = 2.6
-	add_child(light)
 
 ## Efecto de explosión de polvo alquímico
 ## - Tiempo templado (1.25 segundos para apreciarse con calma)
@@ -187,9 +202,24 @@ func _spawn_cloud_explosion(pos: Vector3) -> void:
 	container.global_position = pos
 	container.scale = Vector3.ONE * (blast_radius / BASE_RADIUS)   # la nube refleja el rango real
 
-	# Cúmulo de polvo (3 esferas con el shader de polvo) que se eleva y se disuelve
+	# Cúmulo de polvo que se eleva: nubes dibujadas (cómic) o, sin texturas, 3 esferas con el shader
 	var cloud_cluster := Node3D.new()
 	container.add_child(cloud_cluster)
+	var toon_puffs: Array[Sprite3D] = []
+	var toon_offsets: Array[Vector3] = [Vector3(0.0, 0.2, 0.0), Vector3(0.75, 0.35, 0.2), Vector3(-0.7, 0.45, -0.15), Vector3(0.1, 0.95, 0.1)]
+	var toon_sizes: Array[float] = [1.9, 1.4, 1.5, 1.2]
+	for i in toon_offsets.size():
+		var ps := DUST_VFX.cloud_sprite(main_color, toon_sizes[i])
+		if ps == null:
+			break
+		ps.position = toon_offsets[i]
+		cloud_cluster.add_child(ps)
+		toon_puffs.append(ps)
+	if not toon_puffs.is_empty():
+		ToonFX.ring_burst(get_parent(), pos, blast_radius * 0.9, DUST_VFX.whiten(main_color, 0.4), 0.35)
+		_animate_toon_cluster(container, cloud_cluster, toon_puffs, main_color, rim_col)
+		AudioManager.play_at("explosion_bits", pos, -4.0, 1.2)
+		return
 
 	var exp_mat := ShaderMaterial.new()
 	exp_mat.shader = cloud_shader
@@ -253,3 +283,45 @@ func _spawn_cloud_explosion(pos: Vector3) -> void:
 	tween.tween_property(exp_mat, "shader_parameter/explosion_progress", 1.0, anim_duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
 	tween.tween_property(light, "light_energy", 0.0, anim_duration * 0.7)
 	tween.chain().tween_callback(container.queue_free)
+
+## Explosión dibujada: las nubes salen de golpe, se hinchan y suben, y al final se encogen hasta
+## desaparecer (como en una animación a mano); granos y destellos entintados alrededor.
+func _animate_toon_cluster(container: Node3D, cluster: Node3D, puffs: Array[Sprite3D], main_color: Color, rim_col: Color) -> void:
+	var haze: CPUParticles3D = DUST_VFX.haze(12, 0.9, 0.5, 0.9, 1.5, main_color)
+	haze.one_shot = true
+	haze.explosiveness = 0.9
+	haze.initial_velocity_min = 2.0
+	haze.initial_velocity_max = 4.0
+	container.add_child(haze)
+	haze.emitting = true
+	var grains: CPUParticles3D = DUST_VFX.grains(40, 1.0, 0.35, 0.05, 0.1, main_color, 3.4)
+	grains.one_shot = true
+	grains.explosiveness = 0.9
+	container.add_child(grains)
+	grains.emitting = true
+	var stars: CPUParticles3D = DUST_VFX.sparkles(12, 0.9, 0.5, 0.18, 0.32, main_color)
+	stars.one_shot = true
+	stars.explosiveness = 0.8
+	stars.initial_velocity_min = 1.5
+	stars.initial_velocity_max = 3.5
+	container.add_child(stars)
+	stars.emitting = true
+
+	var light := Quality.new_light()
+	light.light_color = rim_col
+	light.light_energy = 2.2
+	light.omni_range = 4.0
+	container.add_child(light)
+
+	const DUR := 1.0
+	cluster.scale = Vector3.ONE * 0.35
+	var tw := container.create_tween().set_parallel(true)
+	tw.tween_property(cluster, "scale", Vector3.ONE * 1.15, 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(cluster, "position:y", 0.8, DUR).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(light, "light_energy", 0.0, DUR * 0.6)
+	for i in puffs.size():
+		var ps := puffs[i]
+		# cada nube se va encogiendo a su ritmo (escalonado), sin difuminarse
+		tw.tween_property(ps, "scale", Vector3.ZERO, 0.32).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)				.set_delay(DUR * 0.5 + 0.08 * float(i))
+	tw.chain().tween_interval(0.3)
+	tw.chain().tween_callback(container.queue_free)

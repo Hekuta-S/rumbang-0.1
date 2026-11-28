@@ -8,6 +8,8 @@ Salida (512 px, RGBA):
     toon_dirt.png       tierra con guijarros y grietas     A = relieve
     toon_rock.png       roca tallada en facetas (acantilados, proyección lateral)
     toon_flagstone.png  losas de la cripta                 A = venas arcanas (emisión)
+    toon_sewer_{cobble,mud,brick,tile}.png  las mismas ranuras para el mapa de Cloacas (make_sewer_*;
+                        python tools/make_toon_textures.py assets/textures/toon sewer_cobble,sewer_mud,sewer_brick,sewer_tile)
     (y "cave": assets/textures/dungeon/cave_toon_{albedo,normal}.png, roca de las Cavernas; ver make_cave)
 Las usa assets/shaders/toon_ground.gdshader (ProceduralMap).
 """
@@ -461,6 +463,158 @@ def make_cave(out_dir):
     Image.fromarray((nrm * 255.0 + 0.5).astype(np.uint8), "RGB").filter(ImageFilter.GaussianBlur(1.2)).save(
         os.path.join(out_dir, "cave_toon_normal.png"))
     print("guardado", os.path.join(out_dir, "cave_toon_normal.png"))
+
+
+# ───────────────────────────── Cloacas (mapa de supervivencia "sewers") ─────────────────────────────
+# Mismas ranuras que el bosque (ProceduralMap.GROUND_TEX_SEWERS): cobble = hierba, mud = tierra,
+# brick = roca (paredes de los canales y acantilados), tile = losas (cuenca, con venas verdes en A).
+
+def make_sewer_cobble(out_dir):
+    """Adoquín mojado con verdín en las juntas. A = relieve."""
+    rng = np.random.default_rng(61)
+    wx, wy = warped(rng, 0.04, 6)
+    pr = np.random.default_rng(17)
+    pts = jittered(9, pr, 0.55)
+    f1, f2, idx = voronoi(pts, wx, wy)
+    tone_of = pr.integers(0, 4, len(pts))
+    rgb = tones(tone_of[idx], [(70, 72, 66), (82, 84, 74), (94, 94, 82), (76, 70, 62)])
+    edge = f2 - f1
+    up = np.roll(idx, 10, axis=0)
+    dn = np.roll(idx, -10, axis=0)
+    rgb = np.where((up != idx)[..., None], np.clip(rgb * 1.2 + 0.02, 0, 1), rgb)
+    rgb = np.where((dn != idx)[..., None], rgb * 0.75, rgb)
+    # juntas: verdín (verde oscuro) y tinta en el borde de cada piedra
+    moss = np.array([46, 66, 34], np.float32) / 255.0
+    gap = 1.0 - smooth(edge, 0.018, 0.034)
+    rgb = rgb * (1 - gap[..., None]) + moss * gap[..., None]
+    wn = 0.008 + 0.004 * vnoise(8, rng)
+    rgb = ink_mask(rgb, smooth(edge, wn * 0.4, wn * 0.7) * (1.0 - smooth(edge, wn * 1.1, wn * 1.6)))
+    lay = Layer()
+    for _ in range(160):                                 # manchas de humedad
+        c = (pr.random() * S, pr.random() * S)
+        r = pr.uniform(2.0, 4.5)
+        lay.ellipse(c, r, r, fill=(40, 44, 36, 255))
+    rgb = lay.over(rgb)
+    save("toon_sewer_cobble", rgb, np.clip(smooth(edge, 0.01, 0.08) * 0.8 + fbm(4, 2, rng) * 0.3, 0, 1), out_dir)
+
+
+def make_sewer_mud(out_dir):
+    """Lodo de cloaca con charcos verdosos y restos. A = relieve."""
+    rng = np.random.default_rng(71)
+    wx, wy = warped(rng, 0.08)
+    base = fbm(3, 3, rng, wx, wy)
+    rgb = tones(posterize(base, 3), [(58, 52, 38), (68, 61, 44), (78, 70, 50)])
+    lay = Layer()
+    pr = np.random.default_rng(29)
+    # charcos de agua sucia con brillo
+    for p in jittered(5, pr, 0.9):
+        if pr.random() < 0.45:
+            continue
+        c = (p[0] * S, p[1] * S)
+        rx = pr.uniform(30, 70)
+        ry = rx * pr.uniform(0.45, 0.8)
+        lay.ellipse(c, rx, ry, fill=(52, 70, 46, 255), outline=INK + (255,), width=5)
+        lay.stroke(curve((c[0] - rx * 0.5, c[1] - ry * 0.3), (c[0] + rx * 0.2, c[1] - ry * 0.5), -0.2, 5), 4.0,
+                   fill=(130, 160, 104, 255))
+    # restos: trozos de ladrillo y latas
+    for _ in range(26):
+        c = np.array([pr.random() * S, pr.random() * S])
+        a = pr.uniform(0, math.tau)
+        w, h = pr.uniform(10, 22), pr.uniform(6, 12)
+        dx = np.array([math.cos(a), math.sin(a)])
+        dy = np.array([-dx[1], dx[0]])
+        quad = [tuple(c + dx * w + dy * h), tuple(c - dx * w + dy * h), tuple(c - dx * w - dy * h), tuple(c + dx * w - dy * h)]
+        col = [(120, 66, 48, 255), (96, 98, 92, 255), (110, 96, 60, 255)][int(pr.integers(0, 3))]
+        lay.poly([(q[0] + 3, q[1] + 5) for q in quad], INK + (255,))
+        lay.poly(quad, col)
+        lay.stroke(quad + [quad[0]], 3.5, taper=False)
+    for _ in range(11):                                  # grietas
+        p = np.array([pr.random() * S, pr.random() * S])
+        ang = pr.uniform(0, math.tau)
+        pts = [tuple(p)]
+        for _ in range(int(pr.integers(4, 8))):
+            ang += pr.uniform(-0.7, 0.7)
+            p = p + np.array([math.cos(ang), math.sin(ang)]) * pr.uniform(24, 44)
+            pts.append(tuple(p))
+        lay.stroke(pts, 5.5)
+    rgb = lay.over(rgb)
+    a = np.asarray(lay.img, np.float32)[..., 3] / 255.0
+    save("toon_sewer_mud", rgb, np.clip(base * 0.8 + a * 0.3, 0, 1), out_dir)
+
+
+def make_sewer_brick(out_dir):
+    """Ladrillo de cloaca en hiladas (paredes de los canales y acantilados)."""
+    rng = np.random.default_rng(83)
+    pr = np.random.default_rng(41)
+    rows, cols = 8, 4
+    x, y = _grid()
+    wx, wy = warped(rng, 0.01, 6)
+    ry = wy * rows
+    row = np.floor(ry).astype(np.int32) % rows
+    rx = (wx * cols + (row % 2) * 0.5) % cols
+    col = np.floor(rx).astype(np.int32) % cols
+    brick = row * cols + col
+    tone_of = pr.integers(0, 4, rows * cols)
+    rgb = tones(tone_of[brick], [(112, 58, 44), (128, 68, 50), (98, 54, 44), (120, 74, 56)])
+    fy = ry - np.floor(ry)
+    fx = rx - np.floor(rx)
+    # luz arriba, sombra abajo de cada ladrillo
+    rgb = np.where((fy < 0.16)[..., None], np.clip(rgb * 1.2 + 0.02, 0, 1), rgb)
+    rgb = np.where((fy > 0.8)[..., None], rgb * 0.72, rgb)
+    # verdín que sube desde abajo de la textura en manchas
+    slime = smooth(fbm(4, 3, rng), 0.55, 0.7)
+    rgb = rgb * (1 - slime[..., None] * 0.6) + np.array([52, 80, 38], np.float32) / 255.0 * slime[..., None] * 0.6
+    mortar = np.minimum(np.minimum(fy, 1 - fy) * 2.0, np.minimum(fx, 1 - fx) * 2.0 * cols / rows * 2.0)
+    rgb = ink_mask(rgb, 1.0 - smooth(mortar, 0.05, 0.11))
+    lay = Layer()
+    for _ in range(18):                                  # desconchones
+        p = np.array([pr.random() * S, pr.random() * S])
+        ang = pr.uniform(0, math.tau)
+        pts = [tuple(p)]
+        for _ in range(3):
+            ang += pr.uniform(-0.6, 0.6)
+            p = p + np.array([math.cos(ang), math.sin(ang)]) * pr.uniform(12, 26)
+            pts.append(tuple(p))
+        lay.stroke(pts, 3.5)
+    rgb = lay.over(rgb)
+    save("toon_sewer_brick", rgb, np.ones((S, S), np.float32), out_dir)
+
+
+def make_sewer_tile(out_dir):
+    """Losas del depósito con limo. A = venas verdes (emisión, como las venas arcanas de la cripta)."""
+    rng = np.random.default_rng(97)
+    pr = np.random.default_rng(53)
+    n_side = 4
+    x, y = _grid()
+    wx, wy = warped(rng, 0.008, 6)
+    gx = wx * n_side
+    gy = wy * n_side
+    tile = (np.floor(gy).astype(np.int32) % n_side) * n_side + (np.floor(gx).astype(np.int32) % n_side)
+    tone_of = pr.integers(0, 3, n_side * n_side)
+    rgb = tones(tone_of[tile], [(74, 82, 72), (86, 94, 80), (66, 76, 68)])
+    fx = gx - np.floor(gx)
+    fy = gy - np.floor(gy)
+    rgb = np.where((fy < 0.08)[..., None], np.clip(rgb * 1.18, 0, 1), rgb)
+    rgb = np.where((fy > 0.9)[..., None], rgb * 0.75, rgb)
+    slime = smooth(fbm(3, 3, rng), 0.5, 0.62)
+    rgb = rgb * (1 - slime[..., None] * 0.5) + np.array([58, 92, 40], np.float32) / 255.0 * slime[..., None] * 0.5
+    edge = np.minimum(np.minimum(fx, 1 - fx), np.minimum(fy, 1 - fy))
+    rgb = ink_mask(rgb, 1.0 - smooth(edge, 0.03, 0.06))
+    lay = Layer()
+    for _ in range(8):
+        p = np.array([pr.random() * S, pr.random() * S])
+        ang = pr.uniform(0, math.tau)
+        pts = [tuple(p)]
+        for _ in range(int(pr.integers(4, 7))):
+            ang += pr.uniform(-0.6, 0.6)
+            p = p + np.array([math.cos(ang), math.sin(ang)]) * pr.uniform(22, 40)
+            pts.append(tuple(p))
+        lay.stroke(pts, 4.5)
+    rgb = lay.over(rgb)
+    v = fbm(4, 3, rng)
+    vein = (1.0 - np.abs(v * 2.0 - 1.0) * 2.2).clip(0, 1) ** 10
+    veins = Image.fromarray((vein * 255).astype(np.uint8), "L").filter(ImageFilter.GaussianBlur(1.2))
+    save("toon_sewer_tile", rgb, np.asarray(veins, np.float32) / 255.0, out_dir)
 
 
 if __name__ == "__main__":

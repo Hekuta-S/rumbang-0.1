@@ -19,7 +19,7 @@ func _run() -> void:
 	DungeonHub.config_path = "user://shot_patio.cfg"
 	var scene: TutorialPatio = load("res://scenes/core/tutorial_patio.tscn").instantiate()
 	add_child(scene)
-	for t in [3.0, 7.0, 9.4, 10.3, 14.0, 19.5]:
+	for t in [3.0, 7.0, 9.4, 10.3, 14.0, 16.0, 18.4, 19.3, 21.5]:
 		while scene.cine.time < t:
 			await get_tree().process_frame
 		await _shot("cine_%04.1f" % t)

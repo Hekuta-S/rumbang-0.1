@@ -91,7 +91,9 @@ const GS_GAIT_MAX_SCALE := {"walk": 1.5, "run": 1.25, "strafe": 1.5}
 const MELEE_ACTIONS := ["attack1", "attack2", "attack3", "attack4",
 	"dagger1", "dagger2", "dagger3", "mace1", "mace2", "mace3", "mace4", "gs1", "gs2", "gs3", "gs_run",
 	"sw1", "sw2", "sw3", "sw4", "sw_run", "kt1", "kt2", "kt3", "kt4", "kt_run", "kt_special",
-	"fs1", "fs2", "fs3", "fs4", "fs5", "fs6", "fs_run", "fs_special"]
+	"fs1", "fs2", "fs3", "fs4", "fs5", "fs6", "fs_run", "fs_special",
+	"gs_charge_release", "sw_charge_release", "kt_charge_release", "fs_charge_release", "mace_charge_release",
+	"dagger_charge_release"]
 ## Acciones del arco (no cuentan como golpes cuerpo a cuerpo). BOW_SHOT es el disparo de Mixamo (lo usa el remate);
 ## BOW_COMBO son los tres disparos seguidos del clic (blender_sources/bow_anims.blend). BOW_DRAW es la acción de
 ## tensado mientras se carga: encajar y tensar (bow_charge_draw) y luego el bucle de sostener (bow_charge_hold),
@@ -217,6 +219,13 @@ const ATTACK_WINDOWS := {
 	"gs2": [0.43, 0.70],
 	"gs3": [0.50, 0.80],
 	"gs_run": [0.93, 1.20],
+	# Ataques cargados con clip propio (blender_sources/charged_anims.blend, 30 fps: ventana = fotograma del impacto)
+	"gs_charge_release": [0.22, 0.36],
+	"sw_charge_release": [0.15, 0.32],
+	"mace_charge_release": [0.13, 0.27],
+	"kt_charge_release": [0.07, 0.30],
+	"fs_charge_release": [0.07, 0.25],
+	"dagger_charge_release": [0.05, 0.55],
 	# Espada (tiempos de clip, medidos por la velocidad de la mano: tools/measure_sword_clips.tscn). sw3 lleva dos
 	# tajos antes del corte del fotograma 40; sw4 es la estocada final con avance.
 	"sw1": [0.72, 0.98],
@@ -799,6 +808,52 @@ func play_melee_special(anim_name: String) -> bool:
 	_schedule_dash(anim_name)
 	return true
 
+## ── Ataque cargado cuerpo a cuerpo (mantener clic izquierdo, WeaponStrategy.ComboMeleeStrategy) ──
+## Pose de carga: el golpe `clip` hasta `hold_t` s (la preparación) y ahí se queda sostenido. Se monta la primera vez
+## como "<clip>_charge" (sin ventanas de golpe: sus claves están después de hold_t).
+func play_melee_charge_pose(clip: String, hold_t: float, speed: float) -> bool:
+	var lib := anim_player.get_animation_library("") if anim_player else null
+	if lib == null or not lib.has_animation(clip):
+		return false
+	var pose := clip + "_charge"
+	if not lib.has_animation(pose):
+		lib.add_animation(pose, _make_hold_pose(lib.get_animation(clip), hold_t))
+	light_hits = 0
+	_combo_index = 0
+	_combo_timer = 0.0
+	_fire_action(pose, -1.0, speed)
+	_suppress_hit_window = true
+	return true
+
+## Carga con clips propios del arma: "<prefix>_charge_draw" (preparación) y luego "<prefix>_charge_hold" en bucle,
+## montados la primera vez como "<prefix>_charge" (como el tensado del arco). Sin ventanas de golpe.
+func play_melee_charge_loop(prefix: String, speed: float = 1.0) -> bool:
+	var lib := anim_player.get_animation_library("") if anim_player else null
+	var draw := prefix + "_charge_draw"
+	var hold := prefix + "_charge_hold"
+	if lib == null or not lib.has_animation(draw) or not lib.has_animation(hold):
+		return false
+	var pose := prefix + "_charge"
+	if not lib.has_animation(pose):
+		lib.add_animation(pose, _make_draw_hold(lib.get_animation(draw), lib.get_animation(hold), BOW_DRAW_LENGTH))
+	light_hits = 0
+	_combo_index = 0
+	_combo_timer = 0.0
+	_fire_action(pose, -1.0, speed)
+	_suppress_hit_window = true
+	return true
+
+## Suelta la carga: el mismo golpe desde la pose sostenida (sus ventanas de golpe salen como siempre).
+func play_melee_charged(clip: String, from_t: float, speed: float) -> void:
+	light_hits = 0
+	_combo_index = 0
+	_combo_timer = 0.0
+	# Sin fundido desde la pose (es la misma postura): el OneShot se relanza en el sitio. Fundiendo desde la pose
+	# sostenida, el OneShot heredaba su reloj y terminaba nada más empezar (no se abría la ventana de golpe).
+	_action_started = ""
+	_fire_action(clip, from_t, speed)
+	_action_elapsed = from_t
+
 ## ¿Se completaron los cuatro golpes ligeros y el combo sigue vivo? Entonces el especial es el clavado.
 func can_slam() -> bool:
 	if not is_instance_valid(anim_player) or not anim_player.get_animation_library("").has_animation(SLAM):
@@ -896,6 +951,11 @@ func _ensure_upper_filter() -> void:
 		var bone := skel.get_bone_name(b)
 		if not (bone.trim_prefix("mixamorig_") in LEG_BONES):
 			shot.set_filter_path(NodePath(str(_skel_path) + ":" + bone), true)
+	# La pista de métodos de las ventanas de golpe (_on_anim_hit_on) apunta a este nodo: sin ella en el filtro, el
+	# disparo andando nunca abría la ventana y la flecha no salía. Las anclas del arma van con los brazos.
+	shot.set_filter_path(anim_player.get_node(anim_player.root_node).get_path_to(self), true)
+	for n in _anchor_paths():
+		shot.set_filter_path(n, true)
 
 ## Impulso hacia delante sincronizado con el golpe de la animación.
 func _schedule_dash(anim_name: String) -> void:

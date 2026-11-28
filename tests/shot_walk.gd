@@ -10,6 +10,7 @@ extends Node
 ## "<arma>_combo", 18 fotogramas en 5,4 s pulsando atacar sin parar (el combo entero encadenado); con
 ## "espadon_correr" / "espada_correr", el arma tras 3 s andando (ya corre); "espadon_golpe" / "espadon_combo" como el resto;
 ## con "<arma>_especial", el especial (clic derecho) en 12 fotogramas repartidos en 2,4 s;
+## con "<arma>_gN", el golpe N del combo (maza_g2 = mace4) en 12 fotogramas repartidos en 2,4 s;
 ## con "maza_crater", el golpe al suelo (mace1) y después el mazazo con salto, desde arriba, para ver los cráteres.
 
 class FixedMove extends MovementSource:
@@ -98,6 +99,14 @@ func _run() -> void:
 			player.input_controller._direct_sources.erase(mover)
 			print("  corriendo -> %s" % player.animation_controller._current_action_name)
 		var shots := 18 if mode == "combo" else 12
+		# "<arma>_gN": el golpe N del combo (0 = primero), quieto, 12 fotogramas en 2,4 s
+		if mode.begins_with("g") and mode.substr(1).is_valid_int():
+			player.resources.energy = PlayerResources.ENERGY_MAX
+			player.combat_controller.attack_cooldown = 0.0
+			player.animation_controller._combo_index = int(mode.substr(1))
+			player.animation_controller._combo_timer = 1.0
+			player.attack()
+			print("  %s -> %s" % [full, player.animation_controller._current_action_name])
 		if mode == "crater":
 			player.resources.energy = PlayerResources.ENERGY_MAX
 			player.combat_controller.attack_cooldown = 0.0
@@ -147,7 +156,7 @@ func _run() -> void:
 			var step := 1.0 / 12.0
 			if mode == "golpe" or mode == "corriendo":
 				step = 1.8 / 12.0
-			elif mode == "especial":
+			elif mode == "especial" or (mode.begins_with("g") and mode.substr(1).is_valid_int()):
 				step = 2.4 / 12.0
 			elif mode == "combo":
 				step = 0.3

@@ -74,7 +74,8 @@ func _ready() -> void:
 	await get_tree().create_timer(1.6).timeout
 	assert(not scene.cinematic and scene.director.index == 0, "Saltar la intro empieza el tutorial")
 	assert(scene.player.process_mode == Node.PROCESS_MODE_INHERIT, "El héroe vuelve a moverse")
-	print("CHECK 3a PASSED: invocación -> tutorial")
+	assert(scene.cine.kidnapped and not scene.mage.visible and scene.cine.necro == null, "Saltar la intro deja al mago raptado")
+	print("CHECK 3a PASSED: invocación -> tutorial (mago raptado)")
 	# Móvil (RUMBANG_FORCE_MOBILE=1): joystick y botones de combate visibles al acabar la invocación
 	var tc := scene.find_child("MobileControls", true, false) as CanvasLayer
 	if Quality.is_mobile():

@@ -40,6 +40,9 @@ const STYLES := {
 	# Puños: cinta corta y ancha (del antebrazo a los nudillos) que se apaga rápido, con líneas de velocidad
 	"fist": {"life": 0.2, "tail": 0.3, "taper": 1.3, "energy": 1.5, "band": 0.25, "core_from": 0.5,
 		"core_gain": 1.1, "streaks": 4.0, "streak_amt": 0.45, "tail_pow": 1.2, "flow": 18.0},
+	# Flecha: cinta larga que se va cerrando hacia atrás (la flecha va a 30-50 m/s: 0,3 s son ~10 m de estela)
+	"arrow": {"life": 0.3, "tail": 0.05, "taper": 1.3, "energy": 1.8, "band": 0.35, "core_from": 0.5,
+		"core_gain": 1.4, "streaks": 2.0, "streak_amt": 0.3, "tail_pow": 1.2},
 	"spear": {"life": 0.2, "tail": 0.1, "taper": 1.8, "energy": 1.6, "band_from": 0.3, "band": 0.35,
 		"core_from": 0.65, "core_gain": 1.4, "streaks": 2.0, "streak_amt": 0.2},
 }

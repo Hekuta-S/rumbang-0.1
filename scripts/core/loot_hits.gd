@@ -48,6 +48,12 @@ static func outgoing(enemy: DungeonGoblin, amount: float) -> float:
 			RunLog.proc("cond:" + String(it["cond"]))
 			shown = String(c["name"])
 	mult += eq.chain_bonus() + DungeonRun.perk_bonus(eq)
+	if eq.rabbit_armed:
+		# Amuleto Pata de Conejo: este golpe multiplica y aturde (el aturdimiento, en after_hit)
+		eq.rabbit_armed = false
+		mult *= AmuletActives.rabbit_mult(eq.get_item("amuleto"))
+		enemy.set_meta("_amulet_stun", true)
+		shown = "¡SUERTE!"
 	if shown != "":
 		_pop(enemy, shown.to_upper(), Color(1.0, 0.9, 0.4))
 	return amount * mult
@@ -102,6 +108,10 @@ static func after_hit(enemy: DungeonGoblin, amount: float) -> void:
 						_pop(enemy, "ECO", Color(0.7, 0.5, 1.0))
 						RunLog.proc("maker:mohan")
 						_fx_damage(enemy, echo))
+	if enemy.has_meta("_amulet_stun"):
+		enemy.remove_meta("_amulet_stun")
+		if alive:
+			enemy.add_stun_fraction(1.0)
 	if eq.cazador_armed and alive:
 		eq.cazador_armed = false
 		RunLog.proc("rule:cazador")

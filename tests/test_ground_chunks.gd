@@ -6,6 +6,8 @@ extends Node
 var _fail := false
 var _n := 0
 const NORMAL_TOL := 0.01       ## error de la compresión de normales de Godot
+## El suelo real sale de TerrainNative (C++) y la referencia de aquí del GDScript: difieren en ~1e-5 m en algún punto
+const POS_TOL := 0.001
 
 func _check(ok: bool, msg: String) -> void:
 	_n += 1
@@ -27,6 +29,8 @@ func _ready() -> void:
 	var full := []
 	full.resize(Mesh.ARRAY_MAX)
 	m._build_terrain_arrays(full)
+	if m.district:
+		m.district.carve(full)             # como _build_terrain: el Barrio del Desagüe se talla sobre la malla
 	var side: int = m._side
 	var verts: PackedVector3Array = full[Mesh.ARRAY_VERTEX]
 	var normals: PackedVector3Array = full[Mesh.ARRAY_NORMAL]
@@ -60,7 +64,7 @@ func _ready() -> void:
 			var gj := int(round((cv[k].z + m.half_size) / m.cell_size))
 			var g := gj * side + gi
 			# Godot comprime las normales al guardar la malla: contra la rejilla, con tolerancia
-			if not cv[k].is_equal_approx(verts[g]) or cn[k].distance_to(normals[g]) > NORMAL_TOL:
+			if cv[k].distance_to(verts[g]) > POS_TOL or cn[k].distance_to(normals[g]) > NORMAL_TOL:
 				grid_ok = false
 			# Un vértice de borde aparece en 2-4 trozos: debe ser idéntico en todos (si no, se ve la costura)
 			if verts_set.has(g):

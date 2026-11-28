@@ -7,7 +7,7 @@
 > **Estimate**: L
 > **Build step**: core
 > **Manifest Version**: N/A (minimal — no control manifest)
-> **Last Updated**: [set by /dev-story when implementation begins]
+> **Last Updated**: 2026-11-22 (implementada; pendiente playtest)
 
 ## Context
 
@@ -29,15 +29,15 @@
 
 *From `design/game-brief.md` (Core loop historia, Goal & fail state, Features item 3):*
 
-- [ ] En Supervivencia, con `mago_rescatado` en `false`, aparece una jaula con el mago en el minuto 4 de la partida.
-- [ ] La jaula está custodiada por una oleada élite.
-- [ ] El jugador debe resistir unos segundos dentro de un radio de la jaula para abrirla, con barra de progreso visible.
-- [ ] Al abrirse, el mago queda libre, `mago_rescatado` pasa a `true` y se guarda (Story 001).
-- [ ] Si el jugador muere antes de abrirla, la jaula reaparece en la siguiente partida.
-- [ ] Con `mago_rescatado` en `true`, la jaula no aparece más.
-- [ ] La jaula y la oleada no rompen el aviso ni el jefe Nigromante (7:10).
-- [ ] El rescate se anuncia con un mensaje o diálogo corto del mago.
-- [ ] El mago tiene indicador visible en el mapa o brújula mientras la jaula existe.
+- [x] En Supervivencia, con `mago_rescatado` en `false`, aparece una jaula con el mago en el minuto 4 de la partida.
+- [x] La jaula está custodiada por una oleada élite.
+- [x] El jugador debe resistir unos segundos dentro de un radio de la jaula para abrirla, con barra de progreso visible.
+- [x] Al abrirse, el mago queda libre, `mago_rescatado` pasa a `true` y se guarda (Story 001).
+- [x] Si el jugador muere antes de abrirla, la jaula reaparece en la siguiente partida.
+- [x] Con `mago_rescatado` en `true`, la jaula no aparece más.
+- [x] La jaula y la oleada no rompen el aviso ni el jefe Nigromante (7:10).
+- [x] El rescate se anuncia con un mensaje o diálogo corto del mago.
+- [x] El mago tiene indicador visible en el mapa o brújula mientras la jaula existe. (Supervivencia no tiene minimapa: flecha en el borde de la pantalla con la distancia + columna de luz.)
 
 ---
 
@@ -58,11 +58,10 @@
 
 ## Files
 
-- `scripts/core/wave_manager.gd`
-- `scripts/core/run_events.gd`
-- `resources/wave_config.json`
-- `scripts/objects/mage_cage.gd` (nuevo)
-- `scenes/objects/mage_cage.tscn` (nuevo)
+- `scripts/objects/mage_cage.gd` (nuevo: jaula, mago, círculo, barra, flecha, rescate)
+- `scripts/core/run_events.gd` (`CAGE_TIME` 240 s, `spawn_mage_cage()`: 2 élites + 8 goblins, emboscada de 10 al entrar)
+- `scripts/ui/dungeon_hub.gd` (`DungeonHub.mage_look()` estático)
+- `tests/test_mage_cage.gd` / `.tscn`, `tests/shot_mage_cage.gd` / `.tscn` (`-- <png> [behind]`)
 
 ---
 

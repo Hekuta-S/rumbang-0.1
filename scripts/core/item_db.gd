@@ -110,6 +110,93 @@ var ITEMS: Dictionary = {
 		"description": "+25% velocidad, +40% daño y +20% armadura... pero 50% más enemigos y aparecen más rápido",
 		"rarity": Rarity.LEGENDARY, "stats": {"tryhard": 1}, "max_stacks": 1
 	},
+	# ── Pasivas únicas (ItemEffects: se disparan con eventos, no suman stats) ──
+	"totuma_chicha": {
+		"id": "totuma_chicha", "name": "Totuma de Chicha", "kind": "passive",
+		"description": "Al subir de nivel cura un 25% de la vida y te hace invulnerable 2 s",
+		"rarity": Rarity.UNCOMMON, "stats": {}, "max_stacks": 1
+	},
+	"sangre_mohan": {
+		"id": "sangre_mohan", "name": "Sangre de Mohán", "kind": "passive",
+		"description": "Robo de vida: cada golpe te cura un 2% del daño hecho",
+		"rarity": Rarity.RARE, "stats": {}, "max_stacks": 3
+	},
+	"ruana_llorona": {
+		"id": "ruana_llorona", "name": "Ruana de la Llorona", "kind": "passive",
+		"description": "Al recibir daño lanza un grito que aturde y empuja a los cercanos (cada 8 s)",
+		"rarity": Rarity.RARE, "stats": {}, "max_stacks": 1
+	},
+	"mecha_tejo": {
+		"id": "mecha_tejo", "name": "Mecha de Tejo", "kind": "passive",
+		"description": "Cada 8 golpes el siguiente estalla y daña alrededor del enemigo",
+		"rarity": Rarity.UNCOMMON, "stats": {}, "max_stacks": 3
+	},
+	"sombrero_vueltiao": {
+		"id": "sombrero_vueltiao", "name": "Sombrero Vueltiao", "kind": "passive",
+		"description": "Cada 15 bajas suelta un remolino que daña y aparta a los cercanos",
+		"rarity": Rarity.RARE, "stats": {}, "max_stacks": 1
+	},
+	"collar_madremonte": {
+		"id": "collar_madremonte", "name": "Collar de la Madremonte", "kind": "passive",
+		"description": "Los enemigos que caen pueden dejar una enredadera que ralentiza",
+		"rarity": Rarity.UNCOMMON, "stats": {}, "max_stacks": 1
+	},
+	"ojo_candileja": {
+		"id": "ojo_candileja", "name": "Ojo de Candileja", "kind": "passive",
+		"description": "Aura de fuego: quema a los enemigos pegados a ti",
+		"rarity": Rarity.LEGENDARY, "stats": {}, "max_stacks": 1
+	},
+	"hamaca_abuelo": {
+		"id": "hamaca_abuelo", "name": "Hamaca del Abuelo", "kind": "passive",
+		"description": "Quieto 1,5 s: curas 1,5 de vida por segundo y +20% de armadura",
+		"rarity": Rarity.COMMON, "stats": {}, "max_stacks": 1
+	},
+	"pacto_patasola": {
+		"id": "pacto_patasola", "name": "Pacto de la Patasola", "kind": "passive",
+		"description": "Revives una vez con la mitad de la vida; luego el pacto se rompe",
+		"rarity": Rarity.LEGENDARY, "stats": {}, "max_stacks": 1
+	},
+	"moneda_duende": {
+		"id": "moneda_duende", "name": "Moneda del Duende", "kind": "passive",
+		"description": "Las gemas de XP tienen un 15% de valer el doble (más con suerte)",
+		"rarity": Rarity.UNCOMMON, "stats": {}, "max_stacks": 2
+	},
+	# ── Activas (un solo hueco, tecla E / botón de habilidad; ItemEffects) ──
+	"trompo_guerra": {
+		"id": "trompo_guerra", "name": "Trompo de Guerra", "kind": "active", "cooldown": 18.0,
+		"description": "ACTIVA (E): un trompo gira a tu alrededor 5 s dañando a lo que toca",
+		"rarity": Rarity.RARE, "stats": {}, "max_stacks": 1
+	},
+	"machete_relampago": {
+		"id": "machete_relampago", "name": "Machete Relámpago", "kind": "active", "cooldown": 8.0,
+		"description": "ACTIVA (E): embestida de 8 m que corta a todo lo que cruzas",
+		"rarity": Rarity.UNCOMMON, "stats": {}, "max_stacks": 1
+	},
+	"garrafon_aguardiente": {
+		"id": "garrafon_aguardiente", "name": "Garrafón de Aguardiente", "kind": "active", "cooldown": 30.0,
+		"description": "ACTIVA (E): furia 6 s, +50% velocidad de ataque pero -15% armadura",
+		"rarity": Rarity.UNCOMMON, "stats": {}, "max_stacks": 1
+	},
+	"campana_iglesia": {
+		"id": "campana_iglesia", "name": "Campana de la Iglesia", "kind": "active", "cooldown": 25.0,
+		"description": "ACTIVA (E): una campanada congela 2 s a los enemigos cercanos",
+		"rarity": Rarity.RARE, "stats": {}, "max_stacks": 1
+	},
+	"totumo_polvora": {
+		"id": "totumo_polvora", "name": "Totumo de Pólvora", "kind": "active", "cooldown": 10.0,
+		"description": "ACTIVA (E): lanza una bomba a donde apuntas",
+		"rarity": Rarity.UNCOMMON, "stats": {}, "max_stacks": 1
+	},
+	"silbido_mohan": {
+		"id": "silbido_mohan", "name": "Silbido del Mohán", "kind": "active", "cooldown": 45.0,
+		"description": "ACTIVA (E): todas las gemas del mapa vuelan hacia ti",
+		"rarity": Rarity.UNCOMMON, "stats": {}, "max_stacks": 1
+	},
+	"tamal_emergencia": {
+		"id": "tamal_emergencia", "name": "Tamal de Emergencia", "kind": "active", "cooldown": 60.0,
+		"description": "ACTIVA (E): cura un 40% de la vida",
+		"rarity": Rarity.RARE, "stats": {}, "max_stacks": 1
+	},
 	# ── Sin efecto implementado todavía (suerte/críticos no existen) ──
 	"amuleto_tumbaga": {
 		"id": "amuleto_tumbaga", "name": "Amuleto de Tumbaga",
@@ -133,6 +220,13 @@ func get_items_by_rarity(rarity: int) -> Array:
 			result.append(item)
 	return result
 
+## "stat" (por defecto), "passive" (efecto único) o "active" (hueco de la tecla E).
+func kind_of(id: String) -> String:
+	return String(get_item(id).get("kind", "stat"))
+
+func is_active(id: String) -> bool:
+	return kind_of(id) == "active"
+
 func get_max_stacks(id: String) -> int:
 	return int(get_item(id).get("max_stacks", 5))
 
@@ -142,6 +236,8 @@ func get_available_items(inventory: InventoryComponent = null) -> Array:
 	for item in ITEMS.values():
 		if item.get("disabled", false):
 			continue
+		if item.has("kind") and GameData.game_mode == "dungeon":
+			continue   # pasivas y activas: solo supervivencia por ahora
 		if inventory and inventory.count_item(item["id"]) >= get_max_stacks(item["id"]):
 			continue
 		result.append(item)

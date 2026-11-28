@@ -41,6 +41,15 @@ static func _create(type: int) -> EnemyTypeFlyweight:
 			return EnemyTypeFlyweight.new(22.0, 1.4, 1.2, 2.0, 4, Vector3(0.9, 0.9, 0.9))
 		EnemyData.EnemyType.MORTAR_GOBLIN:
 			return EnemyTypeFlyweight.new(35.0, 1.8, 30.0, 5.0, 14, Vector3(1.05, 1.1, 1.05))
+		# Criaturas de las cloacas (sprites horneados a su tamaño: escala 1)
+		EnemyData.EnemyType.RAT:
+			return EnemyTypeFlyweight.new(14.0, 4.2, 1.0, 1.6, 3)
+		EnemyData.EnemyType.RAT_BIG:
+			return EnemyTypeFlyweight.new(65.0, 2.3, 1.4, 3.5, 10)
+		EnemyData.EnemyType.SLUG:
+			return EnemyTypeFlyweight.new(70.0, 1.9, 1.3, 3.0, 12)
+		EnemyData.EnemyType.BLOATER:
+			return EnemyTypeFlyweight.new(30.0, 3.4, 1.8, 5.0, 8)
 	push_error("Tipo de enemigo sin flyweight: %d" % type)
 	return EnemyTypeFlyweight.new(30.0, 2.0, 12.0, 2.0, 6)
 

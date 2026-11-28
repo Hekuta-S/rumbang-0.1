@@ -23,7 +23,11 @@ const DESCRIPTIONS := {
 	WeaponData.WeaponType.TRI_SHOTGUN: "Escopetazo en cono a corta distancia. Click derecho: ráfaga de cuatro disparos.",
 	WeaponData.WeaponType.DUSTS: "Polvos alquímicos que estallan donde caen. Click derecho: polvo a la cara (velocidad y vida).",
 	WeaponData.WeaponType.GIANT_MACE: "Una maza gigante dibujada aparece donde apuntas y pega en el suelo: daño en área y empuje.",
+	WeaponData.WeaponType.CROSSBOW: "Ballesta sniper: una flecha rapidísima que atraviesa a todos los enemigos en línea. Las mejoras suman flechas en cono.",
 	WeaponData.WeaponType.SERPENTS: "Invoca al Komodo, un espíritu que azota con la cola. Ataques variados y con sangrado.",
+	WeaponData.WeaponType.PISTOL: "Pistola: disparos precisos tiro a tiro. Disparar muy seguido abre un poco la mira.",
+	WeaponData.WeaponType.RIFLE: "Fusil automático: mantén el clic para disparar sin parar. La ráfaga larga se va abriendo.",
+	WeaponData.WeaponType.FIRE_STAFF: "Bastón de fuego: lanza bolas de fuego que estallan en área y queman a los enemigos. Gasta maná.",
 }
 const ICONS := {
 	WeaponData.WeaponType.SPEAR_LANCE: "res://assets/ui/ingame_hub/armas/espalanza.png",
@@ -37,6 +41,7 @@ const ICONS := {
 	WeaponData.WeaponType.SWORD: "res://assets/ui/ingame_hub/armas/espada.png",
 	WeaponData.WeaponType.BOW: "res://assets/ui/ingame_hub/armas/arco.png",
 	WeaponData.WeaponType.ELEMENTS_CYCLE: "res://assets/ui/ingame_hub/armas/magia-saimon.png",
+	WeaponData.WeaponType.PISTOL: "res://assets/ui/ingame_hub/armas/pistola.png",
 	# Dibujadas con tools/make_ui_icons.py (2026-11-19)
 	WeaponData.WeaponType.ENERGY_SWORD: "res://assets/ui/ingame_hub/armas/espada_energia.png",
 	WeaponData.WeaponType.KATANA: "res://assets/ui/ingame_hub/armas/katana.png",
@@ -46,6 +51,7 @@ const ICONS := {
 	WeaponData.WeaponType.ZOMBIE_ARM: "res://assets/ui/ingame_hub/armas/brazo_zombi.png",
 	WeaponData.WeaponType.FISTS: "res://assets/ui/ingame_hub/armas/punos.png",
 	WeaponData.WeaponType.GIANT_MACE: "res://assets/ui/ingame_hub/armas/maza_gigante.png",
+	WeaponData.WeaponType.CROSSBOW: "res://assets/ui/ingame_hub/armas/arco.png",
 }
 
 var _options: Array = []
@@ -106,12 +112,15 @@ func _build(level: int) -> void:
 	UiJuice.deal_in(row.get_children(), 0.12)
 	# Saltar: quedarse con las armas actuales sin reemplazar nada
 	var skip := Button.new()
-	skip.text = "PASAR · CONSERVAR MIS ARMAS  (Esc / B)"
+	skip.text = "PASAR · CONSERVAR MIS ARMAS  (Esc / %s)" % GamepadUI.label_for("B")
 	skip.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	skip.pressed.connect(_pick.bind(SKIP))
 	vbox.add_child(skip)
 	var hint := Label.new()
-	hint.text = ("Clic o teclas 1 - %d" % _options.size()) if _options.size() > 2 else "Clic o teclas 1 / 2"
+	if GamepadUI.using_pad():
+		hint.text = GamepadUI.pad_text("Cruceta / stick para elegir   A: confirmar   B: pasar")
+	else:
+		hint.text = ("Clic o teclas 1 - %d" % _options.size()) if _options.size() > 2 else "Clic o teclas 1 / 2"
 	var inv = null
 	var pl := get_tree().get_first_node_in_group("player")
 	if pl:

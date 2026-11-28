@@ -52,11 +52,11 @@ const BRUTE_ATTACKS := {
 		"attack_time": 0.5, "window": Vector2(0.1, 0.26), "lunge": 3.0, "dash": 0.0,
 		"damage": 3.0, "recover": 0.8},
 	"smash": {"range": [1.2, 3.4], "weight": 2, "cooldown": 0.0, "shape": "circle", "radius": 1.5, "center": 2.3,
-		"windup_clip": "smash_windup", "attack_clip": "smash", "windup": 1.0, "track": 0.7,
+		"windup_clip": "smash_windup", "attack_clip": "smash", "windup": 1.45, "track": 0.7,
 		"attack_time": 0.6, "window": Vector2(0.12, 0.24), "lunge": 4.0, "dash": 0.0,
 		"damage": 5.0, "recover": 1.4, "shake": 0.55},
 	"stomp": {"range": [0.0, 1.5], "weight": 2, "cooldown": 4.0, "shape": "circle", "radius": 3.0, "center": 0.0,
-		"windup_clip": "stomp_windup", "attack_clip": "stomp", "windup": 0.85, "track": 0.0,
+		"windup_clip": "stomp_windup", "attack_clip": "stomp", "windup": 1.4, "track": 0.0,
 		"attack_time": 0.55, "window": Vector2(0.1, 0.22), "lunge": 0.0, "dash": 0.0,
 		"damage": 3.0, "recover": 1.0, "shake": 0.45},
 	"charge": {"range": [4.5, 10.0], "weight": 1, "cooldown": 7.0, "shape": "line", "reach": 9.0, "width": 2.0,
@@ -85,6 +85,7 @@ func _init() -> void:
 	armor = 20.0
 	armor_break = 44.0
 	glance_armor = true
+	launch_mult = 0.55            # pesado: apenas se despega del suelo
 	knock_scale = 0.25
 	warn_sfx = "brute_warn"
 	swing_sfx = "brute_swing"

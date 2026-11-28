@@ -13,10 +13,12 @@ const HALF := 14.0                       ## medio lado del patio
 const WALL_H := 6.0
 const PLAYER_START := Vector3(0.0, 0.3, 2.5)   ## el círculo de invocación (TutorialCinematic.CIRCLE)
 const BALCONY_TOP := 1.6
-const SPEAKERS := {"rey": ["El Rey", Color(1.0, 0.78, 0.3)], "mago": ["El Mago", Color(0.45, 0.8, 1.0)]}
+const SPEAKERS := {"rey": ["El Rey", Color(1.0, 0.78, 0.3)], "mago": ["El Mago", Color(0.45, 0.8, 1.0)],
+	"necro": ["El Nigromante", Color(0.75, 0.3, 1.0)]}
+## Despedida (el mago ya no está: lo raptó el Nigromante en la invocación, ver TutorialCinematic).
 const OUTRO := [
-	["mago", "Nada mal para alguien en calzones. Te llevo al salón: allí están los portales."],
-	["rey", "¡Y vuelve vivo! Las mazmorras no se limpian solas."],
+	["rey", "Nada mal para alguien en calzones. Sin el mago, los portales del salón siguen cerrados."],
+	["rey", "Ve a la arena: el Nigromante lo tiene allí. ¡Y vuelve vivo!"],
 ]
 
 signal finished
@@ -611,6 +613,7 @@ func skip_tutorial() -> void:
 	skipped = true
 	if cinematic:
 		cine.running = false
+		cine.apply_kidnap_end()
 		cinematic = false
 		hud.visible = true
 		player.visible = true

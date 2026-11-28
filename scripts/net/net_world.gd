@@ -167,7 +167,7 @@ func _recv_player_state(state: Array) -> void:
 
 # ───────────────────────────── Enemigos (anfitrión) ─────────────────────────────
 
-const KINDS := ["goblin", "brute", "mage", "zombie", "necro", "rat", "slug", "slug_small", "rat_king", "rat_big", "slug_red"]
+const KINDS := ["goblin", "brute", "mage", "zombie", "necro", "rat", "slug", "slug_small", "rat_king", "rat_big", "slug_red", "bat"]
 
 static func kind_of(e: Node) -> String:
 	if e is DungeonRatKing: return "rat_king"
@@ -178,6 +178,7 @@ static func kind_of(e: Node) -> String:
 	if e is DungeonBigRat: return "rat_big"
 	if e is DungeonRat: return "rat"
 	if e is DungeonBloater: return "slug_red"
+	if e is DungeonBat: return "bat"
 	if e is DungeonSlug: return "slug_small" if e.small else "slug"
 	return "goblin"
 
@@ -193,6 +194,7 @@ static func create_enemy(kind: String) -> DungeonGoblin:
 		"rat_king": return DungeonRatKing.new()
 		"rat_big": return DungeonBigRat.new()
 		"slug_red": return DungeonBloater.new()
+		"bat": return DungeonBat.new()
 	return DungeonGoblin.new()
 
 ## Lo llama cada enemigo del anfitrión al entrar en escena (incluye los invocados por el Nigromante).

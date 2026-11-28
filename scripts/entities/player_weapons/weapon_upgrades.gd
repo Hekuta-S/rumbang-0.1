@@ -70,6 +70,22 @@ const GIANT_MACE_UPGRADES := [
 		"effect": {"key": "cooldown", "per_level": 0.9, "kind": "mul"}},
 ]
 
+## Mejoras de la Ballesta Sniper: más flechas en cono, daño, enfriamiento y apertura.
+const CROSSBOW_UPGRADES := [
+	{"id": "arrow_count", "name": "Flecha extra", "max_level": 6,
+		"desc": "+1 flecha por disparo, en cono (máx. 7)",
+		"effect": {"key": "quantity_bonus", "per_level": 1.0, "kind": "add"}},
+	{"id": "damage", "name": "Virote templado", "max_level": 5,
+		"desc": "+15% daño",
+		"effect": {"key": "damage", "per_level": 0.15, "kind": "add"}},
+	{"id": "attack_speed", "name": "Manivela rápida", "max_level": 5,
+		"desc": "-10% enfriamiento del disparo",
+		"effect": {"key": "cooldown", "per_level": 0.9, "kind": "mul"}},
+	{"id": "size", "name": "Cono abierto", "max_level": 4,
+		"desc": "+15% apertura del cono",
+		"effect": {"key": "size", "per_level": 0.15, "kind": "add"}},
+]
+
 ## Mejoras del Hacha Giratoria (Riva): daño, tiempo girando en el sitio, tamaño y cantidad de hachas.
 const SPINNING_AXE_UPGRADES := [
 	{"id": "damage", "name": "Filo giratorio", "max_level": 5,
@@ -191,7 +207,8 @@ static func has_specific(weapon_type: int) -> bool:
 		WeaponData.WeaponType.ZOMBIE_ARM, WeaponData.WeaponType.FLAME_THROWER,
 		WeaponData.WeaponType.SPORE_BAZOOKA, WeaponData.WeaponType.DUSTS, WeaponData.WeaponType.SERPENTS,
 		WeaponData.WeaponType.TRI_SHOTGUN, WeaponData.WeaponType.SPINNING_AXE,
-		WeaponData.WeaponType.ELEMENTS_CYCLE, WeaponData.WeaponType.GIANT_MACE]
+		WeaponData.WeaponType.ELEMENTS_CYCLE, WeaponData.WeaponType.GIANT_MACE,
+		WeaponData.WeaponType.CROSSBOW]
 
 static func for_weapon(weapon_type: int) -> Array:
 	match weapon_type:
@@ -213,6 +230,8 @@ static func for_weapon(weapon_type: int) -> Array:
 			return ELEMENTS_CYCLE_UPGRADES
 		WeaponData.WeaponType.GIANT_MACE:
 			return GIANT_MACE_UPGRADES
+		WeaponData.WeaponType.CROSSBOW:
+			return CROSSBOW_UPGRADES
 	return TABLE.get(weapon_type, [])
 
 static func get_def(weapon_type: int, upgrade_id: String) -> Dictionary:

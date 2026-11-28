@@ -90,12 +90,35 @@ static func fire_slam(e: EnemyData) -> void:
 		target.y = EnemyManager.floor_y(target.x, target.z)
 		GroundBlast.spawn(root, target, SLAM_RADIUS, SLAM_DELAY, e.damage * SLAM_DAMAGE_MULT, Color(1.0, 0.45, 0.2))
 
+## Reventón de la babosa roja: círculo con aviso corto a sus pies. Ella muere en el estallido (sin segundo golpe).
+const BURST_RADIUS := 2.6
+const BURST_DELAY := 0.05
+const BLOAT_TRIGGER := 1.9          ## m: a esta distancia empieza a hincharse
+const BLOAT_INFLATE := 0.9          ## s hinchándose (parpadea) antes de reventar
+const BLOAT_RED := Color(1.0, 0.25, 0.1)
+const BLOAT_DEATH_RADIUS := 2.2     ## si la matan antes, revienta igual tras BLOAT_DEATH_FUSE s, más pequeño
+const BLOAT_DEATH_FUSE := 0.6
+const BLOAT_DEATH_DAMAGE_MULT := 0.6
+
+static func fire_burst(e: EnemyData) -> void:
+	var root = EnemyManager.scene_root()
+	if root != null:
+		GroundBlast.spawn(root, e.global_position, BURST_RADIUS, BURST_DELAY, e.damage, BLOAT_RED)
+	e.special_hit = true                # ya reventó: su muerte no vuelve a soltar el estallido pequeño
+	e.hp = 0.0
+	e.enemy_died.emit(e, e.global_position, e.gold_reward)
+	e.recycle()
+
 ## Golpe cuerpo a cuerpo (o embestida, con `mult`) al jugador.
 static func hit_player(e: EnemyData, mult: float = 1.0) -> void:
 	if e.player != null and is_instance_valid(e.player) and e.player.has_method("take_damage"):
 		if not can_reach_vertically(e.global_position.y, (e.player as Node3D).global_position.y):
 			return                       # el jugador está muy arriba (meseta, plataforma, rebote): el golpe no llega
 		e.player.take_damage(e.damage * mult)
+		if e.type == EnemyData.EnemyType.SLUG:
+			var root = EnemyManager.scene_root()
+			if root != null:
+				SlimePuddle.spawn(root, e.global_position, 0.9 * e.scale.x)   # la babosa deja baba donde pega
 
 ## El cuerpo a cuerpo mide la distancia en horizontal; esto añade el alcance vertical. Pura.
 const MELEE_REACH_Y := 1.8
@@ -262,6 +285,9 @@ class MeleeGoblinBehavior extends EnemyBehavior:
 		return (tangent * ORBIT_SPEED + radial * radial_err) * effective_speed
 
 class NormalGoblinBehavior extends MeleeGoblinBehavior:
+	## Minuto de partida (s) desde el que embiste; las ratas, que lo heredan, lo hacen desde el principio.
+	var lunge_from := LUNGE_FROM
+
 	func get_knockback_resistance() -> float:
 		return 0.85
 
@@ -292,7 +318,7 @@ class NormalGoblinBehavior extends MeleeGoblinBehavior:
 				enemy.special_state = 0
 				enemy.special_cd = randf_range(LUNGE_COOLDOWN.x, LUNGE_COOLDOWN.y)
 			return enemy.special_dir * effective_speed * LUNGE_SPEED_MULT
-		if enemy.lunger and enemy.special_cd <= 0.0 and dist >= LUNGE_MIN and dist <= LUNGE_MAX and elapsed() >= LUNGE_FROM:
+		if enemy.lunger and enemy.special_cd <= 0.0 and dist >= LUNGE_MIN and dist <= LUNGE_MAX and elapsed() >= lunge_from:
 			enemy.special_state = 1
 			enemy.special_t = LUNGE_WINDUP
 			return Vector3.ZERO
@@ -349,3 +375,59 @@ class ZombieGoblinBehavior extends MeleeGoblinBehavior:
 			"walk": "res://assets/models/entities/enemigos/goblins/goblin_caminar_zombie.fbx",
 			"tex": "res://assets/textures/enemigos/textura_zombie_goblin.png"
 		}
+
+## ── Criaturas de las cloacas (sprites 2D; ver EnemyVisuals.CREATURE_KEYS y native/src/enemy_sim_native.cpp) ──
+
+## Rata: pequeña y veloz; embiste (se agazapa y se lanza en línea) desde que aparece, como el goblin normal.
+class RatBehavior extends NormalGoblinBehavior:
+	func get_knockback_resistance() -> float:
+		return 1.1                                      # se la lleva cualquier golpe
+
+	func apply_config() -> void:
+		lunge_from = 0.0
+		EnemyTypeFlyweightFactory.get_flyweight(EnemyData.EnemyType.RAT).apply_to(enemy)
+		enemy.lunger = randf() < 0.75
+		enemy.special_cd = randf_range(1.5, LUNGE_COOLDOWN.y)
+
+class BigRatBehavior extends RatBehavior:
+	func get_knockback_resistance() -> float:
+		return 0.5
+
+	func apply_config() -> void:
+		lunge_from = 0.0
+		EnemyTypeFlyweightFactory.get_flyweight(EnemyData.EnemyType.RAT_BIG).apply_to(enemy)
+		enemy.lunger = randf() < 0.5
+		enemy.special_cd = randf_range(3.0, LUNGE_COOLDOWN.y)
+
+## Babosa: lenta y blanda; cuerpo a cuerpo con turnos y deja baba donde pega (ver hit_player). Al morir suelta
+## dos crías (WaveManager._on_enemy_died_internal).
+class SlugBehavior extends MeleeGoblinBehavior:
+	func get_knockback_resistance() -> float:
+		return 0.5
+
+	func apply_config() -> void:
+		EnemyTypeFlyweightFactory.get_flyweight(EnemyData.EnemyType.SLUG).apply_to(enemy)
+
+## Babosa roja: corre a por el jugador, se planta a BLOAT_TRIGGER m, parpadea BLOAT_INFLATE s y revienta.
+class BloaterBehavior extends EnemyBehavior:
+	func get_knockback_resistance() -> float:
+		return 0.7
+
+	func apply_config() -> void:
+		EnemyTypeFlyweightFactory.get_flyweight(EnemyData.EnemyType.BLOATER).apply_to(enemy)
+
+	func process_ai(delta: float, to_player: Vector3, dist: float, effective_speed: float) -> Vector3:
+		if enemy.special_state == 1:
+			enemy.special_t -= delta
+			enemy.vat_flash = 0.15
+			if enemy.special_t <= 0.0:
+				enemy.special_state = 2
+				fire_burst(enemy)
+			return Vector3.ZERO
+		if enemy.special_state == 2:
+			return Vector3.ZERO
+		if dist <= BLOAT_TRIGGER:
+			enemy.special_state = 1
+			enemy.special_t = BLOAT_INFLATE
+			return Vector3.ZERO
+		return to_player.normalized() * effective_speed if dist > 0.0 else Vector3.ZERO

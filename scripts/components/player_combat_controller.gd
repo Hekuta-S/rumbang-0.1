@@ -80,6 +80,10 @@ func _ready() -> void:
 	_strategies[WeaponData.WeaponType.FISTS] = WeaponStrategy.FistsStrategy.new(self)
 	_strategies[WeaponData.WeaponType.BOW] = WeaponStrategy.BowStrategy.new(self)
 	_strategies[WeaponData.WeaponType.GIANT_MACE] = WeaponStrategy.GiantMaceStrategy.new(self)
+	_strategies[WeaponData.WeaponType.CROSSBOW] = WeaponStrategy.CrossbowStrategy.new(self)
+	_strategies[WeaponData.WeaponType.PISTOL] = WeaponStrategy.PistolStrategy.new(self)
+	_strategies[WeaponData.WeaponType.RIFLE] = WeaponStrategy.RifleStrategy.new(self)
+	_strategies[WeaponData.WeaponType.FIRE_STAFF] = WeaponStrategy.FireStaffStrategy.new(self)
 
 
 const INPUT_BUFFER_TIME: float = 0.28
@@ -87,6 +91,7 @@ var _attack_buffer_timer: float = 0.0
 
 func _process(delta: float) -> void:
 	_update_spear_charge(delta)
+	_update_melee_charges(delta)
 	var bow = _strategies.get(WeaponData.WeaponType.BOW)
 	if bow:
 		bow.update_charge(delta)
@@ -286,6 +291,60 @@ func fists_special() -> bool:
 func katana_special() -> bool:
 	var strategy = _strategies.get(WeaponData.WeaponType.KATANA)
 	return strategy != null and strategy.katana_special()
+
+## ── Ataque cargado cuerpo a cuerpo (mantener clic izquierdo, mazmorra) ──
+## PlayerInputController avisa cuando el clic lleva CHARGE_HOLD s pulsado (request) y cuando se suelta (release).
+## Si la carga no puede empezar aún (en mitad de un golpe) se reintenta cada fotograma; si no puede salir (sin
+## energía, arma sin carga), el clic cuenta como un golpe normal.
+var _melee_charge_wanted := false
+
+func _melee_strategy():
+	var s = _strategies.get(player.current_weapon())
+	return s if s is WeaponStrategy.ComboMeleeStrategy else null
+
+## ¿El arma actual tiene ataque cargado? (lo pregunta PlayerInputController para retrasar el golpe al soltar).
+func has_melee_charge() -> bool:
+	var s = _melee_strategy()
+	return s != null and s.can_charge()
+
+func request_melee_charge() -> void:
+	_melee_charge_wanted = true
+	_try_start_melee_charge()
+
+func release_melee_charge() -> void:
+	var s = _melee_strategy()
+	if s != null and s.charge >= 0.0:
+		_melee_charge_wanted = false
+		s.release_charge()
+		return
+	if _melee_charge_wanted:
+		_melee_charge_wanted = false
+		player.attack()      # nunca llegó a cargar: el clic es un golpe normal
+
+func is_melee_charging() -> bool:
+	var s = _melee_strategy()
+	return s != null and s.charge >= 0.0
+
+func melee_charge_power() -> float:
+	var s = _melee_strategy()
+	return s.charge_power() if s != null else -1.0
+
+func _try_start_melee_charge() -> void:
+	if not _melee_charge_wanted:
+		return
+	var s = _melee_strategy()
+	var r: int = s.try_start_charge() if s != null else -1
+	if r != 0:
+		_melee_charge_wanted = false
+	if r < 0:
+		player.attack()
+
+func _update_melee_charges(delta: float) -> void:
+	_try_start_melee_charge()
+	for w in _strategies:
+		var s = _strategies[w]
+		if s is WeaponStrategy.ComboMeleeStrategy and s.charge >= 0.0:
+			s.update_charge(delta)
 
 ## Arco: el clic derecho mantenido tensa y al soltarlo sale la flecha cargada (BowStrategy).
 func start_bow_charge() -> bool:
@@ -501,7 +560,7 @@ func _face_dir(dir: Vector3, hold_s: float) -> void:
 		mc.face_lock_until = maxf(mc.face_lock_until, Time.get_ticks_msec() / 1000.0 + hold_s)
 
 func buffer_attack() -> void:
-	if spear_charge >= 0.0 or is_bow_charging(): return
+	if spear_charge >= 0.0 or is_bow_charging() or is_melee_charging(): return
 	_attack_buffer_timer = INPUT_BUFFER_TIME
 	_try_consume_buffered_attack()
 
@@ -510,6 +569,7 @@ func is_attack_buffered() -> bool:
 
 func _try_consume_buffered_attack() -> void:
 	if _attack_buffer_timer <= 0.0: return
+	if is_melee_charging(): return
 	# Durante la esquiva el clic se guarda y sale al terminar el rodamiento
 	if player.movement_controller and player.movement_controller.is_dodging(): return
 	# En guardia (parry) tampoco: el clic sale al terminar la postura

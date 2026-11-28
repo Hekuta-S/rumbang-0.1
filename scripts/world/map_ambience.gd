@@ -10,13 +10,20 @@ extends Node
 ## Los sonidos los genera tools/generate_ambient_sfx.py (assets/sfx/amb_*.wav).
 ## Uso: MapAmbience.new() → add_child → setup(mapa, jugador). Lo crea GameStartFacade.
 
-## Modos: "always", "day" / "night" (supervivencia, según la fase del ciclo) y "water" (cerca de un canal).
+## Modos: "always", "day" / "night" (supervivencia, según la fase del ciclo), "water" (más fuerte cerca de un
+## canal) y "canal" (solo cerca de un canal: el Barrio del Desagüe de Supervivencia).
 const PROFILES := {
 	"survival": {
-		"beds": [["amb_wind_day", -17.0, "day"], ["amb_wind_night", -15.0, "night"]],
+		"beds": [["amb_wind_day", -17.0, "day"], ["amb_wind_night", -15.0, "night"], ["amb_sewer", -15.0, "canal"]],
 		# [sonido, dB, peso, modo]
 		"shots": [["amb_crow", -9.0, 3.0, "day"], ["amb_gust", -10.0, 2.0, "always"], ["amb_creak", -12.0, 1.5, "always"],
 			["amb_owl", -9.0, 3.0, "night"]],
+	},
+	# Supervivencia en Cloacas (ProceduralMap theme "sewers"): agua corriendo en todo el mapa y viento de noche
+	"survival_sewers": {
+		"beds": [["amb_sewer", -14.0, "water"], ["amb_wind_night", -18.0, "night"]],
+		"shots": [["amb_drip", -10.0, 3.0, "always"], ["amb_pipe_groan", -11.0, 2.0, "always"], ["amb_squeak", -13.0, 2.0, "always"],
+			["amb_chain", -15.0, 1.0, "always"], ["amb_crow", -11.0, 1.0, "day"]],
 	},
 	"caves": {
 		"beds": [["amb_cave", -13.0, "always"]],
@@ -58,6 +65,8 @@ static func profile_for(map: Node) -> String:
 		if w == "":
 			w = GameData.world if "world" in GameData else WorldDefs.DEFAULT
 		return w if PROFILES.has(w) else "caves"
+	if map.has_method("get_theme") and map.get_theme() == "sewers":
+		return "survival_sewers"
 	return "survival"
 
 ## Emisores 3D a la vez: cada uno mezcla en cada frame, así que en móvil y en calidad baja van menos.
@@ -178,6 +187,8 @@ func gain_for(mode: String) -> float:
 			return night()
 		"water":
 			return lerpf(WATER_FLOOR, 1.0, water_near())
+		"canal":
+			return water_near()
 	return 1.0
 
 func _update_beds() -> void:

@@ -84,7 +84,7 @@ func _total(stat: String) -> float:
 	if _equipment:
 		t += _equipment.get_stat_addition(stat)
 	if GameData.game_mode != "dungeon":
-		t += TomeDB.stat_total(stat) + MetaShop.stat_total(stat)
+		t += TomeDB.stat_total(stat) + MetaShop.stat_total(stat) + ItemEffects.stat_total(stat)
 	else:
 		t += SoulStats.stat_total(stat, _current_weapon())   # niveles del yunque (tipo Dark Souls)
 	return t + DungeonRun.focus_stat(stat) + FateDice.stat_total(stat)   # mejoras/castigos del dado del destino

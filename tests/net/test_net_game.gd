@@ -56,6 +56,7 @@ func _host() -> void:
 	assert(await _wait_for(func(): return Net.players.size() == 2, 30.0), "Entra el cliente")
 	Net.set_my_char(0)
 	await get_tree().create_timer(0.5).timeout
+	SaveManager.mago_rescatado = true   # la mazmorra se abre con el mago rescatado
 	Net.start_game()
 	await _load_game()
 	print("HOST semilla=", _enc.map.used_seed, " net_seed=", Net.level_seed)

@@ -33,13 +33,22 @@ const EARLY_RAMP_S: float = 180.0
 ## Modo infinito: vida y daño extra por minuto pasado el jefe.
 const ENDLESS_HP_PER_MINUTE: float = 0.45
 const ENDLESS_DAMAGE_PER_MINUTE: float = 0.12
+## Menos enemigos en toda la partida (ajuste global sobre el director): el intervalo entre lotes se
+## multiplica por SPAWN_INTERVAL_MULT y el tope de vivos por ALIVE_CAP_MULT.
+const SPAWN_INTERVAL_MULT: float = 1.25
+const ALIVE_CAP_MULT: float = 0.85
+## Los enemigos que aparecen van siendo más rápidos: +SPEED_PER_MINUTE por minuto de partida, hasta
+## +SPEED_MAX_BONUS (se alcanza hacia el minuto 9; el modo infinito no lo supera).
+const SPEED_PER_MINUTE: float = 0.04
+const SPEED_MAX_BONUS: float = 0.35
 ## Cofre maldito: más enemigos por lote mientras dura.
 const CURSE_BATCH_MULT: float = 1.6
 
-const PLAYABLE_MIN_X: float = -95.0
-const PLAYABLE_MAX_X: float = 95.0
-const PLAYABLE_MIN_Z: float = -95.0
-const PLAYABLE_MAX_Z: float = 95.0
+## = ProceduralMap.play_half (143) menos un margen: el mapa de Supervivencia mide 320 m de lado (antes ±95).
+const PLAYABLE_MIN_X: float = -140.0
+const PLAYABLE_MAX_X: float = 140.0
+const PLAYABLE_MIN_Z: float = -140.0
+const PLAYABLE_MAX_Z: float = 140.0
 
 var spawn_timer: Timer
 var player: Node3D
@@ -102,6 +111,7 @@ func start_run(p_player: Node3D) -> void:
 	_boss = null
 	_boss_spawned = false
 	_near_pending = 0
+	_flyer_next = 0.0
 	endless = false
 	_rush_announced = false
 	_curse_until = 0.0
@@ -129,6 +139,174 @@ func _process(_delta: float) -> void:
 		_pending_spawns -= 1
 		budget -= 1
 		_spawn_single_enemy()
+	_tick_flyers()
+	_tick_critters()
+
+# ── Voladores (cuervos) ──────────────────────────────────────────────────
+## Desde FLYER_FROM s sueltan cuervos (DungeonCrow) aparte de la horda: son nodos con su propia IA, no EnemyData.
+## El tope sube con el tiempo (flyer_cap) y se reparte el aparecer cada FLYER_GAP s.
+const FLYER_FROM := 60.0
+const FLYER_GAP := 11.0
+const FLYER_HEIGHT := 3.0             ## m sobre el suelo a los que aparecen
+var _flyer_next := 0.0
+
+## Cuervos vivos a la vez que permite el minuto `minutes` de partida.
+static func flyer_cap(minutes: float) -> int:
+	return clampi(1 + int(minutes * 1.1), 1, 7)
+
+func flyer_count() -> int:
+	var n := 0
+	for e in get_tree().get_nodes_in_group("flyers"):
+		if is_instance_valid(e) and not e.is_dead():
+			n += 1
+	return n
+
+func _tick_flyers() -> void:
+	if not _running or GameData.game_mode != "survival" or player == null or not is_instance_valid(player):
+		return
+	var t := _elapsed()
+	if t < FLYER_FROM or t < _flyer_next:
+		return
+	_flyer_next = t + FLYER_GAP * randf_range(0.8, 1.3)
+	if flyer_count() >= int(ceil(flyer_cap(t / 60.0) * Quality.crowd_factor)):
+		return
+	spawn_flyer()
+
+## Suelta un cuervo (en el anillo de aparición, en el aire) con la vida y el daño del momento de la partida.
+func spawn_flyer(at: Vector3 = Vector3.INF) -> DungeonCrow:
+	var pos: Vector3 = _random_spawn_pos() if at == Vector3.INF else at
+	pos.y += FLYER_HEIGHT
+	var crow := DungeonCrow.new()
+	crow.name = "Crow"
+	crow.position = pos
+	crow.add_to_group("flyers")
+	var sc := _stat_scale()
+	get_parent().add_child(crow)
+	crow.max_hp *= sc.x
+	crow.hp = crow.max_hp
+	crow.damage_mult = 1.6 * sc.y         # un mordisco de 1,5 → lo que pega un goblin normal de supervivencia
+	crow.died.connect(_on_flyer_died)
+	return crow
+
+func _on_flyer_died(crow: DungeonGoblin) -> void:
+	RunStats.kills += 1
+	var p := crow.global_position
+	var ground: float = crow.ground_y() if crow.has_method("ground_y") else p.y
+	var xp := XpCurve.xp_for_type(EnemyData.EnemyType.NORMAL_GOBLIN) * DungeonCrow.XP_MULT
+	enemy_died.emit(Vector3(p.x, ground, p.z), crow.gold_reward, xp * xp_rush_mult(_elapsed(), wave_config))
+
+# ── Criaturas de las cloacas (ratas y babosas) ───────────────────────────
+## Desde CRITTER_FROM s salen ratas, babosas y babosas rojas aparte de la horda. Son EnemyData como los goblins
+## (los mueve EnemySimNative en C++, con el enrutado de mesetas y rampas) y se dibujan como sprites 2D horneados
+## (EnemyVisuals.CREATURE_KEYS). Aparecen en el anillo normal; dentro del Barrio del Desagüe hay más y salen antes.
+const CRITTER_FROM := 40.0
+const CRITTER_FROM_SEWERS := 8.0      ## mapa de Cloacas: casi desde el principio
+const SEWER_KIND_PACE := 2.0          ## y babosas, rojas y gordas llegan el doble de pronto
+const CRITTER_GAP := 8.0
+## tipo, peso, minuto desde el que salen, tamaño del grupo
+const CRITTER_KINDS := {
+	"rat": {"type": EnemyData.EnemyType.RAT, "weight": 5.0, "from": 0.0, "pack": [3, 5]},
+	"slug": {"type": EnemyData.EnemyType.SLUG, "weight": 2.0, "from": 1.5, "pack": [1, 1]},
+	"bloater": {"type": EnemyData.EnemyType.BLOATER, "weight": 1.5, "from": 2.0, "pack": [1, 2]},
+	"rat_big": {"type": EnemyData.EnemyType.RAT_BIG, "weight": 1.2, "from": 2.5, "pack": [1, 1]},
+}
+const CRITTER_SEWER_BONUS := 1.6      ## el tope sube así dentro del barrio
+const CRITTER_SEWER_GAP := 0.6        ## y el intervalo se acorta así
+const SLUG_SPLIT := 2                 ## crías que suelta la babosa al morir
+var _critter_next := 0.0
+
+## Criaturas vivas a la vez que permite el minuto `minutes` de partida.
+static func critter_cap(minutes: float) -> int:
+	return clampi(4 + int(minutes * 2.0), 4, 18)
+
+func critter_count() -> int:
+	var n := 0
+	for e in EnemyRegistry.all():
+		if e is EnemyData and not e.recycled and EnemyVisuals.is_creature_idx(e.vat_idx):
+			n += 1
+	return n
+
+## ¿Está el jugador dentro del Barrio del Desagüe? (en el mapa de Cloacas, siempre)
+func _player_in_sewers() -> bool:
+	if map_theme() == "sewers":
+		return true
+	var map := _map_node()
+	return map != null and player != null and map.has_method("in_district") \
+		and map.in_district(Vector2(player.global_position.x, player.global_position.z))
+
+func _map_node() -> Node:
+	var scene := get_tree().current_scene if is_inside_tree() else null
+	return scene.get_node_or_null("ProceduralMap") if scene else null
+
+## Tema del mapa de la partida ("forest" / "sewers").
+func map_theme() -> String:
+	var map := _map_node()
+	return String(map.get_theme()) if map and map.has_method("get_theme") else "forest"
+
+## Mapa de Cloacas: fracción de la horda normal que sale como fauna de cloaca (ratas y babosas) en vez de
+## goblins y zombis. Sube un poco con el tiempo; el resto sigue siendo la horda de siempre.
+static func sewer_fauna_share(minutes: float) -> float:
+	return clampf(0.7 + minutes * 0.015, 0.7, 0.8)
+
+func _tick_critters() -> void:
+	if not _running or GameData.game_mode != "survival" or player == null or not is_instance_valid(player):
+		return
+	if not EnemyVisuals.creatures_available():
+		return
+	var t := _elapsed()
+	var city := map_theme() == "sewers"
+	if t < (CRITTER_FROM_SEWERS if city else CRITTER_FROM) or t < _critter_next:
+		return
+	var sewers := _player_in_sewers()
+	_critter_next = t + CRITTER_GAP * randf_range(0.8, 1.3) * (CRITTER_SEWER_GAP if sewers else 1.0)
+	var cap := float(critter_cap(t / 60.0)) * Quality.crowd_factor * (CRITTER_SEWER_BONUS if sewers else 1.0)
+	if critter_count() >= int(ceil(cap)):
+		return
+	spawn_critter_pack(_pick_critter_kind(t / 60.0 * (SEWER_KIND_PACE if city else 1.0)))
+
+func _pick_critter_kind(minutes: float) -> String:
+	var total := 0.0
+	for k: String in CRITTER_KINDS:
+		if minutes >= float(CRITTER_KINDS[k]["from"]):
+			total += float(CRITTER_KINDS[k]["weight"])
+	var r := randf() * total
+	for k: String in CRITTER_KINDS:
+		if minutes < float(CRITTER_KINDS[k]["from"]):
+			continue
+		r -= float(CRITTER_KINDS[k]["weight"])
+		if r <= 0.0:
+			return k
+	return "rat"
+
+func spawn_critter_pack(kind: String, at: Vector3 = Vector3.INF) -> Array:
+	var pos: Vector3 = _random_spawn_pos() if at == Vector3.INF else at
+	var main_node = get_tree().current_scene
+	var pack: Array = CRITTER_KINDS[kind]["pack"]
+	var out: Array = []
+	for i in randi_range(int(pack[0]), int(pack[1])):
+		var p := pos + Vector3(randf_range(-1.5, 1.5), 0.0, randf_range(-1.5, 1.5))
+		p.y = main_node.get_floor_y(p.x, p.z) if main_node.has_method("get_floor_y") else pos.y
+		out.append_array(_spawn_single_enemy(p, int(CRITTER_KINDS[kind]["type"])))
+	return out
+
+## La babosa grande suelta crías al morir; la roja, si la matan antes de reventar, revienta igual tras un momento.
+func _creature_death(type_val: int, trait_name: String, burst_done: bool, dmg: float, pos: Vector3) -> void:
+	match type_val:
+		EnemyData.EnemyType.SLUG:
+			if trait_name == "slug_small" or (not _running and not endless):
+				return
+			for i in SLUG_SPLIT:
+				if EnemyRegistry.count() + _pending_spawns >= _alive_cap() + 10:
+					return
+				var off := Vector3(randf_range(-0.9, 0.9), 0.0, randf_range(-0.9, 0.9))
+				_spawn_single_enemy(pos + off, EnemyData.EnemyType.SLUG, "slug_small")
+		EnemyData.EnemyType.BLOATER:
+			if burst_done:
+				return                    # ya reventó (EnemyBehavior.fire_burst)
+			var root := get_tree().current_scene
+			if root != null:
+				GroundBlast.spawn(root, pos, EnemyBehavior.BLOAT_DEATH_RADIUS, EnemyBehavior.BLOAT_DEATH_FUSE,
+						dmg * EnemyBehavior.BLOAT_DEATH_DAMAGE_MULT, EnemyBehavior.BLOAT_RED)
 
 func stop_run() -> void:
 	_running = false
@@ -210,7 +388,7 @@ func _tryhard() -> bool:
 	return sb != null and sb.is_tryhard()
 
 func _current_interval() -> float:
-	var interval: float = float(director_params(_elapsed(), wave_config)["interval"]) * RunModifiers.spawn_interval_mult()
+	var interval: float = float(director_params(_elapsed(), wave_config)["interval"]) * RunModifiers.spawn_interval_mult() * SPAWN_INTERVAL_MULT
 	if _tryhard():
 		interval *= PlayerStatBlock.TRYHARD_SPAWN_INTERVAL
 	if _boss_alive():
@@ -227,7 +405,7 @@ func _current_batch() -> int:
 
 func _alive_cap() -> int:
 	var cap_frac: float = director_params(_elapsed(), wave_config)["cap"]
-	return int(round(lerpf(ALIVE_CAP_START, Quality.alive_cap_end(), cap_frac) * Quality.crowd_factor))
+	return int(round(lerpf(ALIVE_CAP_START, Quality.alive_cap_end(), cap_frac) * Quality.crowd_factor * ALIVE_CAP_MULT))
 
 # ── Bucle de aparición ───────────────────────────────────────────────────
 
@@ -287,6 +465,21 @@ func _current_pool() -> Array:
 			pool = stage.get("pool", pool)
 	return pool
 
+## Escala de vida (x) y de daño (y) de los enemigos que aparecen ahora (tiempo de partida, dificultad, modo infinito).
+func _stat_scale() -> Vector2:
+	var minutes := _elapsed() / 60.0
+	var hp_mult := (1.0 + HP_PER_MINUTE * minutes) * lerpf(EARLY_HP_FACTOR, 1.0, clampf(_elapsed() / EARLY_RAMP_S, 0.0, 1.0)) * power_factor() * RunModifiers.enemy_hp_mult()
+	var dmg_mult := (1.0 + DAMAGE_PER_MINUTE * minutes) * RunModifiers.enemy_damage_mult()
+	if endless:
+		var extra := maxf(_elapsed() - BOSS_TIME_S, 0.0) / 60.0
+		hp_mult += ENDLESS_HP_PER_MINUTE * extra
+		dmg_mult += ENDLESS_DAMAGE_PER_MINUTE * extra
+	return Vector2(hp_mult, dmg_mult)
+
+## Multiplicador de velocidad de los enemigos que aparecen ahora (sube poco a poco con el tiempo de partida).
+func speed_mult() -> float:
+	return 1.0 + minf(SPEED_PER_MINUTE * _elapsed() / 60.0, SPEED_MAX_BONUS)
+
 ## Crea un enemigo (o un grupo de zombis) y devuelve los que añadió. `at` fija el sitio (las
 ## mareas de RunEvents) y `type_override` el tipo (sin grupo de zombis).
 func _spawn_single_enemy(at: Vector3 = Vector3.INF, type_override: int = -1, trait_override: String = "") -> Array:
@@ -297,8 +490,11 @@ func _spawn_single_enemy(at: Vector3 = Vector3.INF, type_override: int = -1, tra
 	var trait_id := trait_override
 
 	var pool: Array = _current_pool()
+	var minutes := _elapsed() / 60.0
 	if type_override >= 0:
 		type_val = type_override
+	elif map_theme() == "sewers" and EnemyVisuals.creatures_available() and randf() < sewer_fauna_share(minutes):
+		type_val = int(CRITTER_KINDS[_pick_critter_kind(minutes * SEWER_KIND_PACE)]["type"])
 	elif pool.size() > 0:
 		var total_weight = 0.0
 		for entry in pool:
@@ -313,13 +509,10 @@ func _spawn_single_enemy(at: Vector3 = Vector3.INF, type_override: int = -1, tra
 				trait_id = String(entry.get("trait", ""))
 				break
 
-	var minutes := _elapsed() / 60.0
-	var hp_mult := (1.0 + HP_PER_MINUTE * minutes) * lerpf(EARLY_HP_FACTOR, 1.0, clampf(_elapsed() / EARLY_RAMP_S, 0.0, 1.0)) * power_factor() * RunModifiers.enemy_hp_mult()
-	var dmg_mult := (1.0 + DAMAGE_PER_MINUTE * minutes) * RunModifiers.enemy_damage_mult()
-	if endless:
-		var extra := maxf(_elapsed() - BOSS_TIME_S, 0.0) / 60.0
-		hp_mult += ENDLESS_HP_PER_MINUTE * extra
-		dmg_mult += ENDLESS_DAMAGE_PER_MINUTE * extra
+	var scale_hd := _stat_scale()
+	var hp_mult: float = scale_hd.x
+	var dmg_mult: float = scale_hd.y
+	var spd_mult := speed_mult()
 	var spawned: Array = []
 	var spawn_count = randi_range(3, 5) if is_zombie else 1
 	for i in range(spawn_count):
@@ -336,9 +529,11 @@ func _spawn_single_enemy(at: Vector3 = Vector3.INF, type_override: int = -1, tra
 		en.max_hp *= hp_mult
 		en.hp = en.max_hp
 		en.damage *= dmg_mult
+		en.speed *= spd_mult
 		en.xp_reward = XpCurve.xp_for_type(type_val)
 		if trait_id != "":
 			en.apply_trait(trait_id)
+		EnemyManager.mark_dirty(en)       # la simulación nativa lee la velocidad nueva
 		spawned.append(en)
 	return spawned
 
@@ -368,6 +563,8 @@ func _on_enemy_died_internal(enemy_ref, pos: Vector3, gold_val: int) -> void:
 	RunStats.kills += 1
 	if enemy_ref != null and enemy_ref.trait_id == "splitter":
 		_split.call_deferred(pos)
+	if enemy_ref != null and EnemyVisuals.is_creature_idx(enemy_ref.vat_idx):
+		_creature_death.call_deferred(enemy_ref.type, enemy_ref.trait_id, enemy_ref.special_hit, enemy_ref.damage, pos)
 	var xp := float(enemy_ref.xp_reward) if enemy_ref != null else 1.0
 	enemy_died.emit(pos, gold_val, xp * xp_rush_mult(_elapsed(), wave_config))
 
@@ -401,13 +598,15 @@ func _split(pos: Vector3) -> void:
 
 func _on_boss_died_internal(pos: Vector3, gold_val: int) -> void:
 	RunStats.boss_killed = true
+	if GameData.game_mode != "dungeon" and events:
+		events.award_boss_souls(pos)   # sinergia entre modos: almas para el yunque (NIVEL de la mazmorra)
 	stop_run()
 	boss_died.emit(pos, gold_val)
 
 ## Reparte el pool de enemigos por tipo (según su frecuencia de aparición) hasta el tope de vivos de la calidad.
 func _prefill_enemy_pool() -> void:
 	var total := Quality.alive_cap_end()
-	var share := {0: 0.2, 1: 0.3, 2: 0.12, 3: 0.1, 4: 0.18, 5: 0.1}
+	var share := {0: 0.2, 1: 0.3, 2: 0.12, 3: 0.1, 4: 0.18, 5: 0.1, 6: 0.1, 7: 0.03, 8: 0.05, 9: 0.04}
 	var counts := {}
 	for t in share:
 		counts[t] = int(ceil(total * share[t]))

@@ -41,6 +41,24 @@ const SETS := {
 		"muzzle": Vector3(0.0, 0.09, -0.74),
 		"yaw_from_body": true,
 	},
+	# Pistola: brazos estirados al frente, agarre a dos manos (tools/blender_pistol_poses.py). Con las manos juntas la
+	# línea mano derecha → izquierda no dice hacia dónde apunta: aim_from_arm toma la dirección del antebrazo derecho.
+	# El fusil, de momento, con la postura y el disparo de la escopeta. Modelos: tools/blender_guns_staff.py.
+	WeaponData.WeaponType.PISTOL: {
+		"hold": "res://assets/models/riva/riva_pi_hold.fbx",
+		"fire": "res://assets/models/riva/riva_pi_fire.fbx",
+		"model": "res://assets/models/weapons/pistola.glb",
+		"muzzle": Vector3(0.0, 0.055, -0.18),
+		"yaw_from_body": true,
+		"aim_from_arm": true,
+	},
+	WeaponData.WeaponType.RIFLE: {
+		"hold": "res://assets/models/riva/riva_es_hold.fbx",
+		"fire": "res://assets/models/riva/riva_es_fire.fbx",
+		"model": "res://assets/models/weapons/fusil.glb",
+		"muzzle": Vector3(0.0, 0.06, -0.67),
+		"yaw_from_body": true,
+	},
 }
 const CLIPS := ["hold", "fire", "blast"]
 
@@ -48,6 +66,9 @@ const CLIPS := ["hold", "fire", "blast"]
 ## adaptadas a cualquier esqueleto con el mismo retargeting (sin ancla ni IK: la mano libre o la
 ## lanza enganchada a la mano derecha). Los nombres son los que usan las estrategias de las armas.
 const ACTION_SETS := {
+	WeaponData.WeaponType.FIRE_STAFF: {       # Bastón de fuego: estocada al frente con el bastón (el primer golpe de la espalanza)
+		"staff_cast": "res://assets/models/mikeura/mikeura_ataque1.fbx",
+	},
 	WeaponData.WeaponType.SPEAR_LANCE: {      # Mikeura: combo ligero de cuatro golpes + clavado con salto
 		"attack1": "res://assets/models/mikeura/mikeura_ataque1.fbx",
 		"attack2": "res://assets/models/mikeura/mikeura_ataque2.fbx",
@@ -59,6 +80,10 @@ const ACTION_SETS := {
 		"dagger2": "res://assets/models/mikeura/mikeura_daga2.fbx",
 		"dagger3": "res://assets/models/mikeura/mikeura_daga3.fbx",
 		"dagger_dash": "res://assets/models/mikeura/mikeura_daga_embestida.fbx",
+		# Cargado (blender_sources/charged_anims.blend): cruza las dagas agachado, tiembla y torbellino doble
+		"dagger_charge_draw": "res://assets/models/mikeura/dagger_charge_draw.fbx",
+		"dagger_charge_hold": "res://assets/models/mikeura/dagger_charge_hold.fbx",
+		"dagger_charge_release": "res://assets/models/mikeura/dagger_charge_release.fbx",
 	},
 	WeaponData.WeaponType.MACE: {             # Mikeura: diagonal al suelo, barrido, helicóptero (fuera del combo), levantar y golpear, mazazo con salto
 		"mace1": "res://assets/models/mikeura/mikeura_maza1.fbx",
@@ -66,6 +91,10 @@ const ACTION_SETS := {
 		"mace3": "res://assets/models/mikeura/mikeura_maza3.fbx",
 		"mace4": "res://assets/models/mikeura/mikeura_maza4.fbx",
 		"mace_slam": "res://assets/models/mikeura/mikeura_maza_suelo.fbx",
+		# Cargado: maza sobre la cabeza, tiembla y aplastón agachado contra el suelo
+		"mace_charge_draw": "res://assets/models/mikeura/mace_charge_draw.fbx",
+		"mace_charge_hold": "res://assets/models/mikeura/mace_charge_hold.fbx",
+		"mace_charge_release": "res://assets/models/mikeura/mace_charge_release.fbx",
 	},
 	# Espadón (clips de Mixamo, esqueleto compatible: se copian los giros tal cual). "Great Sword Slash" es un
 	# solo clip de 106 fotogramas con los tres tajos seguidos: se corta en los fotogramas 33 y 77. Cada
@@ -76,6 +105,10 @@ const ACTION_SETS := {
 		"gs2": {"path": "res://assets/models/greatsword/gs_slash.fbx", "from": 33, "to": 77, "root_motion": true, "leg_scale": true},
 		"gs3": {"path": "res://assets/models/greatsword/gs_slash.fbx", "from": 77, "to": 106, "root_motion": true, "leg_scale": true},
 		"gs_run": {"path": "res://assets/models/greatsword/gs_run_attack.fbx", "root_motion": true, "leg_scale": true},
+		# Ataque cargado (blender_sources/charged_anims.blend): preparación, bucle de temblor y martillazo con paso
+		"gs_charge_draw": {"path": "res://assets/models/greatsword/gs_charge_draw.fbx", "leg_scale": true},
+		"gs_charge_hold": {"path": "res://assets/models/greatsword/gs_charge_hold.fbx", "leg_scale": true},
+		"gs_charge_release": {"path": "res://assets/models/greatsword/gs_charge_release.fbx", "root_motion": true, "leg_scale": true},
 	},
 	# Espada de una mano (clips de Mixamo, como el espadón): ataque1, ataque2 y el clip "combo" (106 fotogramas)
 	# con dos golpes, cortado en el fotograma 40. El ataque al correr es otro clip entero. Todos con root motion.
@@ -85,6 +118,10 @@ const ACTION_SETS := {
 		"sw3": {"path": "res://assets/models/sword/sw_combo.fbx", "from": 0, "to": 40, "root_motion": true, "leg_scale": true},
 		"sw4": {"path": "res://assets/models/sword/sw_combo.fbx", "from": 40, "to": 106, "root_motion": true, "leg_scale": true},
 		"sw_run": {"path": "res://assets/models/sword/sw_run_attack.fbx", "root_motion": true, "leg_scale": true},
+		# Cargado: guardia recogida con la espada atrás, tiembla y estocada en zancada larga (avanza ~1 m)
+		"sw_charge_draw": {"path": "res://assets/models/sword/sw_charge_draw.fbx", "leg_scale": true},
+		"sw_charge_hold": {"path": "res://assets/models/sword/sw_charge_hold.fbx", "leg_scale": true},
+		"sw_charge_release": {"path": "res://assets/models/sword/sw_charge_release.fbx", "root_motion": true, "leg_scale": true},
 	},
 	# Katana (mítica): "primer golpe" (kt1) y el mismo golpe en espejo (kt2, "mirror": izquierda <-> derecha), el clip "2 golpes" cortado en el fotograma 28 (kt3, kt4),
 	# el ataque al correr y el especial (clic derecho).
@@ -95,6 +132,10 @@ const ACTION_SETS := {
 		"kt4": {"path": "res://assets/models/katana/kt_combo.fbx", "from": 28, "to": 98, "root_motion": true, "leg_scale": true},
 		"kt_run": {"path": "res://assets/models/katana/kt_run_attack.fbx", "root_motion": true, "leg_scale": true},
 		"kt_special": {"path": "res://assets/models/katana/kt_special.fbx", "root_motion": true, "leg_scale": true},
+		# Cargado (iaido): guardia baja con la mano en la empuñadura y el corte al cruzar (el avance lo pone el código)
+		"kt_charge_draw": {"path": "res://assets/models/katana/kt_charge_draw.fbx", "leg_scale": true},
+		"kt_charge_hold": {"path": "res://assets/models/katana/kt_charge_hold.fbx", "leg_scale": true},
+		"kt_charge_release": {"path": "res://assets/models/katana/kt_charge_release.fbx", "leg_scale": true},
 	},
 	# Puños (Mixamo, sin root motion: los clips son en el sitio). Combo: golpe1 (derecha), golpe1 en espejo
 	# (izquierda), golpe2, golpe3, golpe3 en espejo y golpe4 de remate. Corriendo, la zancada con directo (fs_run).
@@ -113,6 +154,10 @@ const ACTION_SETS := {
 		# acabar los puñetazos (fotograma 30, sin la recuperación) y la segunda entra en el 4 y termina entera.
 		"fs_special": {"path": "res://assets/models/fists/fist_special.fbx", "segments": [[0, 30], [4, 44]], "seam": 0.1,
 			"leg_scale": true},
+		# Cargado (puñetazo cometa): agachado con el puño atrás, tiembla y gancho hacia arriba
+		"fs_charge_draw": {"path": "res://assets/models/fists/fs_charge_draw.fbx", "leg_scale": true},
+		"fs_charge_hold": {"path": "res://assets/models/fists/fs_charge_hold.fbx", "leg_scale": true},
+		"fs_charge_release": {"path": "res://assets/models/fists/fs_charge_release.fbx", "root_motion": true, "leg_scale": true},
 	},
 	# Arco (Mixamo, pack de arco largo): tensado completo en el fotograma 0, suelta la cuerda en el 5-6 y baja el arco
 	# hasta el reposo. Se reproduce por encima de las piernas si se anda (PlayerAnimationController.play_bow_shot).
@@ -577,7 +622,7 @@ static func build(weapon_type: int, dst: Skeleton3D, skel_path: NodePath, anchor
 		# Las piezas del arma (empuñaduras) se escalan igual que el arma, en unidades del destino
 		var hand_k: float = out["weapon_scale"] * src_world_scale / maxf(dst_world_scale, 0.000001)
 		_add_weapon_tracks(anim, src, dst, cfg.get("yaw_from_body", false), k_arm, hand_k,
-			anchor_path, rh_path, lh_path)
+			anchor_path, rh_path, lh_path, bool(cfg.get("aim_from_arm", false)))
 		_retarget_bones(anim, src, dst, skel_path)
 		anim.loop_mode = Animation.LOOP_NONE if clip == "blast" else Animation.LOOP_LINEAR
 		out[clip] = anim
@@ -621,11 +666,12 @@ static func _retarget_bones(anim: Animation, src: Skeleton3D, dst: Skeleton3D, s
 ## Pistas del ancla (posición/giro de la empuñadura en espacio del esqueleto) y de los objetivos
 ## de las manos (en ejes del ancla), muestreadas sobre el personaje de referencia.
 static func _add_weapon_tracks(anim: Animation, src: Skeleton3D, dst: Skeleton3D, yaw_from_body: bool,
-		k_arm: float, hand_k: float, anchor_path: NodePath, rh_path: NodePath, lh_path: NodePath) -> void:
+		k_arm: float, hand_k: float, anchor_path: NodePath, rh_path: NodePath, lh_path: NodePath, aim_from_arm: bool = false) -> void:
 	var tracks := _bone_tracks(anim, src)
 	var rh := src.find_bone(RH)
 	var mid := src.find_bone(RH_MID)
 	var lh := src.find_bone(LH)
+	var fore := src.find_bone("mixamorig_RightForeArm")
 	if rh < 0 or lh < 0:
 		return
 	# La empuñadura se separa del hombro derecho según la longitud del brazo
@@ -648,6 +694,8 @@ static func _add_weapon_tracks(anim: Animation, src: Skeleton3D, dst: Skeleton3D
 		var p_lh := _global_pose(src, lh, anim, tracks, t, cache).origin
 		var grip := p_rh.lerp(p_mid, 0.5)
 		var fwd := p_lh - grip
+		if aim_from_arm and fore >= 0:
+			fwd = p_rh - _global_pose(src, fore, anim, tracks, t, cache).origin
 		if fwd.length_squared() < 0.000001:
 			fwd = body_fwd
 		fwd = fwd.normalized()

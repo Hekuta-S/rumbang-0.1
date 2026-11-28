@@ -58,6 +58,9 @@ func _run() -> void:
 			print("DBG ", mmi.name, " surf=", mesh.get_surface_count(), " mat=", mat, " ovr=", (mmi as GeometryInstance3D).material_override, " shader=", mat.shader.resource_path if mat is ShaderMaterial else "-")
 	var prop_env := OS.get_environment("SHOT_PROP")
 	var prop_xfs: Array = map._instances.get(prop_env, []).duplicate()
+	for k in map.rock_sprites:              # rocas de la cueva como dibujos horneados
+		if String(k).begins_with(prop_env):
+			prop_xfs.append_array(map.rock_sprites[k])
 	if map.has_node("PackProps"):           # piezas del pack como mallas sueltas (nombre = tipo)
 		for mi in map.get_node("PackProps").get_children():
 			if String(mi.name).begins_with(prop_env):

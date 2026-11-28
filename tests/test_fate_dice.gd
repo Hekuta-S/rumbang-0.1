@@ -94,6 +94,19 @@ func _survival() -> void:
 	FateDice.apply12(7, p, main, p.global_position)
 	await _frames(2)
 	_check(is_equal_approx(sb.damage_mult(), dmg0 + 0.5) and sb.move_mult() > spd0, "7 FURIA: +50 %% daño (%.2f -> %.2f)" % [dmg0, sb.damage_mult()])
+	# Regresión (FPS en móvil con FURIA): el indicador no debe reaplicar su estilo cada frame
+	# ni llevar glifos que PressStart2P no tiene (cada rehecho buscaba la fuente emoji del sistema).
+	var st_label: Label = FateDice._status._label
+	var restyles := [0]
+	st_label.theme_changed.connect(func(): restyles[0] += 1)
+	await _frames(20)
+	_check(restyles[0] <= 1, "FURIA: el indicador no se re-estiliza cada frame (%d en 20 frames)" % restyles[0])
+	var font: Font = RumbangStyle.FONT
+	var missing := ""
+	for ch in st_label.text:
+		if not font.has_char(ch.unicode_at(0)):
+			missing += ch
+	_check(missing == "", "FURIA: el indicador solo usa glifos de la fuente (faltan: %s)" % missing)
 	FateDice._clock += FateDice.FURY_TIME + 1.0
 	_check(is_equal_approx(sb.damage_mult(), dmg0), "la furia se acaba sola")
 	# 3 MALDICIÓN

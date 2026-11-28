@@ -66,6 +66,17 @@ func _ready() -> void:
 		if n.scene_file_path == RunEvents.ItemPickupScene.resource_path:
 			n.queue_free()
 
+	# 2b. Sinergia entre modos: el jefe de la supervivencia (Nigromante) también da almas, más que el minijefe
+	var boss_souls := SoulStats.survival_boss_souls(430.0)
+	_check(boss_souls > SoulStats.survival_elite_souls(true, 430.0), "el jefe da %d almas (minijefe %d)" % [boss_souls, SoulStats.survival_elite_souls(true, 430.0)])
+	var before_boss := SoulStats.souls()
+	var gs0 := GameState.get_instance()
+	gs0.elapsed_time = 430.0
+	var given := events.award_boss_souls(p.global_position)
+	_check(given == boss_souls and SoulStats.souls() - before_boss == boss_souls, "se ingresan al morir el jefe (%d)" % given)
+	SaveManager.load_save()
+	_check(SoulStats.souls() >= boss_souls, "las almas del jefe quedan guardadas para el yunque")
+
 	# 3. Tatan aparece con sus tres ofertas y su modelo
 	var m := events.spawn_merchant()
 	await _frames(2)

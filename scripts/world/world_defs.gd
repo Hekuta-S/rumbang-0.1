@@ -19,6 +19,9 @@ extends RefCounted
 ##    sala plantea un problema distinto (a quién matar primero) en vez de una mezcla al azar.
 ##    {id, name, min_level, weight, fixed: {tipo: nº}, fill: tipo o {tipo: peso}}: "fixed" va siempre (recortado
 ##    al tamaño del grupo) y el resto se rellena con "fill". Dentro de un nivel no se repite receta mientras queden.
+##  prisoner (opcional): prisionero de la historia (DungeonPrisoner): encerrado en una caverna normal, se libera al
+##    limpiarla. {id, name, model (id de GameData.IDLE_MODELS), station (estación del salón que abre), lines: lo que
+##    dice al liberarlo, hub_line: lo que dice en el salón, unlock: qué abre (texto del aviso)}
 ##  roles (opcional): {tipo: fila}: dónde aparece cada tipo (0 = al fondo, los de distancia; 2 = delante, los tanques)
 ## El mundo elegido se guarda en GameData.world; en red lo fija el anfitrión (Net._begin).
 
@@ -30,6 +33,9 @@ const WORLDS := {
 		"name": "Cavernas",
 		"scene": "res://scenes/core/main_dungeon.tscn",
 		"door": "runes",
+		"prisoner": {"id": "minero", "name": "EL MINERO", "model": "garri", "station": "cofre",
+			"lines": ["¡Por fin! Los goblins del Nigromante me tenían picando su oro.", "Te espero en el salón: sé abrir el cofre de mejoras."],
+			"hub_line": "Dame oro y le saco filo a cualquier arma.", "unlock": "Cofre de mejoras de armas"},
 		"subtitle": "Cuevas goblin: campamentos, criptas y fraguas.",
 		"level_themes": [
 			{"name": "Cueva goblin", "dirt": Color(0.3, 0.22, 0.15), "moss": Color(0.2, 0.24, 0.13), "rock": Color(0.21, 0.18, 0.17),
@@ -43,9 +49,9 @@ const WORLDS := {
 		],
 		"room_themes": ["camp", "camp", "storage", "shrine"],
 		"starter_kind": "goblin",
-		"kind_weights": {"goblin": 4.0, "zombie": 2.5, "mage": 1.6, "brute": 1.3},
+		"kind_weights": {"goblin": 4.0, "zombie": 2.5, "mage": 1.6, "brute": 1.3, "bat": 1.4},
 		"guaranteed": ["brute", "mage", "zombie"],
-		"roles": {"mage": 0, "goblin": 1, "zombie": 1, "brute": 2},
+		"roles": {"mage": 0, "goblin": 1, "zombie": 1, "bat": 1, "brute": 2},
 		"recipes": [
 			# Goblins rápidos que rodean y un mago que castiga quedarse quieto
 			{"id": "patrulla", "name": "Patrulla", "min_level": 1, "weight": 3.0, "fixed": {"mage": 1}, "fill": "goblin"},
@@ -53,7 +59,9 @@ const WORLDS := {
 			{"id": "muro", "name": "Muro y artilleria", "min_level": 1, "weight": 2.5, "fixed": {"brute": 1, "mage": 2}, "fill": "goblin"},
 			# Marea lenta de zombis (se levantan si no se rematan) cubriendo a un mago
 			{"id": "marea", "name": "Marea muerta", "min_level": 1, "weight": 2.0, "fixed": {"mage": 1}, "fill": "zombie"},
-			{"id": "mixta", "name": "Campamento", "min_level": 1, "weight": 1.5, "fixed": {}, "fill": {"goblin": 4.0, "zombie": 2.5, "mage": 1.6, "brute": 1.3}},
+			{"id": "mixta", "name": "Campamento", "min_level": 1, "weight": 1.5, "fixed": {}, "fill": {"goblin": 4.0, "zombie": 2.5, "mage": 1.6, "brute": 1.3, "bat": 1.4}},
+			# Nido: murciélagos que pican desde el aire mientras un mago castiga; saltar y golpear (combate aéreo) los alcanza
+			{"id": "nido_murcielagos", "name": "Nido de murciélagos", "min_level": 1, "weight": 2.0, "fixed": {"bat": 2, "mage": 1}, "fill": "goblin"},
 			# Cripta: un bruto entre zombis, hay que gestionar el suelo lleno de caídos
 			{"id": "cripta", "name": "Cripta", "min_level": 2, "weight": 2.0, "fixed": {"brute": 1}, "fill": "zombie"},
 			# Dos brutos: espacio cerrado, parry y esquiva constantes
@@ -67,6 +75,9 @@ const WORLDS := {
 		"name": "Cloacas",
 		"scene": "res://scenes/core/main_sewers.tscn",
 		"door": "bars",
+		"prisoner": {"id": "ladron", "name": "LA LADRONA", "model": "joel", "station": "nivel",
+			"lines": ["Shh... gracias. El Rey Rata me pilló robándole almas.", "En el salón te enseño a gastarlas en el yunque: sube de nivel con ellas."],
+			"hub_line": "Las almas no se roban solas... bueno, sí. Gástalas en el yunque.", "unlock": "Pestaña NIVEL del yunque"},
 		"subtitle": "Alcantarillas inundadas de basura, ratas y babosas.",
 		"level_themes": [
 			{"name": "El colector", "dirt": Color(0.2, 0.21, 0.15), "moss": Color(0.22, 0.3, 0.12), "rock": Color(0.24, 0.2, 0.17),

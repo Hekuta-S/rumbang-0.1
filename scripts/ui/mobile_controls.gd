@@ -46,12 +46,16 @@ const BUTTONS := [
 ## "survival": caminar (joystick), saltar y deslizarse. "hub" (salón): caminar, correr e interactuar.
 ## Cualquier otro modo (mazmorra) muestra todos los botones de combate.
 const MODE_KEYS := {
-	"survival": ["jump", "slide"],
+	"survival": ["jump", "slide", "interact"],
 	"hub": ["interact", "run"],
 }
 const HUB_ONLY := ["run", "interact"]
-## Botones que no salen en la mazmorra (solo en los modos que los piden en MODE_KEYS)
-const NOT_IN_DUNGEON := ["run", "interact", "slide"]
+## Botones que no salen en la mazmorra (solo en los modos que los piden en MODE_KEYS).
+## ESPECIAL y HABILIDAD están bloqueados por ahora.
+const NOT_IN_DUNGEON := ["run", "slide", "alt", "skill"]
+## INTERACTUAR fuera del salón: botón contextual (solo sale con algo interactuable cerca: Tatán, mercader...)
+## en el arco interior, donde estaba ESPECIAL.
+const WORLD_INTERACT_ANGLE := 252.0
 
 ## "survival", "hub" o "dungeon". Si no se asigna antes de añadir el nodo, se toma de GameData.game_mode.
 var mode := ""
@@ -174,6 +178,8 @@ func _is_unavailable(i: int) -> bool:
 	var key := String(BUTTONS[i]["key"])
 	if not _in_mode(key):
 		return true
+	if key == "interact" and mode != "hub" and not _editing and not _has_interact_target:
+		return true
 	return key == "reload" and not _has_ammo_weapon and not _editing
 
 ## ¿El botón existe en el modo actual?
@@ -181,6 +187,24 @@ func _in_mode(key: String) -> bool:
 	if MODE_KEYS.has(mode):
 		return (MODE_KEYS[mode] as Array).has(key)
 	return not NOT_IN_DUNGEON.has(key)
+
+## ¿Hay algo interactuable al alcance? (Player.interact_target: Tatán, mercader, prisioneros...)
+var _has_interact_target := false
+func _refresh_interact_target() -> void:
+	if mode == "hub":
+		return
+	var player := get_tree().get_first_node_in_group("player")
+	var has := false
+	if player and "interact_target" in player:
+		var t: Variant = player.get("interact_target")
+		has = is_instance_valid(t) and (t as Node).has_method("interact")
+	if has != _has_interact_target:
+		_has_interact_target = has
+		if not has:
+			var bi := _key_index("interact")
+			if bi != -1 and _btn_id[bi] != -1:
+				_btn_id[bi] = -1
+		_redraw()
 
 func _refresh_ammo_weapon() -> void:
 	var player := get_tree().get_first_node_in_group("player")
@@ -242,7 +266,10 @@ func _layout() -> void:
 		var b: Dictionary = BUTTONS[i]
 		var ring := int(b["ring"])
 		var angle := float(b["angle"])
-		if MODE_KEYS.has(mode):
+		if mode != "hub" and String(b["key"]) == "interact":
+			ring = 1
+			angle = WORLD_INTERACT_ANGLE
+		elif MODE_KEYS.has(mode):
 			# Modos con pocos botones: el principal ocupa el sitio del ataque, el segundo el arco interior
 			var rank: int = (MODE_KEYS[mode] as Array).find(String(b["key"]))
 			if rank == 0:
@@ -293,6 +320,7 @@ func _process(delta: float) -> void:
 	if get_tree().paused and (_joy_id != -1 or _any_button_down() or _look_id != -1):
 		_release_all()
 	_refresh_ammo_weapon()
+	_refresh_interact_target()
 	var target := ACTIVE_ALPHA if (_joy_id != -1 or _any_button_down()) else IDLE_ALPHA
 	var new_alpha := lerpf(_alpha, target, minf(1.0, delta * 12.0))
 	if absf(new_alpha - _alpha) > 0.003:
@@ -657,7 +685,12 @@ func _set_button(bi: int, down: bool) -> void:
 		"jump": VirtualInput.is_jumping = down
 		"slide": VirtualInput.is_sliding = down
 		"run": VirtualInput.is_running = down
-		"interact": VirtualInput.just_pressed_interact = down or VirtualInput.just_pressed_interact
+		"interact":
+			if mode == "hub":
+				VirtualInput.just_pressed_interact = down or VirtualInput.just_pressed_interact
+			elif down:
+				# Fuera del salón interactuar = la acción de la tecla E (Player.activate_skill con interact_target)
+				VirtualInput.just_pressed_skill = true
 		"alt": VirtualInput.is_alt_attack = down
 		"skill": VirtualInput.just_pressed_skill = down or VirtualInput.just_pressed_skill
 		"reload": VirtualInput.just_pressed_reload = down or VirtualInput.just_pressed_reload

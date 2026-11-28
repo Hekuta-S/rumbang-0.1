@@ -1,7 +1,8 @@
 extends Node
 
 ## Capturas del Salón de la Invocación (necesita ventana, no headless):
-##   res://tests/shot_dungeon_hub.tscn -- <prefijo> [intro]
+##   res://tests/shot_dungeon_hub.tscn -- <prefijo> [intro] [raptado]
+## Con "raptado": el mago sigue raptado (yunque apagado, arena resaltada) y solo saca esas capturas.
 ## Sin "intro": entra directo a explorar y captura <prefijo>_explorar, el yunque (panel y armero),
 ## los portales del mago, la puerta de la arena con su panel, el cofre y el portón.
 ## Con "intro": además reproduce la cinemática y guarda <prefijo>_<segundo>.png en los momentos clave.
@@ -40,6 +41,8 @@ func _run() -> void:
 	var with_intro := OS.get_cmdline_user_args().has("intro")
 	DungeonHub.force_intro = with_intro
 	DungeonHub.set_intro_seen(not with_intro)
+	var kidnapped := OS.get_cmdline_user_args().has("raptado")
+	SaveManager.mago_rescatado = not kidnapped
 	var hub := HUB.instantiate() as DungeonHub
 	add_child(hub)
 	if with_intro:
@@ -51,6 +54,20 @@ func _run() -> void:
 			await get_tree().process_frame
 	await _wait(1.6)
 	await _shot("explorar")
+	if kidnapped:
+		# Mago raptado: yunque apagado y la arena como único destino
+		await _go(hub, DungeonHub.STATIONS["yunque"]["pos"] + Vector3(-1.0, 0, 0.2))
+		hub.use_station("yunque")
+		await _wait(0.6)
+		await _shot("raptado_yunque")
+		await _go(hub, Vector3(0.0, DungeonHub.FLOOR_Y, -3.0))
+		hub.player.face(DungeonHub.STATIONS["arena"]["pos"])
+		await _wait(0.8)
+		await _shot("raptado_arena")
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(DungeonHub.config_path))
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(GameData.armory_path))
+		get_tree().quit(0)
+		return
 	# yunque
 	await _go(hub, DungeonHub.STATIONS["yunque"]["pos"] + Vector3(-1.0, 0, 0.2))
 	await _shot("yunque_aviso")
@@ -65,6 +82,7 @@ func _run() -> void:
 	hub.panels.close()
 	# mago y portales
 	await _go(hub, DungeonHub.MAGE_POS + Vector3(1.2, 0, 0.4))
+	SaveManager.mago_rescatado = true   # la mazmorra se abre con el mago rescatado
 	hub.use_station("mago")
 	await _wait(2.8)
 	await _shot("portales")

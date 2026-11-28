@@ -16,6 +16,9 @@ func _run() -> void:
 	DungeonHub.portals_open = false
 	GameData.armory_path = "user://test_armeria.cfg"
 	SaveManager.save_path = "user://test_save.json"
+	SaveManager.mago_rescatado = true   # checks 1-7: salón completo; 8a prueba el mago raptado
+	for w in WorldDefs.ORDER:
+		SaveManager.prisoners[w] = true
 	for p in [DungeonHub.config_path, GameData.armory_path]:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
 	GameData.load_armory()
@@ -129,6 +132,42 @@ func _run() -> void:
 	hub.panels.close()
 	assert(hub.state == "explore", "Cerrar el panel vuelve a explorar")
 	print("CHECK 7 PASSED: yunque -> maza (guardada)")
+
+	# 8a. Mago raptado: sin rescatarlo en Supervivencia no hay portales; la bandera se guarda
+	var save_file := ProjectSettings.globalize_path(SaveManager.save_path)
+	DirAccess.remove_absolute(save_file)
+	SaveManager.load_save()
+	assert(not SaveManager.dungeon_unlocked(), "Partida nueva: el mago sigue raptado")
+	hub._apply_mage_presence()
+	assert(not hub.mage.visible and hub.station_prompt("mago") == DungeonHub.MAGE_GONE_PROMPT, "Sin mago en el salón")
+	assert(DungeonHub.station_locked("yunque") and hub.station_prompt("yunque") == DungeonHub.ANVIL_LOCKED_PROMPT, "Yunque apagado")
+	hub.use_station("yunque")
+	assert(hub.state == "explore" and not hub.player.locked, "El yunque apagado no abre su panel")
+	assert((hub._station_labels["arena"] as Label3D).text == DungeonHub.ARENA_CALL_LABEL, "La arena llama al jugador")
+	hub.player.position = DungeonHub.MAGE_POS + Vector3(1.0, 0, 0.3)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	hub.use_station("mago")
+	await get_tree().create_timer(0.5).timeout
+	assert(not DungeonHub.portals_open and hub.portals.all(func(p): return not p["open"]), "Mago raptado: portales cerrados")
+	hub.open_portals(true)
+	assert(not DungeonHub.portals_open, "open_portals no abre sin el mago")
+	SaveManager.set_mago_rescatado(true)
+	SaveManager.load_save()
+	assert(SaveManager.dungeon_unlocked(), "El rescate sobrevive a recargar el save")
+	var f := FileAccess.open(SaveManager.save_path, FileAccess.WRITE)
+	f.store_string(JSON.stringify({"total_gold": 5}))
+	f.close()
+	SaveManager.load_save()
+	assert(SaveManager.dungeon_unlocked(), "Save viejo sin la clave: mazmorras abiertas")
+	DirAccess.remove_absolute(save_file)
+	SaveManager.load_save()
+	SaveManager.mago_rescatado = true
+	for w in WorldDefs.ORDER:   # prisioneros liberados: cofre abierto (ver test_dungeon_prisoner)
+		SaveManager.prisoners[w] = true
+	hub._apply_mage_presence()
+	assert(hub.mage.visible, "Mago rescatado: vuelve al salón")
+	print("CHECK 8a PASSED: mago raptado bloquea portales; bandera guardada")
 
 	# 8. Mago: abre un portal por mundo
 	hub.player.position = DungeonHub.MAGE_POS + Vector3(1.0, 0, 0.3)

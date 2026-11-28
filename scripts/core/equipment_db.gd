@@ -1,18 +1,21 @@
 class_name EquipmentDB
 extends RefCounted
 
-## Equipo de la mazmorra: casco, pechera, pantalones, dos talismanes y el arma que llevas en la mano.
+## Equipo de la mazmorra: casco, pechera, pantalones, dos talismanes, un amuleto y el arma que llevas en la mano.
 ## Cada pieza es un Dictionary (se guarda tal cual en SaveManager.meta["equipment"]):
 ##   {uid, slot, base, name, rarity, stats: {clave: valor}, set?, weapon? (solo slot "arma")}
 ## Las claves de "stats" son las de PlayerStatBlock (ver su cabecera); PlayerEquipment las suma.
 ## Stats libres: cada pieza sortea sus stats del mismo pool sea de la ranura que sea; la rareza
 ## (ItemDB.Rarity) decide cuántas trae y lo fuertes que son.
 
-## Tipos de pieza. Los talismanes ocupan cualquiera de las dos ranuras de talismán.
-const KINDS := ["casco", "pechera", "pantalones", "talisman", "arma"]
+## Tipos de pieza. Los talismanes ocupan cualquiera de las dos ranuras de talismán. El amuleto lleva la
+## habilidad ACTIVA (tecla E, ver AmuletActives); los talismanes siguen siendo los pasivos.
+const KINDS := ["casco", "pechera", "pantalones", "talisman", "arma", "amuleto"]
+## Tipos que salen en el sorteo de botín cuando no es arma (el arma tiene su propia probabilidad).
+const ARMOR_KINDS := ["casco", "pechera", "pantalones", "talisman", "amuleto"]
 const KIND_NAMES := {"casco": "Casco", "pechera": "Pechera", "pantalones": "Pantalones",
-	"talisman": "Talismán", "arma": "Arma"}
-const KIND_ICONS := {"casco": "⛑", "pechera": "🛡", "pantalones": "👖", "talisman": "🔮", "arma": "⚔"}
+	"talisman": "Talismán", "arma": "Arma", "amuleto": "Amuleto"}
+const KIND_ICONS := {"casco": "⛑", "pechera": "🛡", "pantalones": "👖", "talisman": "🔮", "arma": "⚔", "amuleto": "📿"}
 
 ## Bases por tipo: id -> {name, set?}
 const BASES := {
@@ -69,6 +72,13 @@ const BASES := {
 		"colmillo_helado": {"name": "Colmillo Helado", "set": "frio"},
 		"semilla_viva": {"name": "Semilla Viva", "set": "natural"},
 		"sello_sombra": {"name": "Sello de Sombra", "set": "sombra"},
+	},
+	# Amuletos: cada base ES su habilidad activa (AmuletActives.ACTIVES, mismo id)
+	"amuleto": {
+		"pata_conejo": {"name": "Pata de Conejo"},
+		"botella_aguardiente": {"name": "Botella de Aguardiente"},
+		"espejo_mohan": {"name": "Espejo del Mohán"},
+		"pluma_gallinazo": {"name": "Pluma de Gallinazo"},
 	},
 }
 
@@ -155,6 +165,8 @@ const SLOT_STATS := {
 	"pantalones": {"main": ["move_speed", "energy_regen", "max_energy"], "extra": ["jump_height", "energy_cost", "armor", "extra_jumps"]},
 	"talisman": {"main": ["damage", "attack_speed", "gold", "magnet"], "extra": ["cooldown_reduction", "hp_regen", "extra_jumps", "mana_regen"]},
 	"arma": {"main": ["damage", "attack_speed"], "extra": ["cooldown_reduction", "energy_cost", "max_mana"]},
+	# El amuleto vale por su activa: un solo stat pequeño desde Poco común (ver roll_stats)
+	"amuleto": {"main": ["cooldown_reduction", "hp_regen", "energy_regen"], "extra": []},
 }
 
 ## Efectos especiales (a partir de rareza Rara): hacen algo, no solo suman. Campos:
@@ -285,6 +297,15 @@ const WEAPON_MODS := {
 	WeaponData.WeaponType.FISTS: {
 		"nudillos": {"name": "Nudillos de Hierro", "mods": {"damage": 0.15}, "desc": "+15% daño"},
 		"rafaga": {"name": "Ráfaga", "mods": {"cooldown": 0.85}, "desc": "-15% tiempo entre golpes"}},
+	WeaponData.WeaponType.PISTOL: {
+		"gatillo": {"name": "Gatillo Ligero", "mods": {"cooldown": 0.85}, "desc": "-15% tiempo entre disparos"},
+		"punta_hueca": {"name": "Punta Hueca", "mods": {"damage": 0.15}, "desc": "+15% daño"}},
+	WeaponData.WeaponType.RIFLE: {
+		"cadencia": {"name": "Cadencia Alta", "mods": {"cooldown": 0.88}, "desc": "-12% tiempo entre disparos"},
+		"canon": {"name": "Cañón Largo", "mods": {"damage": 0.12, "size": 0.2}, "desc": "+12% daño, +20% alcance"}},
+	WeaponData.WeaponType.FIRE_STAFF: {
+		"brasa": {"name": "Brasa Viva", "mods": {"size": 0.25}, "desc": "+25% área de la explosión"},
+		"gema": {"name": "Gema Ardiente", "mods": {"damage": 0.2}, "desc": "+20% daño"}},
 	WeaponData.WeaponType.SERPENTS: {
 		"hambre": {"name": "Espíritus Hambrientos", "mods": {"lifesteal": 0.04}, "desc": "4% del daño se convierte en vida"},
 		"furia": {"name": "Espíritus Furiosos", "mods": {"damage": 0.15}, "desc": "+15% daño"}},
@@ -403,6 +424,7 @@ const WEAPONS := [
 	WeaponData.WeaponType.DUSTS, WeaponData.WeaponType.SERPENTS,
 	WeaponData.WeaponType.DAGGERS, WeaponData.WeaponType.MACE, WeaponData.WeaponType.GREATSWORD,
 	WeaponData.WeaponType.SWORD, WeaponData.WeaponType.BOW, WeaponData.WeaponType.FISTS,
+	WeaponData.WeaponType.PISTOL, WeaponData.WeaponType.RIFLE, WeaponData.WeaponType.FIRE_STAFF,
 ]
 
 # ───────────────────────────── Sorteo ─────────────────────────────
@@ -426,7 +448,7 @@ static func roll_rarity(rng: RandomNumberGenerator = null, min_rarity: int = 0) 
 ## Pieza nueva. kind "" = tipo al azar (las armas salen menos).
 static func roll(kind: String = "", rarity: int = -1, rng: RandomNumberGenerator = null, min_rarity: int = 0, allow_legendary: bool = true) -> Dictionary:
 	if kind == "":
-		kind = "arma" if _randf(rng) < 0.15 else KINDS[_randi(rng) % 4]
+		kind = "arma" if _randf(rng) < 0.15 else ARMOR_KINDS[_randi(rng) % ARMOR_KINDS.size()]
 	if rarity < 0:
 		rarity = roll_rarity(rng, min_rarity)
 	rarity = clampi(rarity, 0, RARITY_AFFIXES.size() - 1)
@@ -606,7 +628,9 @@ static func roll_stats(rarity: int, rng: RandomNumberGenerator = null, kind: Str
 				pool.append(k)
 	var power: float = RARITY_POWER[rarity]
 	var out := {}
-	for i in RARITY_AFFIXES[rarity]:
+	# El amuleto vale por su activa (la rareza la hace más fuerte, AmuletActives): un solo stat desde Poco común
+	var affixes: int = mini(RARITY_AFFIXES[rarity], 1 if rarity > 0 else 0) if kind == "amuleto" else RARITY_AFFIXES[rarity]
+	for i in affixes:
 		if pool.is_empty():
 			break
 		var src: Array = main if i == 0 and not main.is_empty() else pool
@@ -668,6 +692,8 @@ static func describe(item: Dictionary) -> String:
 	var st := describe_stats(item.get("stats", {}))
 	if not st.is_empty():
 		parts.append(", ".join(st))
+	if String(item.get("slot", "")) == "amuleto":
+		parts.append("◆ " + AmuletActives.text(item))
 	if element_text(item) != "":
 		parts.append(element_text(item))
 	if not wmod_of(item).is_empty():
@@ -694,6 +720,8 @@ static func element_text(item: Dictionary) -> String:
 ## Líneas extra de una pieza para la UI (elemento, modificador de arma, efecto especial), en este orden.
 static func trait_lines(item: Dictionary) -> Array[String]:
 	var out: Array[String] = []
+	if String(item.get("slot", "")) == "amuleto":
+		out.append("◆ " + AmuletActives.text(item))
 	if element_text(item) != "":
 		out.append(element_text(item))
 	var w := wmod_of(item)
@@ -779,6 +807,8 @@ static func sanitize(v: Variant) -> Dictionary:
 		if not d.has("weapon"):
 			return {}
 		d["weapon"] = int(d["weapon"])
+	if kind == "amuleto" and not AmuletActives.ACTIVES.has(String(d.get("base", ""))):
+		return {}
 	var stats := {}
 	if d.get("stats") is Dictionary:
 		for k in d["stats"]:

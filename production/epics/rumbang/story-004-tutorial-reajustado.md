@@ -7,7 +7,7 @@
 > **Estimate**: M
 > **Build step**: core
 > **Manifest Version**: N/A (minimal — no control manifest)
-> **Last Updated**: [set by /dev-story when implementation begins]
+> **Last Updated**: 2026-11-22 (implementada; pendiente playtest)
 
 ## Context
 
@@ -29,14 +29,14 @@
 
 *From `design/game-brief.md` (First minute, Features item 2):*
 
-- [ ] El tutorial sigue enseñando mover, golpear, esquivar, parar y matar a un goblin.
-- [ ] Al terminar (o saltarlo), el jugador llega al salón, no a un portal de mazmorra.
-- [ ] Con `mago_rescatado` en `false`, los portales y el yunque del salón están apagados.
-- [ ] La puerta de la arena (Supervivencia) está resaltada como único destino disponible.
-- [ ] El rey explica en una frase corta que hay que salvar al mago en Supervivencia.
-- [ ] El tutorial completo no pasa de unos 3 minutos y se puede saltar.
-- [ ] `[tutorial] done` se sigue guardando y no se repite.
-- [ ] Los jugadores con save viejo no vuelven a ver el tutorial.
+- [x] El tutorial sigue enseñando mover, golpear, esquivar, parar y matar a un goblin.
+- [x] Al terminar (o saltarlo), el jugador llega al salón, no a un portal de mazmorra.
+- [x] Con `mago_rescatado` en `false`, los portales y el yunque del salón están apagados.
+- [x] La puerta de la arena (Supervivencia) está resaltada como único destino disponible.
+- [x] El rey explica en una frase corta que hay que salvar al mago en Supervivencia.
+- [x] El tutorial completo no pasa de unos 3 minutos y se puede saltar.
+- [x] `[tutorial] done` se sigue guardando y no se repite.
+- [x] Los jugadores con save viejo no vuelven a ver el tutorial.
 
 ---
 
@@ -57,10 +57,10 @@
 
 ## Files
 
-- `scripts/world/tutorial_patio.gd`
-- `scripts/world/tutorial_director.gd`
-- `scripts/ui/dungeon_hub.gd`
-- `tests/test_tutorial.gd` (ampliar; opcional)
+- `scripts/world/tutorial_patio.gd` (OUTRO: el rey pide rescatar al mago en la arena; hecho en la story 003)
+- `scripts/ui/dungeon_hub.gd` (`station_locked()`: yunque apagado; rótulo de la arena "▼ ARENA: RESCATA AL MAGO ▼" late en dorado, más bajo y grande)
+- `tests/test_dungeon_hub.gd` (CHECK 8a), `tests/shot_dungeon_hub.gd` (`-- <prefijo> raptado`)
+- Sin cambios: pasos del tutorial, saltar, `[tutorial] done` y saves viejos ya funcionaban así.
 
 ---
 

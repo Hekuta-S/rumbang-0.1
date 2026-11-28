@@ -3,6 +3,8 @@ extends Node
 signal attack_pressed
 signal alt_attack_pressed
 signal alt_attack_released
+signal charge_started     ## clic izquierdo mantenido (armas con ataque cargado, mazmorra)
+signal charge_released
 signal skill_pressed
 signal dodge_pressed
 signal parry_pressed
@@ -49,6 +51,36 @@ func _update_dodge_hold(delta: float, down: bool) -> void:
 			emit_signal("dodge_pressed")
 		sprint_held = false
 	_dodge_held = down
+
+## Mazmorra, armas con ataque cargado (PlayerCombatController.has_melee_charge): el golpe sale al SOLTAR un toque;
+## mantenido más de CHARGE_HOLD s empieza a cargar (charge_started) y al soltar sale el cargado (charge_released).
+const CHARGE_HOLD := 0.22
+var _atk_held := false
+var _atk_hold_t := 0.0
+var _atk_charge_sent := false
+
+func _update_attack_hold(delta: float, down: bool) -> void:
+	if down:
+		if not _atk_held:
+			_atk_hold_t = 0.0
+			_atk_charge_sent = false
+		_atk_hold_t += delta
+		if not _atk_charge_sent and _atk_hold_t >= CHARGE_HOLD:
+			_atk_charge_sent = true
+			emit_signal("charge_started")
+	elif _atk_held:
+		if _atk_charge_sent:
+			emit_signal("charge_released")
+		else:
+			emit_signal("attack_pressed")
+	_atk_held = down
+
+## El arma cambió a una sin carga con el clic mantenido: se cierra la carga que hubiera.
+func _end_attack_hold() -> void:
+	if _atk_held and _atk_charge_sent:
+		emit_signal("charge_released")
+	_atk_held = false
+	_atk_charge_sent = false
 
 ## Clic izquierdo real. Con la interfaz táctil, los toques (joystick, cámara) emulan clic izquierdo:
 ## ahí solo cuenta el botón de ataque.
@@ -106,12 +138,13 @@ func _physics_process(delta: float) -> void:
 	# Click izquierdo (acción "attack"):
 	#  - Mazmorra: cada pulsación es UN golpe (solo el flanco de bajada); el combo lo encadena el búfer.
 	#  - Supervivencia: mantener pulsado repite el ataque; el cooldown del arma marca el ritmo.
-	#  - Mazmorra con lanzallamas: mantener pulsado = chorro continuo.
+	#  - Mazmorra con lanzallamas o fusil: mantener pulsado = chorro continuo / fuego automático.
 	if GameData.game_mode == "dungeon":
 		var weapon: int = get_parent().current_weapon()
 		# Táctil: la bazuca, los polvos y la escopeta se apuntan con el botón de disparo; al soltarlo sale el tiro
 		VirtualInput.attack_aims = VirtualInput.touch_ui_active and AIM_ON_HOLD.has(weapon)
 		if VirtualInput.attack_aims:
+			_end_attack_hold()
 			if _last_joy_buttons.get("VAIM", false) and not VirtualInput.is_attacking:
 				emit_signal("attack_pressed")
 			_last_joy_buttons["VAIM"] = VirtualInput.is_attacking
@@ -123,9 +156,14 @@ func _physics_process(delta: float) -> void:
 		else:
 			_last_joy_buttons["VAIM"] = false
 			var attack_down: bool = rt > 0.5 or VirtualInput.is_attacking or _mouse_attack()
-			var hold_weapon: bool = weapon == WeaponData.WeaponType.FLAME_THROWER
-			if attack_down and (hold_weapon or not _last_joy_buttons.get("ATTACK", false)):
-				emit_signal("attack_pressed")
+			var hold_weapon: bool = weapon == WeaponData.WeaponType.FLAME_THROWER or weapon == WeaponData.WeaponType.RIFLE
+			var cc = get_parent().get("combat_controller")
+			if not hold_weapon and cc and cc.has_melee_charge():
+				_update_attack_hold(delta, attack_down)
+			else:
+				_end_attack_hold()
+				if attack_down and (hold_weapon or not _last_joy_buttons.get("ATTACK", false)):
+					emit_signal("attack_pressed")
 			_last_joy_buttons["ATTACK"] = attack_down
 	elif (rt > 0.5 and not _last_joy_buttons.get("RT", false)) or VirtualInput.is_attacking or _mouse_attack():
 		emit_signal("attack_pressed")
@@ -152,7 +190,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			emit_signal("reload_pressed")
 			get_viewport().set_input_as_handled()
 
-	if (event.is_action_pressed("ui_cancel") and not event is InputEventJoypadButton) or joy_just_pressed(JOY_BUTTON_START):   # B = esquivar
+	if event.is_action_pressed("ui_cancel") and not event is InputEventJoypadButton:   # B = esquivar; Start lo gestiona PauseMenu
 		emit_signal("toggle_mouse_capture")
 		get_viewport().set_input_as_handled()
 

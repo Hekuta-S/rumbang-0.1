@@ -324,6 +324,10 @@ func set_my_char(index: int) -> void:
 ## El anfitrión (o el líder, con servidor dedicado): empieza la partida para todos en el mundo
 ## `world` (ver WorldDefs; por defecto el elegido en GameData.world).
 func start_game(world: String = "") -> void:
+	# Historia: la mazmorra sigue cerrada hasta rescatar al mago. El servidor dedicado no tiene partida
+	# guardada: confía en que el cliente que la pide ya la tenía abierta (su sala no deja pedirla sin el mago).
+	if not dedicated and not SaveManager.dungeon_unlocked():
+		return
 	if world == "" or not WorldDefs.has(world):
 		world = GameData.world if WorldDefs.has(GameData.world) else WorldDefs.DEFAULT
 	if is_client() and server_dedicated:

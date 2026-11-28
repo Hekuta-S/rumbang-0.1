@@ -62,6 +62,16 @@ static func button_style(bg: Color, border: Color, radius: int = 3, width: int =
 		s.shadow_offset = SHADOW_OFFSET
 	return s
 
+## Anillo de foco (mando/teclado): solo borde grueso con halo, sin fondo; se dibuja ENCIMA del estilo normal.
+## Úsalo como override "focus" en botones que cambian el normal: si "focus" repite el normal, el foco no se ve.
+static func focus_ring(color: Color = NEON_CYAN, straight: bool = false, width: int = 3) -> StyleBoxFlat:
+	var s := button_style(Color(0, 0, 0, 0), color, 4, width)
+	s.shadow_color = Color(color, 0.55)
+	s.shadow_size = 10
+	if straight:
+		s.skew = Vector2.ZERO
+	return s
+
 ## Panel: fondo violáceo profundo, borde ámbar tenue y halo violeta.
 static func panel_style(bg: Color = PANEL, border: Color = BTN_BORDER, radius: int = 4, margin: int = 24) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()

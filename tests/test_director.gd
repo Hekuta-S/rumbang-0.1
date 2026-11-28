@@ -79,6 +79,21 @@ func _ready() -> void:
 	var high := waves.power_factor()
 	_check(low < 1.0 and high > 1.0 and low >= 0.8 and high <= 1.35, "más nivel que lo esperado -> enemigos más duros (%.2f / %.2f)" % [low, high])
 	xp.level = 1
+
+	# 4b. Menos enemigos y velocidad que sube poco a poco
+	GameState.get_instance().elapsed_time = 0.0
+	var slow_e: EnemyData = waves._spawn_single_enemy(pos, EnemyData.EnemyType.NORMAL_GOBLIN)[0]
+	var cap0 := waves._alive_cap()
+	_check(is_equal_approx(waves.speed_mult(), 1.0), "al empezar los enemigos van a su velocidad")
+	_check(waves._current_interval() >= float(WaveManager.director_params(0.0, waves.wave_config)["interval"]) * WaveManager.SPAWN_INTERVAL_MULT - 0.001,
+		"aparecen más espaciados (x%.2f)" % WaveManager.SPAWN_INTERVAL_MULT)
+	GameState.get_instance().elapsed_time = 300.0
+	var fast_e: EnemyData = waves._spawn_single_enemy(pos, EnemyData.EnemyType.NORMAL_GOBLIN)[0]
+	_check(is_equal_approx(waves.speed_mult(), 1.0 + WaveManager.SPEED_PER_MINUTE * 5.0), "a los 5 min van un %d%% más rápido" % int(WaveManager.SPEED_PER_MINUTE * 500.0))
+	_check(fast_e.speed > slow_e.speed * 1.15, "el enemigo nuevo es más rápido (%.2f vs %.2f)" % [fast_e.speed, slow_e.speed])
+	GameState.get_instance().elapsed_time = 3600.0
+	_check(is_equal_approx(waves.speed_mult(), 1.0 + WaveManager.SPEED_MAX_BONUS), "la velocidad tiene tope")
+	_check(cap0 <= int(round(WaveManager.ALIVE_CAP_START * Quality.crowd_factor)), "tope de vivos reducido (%d)" % cap0)
 	GameState.get_instance().elapsed_time = 0.0
 
 	# 5. Formaciones
