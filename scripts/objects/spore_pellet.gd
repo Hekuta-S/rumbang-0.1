@@ -33,7 +33,15 @@ static func fire(parent: Node, from: Vector3, dir: Vector3, dmg: float, kb: floa
 	p.global_position = from
 	return p
 
+const TOON_SIZE := 0.3              ## estrellita de espora dibujada (m)
+
 func _ready() -> void:
+	# Cómic: una estrellita entintada (un Sprite3D) sin estela de partículas. Salen 9 a la vez:
+	# antes eran 9 esferas emisivas + 9 emisores de partículas por disparo.
+	var spr := SporeVFX.spore_sprite(TOON_SIZE)
+	if spr:
+		add_child(spr)
+		return
 	if _mesh == null:
 		_mesh = SphereMesh.new()
 		_mesh.radius = RADIUS
@@ -98,7 +106,11 @@ func _hit_enemy(e, pos: Vector3) -> void:
 func _finish(pos: Vector3) -> void:
 	_done = true
 	global_position = pos
-	var puff := SporeVFX.specks(Quality.count(10), 0.45, 0.1, 0.04, 0.09, 2.2)
+	if SporeVFX.is_toon():
+		ToonFX.impact_pop(get_parent(), pos, SporeVFX.SPORE_COLOR, 0.45)   # un sprite con tween, sin emisor
+		queue_free()
+		return
+	var puff :=SporeVFX.specks(Quality.count(10), 0.45, 0.1, 0.04, 0.09, 2.2)
 	puff.one_shot = true
 	puff.explosiveness = 0.95
 	get_parent().add_child(puff)

@@ -2,7 +2,7 @@ class_name EquipmentPanel
 extends Control
 
 ## Pestaña EQUIPO del menú de pausa (solo mazmorra), en el estilo mochila cartoon de cuero cosido (LeatherUI):
-## una placa con cinco huecos para casco, pechera, pantalones y los dos talismanes, el arma de la mano aparte,
+## una placa con seis huecos para casco, pechera, pantalones, los dos talismanes y el amuleto (activa de la E), el arma de la mano aparte,
 ## el detalle de lo que eliges (con la comparación contra lo que llevas si viene de la mochila) y la mochila como
 ## otra placa de huecos. Elegir un hueco muestra su detalle; Equipar/Quitar/Tirar están en el detalle.
 ## Se rehace al cambiar el equipo.
@@ -10,8 +10,8 @@ extends Control
 signal closed
 
 const SLOT_LABELS := {"casco": "Casco", "pechera": "Pechera", "pantalones": "Pantalones",
-	"talisman_1": "Talismán 1", "talisman_2": "Talismán 2", "arma": "Arma (en la mano)"}
-const PLATE_SLOTS := ["casco", "pechera", "pantalones", "talisman_1", "talisman_2"]
+	"talisman_1": "Talismán 1", "talisman_2": "Talismán 2", "amuleto": "Amuleto (E)", "arma": "Arma (en la mano)"}
+const PLATE_SLOTS := ["casco", "pechera", "pantalones", "talisman_1", "talisman_2", "amuleto"]
 const GOOD := Color(0.55, 0.9, 0.5)
 const BAD := Color(0.92, 0.4, 0.4)
 
@@ -200,7 +200,7 @@ func _icon_of(it: Dictionary) -> Texture2D:
 		var path := String(WeaponChoiceUI.ICONS.get(int(it.get("weapon", -1)), ""))
 		if path != "" and ResourceLoader.exists(path):
 			return load(path)
-	return null
+	return AmuletActives.icon(it)
 
 func refresh() -> void:
 	if not is_inside_tree() or equipment == null:
@@ -216,7 +216,8 @@ func refresh() -> void:
 	for i in PLATE_SLOTS.size():
 		var slot: String = PLATE_SLOTS[i]
 		var s: LeatherUI.Socket = _plate.sockets[i]
-		s.show_item(equipment.get_item(slot), EquipmentDB.KIND_ICONS["talisman" if slot.begins_with("talisman") else slot])
+		s.show_item(equipment.get_item(slot), EquipmentDB.KIND_ICONS["talisman" if slot.begins_with("talisman") else slot],
+			_icon_of(equipment.get_item(slot)))
 		s.set_selected(_sel_slot == slot)
 	var w := equipment.get_item("arma")
 	_weapon_socket.show_item(w, EquipmentDB.KIND_ICONS["arma"], _icon_of(w))

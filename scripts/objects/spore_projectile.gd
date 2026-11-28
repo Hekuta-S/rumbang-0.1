@@ -21,12 +21,31 @@ var cloud_scene = preload("res://scenes/objects/spore_cloud.tscn")
 
 static var spore_shader = preload("res://assets/shaders/spore_fbm_cloud.gdshader")
 
+## Cabeza dibujada (cómic): nube de esporas entintada que "hierve". Si existe, sustituye a la esfera con el
+## shader FBM y a la luz (lo caro en móvil: shader de ruido por píxel y una OmniLight por disparo).
+var head_sprite: Sprite3D = null
+const HEAD_SIZE := 0.8
+const HEAD_BOIL_FPS := 12.0
+var _seed_frame := 0
+
 func _ready() -> void:
 	add_to_group("bullets")
 	body_entered.connect(_on_body_entered)
 
-	# Aplicar el shader FBM orgánico a la cabeza del proyectil
 	var mesh_inst := get_node_or_null("MeshInstance3D") as MeshInstance3D
+	head_sprite = SporeVFX.cloud_sprite(HEAD_SIZE, 0.1)
+	if head_sprite:
+		head_sprite.name = "HeadSprite"
+		add_child(head_sprite)
+		_seed_frame = randi() % 4
+		if mesh_inst:
+			mesh_inst.queue_free()
+		var light := get_node_or_null("OmniLight3D")
+		if light:
+			light.queue_free()
+		return
+
+	# Sin dibujos: shader FBM orgánico en la cabeza del proyectil (versión antigua)
 	if mesh_inst:
 		var head_mat := ShaderMaterial.new()
 		head_mat.shader = spore_shader
@@ -94,6 +113,8 @@ func _physics_process(delta: float) -> void:
 
 	global_position = next_pos
 	lifetime += delta
+	if head_sprite:
+		SporeVFX.boil(head_sprite, lifetime, HEAD_SIZE, HEAD_BOIL_FPS, _seed_frame)
 	if lifetime >= max_lifetime:
 		_burst(null, global_position)
 
@@ -160,6 +181,9 @@ func _explode(hit_body, center: Vector3) -> void:
 
 func _spawn_burst_visual(pos: Vector3) -> void:
 	if not is_inside_tree(): return
+	if SporeVFX.is_toon():
+		_spawn_toon_burst(pos)
+		return
 	var container = Node3D.new()
 	get_parent().add_child(container)
 	container.global_position = pos
@@ -190,3 +214,27 @@ func _spawn_burst_visual(pos: Vector3) -> void:
 	tween.tween_property(light, "light_energy", 0.0, 0.4)
 	tween.tween_interval(0.7)
 	tween.tween_callback(container.queue_free)
+
+## Estallido dibujado (cómic): estrella de impacto, anillo entintado en el suelo, nubes de esporas que salen
+## disparadas y esporas sueltas. Sin luz y con pocas partículas opacas.
+func _spawn_toon_burst(pos: Vector3) -> void:
+	var parent := get_parent()
+	ToonFX.impact_pop(parent, pos, SporeVFX.SPORE_COLOR, 1.6)
+	ToonFX.ring_burst(parent, Vector3(pos.x, pos.y - 0.4, pos.z), explosion_radius(), SporeVFX.GAS_COLOR, 0.45)
+	var container := Node3D.new()
+	parent.add_child(container)
+	container.global_position = pos
+	var spores := SporeVFX.specks(48, 0.8, 0.25, 0.06, 0.14, 5.5)
+	spores.one_shot = true
+	spores.explosiveness = 0.95
+	spores.gravity = Vector3(0, -1.5, 0)
+	container.add_child(spores)
+	spores.emitting = true
+	var puff := SporeVFX.gas(10, 0.7, 0.3, 0.9, 1.6, 0.34)
+	puff.one_shot = true
+	puff.explosiveness = 0.9
+	puff.initial_velocity_min = 1.5
+	puff.initial_velocity_max = 3.5
+	container.add_child(puff)
+	puff.emitting = true
+	container.get_tree().create_timer(1.1).timeout.connect(container.queue_free)

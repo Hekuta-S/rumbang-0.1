@@ -9,6 +9,9 @@ Ambos modos (Supervivencia y Mazmorra) son principales; no comparten armas, pero
 
 Replanteamiento de intro y tutorial: si hay que rescatar al mago, el mago se tiene que rescatar primero en el modo supervivencia para poder habilitar el modo mazmorras. Para las mazmorras: prisioneros que sean los que desbloquean las mejoras y cosas que están en el salón. Elegida la jaula en el mapa de Supervivencia como forma de rescate.
 
+Mapas vivos, fase 4 (2026-11-23): "esa segunda opcion solo si no me va a gastar mas recursos innecesariamente, Clima por partida". Elegido: plan barato, solo visual.
+Fase 6: "y ademas vamos proponiendo ya que el mapa sea mas grande, y añadirle un mapa de cloacas y esten juntos, Huellas del jugador". "las cloacas en la superficie de supervivencia, que propones?" Aceptada la propuesta del Barrio del Desagüe.
+
 **Pitch:** Roguelite de acción 3D en tercera persona, con hordas goblin y mazmorras, donde armas, cartas y runas se combinan en sinergias dentro de un mundo cómic con tinta. *(inferred (strong))*
 
 **Genre:** roguelite de acción: bullet-heaven (Supervivencia) y dungeon crawler (Mazmorra). *(inferred (strong))*
@@ -47,12 +50,15 @@ INTENT UNKNOWN — inferred from implementation, not confirmed. Supervivencia: e
 - Meta de la historia: liberar al mago, a los prisioneros y vencer al Nigromante. Si mueres antes de abrir la jaula, esta reaparece en la siguiente partida. *(guessed)*
 
 ## Features
-- [ ] Intro nueva: el mago es raptado
-- [ ] Tutorial reajustado: lleva a la puerta de Supervivencia y deja los portales bloqueados
-- [ ] Jaula del mago en Supervivencia (minuto 4, oleada élite, resistir unos segundos)
-- [ ] Bloqueo de mazmorras hasta rescatar al mago (se guarda en el save)
-- [ ] Prisioneros de mazmorra (uno por mundo, en sala cerrada) que desbloquean estaciones del salón (tienda, yunque, mejoras)
-- [ ] Sinergia entre modos
+- [x] Intro nueva: el mago es raptado
+- [x] Tutorial reajustado: lleva a la puerta de Supervivencia y deja los portales bloqueados
+- [x] Jaula del mago en Supervivencia (minuto 4, oleada élite, resistir unos segundos)
+- [x] Bloqueo de mazmorras hasta rescatar al mago (se guarda en el save)
+- [x] Prisioneros de mazmorra (uno por mundo, en sala cerrada) que desbloquean estaciones del salón (tienda, yunque, mejoras)
+- [ ] Sinergia entre modos (la mínima está hecha; falta la completa, historia 007)
+- [x] Mapa de Supervivencia más grande (lado 230 → 320 m) con el Barrio del Desagüe: canales abiertos hundidos, pasarelas, puentes, rejillas y tuberías gigantes en una franja del borde; los canales hacen de embudo para las hordas *(guessed)*
+- [x] Huellas del jugador: compuertas que inundan o vacían canales, tuberías y muros rompibles que abren atajos, cráteres y tinta que persisten toda la partida (con tope) *(guessed)*
+- [ ] Clima por partida, solo visual: lluvia, niebla, polvo o despejado; un emisor de ~300 partículas en la cámara, niebla y cielo por tween, sin luces nuevas, apagado en calidad baja *(you said)*
 
 Ya construido: Supervivencia (hordas, cartas, Nigromante), Mazmorra (cavernas y cloacas, élites, botín), armas con sinergias, runas y remates, cartas y tomos, equipo y tienda, almas y estadísticas, multijugador LAN, estilo cómic con tinta.
 
@@ -67,10 +73,13 @@ Ya construido: Supervivencia (hordas, cartas, Nigromante), Mazmorra (cavernas y 
 
 ## Avoid
 - Que el jugador quede atascado sin saber qué hacer: si no rescata al mago, Supervivencia sigue jugable sin límite. *(guessed)*
+- Que el clima gaste rendimiento innecesario. *(you said)*
 
 ## Out of scope
 - Mercader errante, cronista del jefe, diálogos largos y voces. *(guessed)*
 - El mago como guía por radio en la mazmorra: más adelante.
+- Efectos del clima en el juego (solo visual).
+- Cloacas subterráneas bajo Supervivencia; unir Cavernas y Cloacas en una sola mazmorra.
 
 ## Build order
 1. Jaula del mago + guardado del bloqueo (cambia el flujo de arranque, lo más arriesgado).
@@ -78,6 +87,11 @@ Ya construido: Supervivencia (hordas, cartas, Nigromante), Mazmorra (cavernas y 
 3. Un prisionero en Cavernas que desbloquee una estación del salón.
 4. El prisionero de Cloacas.
 5. Pendiente anterior: sinergia entre modos y rendimiento en Android.
+
+Mapas vivos (añadido 2026-11-23):
+1. Mapa más grande con el Barrio del Desagüe y medición en Android (Mali-G57). Lo más arriesgado: rendimiento y enrutado de hordas.
+2. Huellas del jugador.
+3. Clima por partida.
 
 ---
 **Kill condition:** si en prueba el bloqueo frustra al jugador antes de que vea las mazmorras, se vuelve opcional. *(provisional)*

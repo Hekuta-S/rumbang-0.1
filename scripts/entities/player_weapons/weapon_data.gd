@@ -66,6 +66,10 @@ enum WeaponType {
 	KATANA = 20,   ## arma mítica: Katana de Sangre (solo como legendaria de rareza Mítica)
 	FISTS = 21,    ## puños: combo de seis golpes; tras golpear pasa a la guardia de pelea
 	GIANT_MACE = 22,   ## supervivencia: una maza gigante dibujada aparece y pega en el suelo (GiantMaceSlam)
+	CROSSBOW = 23,     ## supervivencia: ballesta sniper; solo se ve la flecha, que atraviesa a todos (CrossbowStrategy)
+	PISTOL = 24,       ## mazmorra: disparo instantáneo tiro a tiro, preciso (PistolStrategy)
+	RIFLE = 25,        ## mazmorra: fusil automático mientras se mantiene el clic, con dispersión (RifleStrategy)
+	FIRE_STAFF = 26,   ## mazmorra: bastón de fuego; bola de fuego que estalla en área y quema (FireStaffStrategy)
 }
 
 ## ---------------------------------------------------------------------------
@@ -151,6 +155,22 @@ static func _build_weapon_table() -> Dictionary:
 		# alcance = distancia máxima a la que cae la maza
 		WeaponType.GIANT_MACE: WeaponDirector.construct_ranged(
 				WeaponBuilder.new(22, "Maza Gigante", "🔨", "ranged"), 34.0, 1.6, 10.0, 11.0),
+
+		# Ballesta Sniper: flecha rapidísima y recta que atraviesa a todos; lenta y muy fuerte. alcance = distancia de la flecha
+		WeaponType.CROSSBOW: WeaponDirector.construct_ranged(
+				WeaponBuilder.new(23, "Ballesta Sniper", "🏹", "ranged"), 42.0, 1.7, 70.0, 60.0),
+
+		# Pistola: bala instantánea (sin proyectil), precisa, tiro a tiro. alcance = distancia de la bala
+		WeaponType.PISTOL: WeaponDirector.construct_ranged(
+				WeaponBuilder.new(24, "Pistola", "🔫", "ranged"), 11.0, 0.32, 0.0, 40.0),
+
+		# Fusil: automático (ritmo continuo: _apply_balance no lo ralentiza), cada bala floja y con algo de dispersión
+		WeaponType.RIFLE: WeaponDirector.construct_ranged(
+				WeaponBuilder.new(25, "Fusil", "🔫", "ranged"), 4.5, 0.13, 0.0, 45.0),
+
+		# Bastón de Fuego: bola de fuego hacia el crosshair que estalla en área y quema. alcance = distancia máxima
+		WeaponType.FIRE_STAFF: WeaponDirector.construct_ranged(
+				WeaponBuilder.new(26, "Bastón de Fuego", "🔥", "ranged"), 15.0, 0.55, 24.0, 30.0),
 	}
 	return table
 ## ---------------------------------------------
@@ -218,6 +238,10 @@ static var weapon_names: Dictionary = {
 	WeaponType.KATANA: "Katana de Sangre",
 	WeaponType.FISTS: "Puños",
 	WeaponType.GIANT_MACE: "Maza Gigante",
+	WeaponType.CROSSBOW: "Ballesta Sniper",
+	WeaponType.PISTOL: "Pistola",
+	WeaponType.RIFLE: "Fusil",
+	WeaponType.FIRE_STAFF: "Bastón de Fuego",
 }
 
 ## Icono por arma (HUD / señales).
@@ -241,6 +265,10 @@ static var weapon_icons: Dictionary = {
 	WeaponType.KATANA: "🗡️",
 	WeaponType.FISTS: "👊",
 	WeaponType.GIANT_MACE: "🔨",
+	WeaponType.CROSSBOW: "🏹",
+	WeaponType.PISTOL: "🔫",
+	WeaponType.RIFLE: "🔫",
+	WeaponType.FIRE_STAFF: "🔥",
 }
 
 ## Daño con Berserk aplicado según la ficha (mismos valores que los literales).

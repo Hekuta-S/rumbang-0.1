@@ -21,7 +21,7 @@ const MODS := {
 	"furioso": {"label": "FURIOSO", "color": Color(1.0, 0.25, 0.15), "hp": 2.2, "desc": "Se enfurece a media vida"},
 }
 ## Tipos que nunca son élite (jefes) o que van en enjambre (se reparten por WorldDefs "swarm").
-const NEVER := ["necro", "rat_king"]
+const NEVER := ["necro", "rat_king", "bat"]    ## los murciélagos no son sprites de malla: sin élites
 
 const DAMAGE_MULT := 1.25
 const GOLD_MULT := 3

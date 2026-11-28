@@ -105,6 +105,7 @@ func _explode() -> void:
 		if d <= BLAST_RADIUS and player.has_method("take_damage"):
 			player.take_damage(damage)
 	var parent := get_parent()
+	MapMarks.add_at(self, _end, MapMarks.Kind.CRATER, BLAST_RADIUS * 0.8)
 	if parent != null:
 		ToonFX.ring_burst(parent, _end, BLAST_RADIUS, COLOR, 0.32)
 		ToonFX.impact_pop(parent, _end + Vector3(0, 0.6, 0), COLOR, 1.6)

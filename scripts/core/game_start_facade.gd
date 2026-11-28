@@ -41,6 +41,7 @@ func initialize(scene_root: Node3D, hud: Node, player: Node3D) -> void:
 ## Inicia (o reinicia) una partida.
 ## Resetea estado, UI, jugador, oleadas y loot.
 func start_game() -> void:
+	_restore_chosen_map()
 	_reset_game_state()
 	_reset_ui()
 	_apply_character_data()
@@ -53,6 +54,7 @@ func start_game() -> void:
 		loot_manager.spawn_weapon_pickup()
 		loot_manager.spawn_item_pickup()
 		_setup_day_night()
+		_setup_map_switch()
 	else:
 		_setup_dungeon_encounter()
 	_setup_map_life()
@@ -88,6 +90,53 @@ func _setup_map_life() -> void:
 				enc.noise_at(at))
 	critters.setup(map, _player)
 	reactions.critters = critters
+	# Huellas del jugador (historia 009): cráteres y tinta en el suelo; los árboles talados espantan a los cuervos
+	if not (map is DungeonMap):
+		var marks := _scene_root.get_node_or_null("MapMarks") as MapMarks
+		if marks == null:
+			marks = MapMarks.new()
+			marks.name = "MapMarks"
+			_scene_root.add_child(marks)
+			if wave_manager:
+				wave_manager.enemy_died.connect(func(pos: Vector3, _g: int, _xp: float): marks.on_enemy_died(pos))
+		marks.setup(map)
+		var trees = map.get("trees")
+		if trees is TreeField and not (trees as TreeField).tree_broken.is_connected(critters.disturb.bind(6.0)):
+			(trees as TreeField).tree_broken.connect(critters.disturb.bind(6.0))
+
+## Reintentar tras cruzar el portal: el mapa vuelve a ser el elegido al entrar (GameData.survival_map).
+func _restore_chosen_map() -> void:
+	if GameData.game_mode != "survival":
+		return
+	var map := _scene_root.get_node_or_null("ProceduralMap") as ProceduralMap
+	if map == null or map is DungeonMap or map.get_theme() == GameData.survival_map:
+		return
+	map.theme = ""
+	map.generate()
+	EnemyMotion.reset()
+
+## Portal a mitad de partida hacia el otro mapa de Supervivencia (SurvivalMapSwitch). Uno por escena.
+func _setup_map_switch() -> void:
+	var map := _scene_root.get_node_or_null("ProceduralMap") as ProceduralMap
+	if map == null or map is DungeonMap or Net.is_online():
+		return
+	var sw := _scene_root.get_node_or_null("SurvivalMapSwitch") as SurvivalMapSwitch
+	if sw == null:
+		sw = SurvivalMapSwitch.new()
+		sw.name = "SurvivalMapSwitch"
+		_scene_root.add_child(sw)
+		sw.switched.connect(_on_map_switched)
+	sw.setup(map, _player, wave_manager)
+
+## Tras cruzar el portal: sonido, fauna, reacciones, huellas y cielo del mapa nuevo.
+func _on_map_switched(theme: String) -> void:
+	var marks := _scene_root.get_node_or_null("MapMarks") as MapMarks
+	if marks:
+		marks.clear()
+	_setup_map_life()
+	var cycle := _scene_root.get_node_or_null("DayNightCycle") as DayNightCycle
+	if cycle:
+		cycle.set_theme(theme)
 
 ## Supervivencia: empieza de día y se oscurece hasta la noche del jefe (DayNightCycle).
 ## Se crea una vez por escena; la fase sale del tiempo de partida, así que al reiniciar vuelve a ser de día.
@@ -103,7 +152,7 @@ func _setup_day_night() -> void:
 		cycle.setup(_scene_root.get_node_or_null("WorldEnvironment") as WorldEnvironment,
 			_scene_root.get_node_or_null("DirectionalLight3D") as DirectionalLight3D, map)
 	else:
-		cycle.apply(0.0)
+		cycle.set_theme(map.get_theme() if map.has_method("get_theme") else "forest")
 
 ## Primer encuentro de la mazmorra: un goblin en la caverna arena (DungeonEncounter).
 func _setup_dungeon_encounter() -> void:

@@ -269,8 +269,9 @@ func _make_card(choice: Dictionary, inv: Node) -> Button:
 	var name_text := WeaponSynergies.weapon_name(inv, w)
 	match choice["type"]:
 		"evolution":
-			for state in ["normal", "hover", "pressed", "focus"]:
+			for state in ["normal", "hover", "pressed"]:
 				btn.add_theme_stylebox_override(state, Style.button_style(Color(0.16, 0.11, 0.03), EVOLUTION_COLOR, 3, 3))
+			btn.add_theme_stylebox_override("focus", Style.focus_ring(EVOLUTION_COLOR))   # foco visible con mando
 			vb.add_child(_card_label("¡EVOLUCIONA!", 13, EVOLUTION_COLOR))   # la fuente pixel no tiene "Ó"
 			vb.add_child(_card_image(_weapon_icon(w), name_text, EVOLUTION_COLOR))
 			vb.add_child(_card_label(String(WeaponSynergies.EVOLUTIONS[w]["name"]).to_upper(), 13, Style.TITLE))
@@ -311,8 +312,12 @@ func _make_tome_card(choice: Dictionary, inv: Node, Style) -> Button:
 	var col: Color = TomeDB.RARITY_COLOR[r]
 	var def: Dictionary = TomeDB.TOMES[id]
 	var btn := _card_button(choice, inv)
-	for state in ["normal", "hover", "pressed", "focus"]:
+	for state in ["normal", "pressed"]:
 		btn.add_theme_stylebox_override(state, Style.button_style(Color(col.r * 0.12, col.g * 0.12, col.b * 0.12), col, 3 if r > 0 else 2, 3))
+	# Señalada (ratón o mando) brilla: fondo más claro y anillo con halo. Antes "focus" repetía el normal
+	# y con mando no se sabía qué tomo estaba marcado.
+	btn.add_theme_stylebox_override("hover", Style.button_style(Color(col.r * 0.24, col.g * 0.24, col.b * 0.24), col, 3, 3))
+	btn.add_theme_stylebox_override("focus", Style.focus_ring(Style.NEON_CYAN))
 	var vb := _card_body(btn)
 	var title := String(def["name"]).replace("Tomo de ", "")
 	vb.add_child(_card_label("TOMO · " + TomeDB.RARITY_NAME_ASCII[r], 11, col))

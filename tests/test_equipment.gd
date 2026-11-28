@@ -258,7 +258,7 @@ func _ready() -> void:
 	var panel := EquipmentPanel.create(eq, sb)
 	add_child(panel)
 	await get_tree().process_frame
-	_check(panel._plate.sockets.size() == 5 and panel._weapon_socket != null, "Cinco huecos de armadura y talismanes, más el arma")
+	_check(panel._plate.sockets.size() == 6 and panel._weapon_socket != null, "Seis huecos (armadura, talismanes y amuleto), más el arma")
 	_check(panel._bag_plate.sockets.size() == PlayerEquipment.BAG_MAX, "Un hueco por plaza de mochila")
 	_check(panel._bag_plate.sockets.filter(func(sk): return sk.filled).size() == eq.bag.size(), "Un hueco lleno por pieza de la mochila")
 	_check(not eq.bag.is_empty(), "Hay una pieza en la mochila para probar")

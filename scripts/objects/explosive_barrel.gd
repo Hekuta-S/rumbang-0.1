@@ -285,6 +285,15 @@ func explode() -> void:
 		to_b.y = 0.0
 		if to_b.length() <= BLAST_RADIUS:
 			b.ignite(to_b.normalized() * 9.0 if to_b.length() > 0.05 else Vector3.FORWARD * 9.0)
+	# Árboles, muros, tuberías y compuertas rompibles dentro de la explosión
+	for prop in get_tree().get_nodes_in_group("destructibles"):
+		if prop != self and prop is Node3D and is_instance_valid(prop) and prop.has_method("take_damage") \
+				and not (prop is ExplosiveBarrel):
+			var to_p: Vector3 = (prop as Node3D).global_position - pos
+			to_p.y = 0.0
+			if to_p.length() <= BLAST_RADIUS:
+				prop.take_damage(999.0, to_p.normalized() if to_p.length() > 0.05 else Vector3.FORWARD)
+	MapMarks.add_at(self, pos, MapMarks.Kind.CRATER, BLAST_RADIUS * 0.9)
 	if is_inside_tree():
 		var scene := get_parent()
 		NecroVFX.shockwave(scene, pos + Vector3(0, 0.2, 0), BLAST_RADIUS * 2.0, FIRE)

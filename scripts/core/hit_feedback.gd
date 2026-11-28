@@ -35,6 +35,7 @@ const PROFILES := {
 	W.SPINNING_AXE:   {"color": Color(1.0, 0.75, 0.3),  "kind": "shard", "count": 12, "speed": 8.0,  "kb": 1.5, "shake": 0.3,  "stop": 0.05, "sfx": "impact_slash"},
 	W.ELEMENTS_CYCLE: {"color": Color(0.8, 0.95, 1.0),  "kind": "orb",   "count": 8,  "speed": 4.0,  "kb": 0.8, "shake": 0.1,  "stop": 0.02, "sfx": "impact_magic"},
 	W.GIANT_MACE:     {"color": Color(1.0, 0.8, 0.32),  "kind": "shard", "count": 14, "speed": 8.0,  "kb": 2.0, "shake": 0.2,  "stop": 0.03, "sfx": "impact_mace"},
+	W.CROSSBOW:       {"color": Color(1.0, 0.9, 0.55),  "kind": "spark", "count": 12, "speed": 12.0, "kb": 1.0, "shake": 0.2,  "stop": 0.03, "sfx": "impact_pierce"},
 	W.ZOMBIE_ARM:     {"color": Color(0.8, 0.12, 0.15), "kind": "shard", "count": 12, "speed": 7.0,  "kb": 1.4, "shake": 0.3,  "stop": 0.05, "sfx": "impact_blunt"},
 	W.DAGGERS:        {"color": Color(0.95, 0.2, 0.25), "kind": "spark", "count": 8,  "speed": 11.0, "kb": 0.5, "shake": 0.12, "stop": 0.02, "sfx": "impact_dagger"},
 	W.MACE:           {"color": Color(0.3, 1.0, 0.55),  "kind": "shard", "count": 18, "speed": 7.0,  "kb": 1.8, "shake": 0.45, "stop": 0.07, "sfx": "impact_mace"},
@@ -42,6 +43,9 @@ const PROFILES := {
 	W.KATANA:         {"color": Color(1.0, 0.2, 0.12),  "kind": "spark", "count": 14, "speed": 10.0, "kb": 1.25, "shake": 0.28, "stop": 0.05, "sfx": "impact_sword"},
 	W.FISTS:          {"color": Color(1.0, 0.92, 0.75), "kind": "puff",  "count": 8,  "speed": 5.0,  "kb": 1.0, "shake": 0.18, "stop": 0.04, "sfx": "impact_blunt"},
 	W.GREATSWORD:     {"color": Color(1.0, 0.85, 0.55), "kind": "spark", "count": 14, "speed": 9.0,  "kb": 1.4, "shake": 0.35, "stop": 0.06, "sfx": "impact_great"},
+	W.PISTOL:         {"color": Color(1.0, 0.8, 0.4),   "kind": "spark", "count": 6,  "speed": 10.0, "kb": 0.8, "shake": 0.1,  "stop": 0.02, "sfx": "impact_pierce"},
+	W.RIFLE:          {"color": Color(1.0, 0.85, 0.5),  "kind": "spark", "count": 4,  "speed": 9.0,  "kb": 0.5, "shake": 0.05, "stop": 0.0,  "sfx": "impact_pierce"},
+	W.FIRE_STAFF:     {"color": Color(1.0, 0.55, 0.15), "kind": "spark", "count": 10, "speed": 8.0,  "kb": 1.0, "shake": 0.15, "stop": 0.03, "sfx": "impact_fire"},
 	W.BOW:            {"color": Color(1.0, 0.9, 0.6),   "kind": "shard", "count": 8,  "speed": 8.0,  "kb": 0.7, "shake": 0.12, "stop": 0.03, "sfx": "impact_pierce"},
 }
 
@@ -948,9 +952,10 @@ func _make_emitter(kind: String) -> CPUParticles3D:
 			cp.damping_min = 4.0
 			cp.damping_max = 8.0
 		"shard":
-			var pr := PrismMesh.new()
-			pr.size = Vector3(0.09, 0.16, 0.03)
+			var pr := QuadMesh.new()
+			pr.size = Vector2(0.09, 0.14)
 			cp.mesh = pr
+			mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 			cp.lifetime = 0.45
 			cp.spread = 45.0
 			cp.gravity = Vector3(0, -18, 0)
@@ -961,12 +966,10 @@ func _make_emitter(kind: String) -> CPUParticles3D:
 			cp.damping_min = 2.0
 			cp.damping_max = 4.0
 		"ember":
-			var s := SphereMesh.new()
-			s.radius = 0.04
-			s.height = 0.08
-			s.radial_segments = 4
-			s.rings = 2
+			var s := QuadMesh.new()
+			s.size = Vector2(0.08, 0.08)
 			cp.mesh = s
+			mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 			cp.lifetime = 0.6
 			cp.spread = 70.0
 			cp.gravity = Vector3(0, 3.5, 0)
@@ -999,12 +1002,10 @@ func _make_emitter(kind: String) -> CPUParticles3D:
 			curve.add_point(Vector2(1, 1.6))
 			cp.scale_amount_curve = curve
 		_:  # orb
-			var s3 := SphereMesh.new()
-			s3.radius = 0.05
-			s3.height = 0.1
-			s3.radial_segments = 6
-			s3.rings = 3
+			var s3 := QuadMesh.new()
+			s3.size = Vector2(0.1, 0.1)
 			cp.mesh = s3
+			mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 			cp.lifetime = 0.7
 			cp.spread = 180.0
 			cp.gravity = Vector3(0, 1.0, 0)

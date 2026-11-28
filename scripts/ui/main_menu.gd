@@ -231,7 +231,11 @@ func _build_play_menu() -> void:
 	diff_btn.custom_minimum_size = Vector2(330, 38)
 	var chal_btn := _make_button("", C_BTN_BORDER)
 	chal_btn.custom_minimum_size = Vector2(330, 38)
+	var map_btn := _make_button("", C_BTN_BORDER)
+	map_btn.name = "MapaSupervivencia"
+	map_btn.custom_minimum_size = Vector2(330, 38)
 	var refresh_mods := func():
+		map_btn.text = "  MAPA: %s" % GameData.survival_map_name().to_upper()
 		diff_btn.text = "  DIFICULTAD: %s" % RunModifiers.difficulty_name()
 		var c: Dictionary = RunModifiers.CHALLENGES[RunModifiers.challenge()]
 		chal_btn.text = "  RETO: %s" % c["name"]
@@ -242,7 +246,13 @@ func _build_play_menu() -> void:
 	chal_btn.pressed.connect(func():
 		RunModifiers.cycle_challenge()
 		refresh_mods.call())
+	map_btn.pressed.connect(func():
+		GameData.cycle_survival_map()
+		refresh_mods.call()
+		hint.text = "Supervivencia en %s: %s A mitad de partida se abre un portal al otro mapa." % [
+			GameData.survival_map_name(), GameData.SURVIVAL_MAPS[GameData.survival_map]["subtitle"]])
 	refresh_mods.call()
+	box.add_child(map_btn)
 	box.add_child(diff_btn)
 	box.add_child(chal_btn)
 	var back := _make_button("  VOLVER", C_BTN_BORDER)
@@ -440,6 +450,8 @@ func _on_dungeon_hub() -> void:
 	SceneLoader.load_scene("res://scenes/ui/dungeon_hub.tscn")
 
 func _on_play_dungeon(world: String = WorldDefs.DEFAULT) -> void:
+	if not SaveManager.dungeon_unlocked():
+		return
 	GameData.game_mode = "dungeon"
 	GameData.world = world
 	SceneLoader.load_scene("res://scenes/ui/character_select.tscn")

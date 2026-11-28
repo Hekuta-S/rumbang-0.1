@@ -16,3 +16,6 @@
 | 005 | Prisioneros de mazmorra que desbloquean el salón | Integration | Ready | N/A |
 | 006 | Sinergia entre modos, versión mínima | Logic | Ready | N/A |
 | 007 | Sinergia entre modos, completa | Logic | Ready | N/A |
+| 008 | Mapa de Supervivencia grande con el Barrio del Desagüe | Integration | Ready | N/A |
+| 009 | Huellas del jugador | Integration | Ready | N/A |
+| 010 | Clima por partida, solo visual | Visual/Feel | Ready | N/A |

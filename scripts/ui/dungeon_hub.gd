@@ -81,6 +81,21 @@ const LINES := [
 ]
 const MAGE_OPEN_LINE := "¿Listo para las mazmorras? ¡Abro los portales! Elige tu destino."
 const MAGE_AGAIN_LINE := "Los portales siguen abiertos, héroe. Cruza el que quieras."
+## Sin el mago (raptado por el Nigromante) no hay portales: hay que rescatarlo en Supervivencia.
+const MAGE_GONE_LABEL := "¿EL MAGO?"
+const MAGE_GONE_PROMPT := "El mago no está"
+const MAGE_GONE_HINT := "El Nigromante se llevó al mago. Rescátalo en la Arena de supervivencia para abrir las mazmorras."
+## El yunque también es cosa del mago (encanta las armas): apagado hasta rescatarlo.
+const ANVIL_LOCKED_PROMPT := "Yunque apagado: sin el mago no forja"
+const ANVIL_LOCKED_HINT := "Sin el mago, el yunque no forja ni sube de nivel. Rescátalo en la Arena de supervivencia."
+## Mientras el mago siga raptado, la puerta de la arena es el único destino: su rótulo late en dorado.
+const ARENA_CALL_LABEL := "▼ ARENA: RESCATA AL MAGO ▼"
+const ARENA_CALL_COLOR := Color(1.0, 0.82, 0.3)
+const ARENA_CALL_H := 2.0
+## Prisioneros liberados en la mazmorra (WorldDefs "prisoner"): se quedan en el salón junto a la estación que abren.
+## (delante de su estación mirando al trono: la cámara sigue al héroe desde detrás, hacia -Z)
+const PRISONER_SPOTS := {"cofre": Vector3(6.4, FLOOR_Y, 2.2), "nivel": Vector3(5.9, FLOOR_Y, -2.6)}
+const PRISONER_HEIGHT := 1.75
 const SPEAKERS := {"rey": ["El Rey", Color(1.0, 0.78, 0.3)], "mago": ["El Mago", Color(0.45, 0.8, 1.0)]}
 const INTRO_LENGTH := 22.2
 const FLASH_AT := 9.6
@@ -780,8 +795,101 @@ func _build_portals() -> void:
 	if portals_open:
 		open_portals(true)
 
+## Texto del aviso de una estación (el del mago cambia mientras sigue raptado).
+func station_prompt(id: String) -> String:
+	if not SaveManager.dungeon_unlocked():
+		if id == "mago":
+			return MAGE_GONE_PROMPT
+		if id == "yunque":
+			return ANVIL_LOCKED_PROMPT
+	var w := prisoner_world_for(id)
+	if w != "" and not SaveManager.prisoner_free(w):
+		return "%s: libera a %s" % [String(STATIONS[id]["label"]).capitalize(), prisoner_name(w)]
+	return String(STATIONS[id]["prompt"])
+
+## Estaciones apagadas: el yunque mientras el mago siga raptado; las de los prisioneros hasta liberarlos
+## ("nivel" es la pestaña NIVEL del yunque, ver HubPanels).
+static func station_locked(id: String) -> bool:
+	if id == "yunque" and not SaveManager.dungeon_unlocked():
+		return true
+	var w := prisoner_world_for(id)
+	return w != "" and not SaveManager.prisoner_free(w)
+
+## Mundo cuyo prisionero abre esta estación ("" si ninguno).
+static func prisoner_world_for(station: String) -> String:
+	for w in WorldDefs.ORDER:
+		var pr: Dictionary = WorldDefs.get_def(w).get("prisoner", {})
+		if String(pr.get("station", "")) == station:
+			return w
+	return ""
+
+static func prisoner_name(world: String) -> String:
+	var pr: Dictionary = WorldDefs.get_def(world).get("prisoner", {})
+	return String(pr.get("name", "PRISIONERO")).capitalize()
+
+## Aviso de una estación apagada.
+static func locked_hint(id: String) -> String:
+	if id == "yunque" and not SaveManager.dungeon_unlocked():
+		return ANVIL_LOCKED_HINT
+	var w := prisoner_world_for(id)
+	if w == "":
+		return ""
+	return "Hay que liberar a %s en las %s (limpia su caverna) para abrir esto." % [prisoner_name(w), String(WorldDefs.get_def(w)["name"])]
+
+## Mago presente solo si ya se rescató; su rótulo avisa de que falta.
+func _apply_mage_presence() -> void:
+	var here := SaveManager.dungeon_unlocked()
+	if mage:
+		mage.visible = here
+	var l: Label3D = _station_labels.get("mago")
+	if l:
+		l.text = String(STATIONS["mago"]["label"]) if here else MAGE_GONE_LABEL
+	var arena: Label3D = _station_labels.get("arena")
+	if arena:
+		arena.text = String(STATIONS["arena"]["label"]) if here else ARENA_CALL_LABEL
+		arena.modulate = Color(ARENA_CALL_COLOR, 1.0) if not here else Color(1.0, 0.85, 0.5, 0.45)
+		# más bajo mientras llama: a la altura normal (sobre el dintel) queda fuera del encuadre al acercarse
+		arena.position.y = FLOOR_Y + (ARENA_CALL_H if not here else float(STATIONS["arena"]["h"]))
+		arena.font_size = 56 if not here else 40
+	for sid in ["yunque", "cofre"]:
+		var sl: Label3D = _station_labels.get(sid)
+		if sl:
+			sl.modulate = Color(0.55, 0.5, 0.5, 0.3) if station_locked(sid) else Color(1.0, 0.85, 0.5, 0.45)
+	_spawn_freed_prisoners()
+
+var _prisoner_npcs: Dictionary = {}   ## mundo -> Node3D
+
+## Prisioneros ya liberados: de pie junto a la estación que abren, con su nombre.
+func _spawn_freed_prisoners() -> void:
+	for w in WorldDefs.ORDER:
+		var pr: Dictionary = WorldDefs.get_def(w).get("prisoner", {})
+		if pr.is_empty() or not SaveManager.prisoner_free(w) or _prisoner_npcs.has(w):
+			continue
+		var spot: Vector3 = PRISONER_SPOTS.get(String(pr["station"]), Vector3.ZERO)
+		var root := Node3D.new()
+		root.name = "Prisionero_" + w
+		add_child(root)
+		root.position = spot
+		root.rotation.y = _yaw_to(spot, CIRCLE)
+		DungeonShop.make_npc(root, String(pr["model"]), Vector3.ZERO, PRISONER_HEIGHT)
+		var l := Label3D.new()
+		l.text = String(pr["name"])
+		l.font = Style.FONT
+		l.font_size = 32
+		l.pixel_size = 0.004
+		l.outline_size = 10
+		l.outline_modulate = Color(0.03, 0.01, 0.06)
+		l.modulate = Color(1.0, 0.85, 0.45, 0.8)
+		l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		l.position.y = PRISONER_HEIGHT + 0.45
+		root.add_child(l)
+		_prisoner_npcs[w] = root
+
 ## El mago abre los portales (instant: sin animación, al volver al salón).
+## Sin el mago rescatado no se abre nada.
 func open_portals(instant: bool = false) -> void:
+	if not SaveManager.dungeon_unlocked():
+		return
 	portals_open = true
 	for i in portals.size():
 		var p: Dictionary = portals[i]
@@ -829,6 +937,10 @@ func _king_look() -> CharacterLook:
 	return l
 
 func _mage_look() -> CharacterLook:
+	return mage_look()
+
+## Aspecto del mago (también lo usa la jaula de Supervivencia, MageCage).
+static func mage_look() -> CharacterLook:
 	var l := CharacterLook.new()
 	l.char_name = "Mago"
 	l.hair_style = "rapado"
@@ -1035,7 +1147,10 @@ func begin_explore(instant: bool) -> void:
 	_hud.visible = true
 	_hud.modulate.a = 0.0
 	create_tween().tween_property(_hud, "modulate:a", 1.0, 0.6)
-	if not instant:
+	_apply_mage_presence()
+	if not SaveManager.dungeon_unlocked():
+		_show_hint(MAGE_GONE_HINT, 7.0)
+	elif not instant:
 		_show_hint("Explora el salón: habla con el mago para abrir los portales de las mazmorras.", 6.0)
 	explore_started.emit()
 
@@ -1059,6 +1174,10 @@ func use_station(id: String) -> void:
 	var st: Dictionary = STATIONS[id]
 	player.face(st["pos"] if id != "mago" else MAGE_POS)
 	station_used.emit(id)
+	if station_locked(id):
+		AudioManager.play("ui_click", -6.0, 0.6)
+		_show_hint(locked_hint(id), 5.0)
+		return
 	match id:
 		"mago":
 			_talk_to_mage()
@@ -1086,6 +1205,10 @@ func start_tutorial(change: bool = true) -> void:
 		tw.tween_callback(func(): SceneLoader.load_scene(TUTORIAL))
 
 func _talk_to_mage() -> void:
+	if not SaveManager.dungeon_unlocked():
+		AudioManager.play("orb_cast", -10.0, 0.6)
+		_show_hint(MAGE_GONE_HINT, 5.0)
+		return
 	_play(mage, "mago_reverencia" if portals_open else "mago_conjurar", "mago_idle" if portals_open else "", 0.3)
 	if portals_open:
 		_say("mago", MAGE_AGAIN_LINE, 2.5)
@@ -1196,10 +1319,15 @@ func _update_explore() -> void:
 		near_station = here
 		_prompt.visible = here != ""
 		if here != "":
-			_prompt.text = "  %s   %s  " % ["A" if Input.get_connected_joypads().size() > 0 else "E", String(STATIONS[here]["prompt"])]
+			_prompt.text = "  %s   %s  " % [GamepadUI.hint("E", "A"), station_prompt(here)]
+	var calling := not SaveManager.dungeon_unlocked()
 	for id in _station_labels:
 		var l: Label3D = _station_labels[id]
-		l.modulate.a = lerpf(l.modulate.a, 1.0 if id == near_station else 0.45, 0.15)
+		if calling and id == "arena":
+			l.modulate.a = 0.7 + 0.3 * sin(_time * 4.0)   # la arena llama: late
+			continue
+		var rest := 0.3 if station_locked(id) else 0.45
+		l.modulate.a = lerpf(l.modulate.a, 1.0 if id == near_station else rest, 0.15)
 	# cruzar un portal abierto
 	for p in portals:
 		if p["open"]:
@@ -1435,7 +1563,17 @@ func _build_hud(root: Control) -> void:
 	sub.add_theme_color_override("font_color", Style.TEXT_DIM)
 	_hud.add_child(sub)
 	var keys := Label.new()
-	keys.text = "WASD / stick: andar   Shift: correr   E: usar   Clic o toque: ir allí   Esc: título"
+	var _set_keys := func(pad: bool) -> void:
+		if not is_instance_valid(keys):
+			return
+		keys.text = (GamepadUI.pad_text("Stick: andar   Stick pulsado: correr   A: usar   B: título") if pad
+			else "WASD / stick: andar   Shift: correr   E: usar   Clic o toque: ir allí   Esc: título")
+	_set_keys.call(GamepadUI.using_pad())
+	GamepadUI.device_changed.connect(_set_keys)
+	# GamepadUI es un autoload: sin desconectar, al salir del salón la lambda seguía viva con `keys` ya liberado
+	keys.tree_exiting.connect(func():
+		if GamepadUI.device_changed.is_connected(_set_keys):
+			GamepadUI.device_changed.disconnect(_set_keys))
 	keys.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	keys.offset_left = 28
 	keys.offset_top = -40

@@ -263,6 +263,39 @@ var _launch_vel: Vector3 = Vector3.ZERO
 var _launch_air: bool = false
 const LAUNCH_STEER := 0.15
 
+## Combate aéreo (mazmorra, estilo Devil May Cry): golpear a un enemigo lanzado (DungeonGoblin.launch) o dar un golpe
+## en el aire hace flotar al jugador: deja de caer y la caída se frena unos instantes (subiendo la gravedad es la normal:
+## si no, el impulso del salto apenas se frenaba y el jugador salía volando).
+## El tiempo total de flotación por salto está limitado (AIR_HOVER_BUDGET) y se recupera al pisar el suelo.
+const AIR_HOVER_TIME := 0.55          ## s de flotación que da cada golpe aéreo
+const AIR_HOVER_GRAVITY := 0.12       ## fracción de la gravedad mientras flota y cae (subiendo: gravedad completa)
+const AIR_HOVER_LIFT := 0.0           ## m/s mínimos hacia arriba al dar un golpe aéreo (0 = solo corta la caída)
+const AIR_HOVER_FALL := -1.2          ## velocidad máxima de caída mientras flota
+const AIR_HOVER_BUDGET := 1.8         ## s de flotación máximos por salto
+var _air_hover_until := 0.0
+var _air_hover_used := 0.0
+
+## Un golpe aéreo (o a un enemigo en el aire): el jugador deja de caer y flota.
+func note_air_combat() -> void:
+	if GameData.game_mode != "dungeon" or player.is_on_floor() or _air_hover_used >= AIR_HOVER_BUDGET:
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	_air_hover_used += (now + AIR_HOVER_TIME) - maxf(now, _air_hover_until)     # solo cuenta lo que prolonga
+	_air_hover_until = now + AIR_HOVER_TIME
+	player.velocity.y = maxf(player.velocity.y, AIR_HOVER_LIFT)
+
+## Atacando en el aire (aunque no haya enemigo lanzado) también se planea, gastando el mismo presupuesto.
+func _air_attack_hover(delta: float) -> bool:
+	if GameData.game_mode != "dungeon" or _air_hover_used >= AIR_HOVER_BUDGET or player.animation_controller == null \
+			or not player.animation_controller.is_attacking():
+		return false
+	_air_hover_used += delta
+	return true
+
+func air_hovering() -> bool:
+	return GameData.game_mode == "dungeon" and not player.is_on_floor() \
+		and Time.get_ticks_msec() / 1000.0 < _air_hover_until
+
 ## Radio, fracción de vida (normales) y daño mínimo del golpe tras caer `fall` m. Pura.
 static func slam_params(fall: float) -> Dictionary:
 	return {"radius": clampf(2.5 + 0.45 * fall, 3.5, 8.0), "frac": clampf(0.2 + 0.05 * fall, 0.3, 0.75),
@@ -295,6 +328,7 @@ func ground_slam(pos: Vector3, fall: float) -> int:
 		NecroVFX.shockwave(scene, pos + Vector3(0, 0.1, 0), radius * 2.0, SLAM_COLOR)
 		FootDustVFX.land(scene, pos + Vector3(0, 0.05, 0), 1.0)
 		AudioManager.play_at("explosion", pos, -6.0, 0.7)
+		MapMarks.add_at(player, pos, MapMarks.Kind.CRATER, clampf(radius * 0.55, 2.0, 4.0))
 		HitFeedback.shake(0.25 + 0.03 * fall)
 		if hits > 0:
 			HitFeedback.slowmo(0.5, 0.12)
@@ -719,9 +753,13 @@ func handle_movement(delta: float) -> void:
 
 	# Gravity / grounding
 	if not player.is_on_floor():
-		player.velocity.y -= gravity * delta
+		if player.velocity.y <= 0.0 and (air_hovering() or _air_attack_hover(delta)):
+			player.velocity.y = maxf(player.velocity.y - gravity * AIR_HOVER_GRAVITY * delta, AIR_HOVER_FALL)
+		else:
+			player.velocity.y -= gravity * delta
 	elif player.velocity.y <= 0:
 		player.velocity.y = -1.0
+		_air_hover_used = 0.0
 
 	var was_floor: bool = player.is_on_floor()
 	var fall_speed: float = -player.velocity.y

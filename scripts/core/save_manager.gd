@@ -13,6 +13,14 @@ var best_floors: Dictionary = {}
 var upgrades: Dictionary = {}
 var total_gold: int = 0
 var meta: Dictionary = {}
+## Historia: el Nigromante raptó al mago en la intro. Hasta rescatarlo (jaula de Supervivencia) las
+## mazmorras siguen cerradas. Un save viejo sin esta clave cuenta como rescatado: no bloquea a quien ya jugó.
+var mago_rescatado := false
+## Prisioneros de la mazmorra liberados (mundo -> true; ver WorldDefs "prisoner" y DungeonPrisoner). Cada uno
+## abre una estación del salón. Un save viejo sin esta clave los cuenta todos liberados (no quita lo que ya había).
+var prisoners: Dictionary = {}
+
+signal mago_rescatado_changed(value: bool)
 
 func _ready() -> void:
 	load_save()
@@ -22,6 +30,8 @@ func load_save() -> void:
 	upgrades = {}
 	total_gold = 0
 	meta = {}
+	mago_rescatado = false
+	prisoners = {}
 	if not FileAccess.file_exists(save_path):
 		return
 	var file := FileAccess.open(save_path, FileAccess.READ)
@@ -42,6 +52,14 @@ func load_save() -> void:
 					upgrades[str(key)] = int(upgs[key])
 		if data.get("total_gold") is int or data.get("total_gold") is float:
 			total_gold = int(data["total_gold"])
+		mago_rescatado = bool(data.get("mago_rescatado", true))
+		if data.get("prisoners") is Dictionary:
+			for w in data["prisoners"]:
+				if bool(data["prisoners"][w]):
+					prisoners[str(w)] = true
+		else:
+			for w in WorldDefs.ORDER:
+				prisoners[w] = true
 		if data.get("meta") is Dictionary:
 			meta = data["meta"]
 			# JSON devuelve los números como float: los ids de las evoluciones vuelven a int
@@ -57,6 +75,8 @@ func save() -> void:
 		"upgrades": upgrades,
 		"total_gold": total_gold,
 		"meta": meta,
+		"mago_rescatado": mago_rescatado,
+		"prisoners": prisoners,
 	}
 	file.store_string(JSON.stringify(payload))
 
@@ -111,6 +131,26 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED \
 			or what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_PREDELETE:
 		_flush_gold()
+
+## Mazmorra abierta solo con el mago rescatado.
+func dungeon_unlocked() -> bool:
+	return mago_rescatado
+
+func prisoner_free(world: String) -> bool:
+	return prisoners.has(world)
+
+func free_prisoner(world: String) -> void:
+	if prisoners.has(world):
+		return
+	prisoners[world] = true
+	save()
+
+func set_mago_rescatado(value: bool) -> void:
+	if mago_rescatado == value:
+		return
+	mago_rescatado = value
+	save()
+	mago_rescatado_changed.emit(value)
 
 func get_total_gold() -> int:
 	return total_gold

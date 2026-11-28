@@ -40,10 +40,10 @@ func _ready() -> void:
 	Quality._level = -1
 	_check(Quality.level() == Quality.Level.LOW, "móvil de gama baja sin ajustes -> calidad Baja")
 	_check(Quality.auto_resolution() == Quality.RES_REDUCED, "móvil de gama baja -> resolución reducida")
-	# Gama media: Medio y nativa, como antes
+	# Gama media: calidad Baja por defecto (todo móvil), resolución nativa
 	Quality._low_end = 0
 	Quality._level = -1
-	_check(Quality.level() == Quality.Level.MEDIUM, "móvil de gama media sin ajustes -> calidad Media")
+	_check(Quality.level() == Quality.Level.LOW, "móvil de gama media sin ajustes -> calidad Baja")
 	_check(Quality.auto_resolution() == Quality.RES_NATIVE, "móvil de gama media -> resolución nativa")
 	# Lo que eligió el jugador manda
 	Quality._low_end = 1

@@ -30,6 +30,7 @@ public:
 		EV_MORTAR = 3,
 		EV_MELEE_HIT = 4, // a = multiplicador de daño
 		EV_SLAM = 5,
+		EV_BURST = 6, // la babosa roja revienta
 	};
 
 private:
@@ -132,6 +133,8 @@ public:
 	int count() const { return (int)ens.size(); }
 	int get_tokens_used() const { return tokens_used; }
 	bool has_token(int p_idx) const;
+	// Para que GDScript sepa si esta biblioteca ya conoce las criaturas (ratas, babosas): una antigua no.
+	bool supports_creatures() const { return true; }
 
 	// Un tick completo. Devuelve los eventos (6 floats cada uno: tipo, índice, a, b, c, d).
 	PackedFloat32Array step(Object *p_motion, double p_delta, int64_t p_tick, const Vector3 &p_player_pos,

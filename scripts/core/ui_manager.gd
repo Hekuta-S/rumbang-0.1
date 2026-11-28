@@ -5,31 +5,54 @@ var hud: Node
 var player: Node3D
 
 var bg_music: AudioStreamPlayer
+var _music_db := -6.0     ## volumen normal de la música (se baja al subir de nivel y vuelve a este)
 var level_up_sfx: AudioStreamPlayer
 
 signal restart_pressed
 
 const DUNGEON_THEME := "res://assets/audio/dungeon_theme.wav"
 
+## Supervivencia: tema adaptativo por capas (en vez de bg_music). Ver SurvivalMusic.
+var survival_music: SurvivalMusic
+
 func start_music() -> void:
 	MusicDirector.stop()
-	if bg_music and not bg_music.playing:
+	if survival_music and not survival_music.is_playing():
+		survival_music.play()
+	elif bg_music and not bg_music.playing:
 		bg_music.play()
+
+## Volumen general de la música de partida (sea cual sea el reproductor).
+func _set_music_db(db: float) -> void:
+	if survival_music:
+		survival_music.master_db = db
+	elif bg_music:
+		bg_music.volume_db = db
 
 func initialize(p_hud: Node, p_player: Node3D) -> void:
 	hud = p_hud
 	player = p_player
-	
-	bg_music = AudioStreamPlayer.new()
-	if GameData.game_mode == "dungeon" and ResourceLoader.exists(DUNGEON_THEME):
-		# Mazmorra: tema darksynth sintetizado (tools/generate_soundtrack.gd), en bucle desde la importación
-		bg_music.stream = load(DUNGEON_THEME)
-		bg_music.volume_db = -8.0
+
+	if GameData.game_mode != "dungeon" and SurvivalMusic.available():
+		# Supervivencia: tema adaptativo (tools/generate_survival_soundtrack.py), chill al principio y hard
+		# al avanzar la partida; SurvivalMusic sube sus capas según el tiempo
+		_music_db = -8.0
+		survival_music = SurvivalMusic.new()
+		survival_music.name = "SurvivalMusic"
+		survival_music.master_db = _music_db
+		add_child(survival_music)   # suena con start_music() cuando el mundo está listo
 	else:
-		bg_music.stream = load("res://assets/audio/main-soundtrack.mp3")
-		bg_music.volume_db = -6.0
-	bg_music.bus = "Music"   # lo regula el volumen de música de los ajustes
-	add_child(bg_music)   # se reproduce con start_music() cuando el mundo está listo
+		bg_music = AudioStreamPlayer.new()
+		if GameData.game_mode == "dungeon" and ResourceLoader.exists(DUNGEON_THEME):
+			# Mazmorra: tema darksynth sintetizado (tools/generate_soundtrack.gd), en bucle desde la importación
+			bg_music.stream = load(DUNGEON_THEME)
+			bg_music.volume_db = -8.0
+		else:
+			bg_music.stream = load("res://assets/audio/main-soundtrack.mp3")
+			bg_music.volume_db = -6.0
+		_music_db = bg_music.volume_db
+		bg_music.bus = "Music"   # lo regula el volumen de música de los ajustes
+		add_child(bg_music)   # se reproduce con start_music() cuando el mundo está listo
 
 	level_up_sfx = AudioStreamPlayer.new()
 	level_up_sfx.stream = load("res://assets/sfx/level-up.mp3")
@@ -115,8 +138,7 @@ func _on_player_leveled_up(new_level) -> void:
 		var xpc = player.get("experience_comp") if player else null
 		level_up_sfx.pitch_scale = 1.0 + minf(float(xpc.level if xpc else 1), 40.0) * 0.012   # sube de tono con el nivel
 		level_up_sfx.play()
-	if bg_music:
-		bg_music.volume_db = -24.0
+	_set_music_db(-24.0)
 	# Destello dorado y onda de luz bajo el jugador
 	UiJuice.flash(self, Color(1.0, 0.85, 0.35), 0.4, 0.5)
 	if is_instance_valid(player) and player.is_inside_tree():
@@ -131,8 +153,8 @@ func _on_player_leveled_up(new_level) -> void:
 		hud.play_level_up_edges()
 
 func _on_upgrade_choice_made(choice_type: String, choice_id: String) -> void:
-	if bg_music and _pending_level_ups == 0:
-		bg_music.volume_db = -12.0
+	if _pending_level_ups == 0:
+		_set_music_db(_music_db)   # vuelve a su volumen (antes fijo a -12, más bajo que al empezar)
 	var w_id = choice_id.to_int()
 	if choice_type == "new_weapon":
 		player.add_weapon(w_id)

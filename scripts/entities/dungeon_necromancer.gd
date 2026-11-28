@@ -102,6 +102,7 @@ func _init() -> void:
 	stagger_damage = 9999.0       # nunca se aturde de un golpe...
 	stagger_knock = 9999.0
 	armor = 9999.0                # ...ni se inmuta con los normales...
+	launch_mult = 0.0             # los jefes no se lanzan por los aires
 	armor_break = 170.0           # ...pero 170 de daño seguido lo aturden
 	stagger_time = 2.0
 	windup_poise = 9999.0

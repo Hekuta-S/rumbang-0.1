@@ -36,6 +36,7 @@ const TAGS := {
 	W.ELEMENTS_CYCLE: ["arcano", "fuego"],
 	W.ZOMBIE_ARM: ["filo", "naturaleza"],
 	W.GIANT_MACE: ["explosivo"],
+	W.CROSSBOW: ["filo"],
 	W.DAGGERS: ["filo"],
 	W.MACE: ["arcano"],
 	W.GREATSWORD: ["filo"],
@@ -43,6 +44,9 @@ const TAGS := {
 	W.KATANA: ["filo", "fuego"],
 	W.FISTS: ["arcano"],
 	W.BOW: ["filo", "naturaleza"],
+	W.PISTOL: ["explosivo"],
+	W.RIFLE: ["explosivo"],
+	W.FIRE_STAFF: ["fuego", "arcano"],
 }
 
 ## [bono con 2 armas, bono extra con 3 o más]. "add" en todas las claves (cooldown multiplica).
@@ -84,6 +88,8 @@ const EVOLUTIONS := {
 		"desc": "+60% daño y +25% tamaño de los espíritus", "mods": {"damage": 0.6, "size": 0.25}},
 	W.ENERGY_SWORD: {"tome": "poder", "name": "Espada Solar",
 		"desc": "+70% daño, +30% tamaño", "mods": {"damage": 0.7, "size": 0.3}},
+	W.CROSSBOW: {"tome": "iman", "name": "Ballesta del Juicio",
+		"desc": "+2 flechas, +50% daño", "mods": {"quantity_bonus": 2, "damage": 0.5}},
 	W.RAILGUN: {"tome": "suerte", "name": "Cañón Celestial",
 		"desc": "+60% daño, +2 perforaciones", "mods": {"damage": 0.6, "pierce_bonus": 2}},
 }

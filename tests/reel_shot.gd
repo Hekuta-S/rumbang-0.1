@@ -2,7 +2,10 @@ extends Node
 
 ## Tomas para el reel (necesita ventana). Se graba con Movie Maker, una toma por ejecución:
 ##   godot --path . --write-movie out.avi --fixed-fps 30 --resolution 1080x1920 res://tests/reel_shot.tscn -- <toma>
-## Tomas: title | hub | combat | cave | fists | survival
+## Tomas: title | hub | combat | cave | fists | survival | play (supervivencia jugada a mano, REEL_SECONDS s)
+##   loadout: como play, pero el arsenal cambia cada 10 s (LOADOUTS: 3 armas por tramo)
+##   random: como loadout, pero cada REEL_LOADOUT_S s (20 por defecto) sortea RANDOM_WEAPONS armas al azar
+## REEL_DAY=1: la luz arranca de día aunque la partida empiece en el minuto REEL_FROM_MIN.
 ## El proyecto usa stretch "expand", así que el HUD se adapta a vertical.
 
 var _main: Node
@@ -22,6 +25,9 @@ func _ready() -> void:
 		"cave": _combat.call_deferred("caves")
 		"fists": _fists.call_deferred()
 		"survival": _survival.call_deferred()
+		"play": _play_survival.call_deferred()
+		"loadout": _play_survival.call_deferred(LOADOUTS)
+		"random": _play_survival.call_deferred([], RANDOM_WEAPONS)
 
 func _wait(s: float) -> void:
 	await get_tree().create_timer(s).timeout
@@ -43,6 +49,7 @@ func _hub() -> void:
 	await _wait(2.0)
 	await _go(hub, DungeonHub.STATIONS["yunque"]["pos"] + Vector3(-1.0, 0, 0.2))
 	await _go(hub, DungeonHub.MAGE_POS + Vector3(1.2, 0, 0.4))
+	SaveManager.mago_rescatado = true   # la mazmorra se abre con el mago rescatado
 	hub.use_station("mago")
 	await _wait(3.0)
 	get_tree().quit(0)
@@ -250,4 +257,115 @@ func _survival() -> void:
 		Input.action_press("move_left", clampf(-sin(ang), 0, 1))
 		player.attack()
 		await get_tree().process_frame
+	get_tree().quit(0)
+
+## Supervivencia jugada por una persona: invencible, la partida arranca en el minuto REEL_FROM_MIN (ya hay
+## cuervos y hordas) y la toma se corta sola a los REEL_SECONDS s de control (30 por defecto).
+## Imprime REEL_START=<fotograma> para recortar la carga del vídeo. Engine.max_fps = 30 para que se juegue a
+## velocidad real mientras Movie Maker graba
+## (Movie Maker se salta ese límite: el bucle espera lo que sobra de cada fotograma).
+## Toma "loadout": cada tramo de LOADOUT_S s lleva SOLO estas 3 armas (se cambian todas de golpe).
+const LOADOUT_S := 10.0
+const LOADOUTS := [
+	[WeaponData.WeaponType.FLAME_THROWER, WeaponData.WeaponType.SERPENTS, WeaponData.WeaponType.DUSTS],
+	[WeaponData.WeaponType.SPINNING_AXE, WeaponData.WeaponType.GIANT_MACE, WeaponData.WeaponType.CROSSBOW],
+	[WeaponData.WeaponType.RAILGUN, WeaponData.WeaponType.SPORE_BAZOOKA, WeaponData.WeaponType.ZOMBIE_ARM],
+]
+
+const RANDOM_WEAPONS := 4
+## Fuera del sorteo: el ciclo elemental deja sus orbes vivos al quitarlo.
+const RANDOM_EXCLUDED := [WeaponData.WeaponType.ELEMENTS_CYCLE]
+
+## `n` armas de supervivencia al azar, primero las que no estaban en `prev` (cada tramo se nota distinto).
+static func random_loadout(n: int, prev: Array) -> Array:
+	var fresh: Array = []
+	var reused: Array = []
+	for w in WeaponData.WeaponType.values():
+		if RANDOM_EXCLUDED.has(w) or not GameData.weapon_available_in_mode(w):
+			continue
+		(reused if prev.has(w) else fresh).append(w)
+	fresh.shuffle()
+	reused.shuffle()
+	return (fresh + reused).slice(0, n)
+
+## Cambia todas las armas del jugador por `weapons` (huecos, munición, HUD y modelos).
+func _set_loadout(player: Node, weapons: Array) -> void:
+	var inv = player.weapon_inventory
+	inv.weapon_slots.clear()
+	inv.reloading_weapon = -1
+	inv.current_slot = 0
+	for w in weapons:
+		inv.add_weapon(int(w))
+	var cc = player.combat_controller
+	if cc:
+		cc.weapon_slots = inv.weapon_slots
+		cc.current_slot = 0
+		cc.reloading_weapon = -1
+	player.update_weapon_visuals()
+	player.emit_signal("weapon_changed", 0, player.weapon_names[player.current_weapon()])
+	if weapons.has(WeaponData.WeaponType.ELEMENTS_CYCLE):
+		player._try_spawn_elemental_orbs()
+	print("REEL_LOADOUT=", weapons.map(func(w): return WeaponData.weapon_names.get(w, str(w))))
+
+func _play_survival(loadouts: Array = [], random_n: int = 0) -> void:
+	Engine.max_fps = 30
+	var secs := OS.get_environment("REEL_SECONDS").to_float()
+	if secs <= 0.0:
+		secs = 30.0
+	var loadout_s := OS.get_environment("REEL_LOADOUT_S").to_float()
+	if loadout_s <= 0.0:
+		loadout_s = LOADOUT_S if random_n == 0 else 20.0
+	var swaps := random_n > 0 or not loadouts.is_empty()
+	var from_min := OS.get_environment("REEL_FROM_MIN").to_float()
+	if OS.get_environment("REEL_FROM_MIN") == "":
+		from_min = 2.0
+	GameData.game_mode = "survival"
+	SaveManager.save_path = "user://reel_save.json"
+	_main = (load("res://scenes/core/main_procedural.tscn") as PackedScene).instantiate()
+	get_tree().root.add_child(_main)
+	await get_tree().process_frame
+	get_tree().current_scene = _main
+	var player = null
+	var waves: WaveManager = null
+	for i in 900:
+		await get_tree().process_frame
+		player = _main.get_node_or_null("Player")
+		waves = _main.find_child("WaveManager", true, false)
+		if player and waves and waves._running:
+			break
+	player.health_comp.max_hp = 99999.0
+	player.health_comp.hp = 99999.0
+	GameState.get_instance().elapsed_time = from_min * 60.0
+	if OS.get_environment("REEL_DAY") == "1":
+		DayNightCycle.light_offset_s = from_min * 60.0
+	for i in 2:
+		waves.spawn_flyer()
+	var start := Engine.get_process_frames()
+	var t0 := Time.get_ticks_msec()
+	print("REEL_START=", start)
+	var frames := int(secs * 30.0)
+	var tramo := -1
+	if swaps:
+		# Sin subidas de nivel (el menú de cartas pausaba la partida en mitad del tramo) ni aviso de mando
+		var xpc = player.get_node_or_null("ExperienceComponent")
+		if xpc:
+			xpc.experience_required = 1e12
+		var gp := get_node_or_null("/root/GamepadUI")
+		if gp and gp.get("_toast_layer") != null:
+			(gp.get("_toast_layer") as CanvasLayer).visible = false
+	while Engine.get_process_frames() - start < frames:
+		player.health_comp.hp = player.health_comp.max_hp
+		if swaps:
+			var k := int((Engine.get_process_frames() - start) / (loadout_s * 30.0))
+			if random_n == 0:
+				k = mini(k, loadouts.size() - 1)
+			if k != tramo:
+				tramo = k
+				_set_loadout(player, loadouts[k] if random_n == 0 else random_loadout(random_n, player.weapon_inventory.weapon_slots))
+		# Movie Maker no respeta max_fps: si dibuja más rápido que 30 fps se espera aquí (juego a velocidad real)
+		var ahead := t0 + (Engine.get_process_frames() - start) * 1000.0 / 30.0 - Time.get_ticks_msec()
+		if ahead > 1.0:
+			OS.delay_msec(int(ahead))
+		await get_tree().process_frame
+	print("REEL_END=", Engine.get_process_frames(), " REAL_S=", (Time.get_ticks_msec() - t0) / 1000.0)
 	get_tree().quit(0)

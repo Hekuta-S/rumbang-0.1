@@ -167,6 +167,9 @@ func _ready() -> void:
 		bag = BagPanel.new()
 		$Control.add_child(bag)
 		bag.place_right()
+		var slot := ActiveItemSlot.new()
+		slot.bag = bag
+		$Control.add_child(slot)
 	_mobile = Quality.is_mobile()
 	_layout_row()
 	_layout_fps()
@@ -188,6 +191,8 @@ var combat_label: Label
 var _dps_samples: Array = []      ## [tiempo, daño total] de los últimos DPS_WINDOW s
 var _combat_t := 0.0
 const DPS_WINDOW := 5.0
+const COMBAT_TEXT_INTERVAL := 0.25
+var _combat_next := 0.0
 
 ## Supervivencia: bajas y daño por segundo (media de los últimos DPS_WINDOW s) bajo el FPS.
 func _update_combat_label(delta: float) -> void:
@@ -209,6 +214,11 @@ func _update_combat_label(delta: float) -> void:
 		combat_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		combat_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		$Control.add_child(combat_label)
+	# 4 veces por segundo basta: el DPS cambia casi cada frame y cada cambio de texto rehace la etiqueta
+	_combat_next -= delta
+	if _combat_next > 0.0:
+		return
+	_combat_next = COMBAT_TEXT_INTERVAL
 	var total := RunStats.total_damage()
 	_dps_samples.append([_combat_t, total])
 	while _dps_samples.size() > 1 and _combat_t - float(_dps_samples[0][0]) > DPS_WINDOW:

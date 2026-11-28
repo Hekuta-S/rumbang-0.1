@@ -7,7 +7,7 @@
 > **Estimate**: M
 > **Build step**: core
 > **Manifest Version**: N/A (minimal — no control manifest)
-> **Last Updated**: [set by /dev-story when implementation begins]
+> **Last Updated**: 2026-11-22 (implementada; pendiente playtest)
 
 ## Context
 
@@ -29,14 +29,14 @@
 
 *From `design/game-brief.md` (Goal & fail state, Features item 4):*
 
-- [ ] Una bandera persistente `mago_rescatado` vive en el save (`SaveManager`), con valor inicial `false`.
-- [ ] Con la bandera en `false`, los portales de mazmorra del salón no se abren y el mago no los conjura.
-- [ ] Con la bandera en `false`, Mazmorra no se puede iniciar desde el lobby ni por red (LAN).
-- [ ] Con la bandera en `false`, el jugador ve un mensaje claro de por qué está bloqueado y qué hacer (rescatar al mago en Supervivencia).
-- [ ] Con la bandera en `true`, el flujo actual de portales funciona sin cambios.
-- [ ] La bandera sobrevive a cerrar y reabrir el juego.
-- [ ] Supervivencia sigue jugable sin límite con la bandera en `false` (Avoid del brief).
-- [ ] Saves existentes sin la bandera cargan sin error, con el valor por defecto que se decida y se anote en el story (propuesta: `true` para no bloquear a quien ya jugó).
+- [x] Una bandera persistente `mago_rescatado` vive en el save (`SaveManager`), con valor inicial `false`.
+- [x] Con la bandera en `false`, los portales de mazmorra del salón no se abren y el mago no los conjura.
+- [x] Con la bandera en `false`, Mazmorra no se puede iniciar desde el lobby ni por red (LAN).
+- [x] Con la bandera en `false`, el jugador ve un mensaje claro de por qué está bloqueado y qué hacer (rescatar al mago en Supervivencia).
+- [x] Con la bandera en `true`, el flujo actual de portales funciona sin cambios.
+- [x] La bandera sobrevive a cerrar y reabrir el juego.
+- [x] Supervivencia sigue jugable sin límite con la bandera en `false` (Avoid del brief).
+- [x] Saves existentes sin la bandera cargan sin error, con el valor por defecto que se decida y se anote en el story Decidido: `true` para no bloquear a quien ya jugó; sin archivo de save = `false`.
 
 ---
 
@@ -59,10 +59,12 @@
 
 ## Files
 
-- `scripts/core/save_manager.gd`
-- `scripts/core/game_data.gd`
-- `scripts/ui/dungeon_hub.gd`
-- Pruebas: `tests/test_dungeon_hub.gd` (ampliar; opcional, `qa.level` minimal)
+- `scripts/core/save_manager.gd` (bandera `mago_rescatado`, `dungeon_unlocked()`, `set_mago_rescatado()`)
+- `scripts/ui/dungeon_hub.gd` (mago oculto, rótulo y aviso, `open_portals` bloqueado)
+- `scripts/ui/lobby_menu.gd` (botón "Mazmorra cerrada")
+- `scripts/net/net_manager.gd` (`start_game` rechaza sin el mago, salvo servidor dedicado)
+- `scripts/ui/main_menu.gd` (`_on_play_dungeon` bloqueado)
+- `tests/test_dungeon_hub.gd` (CHECK 8a); `tests/net/test_net_game.gd`, `tests/net/test_net_idle.gd`, `tests/reel_shot.gd`, `tests/shot_dungeon_hub.gd` marcan al mago rescatado
 
 ---
 

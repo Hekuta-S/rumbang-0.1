@@ -64,18 +64,24 @@ static var _detail_mats: Dictionary = {}   # "wood" | "stone" | "fire" -> Shader
 static var _flame_noise: NoiseTexture2D
 const SHRINE_TOTEM_SOULS := 5         ## el tótem grande del santuario suelta más
 # ── Iluminación de la cueva (antorchas de pared y braseros de pilar; tools/blender_cave_torches.py) ──
-## Props con su propio material texturizado (no pasan por prop_flat / prop_detail)
-const TEXTURED_PROPS := ["torch_wall", "brazier_pillar", "mush_big", "mush_small", "mush_cups",
-	"stalactite_a", "stalactite_b", "stalactite_c", "stalagmite_d", "cave_pillar", "cave_rock_01", "cave_rock_04",
-	"cave_cliff_a", "cave_cliff_b", "cave_cliff_c", "cave_cliff_d"]
-## Piezas del pack de cueva (tools/blender_cave_pack.py) que llevan el material de roca de las paredes
+## Piezas del pack de cueva (tools/blender_cave_pack.py): sus dibujos se tiñen con el color de roca del nivel
 const PACK_ROCK := ["stalactite_a", "stalactite_b", "stalactite_c", "stalagmite_d", "cave_pillar", "cave_rock_01",
 	"cave_rock_04", "cave_cliff_a", "cave_cliff_b", "cave_cliff_c", "cave_cliff_d"]
 const STALACTITES := {"stalactite_a": 2.56, "stalactite_b": 2.55, "stalactite_c": 4.63}   ## kind -> largo (m)
 const CLIFFS := ["cave_cliff_a", "cave_cliff_b", "cave_cliff_c", "cave_cliff_d"]
 const STALACTITE_CLEAR := 3.4          ## altura mínima de la punta de una estalactita sobre el suelo
 const PILLAR_H := 4.06                 ## alto de cave_pillar a escala 1
-static var _pack_mat: ShaderMaterial
+## Rocas y adornos de la cueva como dibujos horneados (ver _build_single_props)
+const ROCK_SPRITE_DIR := "res://assets/textures/toon/props/"
+const CAVE_SHEETS := ["cave_rocks", "cave_decor"]
+## Piezas que en la cueva solo existen como dibujo (sus .glb están fuera del juego)
+const SPRITE_ONLY := ["stalactite_a", "stalactite_b", "stalactite_c", "stalagmite_d", "cave_pillar", "cave_rock_01",
+	"cave_rock_04", "cave_cliff_a", "cave_cliff_b", "cave_cliff_c", "cave_cliff_d", "mush_big", "mush_small",
+	"mush_cups", "torch_wall", "brazier_pillar"]
+const MUSH_SWAY := 0.035                          ## = sway_amount de mushroom_glow.gdshader
+const ROCK_SPRITE_SHADER: Shader = preload("res://scripts/world/spatial_prop_cave_rock_sprite.gdshader")
+const ROCK_SPRITE_CHUNK := 16.0                  ## m: trozos pequeños, que cada uno tenga sus antorchas cerca
+var rock_sprites: Dictionary = {}                ## tipo -> [Transform3D] de los dibujos (pruebas y capturas)
 const CAVE_PROPS := {
 	"torch_wall":     {"file": "torch_wall",     "shape": "",    "size": Vector3.ZERO,            "scale": Vector2(1.0, 1.0)},
 	"brazier_pillar": {"file": "brazier_pillar", "shape": "cyl", "size": Vector3(0.45, 1.6, 0.0), "scale": Vector2(1.0, 1.0)},
@@ -96,9 +102,6 @@ const CAVE_PROPS := {
 	"cave_cliff_c": {"file": "cave_cliff_c",      "shape": "",    "size": Vector3.ZERO,             "scale": Vector2(0.9, 1.4)},
 	"cave_cliff_d": {"file": "cave_cliff_d",      "shape": "",    "size": Vector3.ZERO,             "scale": Vector2(0.9, 1.4)},
 }
-const MUSH_SHADER: Shader = preload("res://assets/shaders/mushroom_glow.gdshader")
-const MUSH_TEX_DIR := "res://assets/textures/mushrooms/"
-static var _mush_mat: ShaderMaterial    # compartido por las tres piezas; su color de brillo cambia con el nivel
 const TORCH_FLAME := Vector3(0.0, 0.33, 0.36)    ## base de la llama en el modelo torch_wall (frente = +Z)
 const PILLAR_FLAME := Vector3(0.0, 1.46, 0.0)    ## base de la llama en el cuenco del brasero
 const TORCH_COLOR := Color(1.0, 0.58, 0.26)      ## mismo tono que las antorchas del salón del rey
@@ -793,8 +796,6 @@ static func _relief_maps() -> bool:
 	return Quality.level() != Quality.Level.LOW and not (Quality.is_mobile() or OS.has_feature("mobile"))
 
 func _load_kind(kind: String) -> Mesh:
-	if kind in TEXTURED_PROPS:
-		return _load_textured(kind)
 	var fresh := not _mesh_cache.has(kind)
 	var mesh := super(kind)
 	# Los que tienen textura cartoon horneada (una lectura) ya la traen; el resto, detalle en triplanar
@@ -804,58 +805,6 @@ func _load_kind(kind: String) -> Mesh:
 
 func _toon_hides_flame(kind: String) -> bool:
 	return kind in FIRE_PROPS
-
-## Malla de un prop con sus materiales del .glb (texturas), sin aplanar.
-func _load_textured(kind: String) -> Mesh:
-	if _mesh_cache.has(kind):
-		return _mesh_cache[kind]
-	var path: String = PROP_DIR + String(_prop_def(kind)["file"]) + ".glb"
-	var mesh: Mesh = null
-	var xf := Transform3D.IDENTITY
-	if ResourceLoader.exists(path):
-		var root := (load(path) as PackedScene).instantiate()
-		var found := _find_mesh_instance(root)
-		if found:
-			mesh = found.mesh
-			var n: Node = found
-			while n and n != root:
-				xf = (n as Node3D).transform * xf
-				n = n.get_parent()
-		root.free()
-	if mesh != null and kind.begins_with("mush_"):
-		mesh.surface_set_material(0, mushroom_material())
-	elif mesh != null and kind in PACK_ROCK:
-		mesh.surface_set_material(0, pack_rock_material())
-	_mesh_cache[kind] = mesh
-	_mesh_xf[kind] = xf
-	return mesh
-
-## Material de los hongos (uno para todos): textura sin el logo, normal y máscara de las manchas que brillan.
-static func mushroom_material() -> ShaderMaterial:
-	if _mush_mat == null:
-		_mush_mat = ShaderMaterial.new()
-		_mush_mat.shader = MUSH_SHADER
-		_mush_mat.set_shader_parameter("albedo_tex", load(MUSH_TEX_DIR + "mushroom_albedo.png"))
-		_mush_mat.set_shader_parameter("normal_tex", load(MUSH_TEX_DIR + "hongo_normal.png"))
-		_mush_mat.set_shader_parameter("glow_tex", load(MUSH_TEX_DIR + "mushroom_glow.png"))
-		_mush_mat.set_shader_parameter("use_normal_map", _relief_maps())
-	return _mush_mat
-
-## Material de roca de las piezas del pack: el de las paredes (textura de la gruta en triplanar) con el
-## color de roca del nivel como tinte (sus MultiMesh no llevan color por instancia).
-static func pack_rock_material() -> ShaderMaterial:
-	if _pack_mat == null:
-		_pack_mat = ShaderMaterial.new()
-		_pack_mat.shader = ROCK_SHADER
-		_pack_mat.set_shader_parameter("albedo_tex", load(TEX_DIR + ROCK_TEX + "_albedo.png"))
-		_pack_mat.set_shader_parameter("normal_tex", load(TEX_DIR + ROCK_TEX + "_normal.png"))
-		_pack_mat.set_shader_parameter("tile_m", 6.0)
-		_pack_mat.set_shader_parameter("tint_gain", 2.8)     # algo más claras que la pared: que no queden en silueta negra
-		_pack_mat.set_shader_parameter("top_light_h", 1000.0)
-		_pack_mat.set_shader_parameter("use_vertex_color", false)
-		_pack_mat.set_shader_parameter("base_dark_h", 0.3)   # rocas y columnas: pie oscuro corto
-		_pack_mat.set_shader_parameter("use_normal_map", _relief_maps())
-	return _pack_mat
 
 ## Acantilados del pack delante de la pared (hasta 3 por caverna): rompen la silueta lisa de la carcasa.
 ## Van antes de las antorchas, que no se ponen encima de ellos.
@@ -906,7 +855,6 @@ func _anchor_rooms() -> void:
 func _place_cave_decor() -> void:
 	if _cave_shell == null:
 		return
-	pack_rock_material().set_shader_parameter("tint", palette()["rock"])
 	var floor_cells: Array = _cells.keys()
 	var count := floor_cells.size() / 28
 	var kinds: Array = STALACTITES.keys()
@@ -935,30 +883,119 @@ func _place_cave_decor() -> void:
 		for k in _rng.randi_range(3, 5):
 			_try_place(r, "cave_rock_01" if _rng.randf() < 0.5 else "cave_rock_04", 1.1, 1, 3)
 
-## En la cueva (PC) las piezas del pack van como mallas sueltas y no en MultiMesh: el renderizador Mobile
-## reparte como mucho 8 luces omni por instancia de malla, y en un MultiMesh con muchas piezas no son las
-## antorchas de al lado (salían negras). Son ~150 piezas, con corte por distancia.
+## Rocas y adornos de la cueva (estalactitas, columnas, rocas, acantilados, hongos, antorchas, braseros) como
+## dibujos cartoon horneados (hojas CAVE_SHEETS de tools/bake_cave_sprites.gd + tools/make_cave_sprites.py):
+## una MultiMesh de quads por hoja y trozo de ROCK_SPRITE_CHUNK m con spatial_prop_cave_rock_sprite.gdshader
+## (8 vistas por pieza según la cámara). Trozos pequeños: el renderizador Mobile da como mucho 8 luces omni por
+## instancia de malla. La colisión (_collide), las llamas, las luces y los puntos de ambiente siguen igual.
+## Los .glb de estas piezas ya no están en el juego (blender_sources/cave_sprite_sources/): sin la hoja, no se ven.
 func _build_single_props() -> void:
-	if _cave_shell == null or _mobile:
+	if _cave_shell == null:
 		return
+	rock_sprites.clear()
 	var holder := Node3D.new()
-	holder.name = "PackProps"
+	holder.name = "RockSprites"
 	add_child(holder)
-	for kind in PACK_ROCK:
+	for sheet: String in CAVE_SHEETS:
+		_build_sprite_sheet(sheet, holder)
+	# Sin hoja horneada no hay malla de reserva: que no las intente cargar _build_prop_nodes
+	for kind in SPRITE_ONLY:
+		_instances.erase(kind)
+
+func _build_sprite_sheet(sheet: String, holder: Node3D) -> void:
+	var png := ROCK_SPRITE_DIR + sheet + ".png"
+	var json := ROCK_SPRITE_DIR + sheet + ".json"
+	if not ResourceLoader.exists(png) or not FileAccess.file_exists(json):
+		push_warning("Falta la hoja de dibujos " + png + " (tools/bake_cave_sprites.gd)")
+		return
+	var info: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(json))
+	var defs: Dictionary = info["kinds"]
+	var kinds_arr: Array[Vector4] = []
+	var fx_arr: Array[Vector4] = []
+	kinds_arr.resize(16)
+	fx_arr.resize(16)
+	for kind: String in defs:
+		var d: Dictionary = defs[kind]
+		var lift := -0.4 if kind.begins_with("stalactite") else 0.6
+		kinds_arr[int(d["row"])] = Vector4(float(d["span"]), float(d["u0"]), float(d["v0"]), lift)
+		var mush := kind.begins_with("mush_")
+		fx_arr[int(d["row"])] = Vector4(1.0 if kind in PACK_ROCK else 0.0, MUSH_SWAY if mush else 0.0, 1.0 if mush else 0.0, 0.0)
+	var mat := ShaderMaterial.new()
+	mat.shader = ROCK_SPRITE_SHADER
+	mat.set_shader_parameter("sheet", load(png))
+	if bool(info.get("glow", false)) and ResourceLoader.exists(ROCK_SPRITE_DIR + sheet + "_glow.png"):
+		mat.set_shader_parameter("glow_tex", load(ROCK_SPRITE_DIR + sheet + "_glow.png"))
+		var glow: Color = palette()["crystal"]
+		mat.set_shader_parameter("glow_color", Vector3(glow.r, glow.g, glow.b))
+	mat.set_shader_parameter("grid", Vector2(float(info["angles"]), float(defs.size())))
+	mat.set_shader_parameter("kinds", kinds_arr)
+	mat.set_shader_parameter("kind_fx", fx_arr)
+	var rock: Color = palette()["rock"]
+	mat.set_shader_parameter("tint", Vector3(rock.r, rock.g, rock.b))
+	if _mobile:
+		mat.set_shader_parameter("baked_gain", BAKED_GAIN_MOBILE)
+	var quad := QuadMesh.new()
+	quad.size = Vector2.ONE
+	var chunks: Dictionary = {}           # Vector2i -> [[transform, custom, span]]
+	for kind: String in defs:
 		if not _instances.has(kind):
 			continue
-		var mesh := _load_kind(kind)
-		if mesh != null:
-			var xf: Transform3D = _mesh_xf[kind]
-			for t in (_instances[kind] as Array):
-				var mi := MeshInstance3D.new()
-				mi.mesh = mesh
-				mi.transform = (t as Transform3D) * xf
-				mi.visibility_range_end = 60.0
-				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-				mi.name = kind
-				holder.add_child(mi, true)
-		_instances.erase(kind)              # la colisión (_collide) sigue igual
+		var row := float(defs[kind]["row"])
+		for t: Transform3D in _instances[kind]:
+			var o := t.origin
+			# luz horneada: solo la usa el móvil (baked_gain); en PC se ahorra el bucle por las antorchas
+			var baked := _baked_light_at(o + Vector3(0.0, 0.8, 0.0)) if _mobile else 0.0
+			var custom := Color(row, t.basis.get_euler().y, baked, 0.0)
+			var xf := Transform3D(Basis.from_scale(Vector3.ONE * t.basis.get_scale().y), o)
+			var key := Vector2i(floori(o.x / ROCK_SPRITE_CHUNK), floori(o.z / ROCK_SPRITE_CHUNK))
+			if not chunks.has(key):
+				chunks[key] = []
+			(chunks[key] as Array).append([xf, custom, float(defs[kind]["span"])])
+			if not rock_sprites.has(kind):
+				rock_sprites[kind] = []
+			(rock_sprites[kind] as Array).append(xf)
+		_instances.erase(kind)
+	for key: Vector2i in chunks:
+		var list: Array = chunks[key]
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_custom_data = true
+		mm.mesh = quad
+		mm.instance_count = list.size()
+		for i in list.size():
+			mm.set_instance_transform(i, list[i][0])
+			mm.set_instance_custom_data(i, list[i][1])
+		# El quad gira hacia la cámara: la caja de culling tiene que cubrir el dibujo en cualquier giro
+		mm.custom_aabb = _sprite_aabb(list)
+		var mmi := MultiMeshInstance3D.new()
+		mmi.name = "%s_%d_%d" % [sheet, key.x, key.y]
+		mmi.multimesh = mm
+		mmi.material_override = mat
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mmi.visibility_range_end = 70.0
+		holder.add_child(mmi)
+
+## Caja que contiene todos los dibujos de un trozo girados en cualquier dirección.
+func _sprite_aabb(list: Array) -> AABB:
+	var box := AABB()
+	var first := true
+	for e in list:
+		var xf: Transform3D = e[0]
+		var r := float(e[2]) * xf.basis.get_scale().y
+		var b := AABB(xf.origin - Vector3(r, r, r), Vector3(r, r, r) * 2.0)
+		box = b if first else box.merge(b)
+		first = false
+	return box
+
+## Luz de antorchas que llega a un punto (misma fórmula que CaveShell.bake_light, sin el término de orientación).
+func _baked_light_at(p: Vector3) -> float:
+	var sum := 0.0
+	for src in _bake_sources:
+		var d := p.distance_to(src[0])
+		var r := float(src[2])
+		if d < r:
+			sum += float(src[1]) * pow(1.0 - d / r, float(src[3])) * 0.7
+	return clampf(sum * 0.5, 0.0, 1.0)
 
 ## Pinturas rupestres: como mucho ROCK_ART_MAX por mapa, primero en la caverna final y la del tesoro, en
 ## una pared con una antorcha a 3-7 m (que se vean) y sin acantilado delante. Decal que solo pinta la pared.
@@ -1013,7 +1050,6 @@ func _place_mushrooms() -> void:
 	if _torch_anchors.is_empty():
 		return
 	var glow: Color = palette()["crystal"]
-	mushroom_material().set_shader_parameter("glow_color", Vector3(glow.r, glow.g, glow.b))
 	for r in rooms:
 		var clusters := clampi((r["cells"] as Array).size() / 70, 3, 6)
 		for k in clusters:

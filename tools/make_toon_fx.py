@@ -3,7 +3,8 @@
     python tools/make_toon_fx.py
 
 Sale assets/textures/toon/fx/flame.png (4 lenguas de fuego entintadas, para fuego en partículas),
-ring.png (anillo de onda entintado), impact.png (4 estrellas de impacto entintadas, para HitFeedback._flash) y
+ring.png (anillo de onda entintado), chispa.png (4 destellos entintados: 2 estrellas de 4 puntas, 1 de 8 y
+un grano, para los polvos alquímicos y destellos), impact.png (4 estrellas de impacto entintadas, para HitFeedback._flash) y
 assets/textures/toon/fx/puff.png: 256×256 RGBA con 4 nubes distintas (rejilla 2×2). Cada una es un
 racimo de bolas en blanco con una banda de sombra abajo, contorno de tinta y un par de trazos interiores.
 Va en blanco para que cada efecto la tiña con su color (el contorno sale como ese color en oscuro).
@@ -140,6 +141,50 @@ def flame(seed):
     return img.resize((CELL, CELL), Image.LANCZOS)
 
 
+def sparkle(kind, seed):
+    """Destello de cómic: estrella de 4 puntas cóncava (0, 1), de 8 puntas (2) o grano redondo (3).
+    Cuerpo gris claro con núcleo blanco y contorno de tinta; en blanco/gris para que la partícula la tiña."""
+    rnd = random.Random(seed)
+    n = CELL * SS
+    c = n / 2
+
+    def star(r_out, r_in, spikes, rot):
+        pts = []
+        for i in range(spikes * 2):
+            a = rot + i * math.pi / spikes
+            r = r_out if i % 2 == 0 else r_in
+            pts.append((c + math.cos(a) * r, c + math.sin(a) * r))
+        return pts
+
+    mask = Image.new("L", (n, n), 0)
+    md = ImageDraw.Draw(mask)
+    if kind == 3:
+        r = n * 0.26
+        md.ellipse([c - r, c - r, c + r, c + r], fill=255)
+        core = None
+    elif kind == 2:
+        long_ = star(n * 0.42, n * 0.1, 4, -math.pi / 2)
+        short = star(n * 0.24, n * 0.08, 4, -math.pi / 2 + math.pi / 4)
+        md.polygon(long_, fill=255)
+        md.polygon(short, fill=255)
+        core = star(n * 0.17, n * 0.06, 4, -math.pi / 2)
+    else:
+        thin = 0.085 if kind == 0 else 0.12
+        md.polygon(star(n * 0.43, n * thin, 4, -math.pi / 2 + rnd.uniform(-0.08, 0.08)), fill=255)
+        core = star(n * 0.2, n * thin * 0.55, 4, -math.pi / 2)
+    width = int(n * 0.03)
+    img = Image.new("RGBA", (n, n), INK + (0,))
+    img.paste(Image.new("RGBA", (n, n), INK + (255,)), (0, 0), mask.filter(ImageFilter.MaxFilter(width * 2 + 1)))
+    img.paste(Image.new("RGBA", (n, n), (200, 200, 212, 255)), (0, 0), mask)
+    d = ImageDraw.Draw(img)
+    if core is None:
+        r = n * 0.13
+        d.ellipse([c - r - n * 0.04, c - r - n * 0.05, c + r - n * 0.04, c + r - n * 0.05], fill=(255, 255, 255, 255))
+    else:
+        d.polygon(core, fill=(255, 255, 255, 255))
+    return img.resize((CELL, CELL), Image.LANCZOS)
+
+
 def ring():
     """Anillo de onda entintado (polvo al aterrizar, onda de fuego): banda blanca con tinta a ambos lados.
     Sale a 512 px (no 128): se estira a varios metros en el suelo y la tinta fina se emborronaba."""
@@ -168,6 +213,11 @@ def main():
         stars.paste(impact_star(90 + i * 7), ((i % 2) * CELL, (i // 2) * CELL))
     stars.save(os.path.join(OUT, "impact.png"))
     print("guardado", os.path.relpath(os.path.join(OUT, "impact.png"), ROOT))
+    sparks = Image.new("RGBA", (CELL * 2, CELL * 2), INK + (0,))
+    for i in range(4):
+        sparks.paste(sparkle(i, 60 + i * 5), ((i % 2) * CELL, (i // 2) * CELL))
+    sparks.save(os.path.join(OUT, "chispa.png"))
+    print("guardado", os.path.relpath(os.path.join(OUT, "chispa.png"), ROOT))
     sheet = Image.new("RGBA", (CELL * 2, CELL * 2), INK + (0,))
     for i in range(4):
         sheet.paste(puff(40 + i * 13), ((i % 2) * CELL, (i // 2) * CELL))

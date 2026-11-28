@@ -7,7 +7,7 @@
 > **Estimate**: S
 > **Build step**: thin — sinergia entre modos
 > **Manifest Version**: N/A (minimal — no control manifest)
-> **Last Updated**: [set by /dev-story when implementation begins]
+> **Last Updated**: 2026-11-22 (implementada)
 
 ## Context
 
@@ -29,12 +29,12 @@
 
 *From `design/game-brief.md` (Intent: modos sin armas compartidas pero con sinergia entre ellos):*
 
-- [ ] Existe un solo vínculo entre modos, el más simple posible: un logro, recurso o desbloqueo ganado en un modo da una ventaja pequeña en el otro.
-- [ ] El vínculo concreto se elige y se anota en este story antes de implementarlo (el brief no lo define).
-- [ ] La ventaja se guarda en el save y sobrevive a cerrar el juego.
-- [ ] La ventaja se muestra al jugador (texto en el salón o en el HUD).
-- [ ] Los dos modos siguen sin compartir armas.
-- [ ] Sin la ventaja, ambos modos funcionan como hoy.
+- [x] Existe un solo vínculo entre modos, el más simple posible: un logro, recurso o desbloqueo ganado en un modo da una ventaja pequeña en el otro.
+- [x] El vínculo concreto se elige y se anota en este story antes de implementarlo (el brief no lo define). Decidido (usuario): el vínculo es el que ya existía: élites y jefes de Supervivencia dan almas que suben el nivel del personaje de la Mazmorra (yunque, pestaña NIVEL). Faltaba el jefe: el Nigromante de Supervivencia no daba almas; ahora da `SoulStats.survival_boss_souls()` (580 a los 7:10).
+- [x] La ventaja se guarda en el save y sobrevive a cerrar el juego.
+- [x] La ventaja se muestra al jugador (texto en el salón o en el HUD).
+- [x] Los dos modos siguen sin compartir armas.
+- [x] Sin la ventaja, ambos modos funcionan como hoy.
 
 ---
 
@@ -53,9 +53,11 @@
 
 ## Files
 
-- `scripts/core/save_manager.gd`
-- `scripts/core/soul_stats.gd`
-- `scripts/ui/hub_panels.gd`
+- `scripts/core/soul_stats.gd` (`survival_boss_souls()`)
+- `scripts/core/run_events.gd` (`award_boss_souls()`, `_grant_souls()` común con los élites)
+- `scripts/core/wave_manager.gd` (`_on_boss_died_internal` da las almas en Supervivencia)
+- `tests/test_survival_merchant.gd` (check 2b)
+- Visible: "+N ALMAS" sobre el jefe, la pantalla de fin ("sube de nivel en el yunque del Salón") y la pestaña NIVEL.
 
 ---
 

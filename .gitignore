@@ -48,3 +48,9 @@ native/**/*.o
 native/.sconsign*
 bin/*.a
 native/**/*.os
+
+# Pintor de texturas: three.js se descarga solo (tools/texture_painter/server.py)
+tools/texture_painter/vendor/
+
+# Fuentes 3D de los dibujos de la cueva (tools/bake_cave_sprites.gd); fuera del juego
+blender_sources/cave_sprite_sources/

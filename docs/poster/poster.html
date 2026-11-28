@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<style>
+  @page { size: 1429px 2000px; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1429px; height: 2000px; }
+  body { position: relative; font-family: "Segoe UI", Arial, sans-serif; color: #111; font-size: 18px; line-height: 1.38;
+         background: url("plantilla.webp") no-repeat 0 0 / 1429px 2000px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .box { position: absolute; }
+  .cover { position: absolute; background: #fff; }
+  .g { color: #10a862; font-weight: 700; }
+  .mono { font-family: Consolas, "Courier New", monospace; font-size: .9em; background: #eef8f2; padding: 0 3px; border-radius: 3px; }
+  p { margin-bottom: 8px; text-align: justify; }
+  ul { margin: 0 0 6px 22px; }
+  li { margin-bottom: 5px; text-align: justify; }
+  img.shot { border: 3px solid #111; border-radius: 6px; display: block; }
+  .cap { font-size: 13px; color: #555; text-align: center; margin-top: 3px; font-style: italic; }
+  .title { left: 90px; top: 393px; width: 1250px; text-align: center; font-weight: 800; font-size: 25px; color: #10a862; }
+  .sub { left: 120px; top: 432px; width: 1190px; text-align: center; font-size: 15px; color: #333; font-family: Consolas, monospace; }
+  .crow { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+  .cat { flex: 0 0 120px; font-family: Consolas, monospace; font-size: 12.5px; font-weight: 700; color: #10a862; letter-spacing: .4px; }
+  .chips { display: flex; flex-wrap: nowrap; gap: 4px; }
+  .chip { border: 2px solid #10a862; border-radius: 14px; padding: 0 7px; font-size: 12.5px; font-weight: 600; }
+  .chip.k { background: #111; color: #4dff9a; border-color: #111; }
+  .chip.s { background: #10a862; color: #fff; }
+  .charttitle { font-weight: 700; font-size: 15px; margin: 4px 0 3px; }
+  svg text { font-family: "Segoe UI", Arial, sans-serif; }
+  table.cmp { border-collapse: collapse; width: 100%; font-size: 15px; line-height: 1.25; margin-top: 4px; }
+  table.cmp th { background: #111; color: #4dff9a; font-family: Consolas, monospace; font-size: 13.5px; text-align: left; padding: 5px 8px; }
+  table.cmp td { padding: 5px 8px; border-bottom: 1px solid #d9e9df; vertical-align: top; }
+  table.cmp td:first-child { font-weight: 700; color: #10a862; white-space: nowrap; }
+  .tools { display: flex; justify-content: space-between; }
+  .tool { width: 64px; text-align: center; font-size: 11px; font-weight: 600; line-height: 1.15; }
+  .tool svg { width: 34px; height: 34px; display: block; margin: 0 auto 3px; }
+</style></head>
+<body>
+
+<!-- Título del proyecto -->
+<div class="cover" style="left:90px; top:388px; width:1250px; height:62px;"></div>
+<div class="box title">REFACTORIZACIÓN Y DESARROLLO DE UN VIDEOJUEGO 3D IMPLEMENTANDO PATRONES DE DISEÑO</div>
+<div class="box sub">~/proyecto $ refactor --patrones gof --motor godot-4.7 --metodologia scrum</div>
+
+<!-- Integrantes / Docente -->
+<div class="cover" style="left:340px; top:466px; width:700px; height:42px;"></div>
+<div class="cover" style="left:266px; top:508px; width:780px; height:44px;"></div>
+<div class="box" style="left:349px; top:468px; font-weight:700; font-size:26px;">Héctor Guerra, Maikel Payares</div>
+<div class="box" style="left:276px; top:512px; font-weight:700; font-size:26px;">Ing. Jairo Seoanes - Patrones y Diseño de Software</div>
+
+<!-- INTRODUCCIÓN -->
+<div class="box" style="left:78px; top:662px; width:585px;">
+  <p>Los patrones de diseño suelen asociarse al <b>software convencional</b> (sistemas empresariales, web, APIs), pero resuelven los mismos problemas en otros ámbitos, como los <span class="g">videojuegos</span>, donde conviven tiempo real, física, IA y varias plataformas.</p>
+  <p>Este proyecto los aplica a un <b>roguelite de acción 3D</b> hecho en <b>Godot 4.7</b> (GDScript + C++): se refactorizaron más de 260 scripts con <span class="g">patrones GoF</span> y <span class="g">SOLID</span>, sin alterar la jugabilidad.</p>
+  <div class="charttitle" style="margin-top:10px;">Mismo patrón, distinto ámbito</div>
+  <table class="cmp">
+    <tr><th>Patrón</th><th>Software convencional</th><th>En el videojuego</th></tr>
+    <tr><td>Strategy</td><td>Métodos de pago</td><td>Comportamiento de cada arma</td></tr>
+    <tr><td>Factory Method</td><td>Crear documentos</td><td>Crear enemigos y jefes</td></tr>
+    <tr><td>Adapter</td><td>Pasarelas externas</td><td>Teclado, táctil y mando</td></tr>
+    <tr><td>Decorator</td><td>Middleware, streams</td><td>Modificadores de daño</td></tr>
+    <tr><td>Flyweight</td><td>Caché de fuentes</td><td>Datos de miles de enemigos</td></tr>
+  </table>
+</div>
+
+<!-- OBJETIVOS -->
+<div class="box" style="left:740px; top:652px; width:610px;">
+  <p><span class="g">Objetivo general:</span> desarrollar un videojuego roguelite de acción 3D multiplataforma (PC y Android) en Godot 4, sustentado en una arquitectura mantenible basada en patrones de diseño.</p>
+  <p class="g" style="margin-bottom:4px;">Objetivos específicos</p>
+  <ul>
+    <li>Implementar dos modos de juego: <b>Supervivencia</b> (hordas masivas) y <b>Mazmorra</b> (exploración, botín y jefes).</li>
+    <li>Diseñar un sistema de armas, cartas y runas que permita combinar <b>sinergias</b>.</li>
+    <li>Optimizar el rendimiento en Android, simulando las hordas en <b>C++ (GDExtension)</b>.</li>
+    <li>Integrar multijugador <b>LAN</b> y un estilo visual cómic con tinta modelado en <b>Blender</b>.</li>
+    <li>Refactorizar el código con patrones GoF para facilitar su crecimiento.</li>
+  </ul>
+</div>
+
+<!-- METODOLOGÍA -->
+<div class="box" style="left:78px; top:1210px; width:585px;">
+  <div class="charttitle">Marco de trabajo: SCRUM</div>
+  <svg width="585" height="182" viewBox="0 0 585 182">
+    <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#10a862"/></marker>
+          <marker id="ak" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#111"/></marker></defs>
+    <!-- Product backlog -->
+    <rect x="0" y="44" width="122" height="66" rx="8" fill="#fff" stroke="#10a862" stroke-width="2.5"/>
+    <text x="61" y="72" text-anchor="middle" font-size="15" font-weight="700">Product</text>
+    <text x="61" y="90" text-anchor="middle" font-size="15" font-weight="700">Backlog</text>
+    <text x="61" y="104" text-anchor="middle" font-size="11" fill="#555">épicas · historias</text>
+    <line x1="123" y1="77" x2="146" y2="77" stroke="#10a862" stroke-width="3" marker-end="url(#ar)"/>
+    <!-- Sprint planning -->
+    <rect x="148" y="44" width="118" height="66" rx="8" fill="#111" stroke="#10a862" stroke-width="2.5"/>
+    <text x="207" y="72" text-anchor="middle" font-size="15" font-weight="700" fill="#4dff9a">Sprint</text>
+    <text x="207" y="90" text-anchor="middle" font-size="15" font-weight="700" fill="#4dff9a">Planning</text>
+    <text x="207" y="104" text-anchor="middle" font-size="11" fill="#ddd">sprint backlog</text>
+    <line x1="267" y1="77" x2="290" y2="77" stroke="#10a862" stroke-width="3" marker-end="url(#ar)"/>
+    <!-- Sprint -->
+    <circle cx="340" cy="77" r="47" fill="#10a862"/>
+    <text x="340" y="75" text-anchor="middle" font-size="18" font-weight="800" fill="#fff">Sprint</text>
+    <text x="340" y="94" text-anchor="middle" font-size="11.5" fill="#fff">código + tests</text>
+    <!-- Daily loop -->
+    <path d="M318,26 A22,16 0 1,1 362,26" fill="none" stroke="#111" stroke-width="2.5" marker-end="url(#ak)"/>
+    <text x="372" y="16" font-size="12.5" font-weight="700">Daily</text>
+    <line x1="388" y1="77" x2="411" y2="77" stroke="#10a862" stroke-width="3" marker-end="url(#ar)"/>
+    <!-- Review + Retro -->
+    <rect x="413" y="44" width="172" height="66" rx="8" fill="#fff" stroke="#10a862" stroke-width="2.5"/>
+    <text x="499" y="72" text-anchor="middle" font-size="15" font-weight="700">Review + Retro</text>
+    <text x="499" y="91" text-anchor="middle" font-size="11.5" fill="#555">incremento jugable</text>
+    <text x="499" y="104" text-anchor="middle" font-size="11.5" fill="#555">(build PC / Android)</text>
+    <!-- Return loop -->
+    <path d="M499,111 L499,150 L61,150 L61,116" fill="none" stroke="#111" stroke-width="2.5" stroke-dasharray="6 4" marker-end="url(#ak)"/>
+    <rect x="200" y="140" width="185" height="20" fill="#fff"/>
+    <text x="292" y="155" text-anchor="middle" font-size="12.5" font-weight="700">mejora continua · siguiente sprint</text>
+    <text x="292" y="178" text-anchor="middle" font-size="12" fill="#555">Equipo: 2 desarrolladores · backlog en épicas e historias de usuario</text>
+  </svg>
+  <div class="charttitle" style="margin-top:8px;">Proceso por patrón dentro de cada sprint</div>
+  <svg width="585" height="96" viewBox="0 0 585 96">
+  <rect x="0" y="14" width="105" height="78" rx="8" fill="#fff" stroke="#10a862" stroke-width="2.5"/>
+  <circle cx="52.5" cy="14" r="13" fill="#10a862"/><text x="52.5" y="19" text-anchor="middle" font-size="14" font-weight="800" fill="#fff">1</text>
+  <text x="52.5" y="54" text-anchor="middle" font-size="13.5" font-weight="700" fill="#111">Diagnóstico</text>
+  <text x="52.5" y="75" text-anchor="middle" font-size="11.5" fill="#555" font-family="Consolas,monospace">code smells</text>
+  <line x1="106" y1="53" x2="119" y2="53" stroke="#10a862" stroke-width="3" marker-end="url(#ar)"/>
+  <rect x="120" y="14" width="105" height="78" rx="8" fill="#111" stroke="#10a862" stroke-width="2.5"/>
+  <circle cx="172.5" cy="14" r="13" fill="#10a862"/><text x="172.5" y="19" text-anchor="middle" font-size="14" font-weight="800" fill="#fff">2</text>
+  <text x="172.5" y="54" text-anchor="middle" font-size="13.5" font-weight="700" fill="#4dff9a">Selección</text>
+  <text x="172.5" y="75" text-anchor="middle" font-size="11.5" fill="#ddd" font-family="Consolas,monospace">patrón GoF</text>
+  <line x1="226" y1="53" x2="239" y2="53" stroke="#10a862" stroke-width="3" marker-end="url(#ar)"/>
+  <rect x="240" y="14" width="105" height="78" rx="8" fill="#fff" stroke="#10a862" stroke-width="2.5"/>
+  <circle cx="292.5" cy="14" r="13" fill="#10a862"/><text x="292.5" y="19" text-anchor="middle" font-size="14" font-weight="800" fill="#fff">3</text>
+  <text x="292.5" y="54" text-anchor="middle" font-size="13.5" font-weight="700" fill="#111">Implementar</text>
+  <text x="292.5" y="75" text-anchor="middle" font-size="11.5" fill="#555" font-family="Consolas,monospace">scripts/patterns</text>
+  <line x1="346" y1="53" x2="359" y2="53" stroke="#10a862" stroke-width="3" marker-end="url(#ar)"/>
+  <rect x="360" y="14" width="105" height="78" rx="8" fill="#111" stroke="#10a862" stroke-width="2.5"/>
+  <circle cx="412.5" cy="14" r="13" fill="#10a862"/><text x="412.5" y="19" text-anchor="middle" font-size="14" font-weight="800" fill="#fff">4</text>
+  <text x="412.5" y="54" text-anchor="middle" font-size="13.5" font-weight="700" fill="#4dff9a">Documentar</text>
+  <text x="412.5" y="75" text-anchor="middle" font-size="11.5" fill="#ddd" font-family="Consolas,monospace">PE-xx + UML</text>
+  <line x1="466" y1="53" x2="479" y2="53" stroke="#10a862" stroke-width="3" marker-end="url(#ar)"/>
+  <rect x="480" y="14" width="105" height="78" rx="8" fill="#fff" stroke="#10a862" stroke-width="2.5"/>
+  <circle cx="532.5" cy="14" r="13" fill="#10a862"/><text x="532.5" y="19" text-anchor="middle" font-size="14" font-weight="800" fill="#fff">5</text>
+  <text x="532.5" y="54" text-anchor="middle" font-size="13.5" font-weight="700" fill="#111">Validar</text>
+  <text x="532.5" y="75" text-anchor="middle" font-size="11.5" fill="#555" font-family="Consolas,monospace">tests headless</text>
+  </svg>
+</div>
+
+<!-- RESULTADOS -->
+<div class="box" style="left:740px; top:1110px; width:615px;">
+  <div class="crow"><div class="cat">CREACIONALES</div><div class="chips"><span class="chip">Factory Method</span><span class="chip">Abstract Factory</span><span class="chip">Builder</span><span class="chip">Prototype</span><span class="chip">Singleton</span></div></div>
+  <div class="crow"><div class="cat">ESTRUCTURALES</div><div class="chips"><span class="chip k">Decorator</span><span class="chip k">Flyweight</span><span class="chip k">Adapter</span><span class="chip k">Facade</span></div></div>
+  <div class="crow"><div class="cat">COMPORTAMIENTO</div><div class="chips"><span class="chip s">Strategy</span><span class="chip s">Iterator</span></div></div>
+  <div class="charttitle">Strategy en <span class="mono">PlayerCombatController</span></div>
+  <svg width="615" height="112" viewBox="0 0 615 112">
+    <text x="0" y="13" font-size="13" font-weight="700" fill="#555">Líneas de código</text>
+    <text x="0" y="33" font-size="12.5">Antes</text><rect x="70" y="21" width="440" height="16" fill="#111"/><text x="516" y="34" font-size="13.5" font-weight="700">1378</text>
+    <text x="0" y="52" font-size="12.5">Después</text><rect x="70" y="40" width="70" height="16" fill="#10a862"/><text x="146" y="53" font-size="13.5" font-weight="700">213</text>
+    <text x="565" y="45" font-size="16" font-weight="800" fill="#10a862">−85%</text>
+    <text x="0" y="72" font-size="13" font-weight="700" fill="#555">Funciones</text>
+    <text x="0" y="91" font-size="12.5">Antes</text><rect x="70" y="79" width="440" height="16" fill="#111"/><text x="516" y="92" font-size="13.5" font-weight="700">41</text>
+    <text x="0" y="110" font-size="12.5">Después</text><rect x="70" y="98" width="64" height="12" fill="#10a862"/><text x="140" y="110" font-size="13.5" font-weight="700">6</text>
+    <text x="565" y="103" font-size="16" font-weight="800" fill="#10a862">−85%</text>
+  </svg>
+  <div class="charttitle" style="margin-top:8px;">Herramientas utilizadas</div>
+  <div class="tools"><div class="tool"><svg viewBox="0 0 24 24"><path fill="#478CBF" d="M9.5598.683c-1.096.244-2.1812.5831-3.1983 1.0951.023.8981.081 1.7582.199 2.6323-.395.253-.81.47-1.178.766-.375.288-.7581.564-1.0971.9011-.6781-.448-1.3962-.869-2.1352-1.2411C1.3532 5.6934.608 6.6186 0 7.6546c.458.7411.936 1.4352 1.4521 2.0942h.014v6.3565c.012 0 .023 0 .035.003l3.8963.376c.204.02.364.184.378.3891l.12 1.7201 3.3994.242.234-1.587c.03-.206.207-.358.415-.358h4.1114c.208 0 .385.152.415.358l.234 1.587 3.3993-.242.12-1.72a.4196.4196 0 01.378-.3891l3.8954-.376c.012 0 .023-.003.035-.003v-.5071h.002V9.7498h.014c.516-.659.994-1.3531 1.4521-2.0942-.608-1.036-1.3541-1.9611-2.1512-2.8192-.739.372-1.4571.793-2.1352 1.2411-.339-.337-.721-.613-1.096-.901-.369-.296-.7841-.5131-1.1781-.7661.117-.8741.175-1.7342.199-2.6323-1.0171-.512-2.1012-.851-3.1983-1.095-.438.736-.838 1.533-1.1871 2.3121-.414-.069-.829-.094-1.2461-.099h-.016c-.417.005-.832.03-1.2461.099-.349-.779-.749-1.576-1.1881-2.3121l.001-.001zM6.4765 9.9889c1.2971 0 2.3492 1.0511 2.3492 2.3482s-1.052 2.3482-2.3492 2.3482c-1.296 0-2.3482-1.051-2.3482-2.3482 0-1.297 1.0511-2.3482 2.3482-2.3482zm11.049 0c1.296 0 2.3482 1.0511 2.3482 2.3482s-1.0511 2.3482-2.3482 2.3482-2.3492-1.051-2.3492-2.3482c0-1.297 1.051-2.3482 2.3492-2.3482zm-10.824.9301c-.861 0-1.559.698-1.559 1.5591s.698 1.5582 1.559 1.5582c.8611 0 1.5592-.698 1.5592-1.5582 0-.86-.697-1.559-1.5591-1.559zm10.598 0c-.8611 0-1.5582.698-1.5582 1.5591s.697 1.5582 1.5581 1.5582c.8611 0 1.5592-.698 1.5592-1.5582 0-.86-.697-1.559-1.5592-1.559zm-5.2985.453c.417 0 .757.308.757.6871v2.1622c0 .379-.339.687-.757.687s-.756-.308-.756-.687V12.059c0-.379.339-.687.756-.687zM1.4601 16.9464c.002.377.006.789.006.871 0 3.7014 4.6944 5.4795 10.5269 5.5005h.014c5.8325-.02 10.5259-1.7991 10.5259-5.5004 0-.084.005-.495.007-.871l-3.5023.338-.121 1.729a.421.421 0 01-.389.3901l-4.1814.296a.4203.4203 0 01-.415-.358l-.238-1.6141h-3.3863l-.238 1.6141a.4192.4192 0 01-.4451.357l-4.1513-.296c-.208-.015-.375-.181-.389-.389l-.12-1.7292-3.5044-.337z"/></svg>Godot 4.7</div><div class="tool"><svg viewBox="0 0 24 24"><path fill="#E87D0D" d="M12.51 13.214c.046-.8.438-1.506 1.03-2.006a3.424 3.424 0 0 1 2.212-.79c.85 0 1.631.3 2.211.79.592.5.983 1.206 1.028 2.005.045.823-.285 1.586-.865 2.153a3.389 3.389 0 0 1-2.374.938 3.393 3.393 0 0 1-2.376-.938c-.58-.567-.91-1.33-.865-2.152M7.35 14.831c.006.314.106.922.256 1.398a7.372 7.372 0 0 0 1.593 2.757 8.227 8.227 0 0 0 2.787 2.001 8.947 8.947 0 0 0 3.66.76 8.964 8.964 0 0 0 3.657-.772 8.285 8.285 0 0 0 2.785-2.01 7.428 7.428 0 0 0 1.592-2.762 6.964 6.964 0 0 0 .25-3.074 7.123 7.123 0 0 0-1.016-2.779 7.764 7.764 0 0 0-1.852-2.043h.002L13.566 2.55l-.02-.015c-.492-.378-1.319-.376-1.86.002-.547.382-.609 1.015-.123 1.415l-.001.001 3.126 2.543-9.53.01h-.013c-.788.001-1.545.518-1.695 1.172-.154.665.38 1.217 1.2 1.22V8.9l4.83-.01-8.62 6.617-.034.025c-.813.622-1.075 1.658-.563 2.313.52.667 1.625.668 2.447.004L7.414 14s-.069.52-.063.831zm12.09 1.741c-.97.988-2.326 1.548-3.795 1.55-1.47.004-2.827-.552-3.797-1.538a4.51 4.51 0 0 1-1.036-1.622 4.282 4.282 0 0 1 .282-3.519 4.702 4.702 0 0 1 1.153-1.371c.942-.768 2.141-1.183 3.396-1.185 1.256-.002 2.455.41 3.398 1.175.48.391.87.854 1.152 1.367a4.28 4.28 0 0 1 .522 1.706 4.236 4.236 0 0 1-.239 1.811 4.54 4.54 0 0 1-1.035 1.626"/></svg>Blender</div><div class="tool"><svg viewBox="0 0 24 24"><path fill="#00599C" d="M22.394 6c-.167-.29-.398-.543-.652-.69L12.926.22c-.509-.294-1.34-.294-1.848 0L2.26 5.31c-.508.293-.923 1.013-.923 1.6v10.18c0 .294.104.62.271.91.167.29.398.543.652.69l8.816 5.09c.508.293 1.34.293 1.848 0l8.816-5.09c.254-.147.485-.4.652-.69.167-.29.27-.616.27-.91V6.91c.003-.294-.1-.62-.268-.91zM12 19.11c-3.92 0-7.109-3.19-7.109-7.11 0-3.92 3.19-7.11 7.11-7.11a7.133 7.133 0 016.156 3.553l-3.076 1.78a3.567 3.567 0 00-3.08-1.78A3.56 3.56 0 008.444 12 3.56 3.56 0 0012 15.555a3.57 3.57 0 003.08-1.778l3.078 1.78A7.135 7.135 0 0112 19.11zm7.11-6.715h-.79v.79h-.79v-.79h-.79v-.79h.79v-.79h.79v.79h.79zm2.962 0h-.79v.79h-.79v-.79h-.79v-.79h.79v-.79h.79v.79h.79z"/></svg>C++</div><div class="tool"><svg viewBox="0 0 24 24"><path fill="#3776AB" d="M11.858 0c-.978.005-1.913.088-2.736.234C6.7.662 6.26 1.558 6.26 3.21v2.182h5.725v.727H4.111c-1.664 0-3.121 1-3.577 2.903-.526 2.181-.549 3.542 0 5.82.407 1.694 1.379 2.902 3.043 2.902h1.969v-2.616c0-1.89 1.635-3.557 3.576-3.557h5.72c1.591 0 2.862-1.31 2.862-2.91v-5.45c0-1.553-1.309-2.718-2.863-2.977A18 18 0 0 0 11.858 0M8.762 1.755c.591 0 1.074.491 1.074 1.095 0 .601-.483 1.087-1.074 1.087A1.08 1.08 0 0 1 7.688 2.85c0-.604.48-1.095 1.074-1.095m9.656 4.364v2.543c0 1.971-1.671 3.63-3.577 3.63H9.122c-1.566 0-2.862 1.34-2.862 2.91v5.452c0 1.551 1.349 2.464 2.862 2.91 1.813.532 3.55.628 5.72 0 1.44-.418 2.862-1.258 2.862-2.91V18.47h-5.719v-.727h8.582c1.664 0 2.284-1.16 2.862-2.903.598-1.793.573-3.518 0-5.819-.41-1.656-1.196-2.903-2.862-2.903zm-3.216 13.807a1.08 1.08 0 0 1 1.074 1.088c0 .604-.48 1.094-1.074 1.094-.592 0-1.075-.49-1.075-1.094 0-.601.483-1.088 1.075-1.088"/></svg>Python</div><div class="tool"><svg viewBox="0 0 24 24"><path fill="#3DDC84" d="M18.4395 5.5586c-.675 1.1664-1.352 2.3318-2.0274 3.498-.0366-.0155-.0742-.0286-.1113-.043-1.8249-.6957-3.484-.8-4.42-.787-1.8551.0185-3.3544.4643-4.2597.8203-.084-.1494-1.7526-3.021-2.0215-3.4864a1.1451 1.1451 0 0 0-.1406-.1914c-.3312-.364-.9054-.4859-1.379-.203-.475.282-.7136.9361-.3886 1.5019 1.9466 3.3696-.0966-.2158 1.9473 3.3593.0172.031-.4946.2642-1.3926 1.0177C2.8987 12.176.452 14.772 0 18.9902h24c-.119-1.1108-.3686-2.099-.7461-3.0683-.7438-1.9118-1.8435-3.2928-2.7402-4.1836a12.1048 12.1048 0 0 0-2.1309-1.6875c.6594-1.122 1.312-2.2559 1.9649-3.3848.2077-.3615.1886-.7956-.0079-1.1191a1.1001 1.1001 0 0 0-.8515-.5332c-.5225-.0536-.9392.3128-1.0488.5449zm-.0391 8.461c.3944.5926.324 1.3306-.1563 1.6503-.4799.3197-1.188.0985-1.582-.4941-.3944-.5927-.324-1.3307.1563-1.6504.4727-.315 1.1812-.1086 1.582.4941zM7.207 13.5273c.4803.3197.5506 1.0577.1563 1.6504-.394.5926-1.1038.8138-1.584.4941-.48-.3197-.5503-1.0577-.1563-1.6504.4008-.6021 1.1087-.8106 1.584-.4941z"/></svg>Android</div><div class="tool"><svg viewBox="0 0 24 24"><path fill="#FF0000" d="M13.966 22.624l-1.69-4.281H8.122l3.892-9.144 5.662 13.425zM8.884 1.376H0v21.248zm15.116 0h-8.884L24 22.624Z"/></svg>Mixamo</div><div class="tool"><svg viewBox="0 0 24 24"><path fill="#F05032" d="M13.09 23.549a1.54 1.54 0 0 1-2.18 0L.451 13.089a1.54 1.54 0 0 1 0-2.179l7.191-7.19 2.733 2.733a1.85 1.85 0 0 0 .964 2.326v6.66a1.849 1.849 0 1 0 1.54 0V8.957l2.508 2.508a1.85 1.85 0 1 0 1.09-1.09l-2.634-2.634a1.85 1.85 0 0 0-2.378-2.377L8.73 2.63 10.91.451a1.54 1.54 0 0 1 2.179 0l10.459 10.46a1.54 1.54 0 0 1 0 2.179z"/></svg>Git</div><div class="tool"><svg viewBox="0 0 24 24"><path fill="#181717" d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>GitHub</div><div class="tool"><svg viewBox="0 0 24 24"><path fill="#D97757" d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"/></svg>Claude Code</div></div>
+</div>
+
+<!-- RECOMENDACIONES (trabajo futuro) -->
+<div class="box" style="left:740px; top:1548px; width:615px;">
+  <ul>
+    <li>Completar la <b>sinergia entre modos</b> (Supervivencia ↔ Mazmorra).</li>
+    <li>Multijugador <b>en línea</b> con servidor dedicado, más allá de LAN.</li>
+    <li>Nuevos mundos de mazmorra, jefes y <b>clima por partida</b>.</li>
+    <li>Soporte completo de <b>mando</b> en menús e interfaz.</li>
+    <li>Publicar en <b>Google Play</b> y <b>Steam</b>, con traducción al inglés.</li>
+  </ul>
+  <img class="shot" src="cavernas_despues.jpg" style="width:300px; margin:6px auto 0;">
+  <div class="cap">Modo Mazmorra: Cavernas</div>
+</div>
+
+<!-- CONCLUSIONES -->
+<div class="box" style="left:78px; top:1690px; width:585px; display:flex; gap:16px; align-items:center;">
+  <div style="flex:0 0 140px; text-align:center;">
+    <svg width="140" height="140" viewBox="0 0 150 150">
+      <g transform="rotate(-90 75 75)" fill="none" stroke-width="26">
+        <circle cx="75" cy="75" r="55" stroke="#10a862" stroke-dasharray="155.08 345.58" stroke-dashoffset="0"/>
+        <circle cx="75" cy="75" r="55" stroke="#111" stroke-dasharray="123.67 345.58" stroke-dashoffset="-157.08"/>
+        <circle cx="75" cy="75" r="55" stroke="#8fd9b0" stroke-dasharray="60.83 345.58" stroke-dashoffset="-282.75"/>
+      </g>
+      <text x="75" y="80" text-anchor="middle" font-size="30" font-weight="800">11</text>
+      <text x="75" y="98" text-anchor="middle" font-size="12" fill="#555">patrones</text>
+    </svg>
+    <div style="font-size:11.5px; line-height:1.3; text-align:left; margin-left:8px;">
+      <div><span style="display:inline-block;width:10px;height:10px;background:#10a862;margin-right:5px;"></span>5 creacionales</div>
+      <div><span style="display:inline-block;width:10px;height:10px;background:#111;margin-right:5px;"></span>4 estructurales</div>
+      <div><span style="display:inline-block;width:10px;height:10px;background:#8fd9b0;margin-right:5px;"></span>2 de comportamiento</div>
+    </div>
+  </div>
+  <ul style="font-size:17px; margin:0 0 0 20px; flex:1;">
+    <li>Los patrones GoF convirtieron puntos de variación rígidos (condicionales por tipo) en <b>abstracciones polimórficas</b>.</li>
+    <li>Nuevas armas, enemigos o plataformas se integran por <b>extensión</b> (subclases de Strategy, Creator o Adapter) sin modificar el código existente.</li>
+    <li>Se cumple el principio <b>Abierto/Cerrado (OCP)</b>.</li>
+    <li>Se reduce el acoplamiento y disminuye el riesgo de regresiones.</li>
+  </ul>
+</div>
+
+</body></html>

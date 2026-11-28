@@ -49,6 +49,7 @@ const PORTAL_WEAPONS := [
 	WeaponData.WeaponType.DUSTS, WeaponData.WeaponType.SERPENTS,
 	WeaponData.WeaponType.DAGGERS, WeaponData.WeaponType.MACE, WeaponData.WeaponType.GREATSWORD,
 	WeaponData.WeaponType.SWORD, WeaponData.WeaponType.BOW,
+	WeaponData.WeaponType.PISTOL, WeaponData.WeaponType.RIFLE, WeaponData.WeaponType.FIRE_STAFF,
 ]
 
 var map: DungeonMap
@@ -435,7 +436,7 @@ func _spawn_at(room: int, pos: Vector3, kind: String = "goblin", dissolve: bool 
 	var g := NetWorld.create_enemy(kind)
 	g.name = {"brute": "DungeonBrute", "mage": "DungeonMage", "zombie": "DungeonZombie", "necro": "DungeonNecromancer",
 		"rat": "DungeonRat", "slug": "DungeonSlug", "rat_king": "DungeonRatKing",
-		"rat_big": "DungeonBigRat", "slug_red": "DungeonBloater"}.get(kind, "DungeonGoblin")
+		"rat_big": "DungeonBigRat", "slug_red": "DungeonBloater", "bat": "DungeonBat"}.get(kind, "DungeonGoblin")
 	g.map = map
 	g.position = Vector3(pos.x, 0.1, pos.z)
 	get_parent().add_child(g)
@@ -538,6 +539,8 @@ func _rescue_outsiders(room: int) -> void:
 		i += 1
 
 func _room_cleared(room: int) -> void:
+	if room == prisoner_room and is_instance_valid(prisoner):
+		prisoner.unlock()
 	if not _challenge.is_empty() and int(_challenge["room"]) == room:
 		_finish_challenge(true)
 	if structure_enabled() and (room == scroll_room or map.rooms[room]["type"] == "end"):
@@ -927,6 +930,10 @@ func _setup_level_extras() -> void:
 		if is_instance_valid(n):
 			n.queue_free()
 	scroll_room = -1
+	if is_instance_valid(prisoner) and not prisoner.is_freed:
+		prisoner.queue_free()
+	prisoner = null
+	prisoner_room = -1
 	cursed_chest = null
 	for d in _dice:
 		if is_instance_valid(d):
@@ -1121,10 +1128,31 @@ func _setup_run_extras(normal: Array) -> void:
 	if not free.is_empty():
 		scroll_room = free[0]
 		_scroll_mark = _room_mark(scroll_room, "📜 PERGAMINO", Color(0.95, 0.85, 0.5), 2.6)
+	_place_prisoner(free)
 	_spawn_level_dice(free)
 	if level >= DungeonRun.CURSED_CHEST_FROM and (DungeonRun.heat() > 0 or randf() < DungeonRun.CURSED_CHEST_CHANCE):
 		var room: int = free[free.size() - 1] if not free.is_empty() else _start_room()
 		spawn_cursed_chest(_free_spot(map.room_center(room), 3.0, randf() * 360.0))
+
+## Prisionero de la historia (WorldDefs "prisoner", DungeonPrisoner): enjaulado en una caverna normal con enemigos
+## (otra que la del pergamino si se puede) mientras no esté liberado y el mago ya esté rescatado. Sale en cada nivel
+## hasta liberarlo. Solo en partidas locales (structure_enabled).
+var prisoner: DungeonPrisoner
+var prisoner_room := -1
+
+func _place_prisoner(rooms_free: Array) -> void:
+	var world := GameData.world
+	if not map.world().has("prisoner") or SaveManager.prisoner_free(world) or not SaveManager.dungeon_unlocked():
+		return
+	var pool: Array = rooms_free.filter(func(r): return r != scroll_room and _pending.has(r))
+	if pool.is_empty():
+		pool = rooms_free.filter(func(r): return _pending.has(r))
+	if pool.is_empty():
+		return
+	prisoner_room = pool[pool.size() - 1]
+	var c := map.room_center(prisoner_room)
+	var at := _free_spot(c, 1.5, randf() * 360.0)
+	prisoner = DungeonPrisoner.spawn(get_parent(), Vector3(at.x, 0.0, at.z), world, player)
 
 ## Dados del destino (FateDice) del nivel: DICE_CHANCE de uno y DICE_SECOND_CHANCE de otro, en cavernas
 ## normales distintas de la del pergamino. Solo en partidas locales (el resultado no se sincroniza en red).
@@ -1139,9 +1167,9 @@ func _spawn_level_dice(rooms_free: Array) -> void:
 	_dice.clear()
 	if Net.is_online():
 		return
-	var pool: Array = rooms_free.filter(func(r): return r != scroll_room)
+	var pool: Array = rooms_free.filter(func(r): return r != scroll_room and r != prisoner_room)
 	if pool.is_empty():
-		pool = rooms_free.duplicate()
+		pool = rooms_free.filter(func(r): return r != prisoner_room)
 	pool.shuffle()
 	var n := (1 if randf() < DICE_CHANCE else 0) + (1 if randf() < DICE_SECOND_CHANCE else 0)
 	for i in mini(n, pool.size()):

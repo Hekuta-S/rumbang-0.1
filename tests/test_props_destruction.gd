@@ -34,19 +34,25 @@ func _ready() -> void:
 	assert(parts["Pared"] > 1 and parts["Techo"] > 1, "Paredes y techo en varios trozos (%s)" % str(parts))
 	assert(walls.get_node_or_null("CeilingBody") != null, "El techo tiene colisión (cámara)")
 	# Antorchas de pared y braseros con luz, encendidas aunque la calidad apague las luces
-	assert(map._instances.get("torch_wall", []).size() > 5, "Hay antorchas de pared")
-	assert(map._instances.get("brazier_pillar", []).size() > 0, "Hay braseros en las bocas de túnel")
+	assert(map.rock_sprites.get("torch_wall", []).size() > 5, "Hay antorchas de pared (dibujo)")
+	assert(map.rock_sprites.get("brazier_pillar", []).size() > 0, "Hay braseros en las bocas de túnel (dibujo)")
 	assert(map.lights_essential and map._lights.size() > 16, "Las luces de la cueva son imprescindibles (%d)" % map._lights.size())
-	# Hongos que brillan (sin los morados antiguos) con el shader mushroom_glow
-	assert(map._instances.get("mush_small", []).size() > 0 and not map._instances.has("mushroom"), "Hongos nuevos en vez de los morados")
-	assert((map._load_kind("mush_big").surface_get_material(0) as ShaderMaterial).shader == DungeonMap.MUSH_SHADER, "Los hongos usan mushroom_glow")
-	# Pack de cueva: piezas sueltas (luces por pieza en el renderizador Mobile) con estalactitas, y pinturas
-	var pack := map.get_node_or_null("PackProps")
-	assert(pack != null and pack.get_child_count() > 10, "Piezas del pack como mallas sueltas")
-	var stalactites := pack.get_children().filter(func(n): return String(n.name).begins_with("stalactite"))
+	# Hongos que brillan (sin los morados antiguos), dibujados con su máscara de brillo
+	assert(map.rock_sprites.get("mush_small", []).size() > 0 and not map._instances.has("mushroom"), "Hongos nuevos en vez de los morados")
+	var decor := map.get_node("RockSprites").get_children().filter(func(n): return String(n.name).begins_with("cave_decor"))
+	assert(decor.size() > 0 and ((decor[0] as GeometryInstance3D).material_override as ShaderMaterial).get_shader_parameter("glow_tex") != null, "Los adornos llevan máscara de brillo")
+	for k in DungeonMap.SPRITE_ONLY:
+		assert(not map._instances.has(k), "%s solo como dibujo" % k)
+	# Rocas del pack de cueva como dibujos horneados (MultiMesh por trozo), con estalactitas, y pinturas
+	var rocks := map.get_node_or_null("RockSprites")
+	assert(rocks != null and rocks.get_child_count() > 3, "Rocas de la cueva como dibujos 2D")
+	assert(not map.has_node("PackProps") and not map._instances.has("cave_pillar"), "Sin mallas 3D de roca del pack")
+	var stalactites: Array = []
+	for k in DungeonMap.STALACTITES:
+		stalactites.append_array(map.rock_sprites.get(k, []))
 	assert(stalactites.size() > 0, "Hay estalactitas")
-	for st in stalactites:
-		assert((st as Node3D).position.y - 2.6 * (st as Node3D).transform.basis.get_scale().y >= DungeonMap.STALACTITE_CLEAR - 1.0, "Las estalactitas no bajan a la altura del jugador")
+	for st: Transform3D in stalactites:
+		assert(st.origin.y - 2.6 * st.basis.get_scale().y >= DungeonMap.STALACTITE_CLEAR - 1.0, "Las estalactitas no bajan a la altura del jugador")
 	assert(map.get_node_or_null("RockArt") != null, "Nodo de pinturas rupestres")
 	var floor_node := map.get_node("Floor")
 	assert(floor_node.get_child_count() > 1, "El suelo va en trozos (%d)" % floor_node.get_child_count())

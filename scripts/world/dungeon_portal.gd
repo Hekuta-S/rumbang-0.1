@@ -30,6 +30,8 @@ static var _swirl_shader: Shader
 
 var _area: Area3D
 var _used := false
+## Color del portal (antes de añadirlo al árbol). El portal entre mapas de Supervivencia (SurvivalMapSwitch) lo cambia.
+var color := COLOR
 
 static func spawn(parent: Node, at: Vector3) -> DungeonPortal:
 	var p := DungeonPortal.new()
@@ -51,6 +53,7 @@ func _ready() -> void:
 	disc.mesh = quad
 	var dm := ShaderMaterial.new()
 	dm.shader = _swirl_shader
+	dm.set_shader_parameter("col", color)
 	disc.material_override = dm
 	disc.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	holder.add_child(disc)
@@ -66,16 +69,16 @@ func _ready() -> void:
 	var rm := StandardMaterial3D.new()
 	rm.albedo_color = Color(0.12, 0.1, 0.16)
 	rm.emission_enabled = true
-	rm.emission = COLOR
+	rm.emission = color
 	rm.emission_energy_multiplier = 1.8
 	ring.material_override = rm
 	holder.add_child(ring)
 	var light := Quality.new_light()
-	light.light_color = COLOR
+	light.light_color = color
 	light.light_energy = 3.0
 	light.omni_range = 7.0
 	holder.add_child(light)
-	var sparks := DustVFX.sparkles(16, 1.2, RADIUS, 0.12, 0.25, COLOR)
+	var sparks := DustVFX.sparkles(16, 1.2, RADIUS, 0.12, 0.25, color)
 	sparks.gravity = Vector3(0, 0.6, 0)
 	holder.add_child(sparks)
 	sparks.emitting = true

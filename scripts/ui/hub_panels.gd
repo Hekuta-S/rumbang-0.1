@@ -167,8 +167,21 @@ func show_anvil_tab(id: String) -> void:
 		var on: bool = t == id
 		var st := Style.button_style(Color(0.14, 0.08, 0.18, 0.95) if on else Color(0.05, 0.03, 0.08, 0.9),
 			Style.ACCENT if on else Style.BTN_BORDER, 4, 3 if on else 2)
-		for s in ["normal", "hover", "pressed", "focus"]:
+		for s in ["normal", "hover", "pressed"]:
 			(_tab_buttons[t] as Button).add_theme_stylebox_override(s, st)
+		(_tab_buttons[t] as Button).add_theme_stylebox_override("focus", Style.focus_ring())
+	# NIVEL lo abre la prisionera de las Cloacas (historia): hasta liberarla, solo un aviso
+	if id == "nivel" and DungeonHub.station_locked("nivel"):
+		var msg := Label.new()
+		msg.name = "Bloqueado"
+		msg.text = DungeonHub.locked_hint("nivel") + " Tus almas se guardan: podrás gastarlas aquí en cuanto la liberes."
+		msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		msg.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		msg.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		msg.custom_minimum_size = Vector2(0, ANVIL_BODY_H)
+		_anvil_body.add_child(msg)
+		return
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size = Vector2(ANVIL_LIST_W, ANVIL_BODY_H)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -294,7 +307,7 @@ func _loadout_box() -> Control:
 	v.add_child(t)
 	var saved := PlayerEquipment.saved_loadout()
 	var names := {"casco": "Casco", "pechera": "Pechera", "pantalones": "Pantalones",
-		"talisman_1": "Talismán 1", "talisman_2": "Talismán 2", "arma": "Arma"}
+		"talisman_1": "Talismán 1", "talisman_2": "Talismán 2", "amuleto": "Amuleto", "arma": "Arma"}
 	# Sin nada guardado basta una línea (el aviso de abajo explica de dónde sale el equipo)
 	var empty := true
 	for slot in PlayerEquipment.SLOTS + ["arma"]:
@@ -348,8 +361,9 @@ func _refresh_cards() -> void:
 		st.skew = Vector2.ZERO          # filas rectas: con la inclinación el texto se salía
 		st.content_margin_left = 10
 		st.content_margin_right = 6
-		for s in ["normal", "hover", "pressed", "focus"]:
+		for s in ["normal", "hover", "pressed"]:
 			b.add_theme_stylebox_override(s, st)
+		b.add_theme_stylebox_override("focus", Style.focus_ring(Style.NEON_CYAN, true))
 
 # ── NIVEL (SoulStats) ──
 
@@ -376,8 +390,9 @@ func _refresh_stats() -> void:
 		var st := Style.button_style(Color(0.16, 0.09, 0.2, 0.95) if sel else Color(0.05, 0.03, 0.08, 0.9), Style.BTN_BORDER, 4, 2)
 		st.skew = Vector2.ZERO
 		st.content_margin_left = 10
-		for k in ["normal", "hover", "pressed", "focus"]:
+		for k in ["normal", "hover", "pressed"]:
 			b.add_theme_stylebox_override(k, st)
+		b.add_theme_stylebox_override("focus", Style.focus_ring(Style.NEON_CYAN, true))
 	var head := _anvil_body.find_child("Cabecera", true, false) as Label if _anvil_body else null
 	if head:
 		head.text = "NIVEL %d   ALMAS %d" % [SoulStats.level(), SoulStats.souls()]
@@ -481,10 +496,21 @@ func _build_arena() -> Control:
 	right.add_child(_arena_name)
 	_arena_info = Label.new()
 	_arena_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_arena_info.custom_minimum_size = Vector2(300, 260)
+	_arena_info.custom_minimum_size = Vector2(300, 210)
 	_arena_info.add_theme_font_size_override("font_size", 11)
 	_arena_info.add_theme_color_override("font_color", Style.TEXT)
 	right.add_child(_arena_info)
+	# Mapa de la partida (GameData.survival_map); a mitad de partida un portal lleva al otro
+	var map_btn := Style.make_button("", Style.BTN_BORDER, Vector2(280, 40))
+	map_btn.name = "Mapa"
+	var map_text := func():
+		map_btn.text = "  MAPA: %s" % GameData.survival_map_name().to_upper()
+		map_btn.tooltip_text = String(GameData.SURVIVAL_MAPS[GameData.survival_map]["subtitle"])
+	map_text.call()
+	map_btn.pressed.connect(func():
+		GameData.cycle_survival_map()
+		map_text.call())
+	right.add_child(map_btn)
 	var go := Style.make_button("  ENTRAR A LA ARENA", Style.ACCENT, Vector2(280, 50))
 	go.name = "Entrar"
 	go.pressed.connect(func():

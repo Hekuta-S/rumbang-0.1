@@ -18,6 +18,15 @@ const MAX_DRAW_DIST := 80.0
 
 ## Orden fijo de los modelos: EnemyData.vat_idx apunta a esta lista.
 const KEYS: Array[String] = ["magoblin", "normal", "bruto", "zombie"]
+## Criaturas de las cloacas: SIEMPRE sprites (en PC y en móvil), sin VAT ni LOD. Su índice de modelo en
+## EnemyData.vat_idx es KEYS.size() + posición aquí. Atlas de tools/bake_creature_sprites.gd.
+const CREATURE_KEYS: Array[String] = ["rat", "rat_big", "slug", "bloater"]
+const CREATURE_DIR := "res://assets/creatures/"
+const CREATURE_SHADER: Shader = preload("res://assets/shaders/creature_impostor.gdshader")
+## Ataque especial cuyas poses (aviso y golpe) enseña la criatura al avisar (special_state 1 y 2).
+const CREATURE_SPECIAL := {"rat": "pounce", "rat_big": "pounce", "slug": "", "bloater": "burst"}
+const CREATURE_SWELL := {"bloater": 0.3}
+const BAKE_ELEVATION := 20.0          ## grados de cámara con los que se hornearon (tools/bake_creature_sprites.gd)
 const LOD_COUNT := 3
 const LOD_SUFFIX: Array[String] = ["", "_lod1", "_lod2"]
 ## Distancias (m) a partir de las cuales se pasa al LOD 1 y al LOD 2 (más cortas en móvil).
@@ -32,6 +41,10 @@ const TYPE_TABLE := {
 	3: ["magoblin", "res://assets/textures/enemigos/textura_mago_goblin.png"],
 	4: ["zombie", "res://assets/textures/enemigos/textura_zombie_goblin.png"],
 	5: ["magoblin", "res://assets/textures/enemigos/textura_mago_goblin.png"],
+	6: ["rat", ""],
+	7: ["rat_big", ""],
+	8: ["slug", ""],
+	9: ["bloater", ""],
 }
 
 static var _available: int = -1       # -1 sin comprobar, 0 no, 1 sí
@@ -41,6 +54,7 @@ static var _imp_available: int = -1
 ## cámara, en vez de mallas 3D animadas. Mucho más barato (clave en Android); ver tools/bake_enemy_impostors.gd.
 var _impostor: bool = false
 static var instance: EnemyVisuals = null   ## solo en modo impostor (lo usan EnemyData / EnemyManager)
+static var any: EnemyVisuals = null        ## siempre: dibuja las criaturas de las cloacas (sprites)
 var _slot_lists: Array = []                ## por modelo: EnemyData en cada casilla (índice = casilla)
 var _dirty: Array[bool] = []
 
@@ -81,7 +95,33 @@ static func key_for_type(type_val: int) -> String:
 	return TYPE_TABLE[type_val][0] if TYPE_TABLE.has(type_val) else ""
 
 static func index_for_type(type_val: int) -> int:
-	return KEYS.find(key_for_type(type_val))
+	var key := key_for_type(type_val)
+	var i := KEYS.find(key)
+	if i >= 0:
+		return i
+	var c := CREATURE_KEYS.find(key)
+	return KEYS.size() + c if c >= 0 else -1
+
+## ¿Este índice de modelo (EnemyData.vat_idx) es de una criatura de las cloacas?
+static func is_creature_idx(idx: int) -> bool:
+	return idx >= KEYS.size()
+
+static var _cre_available: int = -1
+static var _cre_info: Dictionary = {}
+
+## true si están horneados los atlas de las criaturas (si no, no salen).
+static func creatures_available() -> bool:
+	if _cre_available < 0:
+		_cre_available = 1
+		for key in CREATURE_KEYS:
+			if not FileAccess.file_exists(CREATURE_DIR + key + "_sprites.json") or not ResourceLoader.exists(CREATURE_DIR + key + "_sprites.png"):
+				_cre_available = 0
+	return _cre_available == 1
+
+static func creature_info(key: String) -> Dictionary:
+	if not _cre_info.has(key):
+		_cre_info[key] = JSON.parse_string(FileAccess.get_file_as_string(CREATURE_DIR + key + "_sprites.json"))
+	return _cre_info[key]
 
 func _ready() -> void:
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
@@ -90,6 +130,7 @@ func _ready() -> void:
 	_impostor = Quality.use_impostors() and is_available() and impostors_available()
 	if _impostor:
 		instance = self
+	any = self
 	var tex_for: Dictionary = {}
 	for t in TYPE_TABLE:
 		tex_for[TYPE_TABLE[t][0]] = TYPE_TABLE[t][1]
@@ -101,6 +142,12 @@ func _ready() -> void:
 		for k in range(_mms.size()):
 			_slot_lists.append([])
 			_dirty.append(false)
+	if creatures_available():
+		for key in CREATURE_KEYS:
+			_make_creature_slots(key)
+			_cslots.append([])
+			_cdirty.append(false)
+			_cprev.append(0)
 
 # ───────────────────────────── Creación de los cubos ─────────────────────────────
 
@@ -213,8 +260,11 @@ func _make_model_slots(key: String, tex_path: String) -> void:
 func _exit_tree() -> void:
 	if instance == self:
 		instance = null
+	if any == self:
+		any = null
 
 func _process(_delta: float) -> void:
+	_process_creatures()
 	if _impostor:
 		_process_impostor()
 		return
@@ -256,8 +306,8 @@ func _fill_vat(now: float, frac: float, cam: Camera3D) -> void:
 		if dist > MAX_DRAW_DIST:
 			continue
 		var model: int = e.vat_idx
-		if model < 0:
-			continue
+		if model < 0 or model >= KEYS.size():
+			continue          # sin modelo, o criatura (sprite: la dibuja _process_creatures)
 		# Cubo según la distancia: 0 completo, 1 medio, 2 lejano
 		var slot: int = model * LOD_COUNT + (0 if (_impostor or dist < d1) else (1 if dist < d2 else 2))
 		var n: int = _counts[slot]
@@ -307,6 +357,9 @@ func _fill_vat(now: float, frac: float, cam: Camera3D) -> void:
 func attach(e: EnemyData) -> void:
 	e.vis_slot = -1
 	var model: int = e.vat_idx
+	if is_creature_idx(model):
+		_c_attach(e)
+		return
 	if model < 0 or model >= _slot_lists.size():
 		return
 	var list: Array = _slot_lists[model]
@@ -323,6 +376,9 @@ func attach(e: EnemyData) -> void:
 func detach(e: EnemyData) -> void:
 	var slot: int = e.vis_slot
 	if slot < 0:
+		return
+	if is_creature_idx(e.vat_idx):
+		_c_detach(e)
 		return
 	e.vis_slot = -1
 	var model: int = e.vat_idx
@@ -344,7 +400,8 @@ func write(e: EnemyData, tick_f: float) -> void:
 	if slot < 0:
 		return
 	var model: int = e.vat_idx
-	var buf: PackedFloat32Array = _bufs[model]
+	var cre := is_creature_idx(model)
+	var buf: PackedFloat32Array = _cbufs[model - KEYS.size()] if cre else _bufs[model]
 	var i: int = slot * STRIDE
 	var cur: Vector3 = e.global_position
 	var prev: Vector3 = e.prev_position
@@ -363,16 +420,24 @@ func write(e: EnemyData, tick_f: float) -> void:
 	buf[i + 12] = e.vat_phase
 	buf[i + 13] = 1.0 if e.vat_walking else 0.0
 	buf[i + 14] = 1.0 if e.slow_timer > 0.0 else 0.0
-	_dirty[model] = true
+	if cre:
+		buf[i + 15] = float(e.special_state)
+		_cdirty[model - KEYS.size()] = true
+	else:
+		_dirty[model] = true
 
 ## Marca el instante del último golpe (el shader hace el destello de FLASH_S segundos).
 func flash(e: EnemyData) -> void:
 	var slot: int = e.vis_slot
 	if slot < 0:
 		return
-	var buf: PackedFloat32Array = _bufs[e.vat_idx]
+	var cre := is_creature_idx(e.vat_idx)
+	var buf: PackedFloat32Array = _cbufs[e.vat_idx - KEYS.size()] if cre else _bufs[e.vat_idx]
 	buf[slot * STRIDE + 10] = float(EnemyManager.tick)
-	_dirty[e.vat_idx] = true
+	if cre:
+		_cdirty[e.vat_idx - KEYS.size()] = true
+	else:
+		_dirty[e.vat_idx] = true
 
 func _process_impostor() -> void:
 	var frac := 0.0 if get_tree().paused else Engine.get_physics_interpolation_fraction()
@@ -396,6 +461,123 @@ func _process_impostor() -> void:
 		if shown != _prev_counts[k]:
 			mm.visible_instance_count = shown
 			_prev_counts[k] = shown
+
+# ───────────────────────────── Criaturas de las cloacas (sprites animados) ─────────────────────────────
+# Mismo esquema de casillas fijas que los impostores, pero siempre activo y con su propio shader (animan reposo,
+# andar y las poses de aviso/golpe). Con la simulación en C++ las casillas y los búferes viven allí (índice de
+# modelo = KEYS.size() + posición en CREATURE_KEYS); sin ella, aquí.
+
+var _cmms: Array[MultiMesh] = []
+var _cbufs: Array[PackedFloat32Array] = []
+var _cslots: Array = []                    ## por criatura: EnemyData en cada casilla
+var _cdirty: Array[bool] = []
+var _cprev: Array[int] = []                ## instancias visibles del frame anterior
+
+func _make_creature_slots(key: String) -> void:
+	var info: Dictionary = creature_info(key)
+	var mat := ShaderMaterial.new()
+	mat.shader = CREATURE_SHADER
+	mat.set_shader_parameter("atlas", load(CREATURE_DIR + key + "_sprites.png"))
+	mat.set_shader_parameter("angles", int(info["angles"]))
+	mat.set_shader_parameter("cols", int(info["cols"]))
+	mat.set_shader_parameter("idle_sprites", int((info["idle"] as Array)[1]))
+	mat.set_shader_parameter("idle_fps", float(info["idle_fps"]))
+	mat.set_shader_parameter("walk_sprites", int((info["walk"] as Array)[1]))
+	mat.set_shader_parameter("walk_fps", float(info["walk_fps"]))
+	# El cuadrado cubre una celda: ancho = span; alto = span / cos(elevación de horneado), y el centro se corrige igual
+	var span := float(info["span"])
+	var ce := cos(deg_to_rad(BAKE_ELEVATION))
+	var yc_base := float(info["height"]) * 0.5
+	mat.set_shader_parameter("quad_w", span)
+	mat.set_shader_parameter("quad_h", span / ce)
+	mat.set_shader_parameter("center_y", yc_base + (float(info["center_y"]) - yc_base) / (ce * ce))
+	if info.has("crop"):
+		var cr: Array = info["crop"]
+		mat.set_shader_parameter("crop", Vector4(cr[0], cr[1], cr[2], cr[3]))
+	var special: String = CREATURE_SPECIAL.get(key, "")
+	var atks: Dictionary = info["attacks"]
+	if special != "" and atks.has(special):
+		mat.set_shader_parameter("windup_col", int(atks[special]["windup"]))
+		mat.set_shader_parameter("attack_col", int(atks[special]["attack"]))
+		mat.set_shader_parameter("pose_n", int(atks[special]["n"]))
+	mat.set_shader_parameter("swell", float(CREATURE_SWELL.get(key, 0.0)))
+	var quad := QuadMesh.new()
+	quad.size = Vector2.ONE
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = false
+	mm.use_custom_data = true
+	mm.mesh = quad
+	mm.instance_count = CAPACITY
+	mm.visible_instance_count = 0
+	mm.custom_aabb = AABB(Vector3(-130, -40, -130), Vector3(260, 100, 260))
+	var mmi := MultiMeshInstance3D.new()
+	mmi.name = "MM_%s_creature" % key
+	mmi.multimesh = mm
+	mmi.material_override = mat
+	mmi.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mmi)
+	var buf := PackedFloat32Array()
+	buf.resize(CAPACITY * STRIDE)
+	_cmms.append(mm)
+	_cbufs.append(buf)
+
+func _c_attach(e: EnemyData) -> void:
+	var k: int = e.vat_idx - KEYS.size()
+	if k < 0 or k >= _cslots.size():
+		return
+	var list: Array = _cslots[k]
+	if list.size() >= CAPACITY:
+		return
+	e.vis_slot = list.size()
+	list.append(e)
+	var buf: PackedFloat32Array = _cbufs[k]
+	buf[e.vis_slot * STRIDE + 10] = -1000.0
+	write(e, float(EnemyManager.tick))
+
+func _c_detach(e: EnemyData) -> void:
+	var slot: int = e.vis_slot
+	e.vis_slot = -1
+	var k: int = e.vat_idx - KEYS.size()
+	var list: Array = _cslots[k]
+	var last = list.pop_back()
+	if last != e:
+		list[slot] = last
+		last.vis_slot = slot
+		var buf: PackedFloat32Array = _cbufs[k]
+		var src: int = list.size() * STRIDE
+		var dst: int = slot * STRIDE
+		for j in range(STRIDE):
+			buf[dst + j] = buf[src + j]
+	_cdirty[k] = true
+
+func _process_creatures() -> void:
+	if _cmms.is_empty():
+		return
+	var sim: Object = EnemyManager.sim
+	var warm := _warm_frames > 0
+	for k in range(_cmms.size()):
+		var model := KEYS.size() + k
+		var c: int = sim.vis_count(model) if sim != null else (_cslots[k] as Array).size()
+		var mm := _cmms[k]
+		if sim != null:
+			if sim.vis_take_dirty(model):
+				mm.buffer = sim.vis_buffer(model)
+		elif _cdirty[k]:
+			mm.buffer = _cbufs[k]
+			_cdirty[k] = false
+		var shown: int = maxi(c, 1) if warm else c
+		if shown != _cprev[k]:
+			mm.visible_instance_count = shown
+			_cprev[k] = shown
+
+## Criaturas dibujadas ahora mismo (pruebas).
+func creature_count() -> int:
+	var n := 0
+	for k in range(_cmms.size()):
+		n += _cmms[k].visible_instance_count
+	return n
 
 ## Nº de enemigos dibujados ahora mismo (depuración / pruebas).
 func drawn_count() -> int:

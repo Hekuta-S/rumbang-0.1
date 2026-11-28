@@ -36,6 +36,7 @@ func _init() -> void:
 	armor = 11.0
 	armor_break = 38.0
 	glance_armor = true
+	launch_mult = 0.55
 	knock_scale = 0.45
 	sfx_pitch = 0.62
 	attack_rest = 0.6

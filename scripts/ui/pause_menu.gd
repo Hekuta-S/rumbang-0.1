@@ -27,6 +27,12 @@ func _input(event):
 		if is_instance_valid(_equip_panel):
 			return   # el panel de equipo se cierra solo con su propio Esc
 		toggle()
+	elif event is InputEventJoypadButton and event.pressed and event.button_index == JOY_BUTTON_START:
+		# Start del mando abre/cierra la pausa (antes solo se leía por sondeo y casi nunca llegaba)
+		if is_instance_valid(_equip_panel):
+			return
+		toggle()
+		get_viewport().set_input_as_handled()
 	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_TAB:
 		# Tab = lo que llevas: abre el menú directo en EQUIPO (equipado + mochila + estadísticas) y lo cierra
 		# del todo, también con el panel abierto. Sin sistema de equipo (supervivencia) abre solo la pausa.
@@ -175,6 +181,8 @@ func open_menu():
 	# En red el mundo no se detiene (los demás siguen jugando)
 	get_tree().paused = not Net.is_online()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	if GamepadUI.using_pad():
+		resume_btn.grab_focus.call_deferred()
 
 func close_menu():
 	if is_instance_valid(_equip_panel):

@@ -6,8 +6,8 @@ extends CanvasLayer
 ## (ver HudLayout) y es pulsable: tocarla abre el inventario (PauseMenu.open_inventory).
 
 const Style := preload("res://scripts/ui/rumbang_style.gd")
-const ICONS := {"casco": "⛑", "pechera": "🛡", "pantalones": "👖", "talisman_1": "🔮", "talisman_2": "🔮", "arma": "⚔"}
-const SLOTS := ["casco", "pechera", "pantalones", "talisman_1", "talisman_2"]
+const ICONS := {"casco": "⛑", "pechera": "🛡", "pantalones": "👖", "talisman_1": "🔮", "talisman_2": "🔮", "amuleto": "📿", "arma": "⚔"}
+const SLOTS := ["casco", "pechera", "pantalones", "talisman_1", "talisman_2", "amuleto"]
 
 var equipment: PlayerEquipment
 var _row: HBoxContainer
@@ -56,6 +56,8 @@ func _ready() -> void:
 	if equipment:
 		equipment.equipment_changed.connect(refresh)
 		equipment.perk_triggered.connect(_on_perk_triggered)
+		equipment.amulet_used.connect(func(it: Dictionary):
+			_on_perk_triggered(it, {"name": String(AmuletActives.ACTIVES.get(AmuletActives.id_of(it), {}).get("name", ""))}))
 	refresh()
 	apply_layout(Quality.is_mobile())
 	set_process(false)
@@ -136,6 +138,9 @@ func _process(delta: float) -> void:
 	var lines: Array[String] = []
 	for b in equipment.active_buffs():
 		lines.append("%s %.1fs" % [b["name"], b["left"]])
+	var cd := equipment.amulet_cooldown_left() if equipment.has_amulet() else 0.0
+	if cd > 0.0:
+		lines.append("📿 %ds" % ceili(cd))   # la activa del amuleto (E) aún recargando
 	_buffs.text = "\n".join(lines)
 	if lines.is_empty() and not is_instance_valid(last_popup):
 		set_process(false)
@@ -145,5 +150,5 @@ func refresh() -> void:
 		return
 	for i in SLOTS.size():
 		var slot: String = SLOTS[i]
-		(_plate.sockets[i] as StoneUI.Socket).show_item(equipment.get_item(slot), ICONS[slot])
+		(_plate.sockets[i] as StoneUI.Socket).show_item(equipment.get_item(slot), ICONS[slot], AmuletActives.icon(equipment.get_item(slot)))
 	_bag.text = "🎒 %d" % equipment.bag.size() if not equipment.bag.is_empty() else ""

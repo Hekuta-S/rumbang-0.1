@@ -90,14 +90,19 @@ func _spawn_tatan() -> void:
 ## Modelo de Tatan (idle en bucle, textura, escalado por huesos) hijo de `parent` en `offset`.
 ## También lo usa el mercader de supervivencia (SurvivalMerchant). null si falta el modelo.
 static func make_tatan(parent: Node3D, offset: Vector3, height: float) -> Node3D:
-	var path := GameData.get_idle_model_path("tatan")
+	return make_npc(parent, "tatan", offset, height)
+
+## Cualquier personaje del plantel (GameData.IDLE_MODELS) como NPC quieto: idle en bucle, textura, escalado por
+## huesos. Lo usan Tatan y los prisioneros de la mazmorra (DungeonPrisoner). null si falta el modelo.
+static func make_npc(parent: Node3D, char_id: String, offset: Vector3, height: float) -> Node3D:
+	var path := GameData.get_idle_model_path(char_id)
 	if path == "" or not ResourceLoader.exists(path):
 		return null
 	var scene := load(path) as PackedScene
 	if scene == null:
 		return null
 	var model := scene.instantiate() as Node3D
-	model.name = "Tatan"
+	model.name = char_id.capitalize()
 	parent.add_child(model)
 	model.position = offset
 	# Mixamo: la malla va en cm bajo un esqueleto escalado, así que la altura se mide por los huesos
@@ -116,7 +121,13 @@ static func make_tatan(parent: Node3D, offset: Vector3, height: float) -> Node3D
 			var k := height / h
 			model.scale = Vector3(k, k, k)
 			model.position.y = offset.y - lo * k
-	var tex_path := GameData.get_texture_path("tatan")
+	# Respaldo: algunos FBX (Garri) no dan la altura por los huesos; se corrige con la caja de la malla
+	var box := _mesh_box(parent, model)
+	if box.size.y > 0.0001 and absf(box.size.y / height - 1.0) > 0.3:
+		model.scale *= height / box.size.y
+		box = _mesh_box(parent, model)
+		model.position.y += offset.y - box.position.y
+	var tex_path := GameData.get_texture_path(char_id)
 	if tex_path != "" and ResourceLoader.exists(tex_path):
 		var mat := StandardMaterial3D.new()
 		mat.albedo_texture = load(tex_path)
@@ -131,6 +142,17 @@ static func make_tatan(parent: Node3D, offset: Vector3, height: float) -> Node3D
 			ap.get_animation(names[0]).loop_mode = Animation.LOOP_LINEAR
 			ap.play(names[0])
 	return model
+
+## Caja de todas las mallas del modelo, en coordenadas de `parent`.
+static func _mesh_box(parent: Node3D, model: Node3D) -> AABB:
+	var inv := parent.global_transform.affine_inverse()
+	var box := AABB()
+	var first := true
+	for mi in model.find_children("*", "MeshInstance3D", true, false):
+		var a: AABB = inv * (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()
+		box = a if first else box.merge(a)
+		first = false
+	return box
 
 func prices() -> Dictionary:
 	return {"potion": 25 + 5 * level, "refill": 15 + 3 * level, "rune": 50 + 15 * level}

@@ -32,8 +32,8 @@ const PROP_TOON_SHADER: Shader = preload("res://assets/shaders/prop_toon.gdshade
 const PROP_TOON_DIR := "res://assets/textures/toon/props/"
 ## Tamaño de los chunks de props (m): grandes = menos llamadas de dibujo. Los props tienen muy pocos
 ## triángulos (56–590), así que dibujarlos todos cuesta menos que muchas llamadas de dibujo.
-const CHUNK_PC := 120.0
-const CHUNK_MOBILE := 240.0           ## un solo chunk: 1 llamada por tipo de prop
+const CHUNK_PC := 160.0               ## mapa de 320 m: 2 × 2 chunks por tipo de prop
+const CHUNK_MOBILE := 320.0           ## un solo chunk: 1 llamada por tipo de prop
 const PROP_DIR := "res://assets/models/mapa/"
 const HASH_CELL := 8.0
 ## Capa visual 2 (valor 2): solo el suelo. Decals como la aura de Vangry usan cull_mask = 2.
@@ -68,14 +68,14 @@ const PROPS := {
 }
 
 @export var map_seed: int = 0                       ## 0 = aleatoria en cada partida
-@export var half_size: float = 115.0                ## mitad del lado de la malla
+@export var half_size: float = 160.0                ## mitad del lado de la malla (320 m; antes 115)
 @export var cell_size: float = 1.5                  ## resolución del terreno (m)
 @export var hill_amplitude: float = 4.5
 @export var basin_depth: float = 9.0
 @export var basin_distance: float = 58.0            ## centro de la cuenca desde el origen
 @export var basin_floor_radius: float = 20.0
 @export var basin_rim_radius: float = 32.0
-@export var play_half: float = 98.0                 ## donde empiezan los acantilados
+@export var play_half: float = 143.0                ## donde empiezan los acantilados (antes 98)
 @export var cliff_height: float = 22.0
 @export var chunk_size: float = 80.0
 @export_range(0.0, 2.0, 0.05) var prop_density: float = 1.0
@@ -83,7 +83,7 @@ const PROPS := {
 ## Una de ellas puede salir escalonada (zigurat: un segundo piso con su propia rampa).
 @export var mesa_count: int = 4
 @export var mesa_height_range := Vector2(4.5, 7.0)
-@export var max_lights: int = 20                    ## luces que se crean como mucho
+@export var max_lights: int = 24                    ## luces que se crean como mucho (las lejanas se apagan)
 ## Luces encendidas a la vez como mucho: las más cercanas al jugador (dentro de la distancia de corte).
 @export var visible_lights: int = 16
 ## Las luces son la iluminación principal (cueva cerrada): se encienden aunque la calidad las apague
@@ -93,6 +93,35 @@ var lights_essential := false
 var use_toon_props := true
 var light_scale := 1.0                ## multiplica la fuerza de todas las luces (de día, DayNightCycle las baja)
 @export var embers_enabled: bool = true
+## Árboles dibujados (2D horneado) y destructibles (TreeField) en vez de los modelos 3D tree_dead_*.
+@export var tree_sprites: bool = true
+const TREE_KINDS := ["tree_a", "tree_b"]
+var trees: TreeField = null
+## Barrio del Desagüe (SewerDistrict): cloacas a cielo abierto en un borde del mapa de Supervivencia.
+@export var district_enabled: bool = true
+var district: SewerDistrict = null        ## el primero de `districts` (compatibilidad)
+var districts: Array = []                  ## [SewerDistrict]: uno en el Bosque, dos (uno a cada lado) en Cloacas
+
+## Mapa de supervivencia: "forest" (Bosque) o "sewers" (Cloacas: casi todo el mapa es ciudad de canales).
+## Vacío = GameData.survival_map (en la mazmorra siempre "forest", DungeonMap no lo usa).
+var theme: String = ""
+var _theme: String = "forest"
+const THEMES := ["forest", "sewers"]
+const SEWER_DEPTH_START := 62.0            ## Cloacas: cada barrio empieza a 62 m del centro (en el Bosque, 100)
+const SEWER_MAIN_U := Vector2(80.0, 86.0)
+const SEWER_HILLS := 2.0                   ## lomas más bajas: es una ciudad
+## Suelo de Cloacas: mismas ranuras que GROUND_TEX (tools/make_toon_textures.py sewer_*)
+const GROUND_TEX_SEWERS := {
+	"grass_tex": "res://assets/textures/toon/toon_sewer_cobble.png",
+	"dirt_tex": "res://assets/textures/toon/toon_sewer_mud.png",
+	"rock_tex": "res://assets/textures/toon/toon_sewer_brick.png",
+	"stone_tex": "res://assets/textures/toon/toon_sewer_tile.png",
+}
+const SEWER_GLOW := Color(0.45, 1.0, 0.35)
+var _base_params: Dictionary = {}
+## Área jugable (sin el barrio) respecto al mapa de 196 m de antes: escala cuántos props y mesetas hay.
+const BASE_PLAY_AREA := 196.0 * 196.0
+var _area_k: float = 1.0
 
 var used_seed: int = 0
 var _rng := RandomNumberGenerator.new()
@@ -124,6 +153,7 @@ const CHUTE_HALF_W := 3.0
 const CHUTE_LEN_PER_M := 4.2           ## ~13°: largo para coger velocidad
 const CHUTE_CHANCE := 0.6
 const CHUTE_FRICTION := 0.12           ## × roce del deslizamiento sobre el barro
+const CHUTE_MIN_DROP := 4.0            ## m que baja como mínimo un tobogán (si no, no coge velocidad)
 ## Puentes de madera entre mesetas de altura parecida: [{a, b: Vector2 (extremos, dentro de cada cima),
 ## ya, yb (altura de la tabla en cada extremo), half, ma, mb (mesetas)}]. Los enemigos los cruzan
 ## (EnemyMotion los trata como otra capa de suelo) y por debajo se sigue pasando.
@@ -177,6 +207,7 @@ func _ready() -> void:
 
 func generate(p_seed: int = 0) -> void:
 	_clear()
+	_apply_theme()
 	used_seed = p_seed if p_seed != 0 else int(Time.get_unix_time_from_system()) ^ randi()
 	_rng.seed = used_seed
 	_setup_noise()
@@ -184,10 +215,13 @@ func generate(p_seed: int = 0) -> void:
 	_build_terrain()
 	_scatter_props()
 	_build_prop_nodes()
+	_build_trees()
 	_build_jump_pads()
 	_build_chutes()
 	_build_bridges()
 	_build_barrels()
+	for d in districts:
+		(d as SewerDistrict).build_nodes()
 	if GameData.game_mode != "dungeon" and not _mushroom_spots.is_empty():
 		_bouncer = MushroomBouncer.new()
 		_bouncer.name = "MushroomBouncer"
@@ -233,7 +267,61 @@ func get_colliders() -> Array:
 			out.append(o)
 	for sp: Vector2 in _bridge_supports:
 		out.append({"pos": sp, "shape": "cyl", "r": 0.35, "half": Vector2.ZERO, "yaw": 0.0})
+	for d in districts:
+		out.append_array((d as SewerDistrict).colliders())
 	return out
+
+## Árboles como dibujos destructibles (TreeField) a partir de los props "tree_a"/"tree_b" ya repartidos.
+func _build_trees() -> void:
+	if not tree_sprites:
+		return
+	var list: Array = []
+	for kind in TREE_KINDS:
+		list.append_array(_instances.get(kind, []))
+	if list.is_empty():
+		return
+	trees = TreeField.new()
+	trees.name = "Trees"
+	add_child(trees)
+	trees.build(list, _mobile)
+
+## ¿Hay agua en p? (canales del Barrio del Desagüe; MapReactions y MapAmbience lo usan para ondas y sonido)
+func is_water(p: Vector3) -> bool:
+	for d in districts:
+		if (d as SewerDistrict).is_water(p):
+			return true
+	return false
+
+## Tema del mapa generado ("forest" / "sewers").
+func get_theme() -> String:
+	return _theme
+
+## ¿p está dentro de un barrio de cloacas (con `margin` m de holgura hacia el centro)?
+func in_district(p: Vector2, margin: float = 0.0) -> bool:
+	for d in districts:
+		if (d as SewerDistrict).contains(p, margin):
+			return true
+	return false
+
+func _in_any_canal(p: Vector2, grow: float) -> bool:
+	for d in districts:
+		if (d as SewerDistrict).in_canal(p, grow):
+			return true
+	return false
+
+## Parámetros del tema: los del Bosque se guardan la primera vez (al cambiar de mapa a mitad de partida
+## se vuelven a poner).
+func _apply_theme() -> void:
+	if _base_params.is_empty():
+		_base_params = {"hill_amplitude": hill_amplitude, "tree_sprites": tree_sprites}
+	_theme = theme if theme != "" else ("forest" if GameData.game_mode == "dungeon" else GameData.survival_map)
+	if not THEMES.has(_theme):
+		_theme = "forest"
+	hill_amplitude = _base_params["hill_amplitude"]
+	tree_sprites = _base_params["tree_sprites"]
+	if _theme == "sewers":
+		hill_amplitude = SEWER_HILLS
+		tree_sprites = false
 
 func get_basin_center() -> Vector3:
 	return Vector3(_basin_center.x, get_height_at(_basin_center.x, _basin_center.y), _basin_center.y)
@@ -315,6 +403,9 @@ func _clear() -> void:
 	_barrels.clear()
 	_mushroom_spots.clear()
 	_bouncer = null
+	district = null
+	districts.clear()
+	trees = null
 	_bridge_supports.clear()
 	_hash.clear()
 	_lights.clear()
@@ -349,12 +440,44 @@ func _pick_layout() -> void:
 	var length := basin_rim_radius + 14.0
 	_ramp_end = _basin_center - dir * length
 	_ramp_surface_y = 0.0
+	district = null
+	districts.clear()
+	if district_enabled and GameData.game_mode != "dungeon":
+		if _theme == "sewers":
+			# Cloacas: un barrio a cada lado de un eje y la cripta (aquí, el depósito) en la franja de en medio
+			var ax := _rng.randi() % 2
+			var bs := -1.0 if _rng.randf() < 0.5 else 1.0
+			dir = Vector2(0.0, bs) if ax == 0 else Vector2(bs, 0.0)
+			_basin_center = dir * basin_distance
+			_ramp_end = _basin_center - dir * length
+			var salt := 0
+			for sg: float in [-1.0, 1.0]:
+				var sd := SewerDistrict.new(self)
+				sd.depth_start = SEWER_DEPTH_START
+				sd.main_canal_u = SEWER_MAIN_U
+				sd.pick_axis(used_seed, ax, sg, salt)
+				districts.append(sd)
+				salt += 7919
+		else:
+			var sd := SewerDistrict.new(self)
+			sd.pick_axis(used_seed)
+			districts.append(sd)
+		district = districts[0]
+	var full := 4.0 * play_half * play_half
+	var dist_area := 0.0
+	for d in districts:
+		dist_area += 2.0 * play_half * (play_half - (d as SewerDistrict).depth_start)
+	_area_k = clampf((full - dist_area) / BASE_PLAY_AREA, 1.0, 3.0)
 	_pick_mesas()
 	_pick_bridges()
+	for d in districts:
+		(d as SewerDistrict).pick_layout()
 
 func _pick_mesas() -> void:
 	_mesas.clear()
 	var want := mini(mesa_count, 3) if _mobile else mesa_count
+	if _area_k > 1.4:
+		want += 1 if _mobile else 2                  # mapa grande: alguna meseta más
 	# La pared más suave posible en la malla es altura / (2 celdas): en móvil (celdas de 2,5 m) las
 	# mesetas son más altas y sin segundo piso para que la pared siga sin poder subirse andando.
 	var heights := Vector2(maxf(mesa_height_range.x, 6.8), maxf(mesa_height_range.y, 8.2)) if _mobile else mesa_height_range
@@ -365,7 +488,8 @@ func _pick_mesas() -> void:
 		if _mesas.size() - (1 if zig_done else 0) >= want:
 			break
 		var zig := not zig_done and _rng.randf() < 0.5
-		var r := _rng.randf_range(17.0, 19.5) if zig else _rng.randf_range(9.0, 14.0)
+		# Base del zigurat: cabe la rampa del segundo piso (5,5 + ~8,8 m) sin llegar al borde irregular (±7 %)
+		var r := _rng.randf_range(18.5, 20.5) if zig else _rng.randf_range(9.0, 14.0)
 		var height := _rng.randf_range(heights.x, heights.y)
 		var ramp_len := height * RAMP_LEN_PER_M
 		var c := _rand_pos(play_half - r - 8.0)
@@ -381,6 +505,8 @@ func _pick_mesas() -> void:
 					continue
 		if c.length() < 30.0 + r:
 			continue                                    # la plaza de inicio queda libre
+		if in_district(c, r + height * RAMP_LEN_PER_M + 10.0):
+			continue                                    # ni en el Barrio del Desagüe
 		if c.distance_to(_basin_center) < basin_rim_radius + r + 8.0 or _dist_to_ramp(c) < r + 10.0:
 			continue
 		var ok := true
@@ -421,6 +547,12 @@ func _pick_mesas() -> void:
 		var reach := ramp_len + 4.0
 		if _rng.randf() < CHUTE_CHANCE:
 			var clen := height * CHUTE_LEN_PER_M
+			# Cima prevista (como `top` más abajo): el tobogán tiene que bajar al menos CHUTE_MIN_DROP
+			var top_est := _terrain(c.x, c.y).x
+			for k in 8:
+				var ka := TAU * float(k) / 8.0
+				top_est = maxf(top_est, _terrain(c.x + cos(ka) * r, c.y + sin(ka) * r).x)
+			top_est += height
 			for k in 8:
 				var ca := _rng.randf() * TAU
 				var cd := Vector2.from_angle(ca)
@@ -433,6 +565,8 @@ func _pick_mesas() -> void:
 					continue
 				if cfoot.distance_to(_basin_center) < basin_rim_radius + 4.0 or _dist_to_ramp(cfoot) < 7.0 or cfoot.length() < 14.0:
 					continue
+				if top_est - _terrain(cfoot.x, cfoot.y).x < CHUTE_MIN_DROP:
+					continue                            # el pie cae en una loma: apenas bajaría
 				if _ramp_hits_mesa(c, cd, r + clen + 4.0):
 					continue
 				ramps.append({"dir": cd, "len": clen, "chute": true, "half": CHUTE_HALF_W,
@@ -570,6 +704,8 @@ func _build_terrain() -> void:
 		arrays[Mesh.ARRAY_INDEX] = res[6]
 	else:
 		_build_terrain_arrays(arrays)
+	for d in districts:
+		(d as SewerDistrict).carve(arrays)
 	_finish_terrain(arrays)
 
 ## Versión GDScript de la malla (la referencia; TerrainNative la replica).
@@ -639,8 +775,15 @@ static var _chunk_index_cache: Dictionary = {}     ## Vector2i(ancho, alto) en v
 func _finish_terrain(arrays: Array) -> void:
 	var mat := ShaderMaterial.new()
 	mat.shader = _ground_shader()
-	for key in GROUND_TEX:
-		mat.set_shader_parameter(key, load(GROUND_TEX[key]))
+	var tex: Dictionary = GROUND_TEX_SEWERS if _theme == "sewers" else GROUND_TEX
+	for key in tex:
+		mat.set_shader_parameter(key, load(tex[key]))
+	if _theme == "sewers":
+		# Venas y círculo verdes (agua tóxica) y la calle menos aclarada que el camino de tierra
+		mat.set_shader_parameter("vein_color", SEWER_GLOW)
+		mat.set_shader_parameter("ring_color", SEWER_GLOW)
+		mat.set_shader_parameter("path_tint", Vector3(1.1, 1.1, 1.05))
+		mat.set_shader_parameter("rock_m", 4.0)
 
 	var ground := Node3D.new()
 	ground.name = "Ground"
@@ -773,6 +916,8 @@ func _is_surface(p: Vector2, max_slope: float) -> bool:
 		return false
 	if _dist_to_ramp(p) < 9.0:
 		return false
+	if in_district(p, 2.0):
+		return false
 	if _near_mesa(p, 3.0) or _near_bridge(p, 2.0):
 		return false
 	return _slope(p.x, p.y) <= max_slope
@@ -808,7 +953,16 @@ func _rand_pos(extent: float) -> Vector2:
 
 ## Forma, tamaño y escala de un tipo de prop (las subclases añaden los suyos).
 func _prop_def(kind: String) -> Dictionary:
-	return PROPS[kind]
+	return PROPS[kind] if PROPS.has(kind) else DISTRICT_PROPS[kind]
+
+## Props de cloaca del Barrio del Desagüe (los mismos modelos que SewerMap.SEWER_PROPS).
+const DISTRICT_PROPS := {
+	"trash_bag":    {"file": "sewer_trash_bag",    "shape": "cyl", "size": Vector3(0.42, 0.7, 0.0),  "scale": Vector2(0.8, 1.2)},
+	"toxic_barrel": {"file": "sewer_toxic_barrel", "shape": "cyl", "size": Vector3(0.42, 0.95, 0.0), "scale": Vector2(0.95, 1.05)},
+	"trash_pile":   {"file": "sewer_trash_pile",   "shape": "cyl", "size": Vector3(1.0, 0.9, 0.0),   "scale": Vector2(0.85, 1.3)},
+	"drain":        {"file": "sewer_drain",        "shape": "",    "size": Vector3.ZERO,             "scale": Vector2(1.0, 1.0)},
+	"valve":        {"file": "sewer_valve",        "shape": "cyl", "size": Vector3(0.25, 1.3, 0.0),  "scale": Vector2(0.9, 1.1)},
+}
 
 func _add(kind: String, pos: Vector2, yaw: float = -1.0, s: float = -1.0, y_offset: float = -0.04, collide: bool = true, tilt: float = 0.0) -> void:
 	var def: Dictionary = _prop_def(kind)
@@ -870,7 +1024,7 @@ func gust(pos: Vector3, radius: float, strength: float = 0.6) -> void:
 func _add_brazier(pos: Vector2) -> void:
 	_place("brazier", pos, 0.8)
 	var y := get_height_at(pos.x, pos.y)
-	_add_light(Vector3(pos.x, y + 1.7, pos.y), Color(1.0, 0.55, 0.2), 2.6, 11.0)
+	_add_light(Vector3(pos.x, y + 1.7, pos.y), Color(0.75, 1.0, 0.4) if _theme == "sewers" else Color(1.0, 0.55, 0.2), 2.6, 11.0)
 	add_ambient_point("fire", Vector3(pos.x, y + 1.2, pos.y))
 	if embers_enabled:
 		_add_embers(Vector3(pos.x, y + 1.4, pos.y))
@@ -908,11 +1062,16 @@ func _scatter_props() -> void:
 	_place_plaza()
 	_place_basin()
 	_place_mesa_decor()
-	_place_ruins(3)
-	_place_graveyards(3)
-	_place_forest()
+	_place_ruins(int(round(3.0 * sqrt(_area_k))))
+	if _theme == "sewers":
+		_place_junkyards(int(round(4.0 * sqrt(_area_k))))
+	else:
+		_place_graveyards(int(round(3.0 * sqrt(_area_k))))
+		_place_forest()
 	_place_misc()
 	_place_edge_rocks()
+	for d in districts:
+		(d as SewerDistrict).decorate()
 
 func _place_plaza() -> void:
 	_reserve(Vector2.ZERO, 6.0)
@@ -929,7 +1088,7 @@ func _place_basin() -> void:
 	var c := _basin_center
 	_place("altar", c, 3.0, 0.0, 1.0)
 	var y := get_height_at(c.x, c.y)
-	_add_light(Vector3(c.x, y + 3.2, c.y), Color(0.6, 0.3, 1.0), 4.0, 18.0)
+	_add_light(Vector3(c.x, y + 3.2, c.y), SEWER_GLOW if _theme == "sewers" else Color(0.6, 0.3, 1.0), 4.0, 18.0)
 	for k in range(8):
 		var a := float(k) * TAU / 8.0 + 0.2
 		var pos := c + Vector2(cos(a), sin(a)) * 14.0
@@ -948,7 +1107,10 @@ func _place_basin() -> void:
 		var pos := c + Vector2(cos(a), sin(a)) * _rng.randf_range(10.0, 18.5)
 		if _dist_to_ramp(pos) < 5.0 or _occupied(pos, 1.0):
 			continue
-		_place("grave_a" if _rng.randf() < 0.55 else "grave_b", pos, 0.9, -1.0, -1.0, false, 0.06)
+		if _theme == "sewers":
+			_place("trash_bag" if _rng.randf() < 0.6 else "toxic_barrel", pos, 0.9, -1.0, -1.0, false, 0.06)
+		else:
+			_place("grave_a" if _rng.randf() < 0.55 else "grave_b", pos, 0.9, -1.0, -1.0, false, 0.06)
 		graves -= 1
 	for i in range(int(10.0 * prop_density)):
 		var a := _rng.randf() * TAU
@@ -1330,7 +1492,7 @@ func _pick_barrels() -> void:
 		if loose <= 0:
 			break
 		var q := _rand_pos(play_half - 8.0)
-		if q.length() < 20.0 or _near_mesa(q, 2.0) or _near_bridge(q, 2.0) or _occupied(q, 1.5):
+		if q.length() < 20.0 or _near_mesa(q, 2.0) or _near_bridge(q, 2.0) or _occupied(q, 1.5) or in_district(q, 2.0):
 			continue
 		var sl := _slope(q.x, q.y)
 		if sl < 0.12 or sl > 0.5:
@@ -1358,6 +1520,8 @@ func _find_site(radius: float, min_origin: float) -> Vector2:
 		if _dist_to_ramp(p) < radius + 8.0:
 			continue
 		if _near_mesa(p, radius + 2.0) or _near_bridge(p, radius + 2.0):
+			continue
+		if in_district(p, radius + 2.0):
 			continue
 		if _occupied(p, radius):
 			continue
@@ -1429,17 +1593,53 @@ func _place_graveyards(count: int) -> void:
 			if not _occupied(pos, 0.9):
 				_place("bones", pos, 0.8, -1.0, -1.0, false)
 
+## Cloacas: vertederos (en lugar de cementerios): montones de basura, bidones tóxicos y cajas rodeados de
+## restos de valla, con una válvula y un desagüe con luz verdosa.
+func _place_junkyards(count: int) -> void:
+	for n in range(count):
+		var c := _find_site(11.0, 26.0)
+		if c.x == INF:
+			continue
+		_reserve(c, 9.0)
+		for k in range(_rng.randi_range(3, 5)):
+			var pos := c + Vector2(_rng.randf_range(-6.5, 6.5), _rng.randf_range(-6.5, 6.5))
+			if _occupied(pos, 1.4):
+				continue
+			_place("trash_pile", pos, 1.4)
+			for b in _rng.randi_range(1, 3):
+				var q := pos + Vector2(_rng.randf_range(-2.0, 2.0), _rng.randf_range(-2.0, 2.0))
+				if not _occupied(q, 0.6):
+					_place("trash_bag", q, 0.6, -1.0, -1.0, false)
+		for k in range(_rng.randi_range(3, 6)):
+			var pos := c + Vector2(_rng.randf_range(-7.0, 7.0), _rng.randf_range(-7.0, 7.0))
+			if not _occupied(pos, 0.9):
+				_place("toxic_barrel" if _rng.randf() < 0.6 else "crate", pos, 0.9)
+		for k in range(9):
+			var a := float(k) * TAU / 9.0 + _rng.randf_range(-0.1, 0.1)
+			if _rng.randf() < 0.4:
+				continue
+			_place("fence", c + Vector2(cos(a), sin(a)) * 10.5, 1.3, a + PI * 0.5)
+		var vp := c + Vector2(_rng.randf_range(-3.0, 3.0), _rng.randf_range(-3.0, 3.0))
+		if not _occupied(vp, 1.0):
+			_place("valve", vp, 1.0)
+		var y := get_height_at(c.x, c.y)
+		_add_light(Vector3(c.x, y + 2.2, c.y), SEWER_GLOW, 2.0, 12.0)
+		add_ambient_point("drip", Vector3(c.x, y + 1.0, c.y))
+
 func _place_forest() -> void:
-	var target := int(150.0 * prop_density)
+	var target := int(150.0 * prop_density * _area_k)
 	var placed := 0
 	for attempt in range(target * 40):
 		if placed >= target:
 			break
 		var p := _rand_pos(play_half - 3.0)
-		if p.length() < 17.0 or not _is_surface(p, 0.6):
+		if p.length() < 17.0:
 			continue
+		# Primero el ruido del bosque (barato), después la superficie (mesetas, puentes, pendiente)
 		var f := _noise_forest.get_noise_2d(p.x, p.y)
 		if f < -0.1 or _rng.randf() > (f + 0.1) * 2.2 + 0.08:
+			continue
+		if not _is_surface(p, 0.6):
 			continue
 		if _occupied(p, 1.7):
 			continue
@@ -1447,7 +1647,7 @@ func _place_forest() -> void:
 		placed += 1
 
 func _place_misc() -> void:
-	var rocks := int(44.0 * prop_density)
+	var rocks := int(44.0 * prop_density * _area_k)
 	for i in range(rocks * 8):
 		if rocks <= 0:
 			break
@@ -1456,7 +1656,7 @@ func _place_misc() -> void:
 			continue
 		_place("rock_a" if _rng.randf() < 0.65 else "rock_b", p, 1.8)
 		rocks -= 1
-	var shrooms := int(26.0 * prop_density)
+	var shrooms := int(26.0 * prop_density * _area_k)
 	for i in range(shrooms * 12):
 		if shrooms <= 0:
 			break
@@ -1467,7 +1667,7 @@ func _place_misc() -> void:
 			continue
 		_place("mushroom", p, 0.8, -1.0, -1.0, false)
 		shrooms -= 1
-	var loose := int(22.0 * prop_density)
+	var loose := int(22.0 * prop_density * _area_k)
 	for i in range(loose * 10):
 		if loose <= 0:
 			break
@@ -1480,7 +1680,7 @@ func _place_misc() -> void:
 			if not _occupied(q, 0.8):
 				_place("barrel", q, 0.8)
 		loose -= 1
-	var bones := int(14.0 * prop_density)
+	var bones := int(14.0 * prop_density * _area_k)
 	for i in range(bones * 10):
 		if bones <= 0:
 			break
@@ -1490,7 +1690,7 @@ func _place_misc() -> void:
 		_place("bones", p, 0.8, -1.0, -1.0, false)
 		bones -= 1
 	# Algún brasero suelto con luz como punto de referencia
-	for i in range(3):
+	for i in range(int(round(3.0 * _area_k))):
 		var p := _find_site(2.0, 25.0)
 		if p.x != INF:
 			_add_brazier(p)
@@ -1511,6 +1711,8 @@ func _place_edge_rocks() -> void:
 				_: p = Vector2(edge - inset, u)
 			if p.distance_to(_basin_center) < basin_rim_radius or _rng.randf() < 0.25:
 				continue
+			if _in_any_canal(p, 2.5):
+				continue                                # boca de un canal en el acantilado
 			_add("rock_b", p, -1.0, _rng.randf_range(1.0, 1.8), -0.3, false)
 
 # ───────────────────────────── Nodos de props ─────────────────────────────
@@ -1683,9 +1885,10 @@ func _build_prop_nodes() -> void:
 	body.name = "PropColliders"
 	body.collision_layer = 1
 	body.collision_mask = 0
-	add_child(body)
 
 	for kind in _instances:
+		if kind in TREE_KINDS and tree_sprites:
+			continue                                    # los dibuja TreeField
 		var mesh := _load_kind(kind)
 		if mesh == null:
 			continue
@@ -1714,6 +1917,8 @@ func _build_prop_nodes() -> void:
 			container.add_child(mmi)
 
 	for kind in _collide:
+		if kind in TREE_KINDS and tree_sprites:
+			continue                                    # cada árbol lleva su cuerpo (TreeTrunk)
 		var def: Dictionary = _prop_def(kind)
 		var size: Vector3 = def["size"]
 		var shape: Shape3D
@@ -1734,8 +1939,13 @@ func _build_prop_nodes() -> void:
 			cs.shape = shape
 			cs.transform = (t as Transform3D).translated_local(Vector3(0.0, offset, 0.0))
 			body.add_child(cs)
+	# El cuerpo entra al árbol con todas sus formas ya puestas (añadirlas una a una con el cuerpo ya en el
+	# espacio de física rehacía el cuerpo en cada una)
+	add_child(body)
 
 func _process(delta: float) -> void:
+	for d in districts:
+		(d as SewerDistrict).tick(delta)
 	if _lights.is_empty():
 		return
 	_cull_timer -= delta

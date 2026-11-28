@@ -110,8 +110,8 @@ func _ready() -> void:
 	if hud != null:
 		RunStats.kills = 7
 		RunStats.add_damage(-1, 300.0)
-		for i in 10:
-			await get_tree().process_frame
+		# la etiqueta se refresca a 4 Hz (hud.COMBAT_TEXT_INTERVAL): esperar algo más de un intervalo
+		await get_tree().create_timer(0.4, true, false, true).timeout
 		_check(hud.combat_label != null and hud.combat_label.text.begins_with("BAJAS 7"), "el HUD muestra las bajas (%s)" % (hud.combat_label.text if hud.combat_label else "sin etiqueta"))
 	else:
 		_check(false, "no se encontró el HUD")

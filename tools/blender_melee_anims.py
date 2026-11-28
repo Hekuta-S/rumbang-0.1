@@ -158,17 +158,22 @@ CLIPS = {
         (58, body("wide", x=5), HIPS, M_GUARD),
     ],
     # Levantar y golpear (cierre del combo, va tras "maza1" que acaba con la maza clavada): arranca de esa pose,
-    # tira de la maza hacia arriba con esfuerzo, la sube recta por encima de la cabeza, se queda un instante
-    # arriba y la deja caer en vertical delante. Golpe en los fotogramas 21-26.
+    # se echa atrás con las piernas para arrancarla, la saca por delante, la carga arriba con la espalda
+    # arqueada y la cabeza de la maza colgando por detrás (se queda un instante), la suelta recta por encima
+    # de la cabeza y la clava ~1,8 m delante en zancada (sin hundirse: pies y maza a ras de suelo), rebota un
+    # poco y vuelve a la guardia levantándola por delante. Golpe en los fotogramas 21-26 (impacto en el 24).
     "maza4": [
         (1, body("lunge", x=52, z=50), (0, -0.29, -0.23), mace((0.5, -0.6, -0.6), (0.2, -0.9, -0.4), (0.0, -0.9, -0.45))),
-        (8, body("wide", x=20, z=10), (0, -0.1, -0.12), mace((0.8, 0.0, 0.2), (0.6, 0.0, 0.7), (0.3, 0.0, 0.95))),
-        (14, dict(legs("toes"), Spine=[("x", -20)]), (0, 0.05, 0.06), mace((0.0, 0.05, 1.0), (-0.4, 0.0, 0.9), (-0.95, 0.0, 0.2))),
-        (18, dict(legs("toes"), Spine=[("x", -24)]), (0, 0.06, 0.07), mace((-0.05, 0.05, 1.0), (-0.5, 0.0, 0.86), (-0.98, 0.0, 0.1))),
-        (22, body("lunge", x=35), (0, -0.2, -0.12), mace((0.9, 0.05, 0.3), (0.95, 0.0, 0.1), (0.7, 0.0, 0.7))),
-        (24, body("deep", x=55), (0, -0.3, -0.28), mace((0.85, 0.15, -0.5), (0.85, 0.0, -0.5), (0.55, 0.0, -0.85))),
-        (34, body("deep", x=52), (0, -0.3, -0.27), mace((0.85, 0.15, -0.5), (0.85, 0.0, -0.5), (0.56, 0.0, -0.84))),
-        (46, body("wide", x=25), (0, -0.12, -0.14), mace((0.6, -0.2, -0.5), (0.55, -0.4, 0.1), (0.35, -0.3, -0.5))),
+        (6, body("wide", x=8, z=30), (0, -0.12, -0.12), mace((0.6, -0.5, -0.6), (0.5, -0.8, -0.2), (0.75, -0.3, -0.55))),
+        (11, body("wide", x=-5, z=5), (0, -0.02, -0.08), mace((0.6, 0.0, 0.6), (0.3, 0.0, 0.95), (0.5, 0.0, 0.85))),
+        (16, dict(legs("toes"), Spine=[("x", -28)]), (0, 0.06, 0.06), mace((-0.15, 0.1, 0.98), (-0.55, 0.0, 0.8), (-0.55, 0.05, -0.8))),
+        (20, dict(legs("toes"), Spine=[("x", -33)]), (0, 0.08, 0.08), mace((-0.2, 0.1, 0.97), (-0.6, 0.0, 0.78), (-0.6, 0.05, -0.78))),
+        (22, body("lunge", x=10), (0, -0.08, -0.12), mace((0.3, 0.05, 0.95), (0.6, 0.0, 0.8), (0.05, 0.0, 1.0))),
+        (23, body("lunge", x=28), (0, -0.16, -0.12), mace((0.75, 0.05, 0.6), (0.9, 0.0, 0.4), (0.9, 0.0, 0.42))),
+        (24, body("lunge", x=42), (0, -0.22, -0.11), mace((0.85, 0.12, -0.45), (0.9, 0.0, -0.4), (0.62, 0.0, -0.78))),
+        (27, body("lunge", x=46), (0, -0.23, -0.08), mace((0.85, 0.12, -0.45), (0.9, 0.0, -0.32), (0.68, 0.0, -0.72))),
+        (34, body("lunge", x=44), (0, -0.22, -0.11), mace((0.85, 0.12, -0.45), (0.9, 0.0, -0.4), (0.6, 0.0, -0.8))),
+        (44, body("wide", x=18), (0, -0.08, -0.03), mace((0.6, -0.1, -0.2), (0.6, -0.3, 0.6), (0.45, -0.1, 0.88))),
         (58, body("wide", x=5), HIPS, M_GUARD),
     ],
     # Especial: salto enorme con la maza a la espalda y caída clavándola en el suelo (impacto en el fotograma 19)

@@ -11,6 +11,7 @@ const HARMONICS := 10
 const VOICES := {
 	"rey": {"pitch": 105.0, "range": 0.22, "rough": 0.05, "speed": 0.04, "gain": 0.55},
 	"mago": {"pitch": 165.0, "range": 0.3, "rough": 0.12, "speed": 0.04, "gain": 0.45},
+	"necro": {"pitch": 72.0, "range": 0.15, "rough": 0.35, "speed": 0.05, "gain": 0.6},
 }
 ## formantes (F1, F2) de a, e, i, o, u
 const VOWELS := [[750.0, 1250.0], [500.0, 1900.0], [320.0, 2300.0], [500.0, 900.0], [350.0, 750.0]]

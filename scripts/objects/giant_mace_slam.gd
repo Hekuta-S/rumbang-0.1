@@ -107,6 +107,7 @@ func _effects(hits: int) -> void:
 	if root == null:
 		return
 	var ground := _target + Vector3(0, 0.02, 0)
+	MapMarks.add_at(self, _target, MapMarks.Kind.CRATER, clampf(radius * 0.8, 2.0, 4.5))
 	# grieta dibujada en el suelo (vista desde arriba), se apaga sola
 	var crack := ToonFX.sheet_sprite("grieta.png", 1, 1, radius * 2.0 / CELL_PX, false)
 	crack.rotation = Vector3(-PI * 0.5, randf() * TAU, 0.0)

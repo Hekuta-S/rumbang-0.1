@@ -520,8 +520,14 @@ static func _ensure_status() -> void:
 
 ## Indicador de lo que dure del dado (arriba en el centro) y reloj de las mejoras: avanza con el juego (se
 ## para en la pausa) y se quita solo cuando no queda nada activo.
+## RENDIMIENTO: el texto solo cambia una vez por segundo y el estilo solo cuando cambia el color. Antes se
+## reaplicaban 8 overrides de tema en cada frame (la etiqueta se rehacía entera cada frame) y el texto llevaba
+## el emoji 🎲, que PressStart2P no tiene: cada rehecho buscaba la fuente emoji del sistema → caída fuerte de FPS
+## en el móvil durante FURIA (santuario o dado).
 class FateStatus extends CanvasLayer:
 	var _label: Label
+	var _shown_text := ""
+	var _shown_col := Color(0, 0, 0, 0)
 
 	func _ready() -> void:
 		layer = 55
@@ -530,6 +536,7 @@ class FateStatus extends CanvasLayer:
 		_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
 		_label.offset_top = 96.0
 		_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_label.theme = RumbangStyle.get_theme()
 		add_child(_label)
 
@@ -550,5 +557,10 @@ class FateStatus extends CanvasLayer:
 			FateDice._mods.clear()
 			queue_free()
 			return
-		_label.text = "🎲 " + "  ·  ".join(parts)
-		RumbangStyle.style_title(_label, 14, col, col.darkened(0.4))
+		var txt := "  ·  ".join(parts)
+		if txt != _shown_text:
+			_shown_text = txt
+			_label.text = txt
+		if col != _shown_col:
+			_shown_col = col
+			RumbangStyle.style_title(_label, 14, col, col.darkened(0.4))

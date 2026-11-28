@@ -23,13 +23,15 @@ var weapon := WeaponData.WeaponType.BOW
 var source_player: Node = null
 var color := Color(1.0, 0.85, 0.5)
 var glow := 0.0
+var flat := false                    ## flecha dibujada (2D): sin modelo, cintas ni luz (supervivencia)
 var _traveled := 0.0
 var _hit: Array = []
 var _stuck := -1.0
 var _trails: Array[BladeTrail] = []
 ## Estela: dos cintas cruzadas (vertical y horizontal) junto a las plumas, para que se vea desde cualquier lado
-## (con los dos puntos a lo largo de la flecha la cinta salía de ancho cero). Más ancha en las cargadas.
-const TRAIL_HALF_WIDTH := 0.06
+## (con los dos puntos a lo largo de la flecha la cinta salía de ancho cero). Más ancha en las cargadas. Al acabar
+## la flecha (impacto o alcance) la cinta se queda en la escena y se apaga sola (antes desaparecía de golpe).
+const TRAIL_HALF_WIDTH := 0.11
 const TRAIL_AT_Z := 0.55               ## dónde nace, entre la punta (0) y el culatín (0,8)
 
 ## Crea y lanza una flecha desde `from` con velocidad `vel` (m/s).
@@ -44,6 +46,7 @@ static func shoot(parent: Node, from: Vector3, vel: Vector3, p_damage: float, op
 	a.gravity = float(opts.get("gravity", GRAVITY))
 	a.color = opts.get("color", a.color)
 	a.glow = float(opts.get("glow", 0.0))
+	a.flat = bool(opts.get("flat", false))
 	a.source_player = opts.get("player")
 	parent.add_child(a)
 	a.global_position = from
@@ -51,11 +54,14 @@ static func shoot(parent: Node, from: Vector3, vel: Vector3, p_damage: float, op
 	return a
 
 func _ready() -> void:
+	if flat:
+		add_child(ToonFX.arrow_cross(color))
+		return
 	var model := BowModels.build_arrow(color, glow)
 	# El modelo tiene la punta en -Z a 0,8 m del culatín: se adelanta para que la punta vaya en el origen
 	model.position.z = 0.8
 	add_child(model)
-	var hw := TRAIL_HALF_WIDTH * (1.6 if glow > 0.0 else 1.0)
+	var hw := TRAIL_HALF_WIDTH * (1.5 if glow > 0.0 else 1.0)
 	for axis in [Vector3.UP, Vector3.RIGHT]:
 		var base := Marker3D.new()
 		base.position = Vector3(0, 0, TRAIL_AT_Z) - axis * hw
@@ -65,7 +71,7 @@ func _ready() -> void:
 		add_child(tip)
 		var trail := BladeTrail.new()
 		add_child(trail)
-		trail.setup(base, tip, color)
+		trail.setup(base, tip, color, "arrow")
 		trail.emit(1000.0)                 # todo el vuelo; se corta al clavarse
 		_trails.append(trail)
 	if glow > 0.0:
@@ -119,6 +125,7 @@ func _physics_process(delta: float) -> void:
 	_traveled += step.length()
 	_face()
 	if _traveled >= max_range:
+		_release_trails()
 		queue_free()
 
 func _damage_enemy(e: Object) -> void:
@@ -145,7 +152,23 @@ func point_blank_mult(e: Object) -> float:
 
 func _finish_on_enemy(at: Vector3) -> void:
 	global_position = at
+	_release_trails()
 	queue_free()
+
+## Deja las cintas en la escena (sin emitir más) para que la cola se apague sola y luego se liberen.
+func _release_trails() -> void:
+	var root := get_parent()
+	if root == null:
+		return
+	for t in _trails:
+		if not is_instance_valid(t):
+			continue
+		t._emit_left = 0.0
+		t.base = null
+		t.tip = null
+		t.reparent(root, true)
+		t.get_tree().create_timer(t.life() + 0.1, false).timeout.connect(t.queue_free)
+	_trails.clear()
 
 func _stick() -> void:
 	_stuck = 0.0

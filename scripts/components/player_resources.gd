@@ -36,6 +36,7 @@ const DODGE_COST := 12.5
 const JUMP_COST := 7.0
 const SLAM_COST := 40.0              ## clavado con salto de la espalanza
 const CHARGE_COST := 20.0            ## lanzamiento cargado de la espalanza
+const MELEE_CHARGE_COST := 15.0      ## ataque cargado cuerpo a cuerpo (mantener clic izquierdo), al empezar a cargar
 
 ## Arma -> qué recurso gasta, coste del ataque normal y del especial (click derecho). 0 = gratis.
 const TABLE := {
@@ -50,6 +51,7 @@ const TABLE := {
 	W.SWORD: {"kind": Kind.ENERGY, "cost": 11.0, "alt": 0.0},           ## cuatro golpes ligeros; sin especial
 	W.KATANA: {"kind": Kind.ENERGY, "cost": 12.0, "alt": 30.0},         ## cuatro tajos y el tajo especial
 	W.FISTS: {"kind": Kind.ENERGY, "cost": 6.0, "alt": 30.0},           ## puñetazos baratos; la lluvia de golpes
+	W.CROSSBOW: {"kind": Kind.ENERGY, "cost": 20.0, "alt": 0.0},       ## solo supervivencia
 	W.BOW: {"kind": Kind.ENERGY, "cost": 6.0, "alt": 22.0},             ## flechas baratas; tensar el disparo cargado
 	W.SERPENTS: {"kind": Kind.MANA, "cost": 14.0, "alt": 25.0},
 	W.DUSTS: {"kind": Kind.MANA, "cost": 10.0, "alt": 14.0},
@@ -58,6 +60,9 @@ const TABLE := {
 	W.FLAME_THROWER: {"kind": Kind.AMMO, "cost": 1.0, "alt": 12.0},
 	W.SPORE_BAZOOKA: {"kind": Kind.AMMO, "cost": 1.0, "alt": 3.0},
 	W.RAILGUN: {"kind": Kind.AMMO, "cost": 1.0, "alt": 0.0},
+	W.PISTOL: {"kind": Kind.AMMO, "cost": 1.0, "alt": 0.0},
+	W.RIFLE: {"kind": Kind.AMMO, "cost": 1.0, "alt": 0.0},
+	W.FIRE_STAFF: {"kind": Kind.MANA, "cost": 9.0, "alt": 0.0},         ## por ahora sin especial
 }
 ## Capacidad de la reserva de balas de cada arma de fuego.
 const AMMO_MAX := {
@@ -65,6 +70,8 @@ const AMMO_MAX := {
 	W.FLAME_THROWER: 150,
 	W.SPORE_BAZOOKA: 24,
 	W.RAILGUN: 20,
+	W.PISTOL: 72,
+	W.RIFLE: 180,
 }
 
 var active := false                  ## solo en mazmorra

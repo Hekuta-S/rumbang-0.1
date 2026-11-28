@@ -362,3 +362,10 @@ func _refresh_room() -> void:
 	_world_row.visible = _start_btn.visible
 	_wait_label.text = "" if _start_btn.visible or Net.players.is_empty() else "Esperando a que %s (★) inicie la partida…" % Net.name_of(Net.leader_id())
 	_start_btn.text = "Iniciar partida (%d jugador%s)" % [Net.players.size(), "" if Net.players.size() == 1 else "es"]
+	# Historia: sin el mago rescatado (Supervivencia) quien lidera no puede abrir la mazmorra.
+	if _start_btn.visible and not SaveManager.dungeon_unlocked():
+		_start_btn.disabled = true
+		_start_btn.text = "Mazmorra cerrada"
+		_wait_label.text = "Rescata al mago en la Arena de supervivencia para abrir las mazmorras."
+	else:
+		_start_btn.disabled = false

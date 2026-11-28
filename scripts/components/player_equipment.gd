@@ -1,7 +1,8 @@
 class_name PlayerEquipment
 extends Node
 
-## Equipo del jugador en la mazmorra (ver EquipmentDB): casco, pechera, pantalones, dos talismanes y
+## Equipo del jugador en la mazmorra (ver EquipmentDB): casco, pechera, pantalones, dos talismanes, un amuleto
+## (habilidad activa de la tecla E, ver AmuletActives) y
 ## el ARMA QUE LLEVAS EN LA MANO, que es una pieza más (sus stats solo cuentan mientras la empuñas).
 ## Lo que recoges y no cabe va a la mochila (BAG_MAX) y se pierde al acabar la partida.
 ## Lo EQUIPADO (armadura, talismanes y el arma en la mano) se guarda en SaveManager.meta["equipment"]
@@ -11,11 +12,12 @@ extends Node
 signal equipment_changed
 signal item_received(item: Dictionary, result: String)   ## result: "equipped" | "bag" | "full"
 signal perk_triggered(item: Dictionary, perk: Dictionary)   ## un efecto especial acaba de activarse
+signal amulet_used(item: Dictionary)                        ## la activa del amuleto acaba de salir
 
 const LOW_HP := 0.35    ## "hp_low": por debajo de esta fracción de vida
 const FULL_HP := 0.9    ## "hp_full": a partir de esta fracción
 
-const SLOTS := ["casco", "pechera", "pantalones", "talisman_1", "talisman_2"]
+const SLOTS := ["casco", "pechera", "pantalones", "talisman_1", "talisman_2", "amuleto"]
 const BAG_MAX := 8
 const SAVE_KEY := "equipment"
 ## Por ahora no se conserva ningún objeto al morir: cada partida empieza sin equipo. Ponlo en true para reactivarlo.
@@ -37,6 +39,27 @@ var chain_stacks := 0                 ## golpes seguidos (fabricante Arriero)
 var chain_last_t := -100.0
 var vacio_ready_t := 0.0              ## regla "vacio": cuándo vuelve a absorber un golpe
 var cazador_armed := false            ## regla "cazador": el siguiente golpe aturde
+# Activa del amuleto (AmuletActives)
+var amulet_ready_t := 0.0             ## instante en que la activa vuelve a estar lista
+var rabbit_armed := false             ## Pata de Conejo: el siguiente golpe hace ×N y aturde
+var mirror_until := 0.0               ## Espejo del Mohán: hasta cuándo refleja el daño
+
+func has_amulet() -> bool:
+	return AmuletActives.id_of(get_item("amuleto")) != ""
+
+func amulet_cooldown_left() -> float:
+	return maxf(0.0, amulet_ready_t - _now())
+
+## 0..1: lo cargada que está la activa (1 = lista).
+func amulet_ready_fraction() -> float:
+	var total := AmuletActives.cooldown(get_item("amuleto"))
+	return 1.0 if total <= 0.0 else clampf(1.0 - amulet_cooldown_left() / total, 0.0, 1.0)
+
+func use_amulet() -> bool:
+	return AmuletActives.use(self)
+
+func mirror_active() -> bool:
+	return _now() < mirror_until and has_amulet()
 
 ## ¿Lleva puesta (o en la mano) una legendaria con la regla `rule`?
 func has_rule(rule: String) -> bool:
@@ -86,6 +109,9 @@ func start_run() -> void:
 	equipped.clear()
 	_buffs.clear()
 	_perk_ready.clear()
+	amulet_ready_t = 0.0
+	rabbit_armed = false
+	mirror_until = 0.0
 	var saved: Variant = SaveManager.meta.get(SAVE_KEY, {})
 	if PERSIST_LOADOUT and saved is Dictionary:
 		for slot in SLOTS:
@@ -324,6 +350,11 @@ func active_buffs() -> Array:
 		var uid := String(src["uid"])
 		if _buffs.has(uid) and float(_buffs[uid]["until"]) > now:
 			out.append({"name": src["perk"].get("name", ""), "left": float(_buffs[uid]["until"]) - now})
+	var ab: Variant = _buffs.get(AmuletActives.BUFF_UID)
+	if ab is Dictionary and float(ab["until"]) > now:
+		out.append({"name": String(ab.get("name", "Amuleto")), "left": float(ab["until"]) - now})
+	if mirror_active():
+		out.append({"name": "Reflejo", "left": mirror_until - now})
 	return out
 
 func _condition_met(trigger: String) -> bool:

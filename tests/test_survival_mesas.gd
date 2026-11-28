@@ -160,6 +160,8 @@ func _ready() -> void:
 					print("  tobogán lento ", map_seed, ": ", v.length())
 		# 8. Puentes: la tabla apoya a ras en las dos cimas, deja hueco debajo y los enemigos la cruzan
 		for br in map.get_bridges():
+			if br.get("canal", false):
+				continue                      # puentes del Barrio del Desagüe: test_survival_district
 			bridges += 1
 			var a: Vector2 = br["a"]
 			var b: Vector2 = br["b"]

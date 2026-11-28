@@ -9,6 +9,8 @@ extends Node
 ##      cofre maldito : cofre morado cerca del jugador; abrirlo da un objeto y oro, pero durante
 ##                      CURSE_TIME s salen muchos más enemigos (WaveManager.curse)
 ##  - A los MINIBOSS_TIME s, el minijefe: un bruto élite enorme que suelta dos objetos.
+##  - Historia: a los CAGE_TIME s, si el mago sigue raptado (SaveManager.mago_rescatado), sale su jaula (MageCage)
+##    custodiada por élites; abrirla abre las mazmorras en el salón.
 ##  - Santuarios (SHRINES a la vez): quedarse dentro SHRINE_CHARGE s los activa (cura y un objeto);
 ##    al empezar a cargarlo atrae a un grupo. Reaparece otro SHRINE_RESPAWN s después.
 ## Cada evento se anuncia con un cartel arriba. Los objetos salen con ItemPickup (elección de objeto).
@@ -77,6 +79,12 @@ const DICE_DIST := Vector2(9.0, 15.0)
 const MERCHANT_FIRST := 100.0
 const MERCHANT_EVERY := Vector2(110.0, 170.0)
 const MERCHANT_DIST := Vector2(8.0, 12.0)
+## Jaula del mago (historia): sale una vez por partida mientras no se haya rescatado
+const CAGE_TIME := 240.0
+const CAGE_DIST := Vector2(18.0, 26.0)
+const CAGE_ELITES := 2
+const CAGE_GUARDS := 8
+const CAGE_AMBUSH := 10
 
 var waves: WaveManager
 var player: Node3D
@@ -96,6 +104,8 @@ var _high_ground_told := false
 var _mesa_check_t := 0.0
 var _next_dice_t := DICE_FIRST
 var _next_merchant_t := MERCHANT_FIRST
+var _cage_done := false
+var cage: MageCage
 
 func start(p_player: Node3D) -> void:
 	player = p_player
@@ -115,6 +125,10 @@ func start(p_player: Node3D) -> void:
 	_high_ground_told = false
 	_next_dice_t = DICE_FIRST
 	_next_merchant_t = MERCHANT_FIRST
+	_cage_done = false
+	for c in get_tree().get_nodes_in_group("mage_cage"):
+		c.queue_free()
+	cage = null
 	for m in get_tree().get_nodes_in_group("survival_merchants"):
 		m.queue_free()
 	FateDice.clear_mods()
@@ -134,6 +148,35 @@ func start(p_player: Node3D) -> void:
 func _elapsed() -> float:
 	return GameState.get_instance().elapsed_time
 
+## Portal a otro mapa (SurvivalMapSwitch): lo que estaba colocado en el mapa viejo (santuarios, torres,
+## cofres, la jaula del mago) se vuelve a repartir por el nuevo; los élites se quedaron atrás.
+func on_map_changed() -> void:
+	_queue.clear()
+	for e in _elites:
+		_drop_marker(e)
+	_elites.clear()
+	for s in _shrines:
+		if is_instance_valid(s["node"]):
+			s["node"].queue_free()
+	_shrines.clear()
+	_shrine_respawn.clear()
+	for i in SHRINES:
+		_spawn_shrine()
+	for n in _towers + _chests:
+		if is_instance_valid(n):
+			n.queue_free()
+	_towers.clear()
+	_chests.clear()
+	_loot_respawn.clear()
+	for i in TOWERS:
+		_spawn_tower()
+	for i in GROUND_CHESTS:
+		_spawn_ground_chest()
+	if is_instance_valid(cage):
+		cage.queue_free()
+		cage = null
+		spawn_mage_cage()
+
 func _process(delta: float) -> void:
 	if not _running or not is_instance_valid(player):
 		return
@@ -143,6 +186,10 @@ func _process(delta: float) -> void:
 	if not _miniboss_done and t >= MINIBOSS_TIME:
 		_miniboss_done = true
 		_spawn_miniboss()
+	if not _cage_done and t >= CAGE_TIME:
+		_cage_done = true
+		if not SaveManager.dungeon_unlocked():
+			spawn_mage_cage()
 	if t >= _next_event_t:
 		_next_event_t = t + (EVENT_INTERVAL_ENDLESS if waves.endless else EVENT_INTERVAL)
 		_start_random_event()
@@ -311,7 +358,15 @@ func _on_elite_died(_ref, pos: Vector3, _gold: int, entry: Dictionary) -> void:
 
 ## Almas del élite (SoulStats): se ingresan ya, para subir estadísticas en el yunque del Salón (mazmorra).
 func _award_souls(pos: Vector3, miniboss: bool) -> void:
-	var amount := SoulStats.survival_elite_souls(miniboss, _elapsed())
+	_grant_souls(pos, SoulStats.survival_elite_souls(miniboss, _elapsed()))
+
+## Almas del jefe de la supervivencia (lo llama WaveManager al morir el Nigromante).
+func award_boss_souls(pos: Vector3) -> int:
+	var amount := SoulStats.survival_boss_souls(_elapsed())
+	_grant_souls(pos, amount)
+	return amount
+
+func _grant_souls(pos: Vector3, amount: int) -> void:
 	SoulStats.add_souls(amount)
 	RunStats.souls += amount
 	var hud := get_tree().get_first_node_in_group("hud")
@@ -653,6 +708,38 @@ func spawn_merchant() -> SurvivalMerchant:
 		if not bought:
 			announce("TATAN SE HA IDO", SurvivalMerchant.COLOR, ""))
 	return m
+
+## Jaula del mago a unos metros del jugador, custodiada por élites y goblins (también la usan las pruebas).
+func spawn_mage_cage() -> MageCage:
+	var a := randf() * TAU
+	var at := _ground(player.global_position + Vector3(cos(a), 0, sin(a)) * randf_range(CAGE_DIST.x, CAGE_DIST.y))
+	var map := get_tree().get_first_node_in_group("procedural_map")
+	for k in 10:                          # no dentro de un canal del Barrio del Desagüe
+		if map == null or not map.has_method("is_water") or not map.is_water(at):
+			break
+		a = randf() * TAU
+		at = _ground(player.global_position + Vector3(cos(a), 0, sin(a)) * randf_range(CAGE_DIST.x, CAGE_DIST.y))
+	cage = MageCage.spawn(get_tree().current_scene, at, player)
+	var mods: Array = ELITE_MODS.keys()
+	for i in CAGE_ELITES:
+		var ea := TAU * float(i) / float(CAGE_ELITES)
+		_queue.append([_ground(at + Vector3(cos(ea), 0, sin(ea)) * 4.0), EnemyData.EnemyType.NORMAL_GOBLIN, mods[randi() % mods.size()], ""])
+	for i in CAGE_GUARDS:
+		var ga := TAU * float(i) / float(CAGE_GUARDS) + 0.3
+		var type := EnemyData.EnemyType.ZOMBIE_GOBLIN if i % 3 == 0 else EnemyData.EnemyType.NORMAL_GOBLIN
+		_queue.append([_ground(at + Vector3(cos(ga), 0, sin(ga)) * 6.5), type, "", ""])
+	cage.ambushed.connect(func():
+		if not is_instance_valid(cage):
+			return
+		for k in CAGE_AMBUSH:
+			var ka := TAU * float(k) / float(CAGE_AMBUSH)
+			_queue.append([_ground(cage.global_position + Vector3(cos(ka), 0, sin(ka)) * 14.0), EnemyData.EnemyType.NORMAL_GOBLIN, "", ""])
+		announce("¡EMBOSCADA!", ELITE_COLOR, "Aguanta junto a la jaula"))
+	cage.rescued.connect(func():
+		announce("¡MAGO RESCATADO!", MageCage.COLOR, "Las mazmorras se abren en el salón"))
+	announce("¡EL MAGO!", MageCage.COLOR, "El Nigromante lo tiene enjaulado cerca: quédate junto a la jaula para liberarlo")
+	AudioManager.play("boss_sting", -8.0, 1.5)
+	return cage
 
 ## Cartel grande arriba (también lo usa main.gd para el modo infinito).
 func announce(title: String, col: Color, sub: String) -> void:

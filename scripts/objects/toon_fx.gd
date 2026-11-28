@@ -16,9 +16,97 @@ extends RefCounted
 const PUFF_PATH := "res://assets/textures/toon/fx/puff.png"
 const FLAME_PATH := "res://assets/textures/toon/fx/flame.png"
 const RING_PATH := "res://assets/textures/toon/fx/ring.png"
+const SPARK_PATH := "res://assets/textures/toon/fx/chispa.png"   ## 2 estrellas de 4 puntas, 1 de 8, 1 grano
 const FRAMES := 2                 ## rejilla 2×2
 
 static var _cache: Dictionary = {}
+
+## Gema de XP entintada (rombo con contorno y un lado más claro), blanca para teñirla con modulate.
+## Se dibuja una vez por código: 2D barato en lugar de malla + partículas por gema.
+static func gem_texture() -> Texture2D:
+	if _cache.has("gem"):
+		return _cache["gem"]
+	var n := 48
+	var img := Image.create(n, n, true, Image.FORMAT_RGBA8)
+	var c := (n - 1) * 0.5
+	for y in n:
+		for x in n:
+			var dx := (float(x) - c) / 21.0
+			var dy := (float(y) - c) / 23.0
+			var d := absf(dx) + absf(dy)
+			if d > 1.0:
+				continue
+			if d > 0.8:
+				img.set_pixel(x, y, Color(0.04, 0.03, 0.08, 1.0))
+			elif dx < 0.0 and dy < 0.15:
+				img.set_pixel(x, y, Color(1.0, 1.0, 1.0, 1.0))
+			elif dx >= 0.0 and dy < 0.15:
+				img.set_pixel(x, y, Color(0.88, 0.88, 0.88, 1.0))
+			else:
+				img.set_pixel(x, y, Color(0.7, 0.7, 0.7, 1.0))
+	img.generate_mipmaps()
+	var tex := ImageTexture.create_from_image(img)
+	_cache["gem"] = tex
+	return tex
+
+const ARROW_PX := Vector2i(256, 16)
+const ARROW_LENGTH := 2.4            ## m del dibujo entero (estela + flecha); la punta queda a la derecha
+const ARROW_BODY := 0.8              ## m de flecha propiamente dicha (la punta va en el origen del nodo)
+
+## Flecha entintada de lado, con la punta a la derecha y una estela afilada detrás (blanca, se tiñe con modulate).
+static func arrow_texture() -> Texture2D:
+	if _cache.has("arrow"):
+		return _cache["arrow"]
+	var w := ARROW_PX.x
+	var h := ARROW_PX.y
+	var img := Image.create(w, h, true, Image.FORMAT_RGBA8)
+	var mid := (h - 1) * 0.5
+	var ink := Color(0.04, 0.03, 0.08, 1.0)
+	var body_px := int(float(w) * ARROW_BODY / ARROW_LENGTH)
+	var tail := w - body_px                      # donde empieza la flecha
+	var head_len := 26
+	for x in w:
+		for y in h:
+			var dy := absf(float(y) - mid)
+			if x < tail:
+				# estela: cuña que crece hacia la flecha
+				var half := 0.2 + 3.0 * float(x) / float(tail)
+				if dy <= half:
+					img.set_pixel(x, y, Color(1, 1, 1, 1))
+			elif x >= w - head_len:
+				# punta: triángulo
+				var half2 := 7.0 * float(w - 1 - x) / float(head_len)
+				if dy <= half2 + 0.6:
+					img.set_pixel(x, y, ink if dy > half2 - 1.2 or x >= w - 3 else Color(1, 1, 1, 1))
+			else:
+				var fl := x < tail + 18 and dy <= 2.0 + float(tail + 18 - x) * 0.3   # plumas
+				if dy <= 2.5 or fl:
+					img.set_pixel(x, y, ink if (dy > 1.2 or fl and dy > 4.0) else Color(1, 1, 1, 1))
+	img.generate_mipmaps()
+	var tex := ImageTexture.create_from_image(img)
+	_cache["arrow"] = tex
+	return tex
+
+## Flecha plana: dos recortes cruzados (vertical y horizontal) que cubren todo el vuelo, con la punta en el
+## origen del nodo apuntando a -Z. Sin luces ni cintas de estela: la estela va dibujada en la textura.
+static func arrow_cross(color: Color) -> Node3D:
+	var pivot := Node3D.new()
+	pivot.rotation.y = PI * 0.5          # +X del dibujo -> -Z (hacia delante)
+	for k in 2:
+		var s := Sprite3D.new()
+		s.texture = arrow_texture()
+		s.pixel_size = ARROW_LENGTH / float(ARROW_PX.x)
+		s.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+		s.shaded = false
+		s.double_sided = true
+		s.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+		s.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+		s.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		s.modulate = color
+		s.position.x = -ARROW_LENGTH * 0.5
+		s.rotation.x = k * PI * 0.5
+		pivot.add_child(s)
+	return pivot
 
 static func _tex(path: String) -> Texture2D:
 	if not _cache.has(path):
@@ -35,6 +123,9 @@ static func flame_texture() -> Texture2D:
 static func ring_texture() -> Texture2D:
 	return _tex(RING_PATH)
 
+static func spark_texture() -> Texture2D:
+	return _tex(SPARK_PATH)
+
 ## Pone las nubes dibujadas en un material de partículas. Devuelve si lo hizo.
 static func puff_material(mat: BaseMaterial3D) -> bool:
 	return _sheet_material(mat, puff_texture())
@@ -42,6 +133,27 @@ static func puff_material(mat: BaseMaterial3D) -> bool:
 ## Pone las lenguas de fuego dibujadas en un material de partículas. Devuelve si lo hizo.
 static func flame_material(mat: BaseMaterial3D) -> bool:
 	return _sheet_material(mat, flame_texture())
+
+## Pone los destellos entintados (chispa.png) en un material de partículas. Devuelve si lo hizo.
+static func spark_material(mat: BaseMaterial3D) -> bool:
+	return _sheet_material(mat, spark_texture())
+
+## Nube dibujada suelta (Sprite3D billboard de puff.png, una de las 4 al azar) teñida de `color`,
+## de ~`size` m. Para cabezas de proyectil y cúmulos que se animan con tween (escala/posición).
+static func puff_sprite(color: Color, size: float = 1.0) -> Sprite3D:
+	var s := Sprite3D.new()
+	s.texture = puff_texture()
+	s.hframes = FRAMES
+	s.vframes = FRAMES
+	s.frame = randi() % (FRAMES * FRAMES)
+	s.pixel_size = size / 128.0
+	s.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	s.shaded = false
+	s.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+	s.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	s.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	s.modulate = Color(color.r, color.g, color.b, 1.0)
+	return s
 
 static func _sheet_material(mat: BaseMaterial3D, tex: Texture2D) -> bool:
 	if tex == null:
@@ -122,6 +234,56 @@ static func magic_row_for(c: Color) -> int:
 	if c.r > c.b:
 		return MAGIC_CRIMSON
 	return MAGIC_ARCANE
+
+## ── Efectos de objetos de supervivencia (tools/make_item_fx.py → objetos.png, rejilla 4×4 de 256 px) ──
+const ITEM_FX_FILE := "objetos.png"
+const ITEM_FX_TROMPO := 0         ## 0..3: trompo girando
+const ITEM_FX_VINE_A := 4
+const ITEM_FX_VINE_B := 5
+const ITEM_FX_WHIRL := 6          ## remolino visto desde arriba
+const ITEM_FX_SLASH := 7          ## tajo del machete
+const ITEM_FX_BELL := 8
+const ITEM_FX_HEAL := 9
+const ITEM_FX_GHOST := 10
+const ITEM_FX_LEG := 11
+const ITEM_FX_COIN := 12
+const ITEM_FX_ANGER := 13
+const ITEM_FX_NOTE := 14
+const ITEM_FX_EYE := 15
+
+## Dibujo de objetos.png de ~`size` m. `billboard` = mira a la cámara; si no, recorte plano.
+static func item_sprite(frame: int, size: float, billboard := true) -> Sprite3D:
+	var s := sheet_sprite(ITEM_FX_FILE, 4, 4, size / 256.0, billboard)
+	s.frame = frame
+	return s
+
+## Dibujo tumbado en el suelo (enredadera, remolino): recorte plano mirando arriba.
+static func item_decal(frame: int, size: float) -> Sprite3D:
+	var s := item_sprite(frame, size, false)
+	s.rotation.x = -PI * 0.5
+	return s
+
+## Dibujo que entra de golpe (rebote), sube `rise` m, aguanta `hold` s y desaparece encogiéndose.
+static func item_pop(parent: Node, pos: Vector3, frame: int, size: float = 1.0, rise: float = 0.8,
+		hold: float = 0.35, tint: Color = Color.WHITE) -> Sprite3D:
+	if parent == null or not parent.is_inside_tree():
+		return null
+	var s := item_sprite(frame, size)
+	if s.texture == null:
+		s.free()
+		return null
+	s.modulate = tint
+	parent.add_child(s)
+	s.global_position = pos
+	s.scale = Vector3.ONE * 0.3
+	var tw := s.create_tween()
+	tw.tween_property(s, "scale", Vector3.ONE * 1.15, 0.09).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(s, "scale", Vector3.ONE, 0.06)
+	tw.parallel().tween_property(s, "position:y", s.position.y + rise, 0.15 + hold).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(hold * 0.4)
+	tw.tween_property(s, "scale", Vector3.ZERO, 0.14).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_callback(s.queue_free)
+	return s
 
 ## Anillo de onda entintado a ras de suelo que se abre hasta `radius` y se apaga.
 static func ring_burst(parent: Node, pos: Vector3, radius: float, color: Color, duration: float = 0.4) -> void:

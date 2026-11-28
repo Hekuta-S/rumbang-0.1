@@ -30,7 +30,7 @@ static func required(level: int) -> float:
 ## XP que suelta un enemigo normal según su tipo (EnemyData.EnemyType).
 static func xp_for_type(type_val: int) -> float:
 	match type_val:
-		EnemyData.EnemyType.HEAVY_BRUTE, EnemyData.EnemyType.SNIPER_GOBLIN, EnemyData.EnemyType.MORTAR_GOBLIN:
+		EnemyData.EnemyType.HEAVY_BRUTE, EnemyData.EnemyType.SNIPER_GOBLIN, EnemyData.EnemyType.MORTAR_GOBLIN, EnemyData.EnemyType.SLUG, EnemyData.EnemyType.RAT_BIG:
 			return XP_HEAVY
 		_:
 			return XP_FILLER

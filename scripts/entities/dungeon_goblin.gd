@@ -30,7 +30,8 @@ signal died(goblin: DungeonGoblin)
 signal alerted(goblin: DungeonGoblin)
 
 ## STUNNED va al final: el número de cada estado viaja en las instantáneas de red (NetWorld)
-enum State { IDLE, APPROACH, WINDUP, ATTACK, RECOVER, HURT, STAGGER, DEAD, STUNNED }
+## AIRBORNE (lanzado por un golpe saltando, ver launch) va al final por lo mismo.
+enum State { IDLE, APPROACH, WINDUP, ATTACK, RECOVER, HURT, STAGGER, DEAD, STUNNED, AIRBORNE }
 
 const MODEL_DIR := "res://assets/models/entities/enemigos/goblins/"
 const CLIPS := {
@@ -141,6 +142,25 @@ void fragment() {
 	ALPHA = 0.9;
 }
 """
+
+# ── Combate aéreo (estilo Devil May Cry, solo mazmorra) ──
+# Un golpe dado SALTANDO lanza al enemigo (AIRBORNE): flota con poca gravedad, indefenso, y cada golpe
+# que recibe en el aire lo vuelve a levantar (con menos fuerza cada vez) mientras el jugador flota a su lado
+# (PlayerMovementController.note_air_combat). Pasado JUGGLE_MAX cae; al aterrizar queda tumbado un momento
+# y no se le puede lanzar otra vez hasta pasado JUGGLE_IMMUNE.
+const JUGGLE_LAUNCH := 6.0            ## m/s hacia arriba al lanzarlo (pico ~2 m con JUGGLE_GRAVITY, a la altura del salto)
+const JUGGLE_REBUMP := 4.8            ## m/s de cada golpe en el aire
+const JUGGLE_DECAY := 0.9             ## cada golpe seguido levanta esta fracción del anterior
+const JUGGLE_GRAVITY := 9.0
+const JUGGLE_MAX := 5.0               ## s en el aire como máximo
+const JUGGLE_IMMUNE := 2.0            ## s tras aterrizar sin poder lanzarlo de nuevo
+const JUGGLE_LAND_STUN := 0.7         ## s tumbado al aterrizar
+const JUGGLE_JUMP_MIN := -1.0         ## velocidad vertical mínima del jugador para que su golpe lance (no cayendo)
+const JUGGLE_HIT_DAMAGE := 1.15       ## daño extra de los golpes que se dan en el aire
+var launch_mult := 1.0                ## fuerza del lanzamiento (0 = no se le puede lanzar: jefes)
+var _air_t := 0.0
+var _air_hits := 0
+var _land_immune_until := 0.0
 
 var hit_radius := 0.5
 var hit_height := 1.4
@@ -945,6 +965,7 @@ func _set_state(s: State) -> void:
 			if elite != "":
 				DungeonElites.on_stunned(self)
 			LootHits.on_stunned(self)
+		State.AIRBORNE: _play("hurt", 0.03)
 		State.DEAD: _play("death", 0.05)
 
 func _physics_process(delta: float) -> void:
@@ -966,10 +987,7 @@ func _physics_process(delta: float) -> void:
 		_stun = maxf(_stun - stun_max() * STUN_DECAY * delta, 0.0)
 	_update_flash(delta)
 	_update_stun_bar()
-	if not is_on_floor():
-		velocity.y -= GRAVITY * delta
-	else:
-		velocity.y = -1.0
+	_apply_vertical(delta)
 	if _death_vy > 0.0:               # saltito al morir (ver _die)
 		velocity.y = _death_vy
 		_death_vy = 0.0
@@ -1068,6 +1086,11 @@ func _physics_process(delta: float) -> void:
 				_model.rotation.z = 0.0
 				_stun = 0.0
 				_set_state(State.APPROACH)
+		State.AIRBORNE:
+			_air_t += delta
+			_model.rotation.z = sin(_state_t * 9.0) * 0.18        # girando en el aire
+			if _state_t > 0.12 and velocity.y <= 0.0 and is_on_floor():
+				_land()
 		State.DEAD:
 			pass
 
@@ -1272,6 +1295,8 @@ func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 			_last_glance_sfx = t
 			AudioManager.play_at("proj_hit_wall", global_position + Vector3(0, 1.0, 0), -3.0, randf_range(1.45, 1.65))
 	amount *= damage_taken_mult * DungeonElites.aura_mult(self)
+	if state == State.AIRBORNE:
+		amount *= JUGGLE_HIT_DAMAGE                   # combo aéreo: indefenso
 	hp -= amount
 	RunLog.add_damage(HitFeedback.weapon_tag, amount + minf(hp, 0.0))   # sin contar el exceso sobre la vida
 	if not _force_dot and not has_meta("_loot_fx"):
@@ -1303,6 +1328,8 @@ func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 		AudioManager.play_at(hurt_sfx, global_position, -4.0, randf_range(0.9, 1.15) * sfx_pitch)
 	if elite != "":
 		DungeonElites.on_damaged(self)
+	if _juggle_on_hit():
+		return                                         # lanzado o mantenido en el aire: sin aturdimiento ni reacción de suelo
 	var heavy := raw >= stagger_damage or knockback_dir.length() >= stagger_knock
 	var stun_gain := raw * (STUN_HEAVY_MULT if heavy else STUN_HIT_MULT) * DungeonRunes.stun_mult()
 	if state == State.RECOVER:
@@ -1333,6 +1360,68 @@ func take_damage(amount: float, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 					_set_state(State.STAGGER)
 			else:
 				_set_state(State.HURT)
+
+# ───────────────────────────── Combate aéreo ─────────────────────────────
+
+## Movimiento vertical de cada tick. Los voladores (DungeonBat) lo sustituyen por su vuelo.
+func _apply_vertical(delta: float) -> void:
+	if state == State.AIRBORNE:
+		velocity.y -= (JUGGLE_GRAVITY if _air_t < JUGGLE_MAX else GRAVITY) * delta
+	elif not is_on_floor():
+		velocity.y -= GRAVITY * delta
+	else:
+		velocity.y = -1.0
+
+func can_launch() -> bool:
+	return launch_mult > 0.0 and not puppet and not passive and _clock >= _land_immune_until \
+		and state != State.DEAD and state != State.STUNNED and state != State.AIRBORNE
+
+## Lanza al enemigo por los aires (indefenso hasta aterrizar). `power` multiplica el impulso.
+func launch(power: float = 1.0) -> bool:
+	if not can_launch():
+		return false
+	_air_t = 0.0
+	_air_hits = 0
+	_death_vy = 0.0
+	_set_state(State.AIRBORNE)
+	velocity.y = JUGGLE_LAUNCH * launch_mult * power
+	_flash_color = Color(1.0, 1.0, 1.0)
+	_flash = 1.0
+	AudioManager.play_at("impact_blunt", global_position, -2.0, 1.35)
+	HitFeedback.shake(0.1)
+	return true
+
+## ¿Este golpe lanza al enemigo o lo mantiene arriba? Lanza el que da el jugador SALTANDO (subiendo, sin caer);
+## en el aire cada golpe lo vuelve a subir y hace flotar al jugador a su lado.
+func _juggle_on_hit() -> bool:
+	if launch_mult <= 0.0 or puppet or GameData.game_mode != "dungeon" or not is_instance_valid(player):
+		return false
+	var mc = player.get("movement_controller")
+	if state == State.AIRBORNE:
+		_air_hits += 1
+		if _air_t < JUGGLE_MAX:
+			velocity.y = maxf(velocity.y, JUGGLE_REBUMP * launch_mult * pow(JUGGLE_DECAY, float(_air_hits - 1)))
+		if mc != null and mc.has_method("note_air_combat"):
+			mc.note_air_combat()
+		return true
+	if not can_launch() or not player.has_method("is_on_floor") or player.is_on_floor() \
+			or player.velocity.y < JUGGLE_JUMP_MIN:
+		return false
+	if launch():
+		if mc != null and mc.has_method("note_air_combat"):
+			mc.note_air_combat()
+		return true
+	return false
+
+## Aterriza tras el lanzamiento: queda tumbado un momento.
+func _land() -> void:
+	_model.rotation.z = 0.0
+	_air_hits = 0
+	_land_immune_until = _clock + JUGGLE_IMMUNE
+	AudioManager.play_at("impact_blunt", global_position, -3.0, 0.75)
+	HitFeedback.shake(0.06)
+	_set_state(State.STAGGER)
+	_state_t = maxf(stagger_time - JUGGLE_LAND_STUN, 0.0)
 
 ## Escarcha: el enemigo se mueve a `factor` de su velocidad durante `duration` s (la mayor lentitud manda).
 func apply_chill(factor: float, duration: float) -> void:
@@ -1379,7 +1468,7 @@ func set_rim(c: Color) -> void:
 func _update_flash(delta: float) -> void:
 	_flash = move_toward(_flash, 0.0, delta * 5.0)
 	var c := Color(_flash_color.r, _flash_color.g, _flash_color.b, _flash)
-	if c != _flash_sent:          # sin destello (casi siempre) no se toca el material
+	if _flash_mat != null and c != _flash_sent:          # sin destello (casi siempre) no se toca el material
 		_flash_sent = c
 		_flash_mat.set_shader_parameter("flash_color", c)
 

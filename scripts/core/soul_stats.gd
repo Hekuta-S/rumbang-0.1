@@ -45,6 +45,9 @@ const WEAPON_SCALING := {
 	WeaponData.WeaponType.BOW: [0.0, 1.0],
 	WeaponData.WeaponType.KATANA: [0.2, 1.1],
 	WeaponData.WeaponType.FISTS: [0.45, 0.7],
+	WeaponData.WeaponType.PISTOL: [0.0, 1.0],
+	WeaponData.WeaponType.RIFLE: [0.2, 0.9],
+	WeaponData.WeaponType.FIRE_STAFF: [0.0, 0.8],
 }
 const DEFAULT_SCALING := [0.5, 0.5]
 
@@ -137,13 +140,17 @@ static func kill_souls(is_boss: bool, is_elite: bool, dungeon_level: int) -> int
 	var lvl_mult := 1.0 + 0.15 * float(maxi(dungeon_level, 1) - 1)
 	return maxi(1, int(round(base * lvl_mult * (1.0 + _curve(points("suerte")) * LUCK_SOULS_PER))))
 
-## Supervivencia: solo los élites (y el minijefe) dan almas; se ingresan al momento (RunEvents._on_elite_died)
+## Supervivencia: los élites, el minijefe y el jefe (Nigromante) dan almas; se ingresan al momento (RunEvents._on_elite_died)
 ## porque allí la partida siempre acaba muriendo. Suben con los minutos de partida como la mazmorra con el nivel.
 const SURVIVAL_MINIBOSS_MULT := 4.0
 static func survival_elite_souls(miniboss: bool, elapsed: float) -> int:
 	var lvl := 1 + int(elapsed / 120.0)
 	var base := kill_souls(false, true, lvl)
 	return int(round(base * (SURVIVAL_MINIBOSS_MULT if miniboss else 1.0)))
+
+## Supervivencia: el jefe (Nigromante, 7:10; uno por jefe en el modo infinito) da almas de jefe de mazmorra.
+static func survival_boss_souls(elapsed: float) -> int:
+	return kill_souls(true, false, 1 + int(elapsed / 120.0))
 
 static func add_run_souls(amount: int) -> void:
 	run_souls += maxi(amount, 0)

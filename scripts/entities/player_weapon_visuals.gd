@@ -206,6 +206,15 @@ func setup_weapon_models(mount: Node3D) -> void:
 		smoke_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		smoke_mat.albedo_color = Color(0.2, 0.2, 0.2, 0.6)
 		smoke_mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+		# Humo dibujado (cómic): nubecitas entintadas grises que salen y se encogen
+		if ToonFX.puff_material(smoke_mat):
+			smoke_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			smoke_mat.albedo_color = Color.WHITE
+			smoke_mat.vertex_color_use_as_albedo = true
+			ToonFX.vary(smoke_emitter)
+			smoke_emitter.amount = Quality.count(5)
+			smoke_emitter.mesh.size = Vector2(0.16, 0.16)
+			smoke_emitter.color_ramp = ToonFX.pop_ramp([Color(0.78, 0.79, 0.84), Color(0.55, 0.56, 0.62)])
 		smoke_emitter.material_override = smoke_mat
 		
 		var curve = Curve.new()
@@ -905,6 +914,12 @@ func setup_weapon_models(mount: Node3D) -> void:
 	mount.add_child(giant_mace_node)
 	weapon_models[WeaponData.WeaponType.GIANT_MACE] = giant_mace_node
 
+	# Ballesta Sniper: no se ve el arma, solo la flecha (BowArrow): nodo vacío.
+	var crossbow_node := Node3D.new()
+	crossbow_node.visible = false
+	mount.add_child(crossbow_node)
+	weapon_models[WeaponData.WeaponType.CROSSBOW] = crossbow_node
+
 
 ## Cuelga la espalanza del hueso de la mano derecha del modelo animado.
 ## Devuelve false si el modelo no tiene ese hueso (se queda el modelo procedural).
@@ -1585,6 +1600,54 @@ func _attach_fist_trails(skel: Skeleton3D) -> void:
 		trail.setup(base, tip, FIST_TRAIL_COLOR, "fist")
 		fist_trails.append(trail)
 
+## ── Bastón de Fuego (mazmorra) ──
+## Modelo de tools/blender_guns_staff.py: asta a lo largo de +Y con el agarre en el origen y la gema arriba
+## (STAFF_GEM_Y). Se agarra como la espalanza (GRIP_ROTATION / GRIP_OFFSET): con la estocada de staff_cast la gema
+## va al frente, y de ella sale la bola de fuego (FireStaffStrategy). La gema tiene una llamita que no se apaga.
+const STAFF_MODEL := "res://assets/models/weapons/baston_fuego.glb"
+const STAFF_GEM_Y := 1.0
+var _staff_holder: Node3D
+var _staff_gem: Marker3D
+
+func staff_gem() -> Marker3D:
+	return _staff_gem
+
+func _attach_staff(skel: Skeleton3D) -> void:
+	_staff_holder = _make_melee_holder(skel, "RightHand_Baston", "mixamorig_RightHand", "BastonFuego")
+	_staff_holder.transform = Transform3D(Basis.from_euler(GRIP_ROTATION * PI / 180.0), GRIP_OFFSET)
+	_staff_holder.set_meta("in_hand", true)
+	_staff_holder.visible = false
+	var scene := load(STAFF_MODEL) as PackedScene
+	if scene:
+		_staff_holder.add_child(scene.instantiate())
+	_staff_gem = Marker3D.new()
+	_staff_gem.position = Vector3(0, STAFF_GEM_Y, 0)
+	_staff_holder.add_child(_staff_gem)
+	var flame := CPUParticles3D.new()
+	var q := QuadMesh.new()
+	q.size = Vector2(0.1, 0.1)
+	flame.mesh = q
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.vertex_color_use_as_albedo = true
+	if ToonFX.flame_material(m):
+		flame.material_override = m
+		ToonFX.vary(flame)
+		flame.amount = Quality.count(6)
+		flame.lifetime = 0.45
+		flame.local_coords = false
+		flame.direction = Vector3.UP
+		flame.spread = 15.0
+		flame.gravity = Vector3(0, 1.2, 0)
+		flame.initial_velocity_min = 0.2
+		flame.initial_velocity_max = 0.5
+		flame.scale_amount_curve = ToonFX.pop_curve(0.7, 1.0, 0.3)
+		flame.color_ramp = ToonFX.pop_ramp([Color(1.0, 0.92, 0.55), Color(1.0, 0.55, 0.15)])
+		flame.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_staff_gem.add_child(flame)
+	else:
+		flame.free()
+
 ## Cuelga las dos dagas (una en cada mano) y la maza (mano derecha) del modelo animado.
 func attach_melee_to_hands(model: Node3D) -> bool:
 	if model == null:
@@ -1602,11 +1665,12 @@ func attach_melee_to_hands(model: Node3D) -> bool:
 	_attach_sword(skel)
 	_attach_katana(skel)
 	_attach_bow(skel)
+	_attach_staff(skel)
 	_attach_fist_trails(skel)
 	for pair in [[WeaponData.WeaponType.DAGGERS, _dagger_holder_r], [WeaponData.WeaponType.MACE, _mace_holder],
 			[WeaponData.WeaponType.GREATSWORD, _gs_holder], [WeaponData.WeaponType.SWORD, _sword_holder],
 			[WeaponData.WeaponType.KATANA, _katana_holder],
-			[WeaponData.WeaponType.BOW, _bow_holder]]:
+			[WeaponData.WeaponType.BOW, _bow_holder], [WeaponData.WeaponType.FIRE_STAFF, _staff_holder]]:
 		var old: Node3D = weapon_models.get(pair[0])
 		if is_instance_valid(old):
 			old.queue_free()

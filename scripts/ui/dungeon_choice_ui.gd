@@ -101,7 +101,14 @@ func set_options(options: Array, subtitle: String = "") -> void:
 	_fill()
 
 func _fill() -> void:
+	# Al refrescar (forja tras comprar) el foco se queda en la misma carta, no vuelve a la primera
+	var refresh := _row.get_child_count() > 0
+	var keep := -1
+	var focused := get_viewport().gui_get_focus_owner() if is_inside_tree() else null
+	if focused != null and focused.get_parent() == _row:
+		keep = focused.get_index()
 	for c in _row.get_children():
+		_row.remove_child(c)
 		c.queue_free()
 	var first: Button = null
 	for i in _options.size():
@@ -111,9 +118,16 @@ func _fill() -> void:
 			first = b
 	_scroll.custom_minimum_size.y = (300 if _options.size() > MANY else 250) + 14   # + barra de scroll
 	_row.add_theme_constant_override("separation", 12 if _options.size() > MANY else 22)
-	UiJuice.deal_in(_row.get_children())
-	if first:
-		first.grab_focus.call_deferred()
+	if refresh:
+		for c in _row.get_children():
+			UiJuice.hover_pop(c as Button)
+	else:
+		UiJuice.deal_in(_row.get_children())
+	var target: Control = first
+	if keep >= 0 and _row.get_child_count() > 0:
+		target = _row.get_child(mini(keep, _row.get_child_count() - 1))
+	if target:
+		target.grab_focus.call_deferred()
 
 func _card(o: Dictionary, number: int) -> Button:
 	var col_c: Color = o.get("color", Style.ACCENT)
@@ -130,6 +144,8 @@ func _card(o: Dictionary, number: int) -> Button:
 		if st == "normal" or st == "disabled":
 			sb.bg_color = Style.PANEL
 		b.add_theme_stylebox_override(st, sb)
+	# El foco (mando/teclado) tiene que verse: antes repetía el borde del color de la carta y no se notaba
+	b.add_theme_stylebox_override("focus", Style.focus_ring(Style.NEON_CYAN, true, 4))
 	var col := VBoxContainer.new()
 	col.set_anchors_preset(Control.PRESET_FULL_RECT)
 	col.offset_left = 14

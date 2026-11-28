@@ -52,7 +52,11 @@ constexpr int DENS_SIDE = 128;
 constexpr int DENS_MAX_NEIGHBORS = 6;
 constexpr int64_t DENS_REBUILD_TICKS = 4;
 // EnemyData.EnemyType
-enum { T_RANGED = 0, T_NORMAL = 1, T_BRUTE = 2, T_SNIPER = 3, T_ZOMBIE = 4, T_MORTAR = 5 };
+enum { T_RANGED = 0, T_NORMAL = 1, T_BRUTE = 2, T_SNIPER = 3, T_ZOMBIE = 4, T_MORTAR = 5,
+	T_RAT = 6, T_RAT_BIG = 7, T_SLUG = 8, T_BLOATER = 9 };
+// Criaturas de las cloacas (EnemyBehavior.RatBehavior / SlugBehavior / BloaterBehavior)
+constexpr double BLOAT_TRIGGER = 1.9;  // m: a esta distancia empieza a hincharse
+constexpr double BLOAT_INFLATE = 0.9;  // s hinchándose antes de reventar
 constexpr int EV_STRIDE = 6;
 
 inline double clampd(double v, double lo, double hi) {
@@ -112,6 +116,7 @@ void EnemySimNative::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("count"), &EnemySimNative::count);
 	ClassDB::bind_method(D_METHOD("get_tokens_used"), &EnemySimNative::get_tokens_used);
 	ClassDB::bind_method(D_METHOD("has_token", "idx"), &EnemySimNative::has_token);
+	ClassDB::bind_method(D_METHOD("supports_creatures"), &EnemySimNative::supports_creatures);
 	ClassDB::bind_method(D_METHOD("step", "motion", "delta", "tick", "player_pos", "player_vel", "crowd_scale",
 								 "elapsed", "now_ms", "physics_frame", "use_tokens", "use_density"),
 			&EnemySimNative::step);
@@ -588,8 +593,12 @@ void EnemySimNative::ai(int i, double dt, double tx, double tz, double dist, dou
 				push_event(EV_MORTAR, i);
 			}
 		} break;
+		case T_RAT:
+		case T_RAT_BIG:
 		case T_NORMAL: {
-			// NormalGoblinBehavior.process_ai (embestida)
+			// NormalGoblinBehavior.process_ai (embestida). Las ratas la usan desde que aparecen y siempre que
+			// sortean `lunger` (el goblin normal espera al minuto LUNGE_FROM).
+			const bool lunge_open = e.type != T_NORMAL || t_elapsed >= LUNGE_FROM;
 			if (e.special_state == 1) {
 				e.special_t -= dt;
 				e.vat_flash = 0.15;
@@ -616,7 +625,7 @@ void EnemySimNative::ai(int i, double dt, double tx, double tz, double dist, dou
 				oz = e.sdz * spd * LUNGE_SPEED_MULT;
 				return;
 			}
-			if (e.lunger && e.special_cd <= 0.0 && dist >= LUNGE_MIN && dist <= LUNGE_MAX && t_elapsed >= LUNGE_FROM) {
+			if (e.lunger && e.special_cd <= 0.0 && dist >= LUNGE_MIN && dist <= LUNGE_MAX && lunge_open) {
 				e.special_state = 1;
 				e.special_t = LUNGE_WINDUP;
 				return;
@@ -630,6 +639,34 @@ void EnemySimNative::ai(int i, double dt, double tx, double tz, double dist, dou
 				push_event(EV_SLAM, i);
 			}
 			ai_melee(i, dt, tx, tz, dist, spd, ox, oz);
+		} break;
+		case T_SLUG: {
+			ai_melee(i, dt, tx, tz, dist, spd, ox, oz);
+		} break;
+		case T_BLOATER: {
+			// BloaterBehavior: corre a por el jugador, se planta al llegar, parpadea BLOAT_INFLATE s y revienta
+			if (e.special_state == 1) {
+				e.special_t -= dt;
+				e.vat_flash = 0.15;
+				e.flash_live = true;
+				if (e.special_t <= 0.0) {
+					e.special_state = 2;
+					push_event(EV_BURST, i);
+				}
+				return;
+			}
+			if (e.special_state == 2) {
+				return; // ya reventó: espera a que EnemyManager la retire
+			}
+			if (dist <= BLOAT_TRIGGER) {
+				e.special_state = 1;
+				e.special_t = BLOAT_INFLATE;
+				return;
+			}
+			if (dist > 0.0) {
+				ox = tx / dist * spd;
+				oz = tz / dist * spd;
+			}
 		} break;
 		case T_ZOMBIE: {
 			double f = (e.hp < e.max_hp * ENRAGE_HP && t_elapsed >= LUNGE_FROM) ? ENRAGE_SPEED : 1.0;
@@ -799,6 +836,7 @@ void EnemySimNative::vis_write(const En &e, double tick_f) {
 	buf[i + 12] = (float)e.vat_phase;
 	buf[i + 13] = e.walking ? 1.0f : 0.0f;
 	buf[i + 14] = e.slow_timer > 0.0 ? 1.0f : 0.0f;
+	buf[i + 15] = (float)e.special_state; // las criaturas muestran su pose de aviso/ataque
 	vis_dirty[e.vis_model] = 1;
 }
 

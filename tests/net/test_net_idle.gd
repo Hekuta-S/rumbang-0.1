@@ -25,6 +25,7 @@ func _ready() -> void:
 	if role == "host":
 		Net.host_game("Quietos")
 		assert(await _wait_for(func(): return Net.players.size() == 2, 40.0))
+		SaveManager.mago_rescatado = true   # la mazmorra se abre con el mago rescatado
 		Net.start_game()
 	else:
 		Net.start_browsing()

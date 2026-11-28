@@ -34,6 +34,8 @@ const KEYS: Array = [
 		"amb": 1.4, "fog": Color(0.2, 0.14, 0.24), "fog_k": 0.85, "lights": 0.95, "sat": 0.95},
 ]
 
+## s que se restan al tiempo de partida para la luz (tomas del reel: enemigos de minuto 5 con luz de día)
+static var light_offset_s := 0.0
 var duration := WaveManager.BOSS_TIME_S   ## segundos de partida hasta la noche cerrada
 
 var _env: Environment
@@ -41,6 +43,9 @@ var _sky_mat: ProceduralSkyMaterial
 var _sun: DirectionalLight3D
 var _map: Node
 var _keys: Array = []
+var _raw_night: Dictionary = {}          ## la noche tal como viene la escena (antes de tocar nada)
+const SEWER_FOG := Color(0.36, 0.46, 0.28)
+const SEWER_HAZE := Color(0.5, 0.56, 0.4)
 var _yaw := 0.0
 var _acc := 0.0
 var _every := UPDATE_EVERY
@@ -69,10 +74,28 @@ func setup(we: WorldEnvironment, sun: DirectionalLight3D, map: Node = null) -> v
 			_env.background_mode = Environment.BG_COLOR
 			_env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 			_env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
+	_raw_night = _night_key()
+	set_theme(map.get_theme() if map and map.has_method("get_theme") else "forest")
+
+## Cambia la paleta para el tema del mapa (al empezar y al cruzar el portal a otro mapa) y la aplica ya.
+func set_theme(theme: String) -> void:
 	_keys = KEYS.duplicate(true)
-	_keys.append(_night_key())
+	_keys.append(_raw_night.duplicate())
+	if theme == "sewers":
+		for k in _keys:
+			_tint_sewers(k)
 	_last_t = -1.0
 	apply(_progress())
+
+## Cloacas: aire de smog verdoso (niebla más espesa y verde, horizonte sucio, sol algo amarillento).
+static func _tint_sewers(k: Dictionary) -> void:
+	k["fog"] = (k["fog"] as Color).lerp(SEWER_FOG, 0.5)
+	k["fog_k"] = float(k["fog_k"]) * 1.5
+	k["hor"] = (k["hor"] as Color).lerp(SEWER_HAZE, 0.45)
+	k["ghor"] = (k["ghor"] as Color).lerp(SEWER_HAZE * 0.6, 0.4)
+	k["top"] = (k["top"] as Color).lerp(SEWER_HAZE * 0.5, 0.25)
+	k["sun"] = (k["sun"] as Color).lerp(Color(0.92, 1.0, 0.75), 0.25)
+	k["sat"] = float(k["sat"]) * 0.94
 
 ## La noche = cómo viene la escena (el sol se toma como luna: misma dirección y color frío).
 func _night_key() -> Dictionary:
@@ -100,6 +123,7 @@ func _night_key() -> Dictionary:
 func _progress() -> float:
 	var gs := GameState.get_instance()
 	var e: float = gs.elapsed_time if gs else 0.0
+	e -= light_offset_s
 	return clampf(e / maxf(duration, 1.0), 0.0, 1.0)
 
 func _process(delta: float) -> void:

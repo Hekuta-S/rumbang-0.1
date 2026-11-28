@@ -7,6 +7,27 @@ var selected_index: int = 0
 var game_mode: String = "survival"
 ## Mundo de la mazmorra (ver WorldDefs): "caves" o "sewers". Se elige en el menú; en red lo fija el anfitrión.
 var world: String = WorldDefs.DEFAULT
+## Mapa de Supervivencia (ProceduralMap.theme): "forest" (Bosque) o "sewers" (Cloacas). Se elige al entrar; a
+## mitad de partida un portal (MapPortal) lleva al otro.
+var survival_map: String = "forest"
+const SURVIVAL_MAPS := {
+	"forest": {"name": "Bosque", "subtitle": "Colinas, cripta y bosque seco."},
+	"sewers": {"name": "Cloacas", "subtitle": "Ciudad de canales: ratas, babosas y agua sucia."},
+}
+const SURVIVAL_MAP_ORDER := ["forest", "sewers"]
+
+## Pasa al siguiente mapa de Supervivencia (botón del menú y de la arena).
+func cycle_survival_map() -> void:
+	var i := SURVIVAL_MAP_ORDER.find(survival_map)
+	survival_map = SURVIVAL_MAP_ORDER[(i + 1) % SURVIVAL_MAP_ORDER.size()]
+
+func survival_map_name(id: String = "") -> String:
+	return String((SURVIVAL_MAPS.get(id if id != "" else survival_map, SURVIVAL_MAPS["forest"]) as Dictionary)["name"])
+
+## El otro mapa (el del portal a mitad de partida).
+func other_survival_map(id: String) -> String:
+	var i := SURVIVAL_MAP_ORDER.find(id)
+	return SURVIVAL_MAP_ORDER[(i + 1) % SURVIVAL_MAP_ORDER.size()]
 
 ## Vida extra de base, igual para todos los personajes (afinar aquí).
 const BASE_HP_BONUS := 15.0
@@ -265,6 +286,9 @@ func get_texture_path(char_id: String) -> String:
 	var tex_id := "mikeura" if char_id == "heckler" else char_id
 	return "res://assets/textures/entities/%s/texture_%s.png" % [tex_id, tex_id]
 
+func _init() -> void:
+	FreshStart.run()
+
 func _ready() -> void:
 	selected_index = custom_index()
 	HitchLog.install(self)          # solo si existe user://hitch.txt (medir tirones en el dispositivo)
@@ -274,18 +298,18 @@ func _ready() -> void:
 ## Armas que se pueden equipar en el yunque del Salón (DungeonHub). La espalanza es la de siempre.
 const DUNGEON_WEAPONS: Array[int] = [WeaponData.WeaponType.SPEAR_LANCE, WeaponData.WeaponType.DAGGERS, WeaponData.WeaponType.MACE,
 	WeaponData.WeaponType.GREATSWORD, WeaponData.WeaponType.SWORD, WeaponData.WeaponType.BOW, WeaponData.WeaponType.KATANA,
-	WeaponData.WeaponType.FISTS]
+	WeaponData.WeaponType.FISTS, WeaponData.WeaponType.PISTOL, WeaponData.WeaponType.RIFLE, WeaponData.WeaponType.FIRE_STAFF]
 ## Armas que por ahora no salen en supervivencia (sí en la mazmorra): dagas, maza, espadón,
 ## espada y arco. La espalanza y el resto de armas siguen disponibles.
 const SURVIVAL_HIDDEN_WEAPONS: Array[int] = [WeaponData.WeaponType.DAGGERS, WeaponData.WeaponType.MACE,
 	WeaponData.WeaponType.GREATSWORD, WeaponData.WeaponType.SWORD, WeaponData.WeaponType.BOW, WeaponData.WeaponType.KATANA,
-	WeaponData.WeaponType.FISTS]
+	WeaponData.WeaponType.FISTS, WeaponData.WeaponType.PISTOL, WeaponData.WeaponType.RIFLE, WeaponData.WeaponType.FIRE_STAFF]
 
 ## ¿Se puede ofrecer esta arma en la partida actual? En supervivencia se ocultan las de
 ## SURVIVAL_HIDDEN_WEAPONS; en la mazmorra todas siguen disponibles.
 func weapon_available_in_mode(w: int) -> bool:
 	if game_mode == "dungeon":
-		return true
+		return w != WeaponData.WeaponType.CROSSBOW   # la ballesta es solo de supervivencia
 	return not SURVIVAL_HIDDEN_WEAPONS.has(w)
 
 ## Modelo de espadón (GreatswordModels) que lleva el yunque cuando no hay uno equipado con otro.

@@ -33,6 +33,7 @@ var combat_controller: Node
 var inventory: Node
 var stat_block: PlayerStatBlock
 var equipment: PlayerEquipment      ## Casco, pechera, pantalones, talismanes y arma (solo mazmorra)
+var item_effects: ItemEffects       ## Pasivas únicas y objeto activo de supervivencia (fuera de la mazmorra)
 
 var is_berserk: bool = false
 var berserk_timer: float = 0.0
@@ -266,12 +267,21 @@ func _ready() -> void:
 	experience_comp.experience_gained.connect(func(amount, current_xp, required_xp): emit_signal("experience_gained", amount, current_xp, required_xp))
 	experience_comp.leveled_up.connect(func(new_level): emit_signal("leveled_up", new_level))
 
+	if GameData.game_mode != "dungeon":
+		item_effects = ItemEffects.new()
+		item_effects.name = "ItemEffects"
+		item_effects.player = self
+		add_child(item_effects)
+
 	health_comp.damage_taking.connect(func(data):
 		if passive and passive.has_method("on_take_damage"):
 			data["amount"] = passive.on_take_damage(self, data["amount"])
 		# Armadura de objetos / Tryhard: reducción porcentual final
 		if stat_block:
 			data["amount"] = data["amount"] * (1.0 - stat_block.armor())
+		# Pacto de la Patasola: un golpe mortal te deja a media vida (una vez)
+		if item_effects:
+			data["amount"] = item_effects.on_incoming(data["amount"])
 	)
 
 	if combat_controller.is_auto_combat_enabled and GameData.game_mode != "dungeon":
@@ -296,6 +306,11 @@ func _ready() -> void:
 			parry_controller.try_parry()
 	)
 	input_controller.attack_pressed.connect(attack)
+	input_controller.charge_started.connect(func():
+		if not is_finishing():
+			combat_controller.request_melee_charge()
+	)
+	input_controller.charge_released.connect(func(): combat_controller.release_melee_charge())
 	input_controller.alt_attack_pressed.connect(_on_alt_attack_pressed)
 	input_controller.alt_attack_released.connect(_on_alt_attack_released)
 	input_controller.reload_pressed.connect(start_reload)
@@ -639,6 +654,15 @@ func activate_skill() -> void:
 	if is_instance_valid(interact_target) and interact_target.has_method("interact"):
 		interact_target.interact()
 		return
+	# Mazmorra: con amuleto equipado, la E usa su activa en lugar del Berserk (en enfriamiento no hace nada)
+	if GameData.game_mode == "dungeon" and equipment and equipment.has_amulet():
+		if not equipment.use_amulet():
+			EquipmentPickup.toast(self, "Amuleto: %d s" % ceili(equipment.amulet_cooldown_left()), Color(0.7, 0.7, 0.7))
+		return
+	# Supervivencia: si llevas un objeto activo, la E lo usa en lugar del Berserk
+	if item_effects and item_effects.has_active():
+		item_effects.use_active()
+		return
 	if skill_cd_timer > 0: return
 	skill_cd_timer = skill_cooldown
 	# Habilidad propia de la pasiva (p. ej. el teletransporte de Heckler)
@@ -728,6 +752,8 @@ func take_damage(amount: float, direction: Vector3 = Vector3.ZERO) -> void:
 			EquipmentPickup.toast(self, "ABSORBIDO", EquipmentDB.RULE_COLOR)
 			RunLog.proc("rule:vacio")
 			return
+		if landed and equipment and equipment.mirror_active():
+			amount = AmuletActives.mirror_incoming(equipment, amount)   # amuleto Espejo del Mohán
 		if landed and GameData.game_mode == "dungeon":
 			amount *= DungeonRun.incoming_mult()          # cofre maldito
 			if DungeonRun.second_wind_ready():
@@ -737,6 +763,8 @@ func take_damage(amount: float, direction: Vector3 = Vector3.ZERO) -> void:
 		if landed:
 			HitFeedback.on_player_hit(self, amount, direction)
 			notify_equipment("hurt")
+			if item_effects:
+				item_effects.on_hurt()
 			if movement_controller:
 				movement_controller.note_combat()    # el espadón deja de correr al recibir un golpe
 
@@ -766,6 +794,8 @@ func on_damage_dealt(amount: float, weapon_type: int = -1) -> void:
 	if weapon_type < 0 or weapon_inventory == null or amount <= 0.0:
 		return
 	var steal: float = float(get_weapon_modifiers(weapon_type).get("lifesteal", 0.0))
+	if item_effects:
+		steal += item_effects.lifesteal()   # Sangre de Mohán
 	if steal <= 0.0:
 		return
 	if hp <= 0.0 or hp >= max_hp:
@@ -972,7 +1002,8 @@ func _on_alt_attack_pressed() -> void:
 		combat_controller.start_bow_charge()     # tensar: al soltar sale la flecha cargada
 	elif current_weapon() == WeaponData.WeaponType.FISTS and GameData.game_mode == "dungeon":
 		combat_controller.fists_special()
-	elif current_weapon() == WeaponData.WeaponType.GREATSWORD or current_weapon() == WeaponData.WeaponType.SWORD:
+	elif current_weapon() in [WeaponData.WeaponType.GREATSWORD, WeaponData.WeaponType.SWORD, WeaponData.WeaponType.PISTOL,
+			WeaponData.WeaponType.RIFLE, WeaponData.WeaponType.FIRE_STAFF]:
 		pass    # el espadón y la espada no tienen especial: su fuerza es andar/correr y el ataque con carrerilla
 	elif current_weapon() == WeaponData.WeaponType.FLAME_THROWER and GameData.game_mode == "dungeon":
 		combat_controller.flame_blast()
